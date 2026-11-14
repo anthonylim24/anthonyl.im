@@ -23,9 +23,11 @@ describe("worldPrompt", () => {
 
   test("a page without the 3D scene gets a short note instead of the order format", () => {
     const note = worldPrompt({ items: [], place: "studio", unavailable: true });
-    expect(note).not.toContain(WORLD_MARK);
+    // It forbids the marker; it must not teach the order format.
+    expect(note).not.toContain('"ops"');
+    expect(note).toContain(`Never write a line starting with "${WORLD_MARK}"`);
     expect(note).toContain("isn't up right now");
-    expect(note.length).toBeLessThan(700);
+    expect(note.length).toBeLessThan(900);
   });
 
   test("every example answer is valid JSON behind the marker", () => {

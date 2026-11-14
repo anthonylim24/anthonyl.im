@@ -88,7 +88,7 @@ describe("POST /api/invoke", () => {
     expect(withWorld.system).toContain("@@world");
     expect(withWorld.system).toContain('{"items":["ball"],"place":"beach","weather":"rain"}');
     const noScene = await systemFor({ prompt: "give him a kite", world: { unavailable: true } });
-    expect(noScene.system).not.toContain("@@world");
+    expect(noScene.system).not.toContain('"ops"');
     expect(noScene.system).toContain("isn't up right now");
   });
 
