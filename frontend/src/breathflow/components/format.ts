@@ -24,3 +24,11 @@ export function formatLocalTime(iso: string): string {
   if (Number.isNaN(date.getTime())) return ''
   return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
+
+/** "45 min", then "3 h 10 min" once it passes an hour (totals over weeks). */
+export function formatMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`
+}

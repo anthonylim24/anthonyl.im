@@ -4,12 +4,16 @@ import { sx } from '@/styles/merge'
 import { getAverageMoodShift } from '@/lib/mood'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { ActivityHeatmap } from '../components/ActivityHeatmap'
 import { BadgeGrid } from '../components/BadgeGrid'
 import { HistoryList } from '../components/HistoryList'
 import { HoldChart } from '../components/HoldChart'
 import { LevelRing } from '../components/LevelRing'
+import { CalmByTechnique, DayParts, LifetimeFigures, WeeklyTrend } from '../components/PracticePatterns'
 import { btn } from '../components/buttonStyles.stylex'
+import { getLevelTitle, levelForXP } from '../gamify/levels'
+import { getCalmByTechnique, getDayParts, getLastSevenDays, getLifetime, getWeeklyMinutes } from '../gamify/patterns'
 import { getWeekSummary } from '../gamify/practiceWeek'
 import { techniquePigment } from '../pigments'
 import { getProtocol, PROTOCOLS } from '../protocols/catalog'
@@ -17,6 +21,7 @@ import { bf } from '../styles/breathflow.stylex'
 import { pg } from '../styles/progress.stylex'
 import { wc } from '../styles/watercolor.stylex'
 import { buildSessionPath } from '../session/urlParams'
+import { shareWeekCard, type ShareOutcome } from '../share/weekCard'
 
 function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -41,6 +46,9 @@ export function ProgressPage() {
   const clearHistory = useHistoryStore((state) => state.clearHistory)
   const xp = useGamificationStore((state) => state.xp)
   const earnedBadges = useGamificationStore((state) => state.earnedBadges)
+  const streak = useHistoryStore((state) => state.getStreak())
+  const night = useSettingsStore((state) => state.theme === 'dark')
+  const [shareNote, setShareNote] = useState<ShareOutcome | 'working' | null>(null)
 
   const [confirmingClear, setConfirmingClear] = useState(false)
   const confirmClearRef = useRef<HTMLButtonElement>(null)
@@ -51,6 +59,15 @@ export function ProgressPage() {
 
   const week = useMemo(() => getWeekSummary(sessions), [sessions])
   const moodTrend = useMemo(() => getAverageMoodShift(sessions), [sessions])
+  const patterns = useMemo(
+    () => ({
+      weeks: getWeeklyMinutes(sessions),
+      dayParts: getDayParts(sessions),
+      calm: getCalmByTechnique(sessions),
+      lifetime: getLifetime(sessions),
+    }),
+    [sessions],
+  )
   const hasHoldSessions = sessions.some((session) => session.maxHoldTime > 0)
   const bests = PROTOCOLS
     .map((protocol) => ({ protocol, best: personalBests[protocol.id] }))
@@ -78,9 +95,28 @@ export function ProgressPage() {
   }
 
   const weekTopProtocol = week.topTechniqueId ? getProtocol(week.topTechniqueId) : null
+  const pigmentId = weekTopProtocol?.id ?? sessions[0].techniqueId
+
+  const share = async () => {
+    setShareNote('working')
+    const level = levelForXP(xp)
+    setShareNote(
+      await shareWeekCard({
+        minutes: week.minutes,
+        activeDays: week.activeDays,
+        streak,
+        level,
+        levelTitle: getLevelTitle(level),
+        days: getLastSevenDays(sessions),
+        technique: weekTopProtocol?.name ?? null,
+        pigment: techniquePigment(pigmentId),
+        night,
+      }),
+    )
+  }
 
   return (
-    <div {...sx(pg.root)} style={pigmentVars(weekTopProtocol?.id ?? sessions[0].techniqueId)}>
+    <div {...sx(pg.root)} style={pigmentVars(pigmentId)}>
       <header>
         <p {...sx(wc.eyebrow)}>The last seven days</p>
         <h1 {...sx('bf-display', wc.pageTitle, pg.title)}>Progress</h1>
@@ -93,6 +129,23 @@ export function ProgressPage() {
           {week.nextStep}
           {week.performanceNote ? ` ${week.performanceNote}` : ''}
         </p>
+        <div {...sx(pg.share)}>
+          <button type="button" {...sx(btn.base, btn.secondary)} onClick={() => void share()} disabled={shareNote === 'working'}>
+            Share this week
+          </button>
+          <p role="status" aria-live="polite" {...sx(pg.shareNote)}>
+            {shareNote === 'working'
+              ? 'Painting the card…'
+              : shareNote === 'saved'
+                ? 'Saved as breathflow-week.png.'
+                : shareNote === 'shared'
+                  ? 'Shared.'
+                  : shareNote === 'failed'
+                    ? 'Could not make the card on this device.'
+                    : ''}
+          </p>
+        </div>
+        <LifetimeFigures lifetime={patterns.lifetime} streak={streak} />
       </header>
 
       <div {...sx(pg.pair)}>
@@ -104,6 +157,15 @@ export function ProgressPage() {
         </Section>
       </div>
 
+      <div {...sx(pg.pair)}>
+        <Section title="Eight weeks">
+          <WeeklyTrend weeks={patterns.weeks} />
+        </Section>
+        <Section title="When you practise">
+          <DayParts summary={patterns.dayParts} />
+        </Section>
+      </div>
+
       {moodTrend && (
         <Section title="Calm shift">
           <p {...sx(pg.calm)}>
@@ -112,6 +174,7 @@ export function ProgressPage() {
             <span {...sx(pg.calmFigure)}>{Math.abs(moodTrend.averageShift)}</span>{' '}
             points, and {Math.round(moodTrend.positiveRate * 100)}% ended calmer than they began.
           </p>
+          <CalmByTechnique rows={patterns.calm} />
         </Section>
       )}
 

@@ -200,4 +200,145 @@ export const pg = stylex.create({
     height: '9rem',
     overflow: 'visible',
   },
+
+  // ── Header actions and lifetime figures ──────────────────────────
+  share: {
+    marginTop: '1.25rem',
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.75rem 1rem',
+  },
+  shareNote: {
+    fontSize: '0.875rem',
+    color: 'var(--bw-text-secondary)',
+  },
+  figures: {
+    marginTop: '2rem',
+    display: 'grid',
+    gridTemplateColumns: { default: 'repeat(2, minmax(0, 1fr))', '@media (min-width: 640px)': 'repeat(4, minmax(0, 1fr))' },
+    gap: '1.25rem 2rem',
+    maxWidth: '40rem',
+  },
+  figureValue: {
+    display: 'block',
+    fontFamily: '"Fraunces", ui-serif, Georgia, serif',
+    fontSize: '2rem',
+    lineHeight: 1.05,
+    letterSpacing: '-0.02em',
+    fontVariantNumeric: 'lining-nums tabular-nums',
+    whiteSpace: 'nowrap',
+    color: 'var(--bw-text)',
+  },
+  figureLabel: {
+    display: 'block',
+    marginTop: '0.3rem',
+    fontSize: '0.8125rem',
+    color: 'var(--bw-text-secondary)',
+  },
+
+  // ── Eight-week trend ─────────────────────────────────────────────
+  trend: {
+    display: 'grid',
+    gridAutoFlow: 'column',
+    gridAutoColumns: 'minmax(0, 1fr)',
+    alignItems: 'end',
+    columnGap: 'clamp(0.4rem, 2vw, 1rem)',
+    height: '10.5rem',
+    maxWidth: '34rem',
+  },
+  trendWeek: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    height: '100%',
+    minWidth: 0,
+  },
+  trendValue: {
+    marginBottom: '0.3rem',
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--bw-text-secondary)',
+  },
+  trendValueNow: {
+    color: 'var(--bw-text)',
+    fontWeight: 600,
+  },
+  trendBar: {
+    width: '100%',
+    maxWidth: '2.4rem',
+    minHeight: '3px',
+    borderRadius: '45% 55% 6% 6% / 14% 12% 4% 4%',
+    backgroundColor: 'color-mix(in srgb, var(--bf-mass) 34%, transparent)',
+  },
+  trendBarNow: {
+    backgroundColor: 'color-mix(in srgb, var(--bf-mass) 82%, transparent)',
+  },
+  trendBarEmpty: {
+    backgroundColor: 'color-mix(in srgb, var(--bw-text) 12%, transparent)',
+    borderRadius: '2px',
+  },
+  trendLabel: {
+    marginTop: '0.45rem',
+    fontSize: '10px',
+    letterSpacing: '0.04em',
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
+    color: 'var(--bw-text-tertiary)',
+  },
+  patternNote: {
+    marginTop: '1rem',
+    fontSize: '0.9375rem',
+    lineHeight: 1.55,
+    color: 'var(--bw-text-secondary)',
+    maxWidth: '38rem',
+  },
+
+  // ── Time of day ──────────────────────────────────────────────────
+  parts: {
+    display: 'grid',
+    rowGap: '0.6rem',
+    maxWidth: '26rem',
+  },
+  part: {
+    display: 'grid',
+    gridTemplateColumns: '5.5rem minmax(0, 1fr) 2rem',
+    alignItems: 'center',
+    columnGap: '0.75rem',
+    fontSize: '0.875rem',
+    color: 'var(--bw-text-secondary)',
+  },
+  partTop: {
+    color: 'var(--bw-text)',
+  },
+  partTrack: {
+    height: '0.7rem',
+  },
+  partFill: {
+    display: 'block',
+    height: '100%',
+    minWidth: '3px',
+    borderRadius: '0.5rem 0.35rem 0.45rem 0.3rem',
+    backgroundColor: 'color-mix(in srgb, var(--bf-mass) 36%, transparent)',
+  },
+  partFillTop: {
+    backgroundColor: 'color-mix(in srgb, var(--bf-mass) 82%, transparent)',
+  },
+  partCount: {
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+  },
+
+  // ── Calm by technique ────────────────────────────────────────────
+  calmList: {
+    marginTop: '1.25rem',
+    maxWidth: '40rem',
+  },
+  calmCount: {
+    fontSize: '0.8125rem',
+    color: 'var(--bw-text-tertiary)',
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
+  },
 })
