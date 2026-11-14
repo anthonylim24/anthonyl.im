@@ -88,7 +88,8 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
 async function groqStream(prompt: string, messages: GeminiTurn[], system: string): Promise<AsyncIterable<string>> {
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   const completion = await groq.chat.completions.create({
-    messages: [...messages, { role: "system", content: system }, { role: "user", content: prompt }],
+    messages: [{ role: "system", content: system }, ...messages, { role: "user", content: prompt }],
+    max_completion_tokens: 2500,
     model: GROQ_MODEL,
     stream: true,
   });

@@ -100,7 +100,8 @@ export function LimStage({
           }
           // Whether the first thing asked for could be done (there may be nothing by that name to act on).
           if (i === 0) did = run()
-          else window.setTimeout(run, i * 900)
+          // If the first could not be done, the rest of the order is off too.
+          else if (did) window.setTimeout(run, i * 900)
         })
         return did
       },

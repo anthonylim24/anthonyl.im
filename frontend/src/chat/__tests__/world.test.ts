@@ -283,7 +283,9 @@ describe('reading the model\'s world order', () => {
     // Wrapped or prefaced by the model: found once the reply is complete.
     expect(hasWorldOrder('```\n@@world {"ops":[]}\n```')).toBe(true)
     expect(hasWorldOrder('Sure!\n@@world {"ops":[]}')).toBe(true)
-    expect(hasWorldOrder('The marker is @@world {…} in the docs')).toBe(false)
+    // Mid-line, quoted or bulleted: still an order. Merely mentioning the marker is not.
+    for (const text of ['Sure! @@world {"ops":[]}', '> @@world {"ops":[]}', '- @@world {"ops":[]}', '**@@world {']) expect(hasWorldOrder(text), text).toBe(true)
+    expect(hasWorldOrder('The docs mention @@world orders.')).toBe(false)
     for (const early of ['`', '```', '```json', '```json\n', '```\n@@wo', '\n\n@']) expect(maybeWorldReply(early), JSON.stringify(early)).toBe(true)
     expect(maybeWorldReply('```js\nconst x = 1')).toBe(false)
   })

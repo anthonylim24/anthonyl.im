@@ -6,8 +6,8 @@ import { WORLD_MARK, cleanItem, cleanOps, cleanPlace, cleanTweak, type ItemSpec,
 
 export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
 
-/** A finished or streaming reply with the marker at the start of some line (bare, fenced, or prefaced). */
-export const hasWorldOrder = (content: string) => new RegExp(`(^|\\n)[\\s\`]*${WORLD_MARK}`).test(content)
+/** A finished or streaming reply that carries an order: the marker and its opening brace, wherever the model put them (bare, fenced, quoted, after a preface). */
+export const hasWorldOrder = (content: string) => new RegExp(`^\\s*${WORLD_MARK}|${WORLD_MARK}\\s*\\{`).test(content)
 
 /**
  * What a reply looks like so far: an order ("yes"), prose ("no"), or too early

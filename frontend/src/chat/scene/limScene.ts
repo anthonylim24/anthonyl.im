@@ -2496,7 +2496,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
             const b = bodies.indexOf(toy.jelly)
             if (b >= 0) bodies.splice(b, 1)
           } else removeToy(toy, false)
-        } else if (action !== 'look') return false
+        }
+        // Anything else is a performance Lim is not giving; the item is still there (the page says so).
         stage.requestRender()
         return true
       }
