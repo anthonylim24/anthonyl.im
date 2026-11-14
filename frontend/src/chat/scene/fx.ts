@@ -164,6 +164,11 @@ export class Tuft {
     this.x = new Float32Array(this.n * 3)
     this.v = new Float32Array(this.n * 3)
     this.last = new Float32Array(this.n * 3)
+    this.lengths = rest.map((_, i) => {
+      let l = 0
+      for (let k = 1; k <= i; k++) l += Math.hypot(rest[k][0] - rest[k - 1][0], rest[k][1] - rest[k - 1][1], rest[k][2] - rest[k - 1][2])
+      return l
+    })
     const verts = RINGS * SIDES + 1
     this.pos = new Float32Array(verts * 3)
     this.nrm = new Float32Array(verts * 3)
@@ -199,30 +204,36 @@ export class Tuft {
    * − stands to attention (startled).
    */
   bend = 0
+  floor = 0.07
+  /** Length scale (a short stage wears a shorter tuft). */
+  scale = 1
+  /** Distance of each point from the root along the rest curve. */
+  private readonly lengths: number[]
 
   /** `attach` maps a rest-space point to where the body has it now. */
   step(dt: number, attach: (rest: Vec3, out: Vec3) => Vec3) {
     const { x, v, n, target } = this
+    const posed: Vec3 = [0, 0, 0]
     const snap = dt <= 0 || !this.started
     this.started = true
     const steps = snap ? 1 : 3
     const h = dt / steps
+    const root = this.rest[0]
+    const amount = Math.min(1, Math.abs(this.bend))
     for (let i = 0; i < n; i++) {
-      attach(this.rest[i], target)
+      // Pose the tuft in rest space, then let the body carry it: its own curl,
+      // blended toward a limp arc laid over to one side (wilting) or a straight
+      // stalk (startled). Neither pose brings the tip back toward the head.
+      const w = i / (n - 1)
+      const lean = this.bend > 0 ? 0.4 + 0.75 * w : 0
+      const len = this.lengths[i]
+      const ox = this.rest[i][0] - root[0]
+      const oy = this.rest[i][1] - root[1]
+      posed[0] = root[0] + (ox + (Math.sin(lean) * len - ox) * amount) * this.scale
+      posed[1] = root[1] + (oy + (Math.cos(lean) * len - oy) * amount) * this.scale
+      posed[2] = this.rest[i][2]
+      attach(posed, target)
       const j = i * 3
-      if (i > 0 && this.bend !== 0) {
-        const w = i / (n - 1)
-        const side = this.rest[i][0] - this.rest[0][0]
-        if (this.bend > 0) {
-          // Wilt: the tip sags down and out.
-          target[1] -= this.bend * 0.3 * w * w
-          target[0] += this.bend * 0.12 * w
-        } else {
-          // Perk: uncurl straight up.
-          target[0] += this.bend * side * 0.85
-          target[1] -= this.bend * (0.1 * w + Math.abs(side) * 0.55)
-        }
-      }
       // The body only moves once per frame, so spread its motion over the substeps.
       const tvx = snap ? 0 : (target[0] - this.last[j]) / dt
       const tvy = snap ? 0 : (target[1] - this.last[j + 1]) / dt
@@ -262,6 +273,8 @@ export class Tuft {
           x[j + 1] = target[1] + dy * q
           x[j + 2] = target[2] + dz * q
         }
+        // It lies on the floor; it never goes through it.
+        if (x[j + 1] < this.floor) x[j + 1] = this.floor
       }
       this.last[j] = target[0]
       this.last[j + 1] = target[1]
@@ -292,7 +305,7 @@ export class Tuft {
     let tz = 0
     let rad = radii[0]
     for (let r = 0; r < RINGS; r++) {
-      let ringRad = rad
+      let ringRad: number
       let fwd = 0
       let lean = 0
       if (r < BODY) {

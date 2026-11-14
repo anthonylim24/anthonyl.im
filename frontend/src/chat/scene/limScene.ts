@@ -229,7 +229,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const tinted = mix(col(PAL.top), u.tint as unknown as V3, u.tintAmt)
     tuftMat.colorNode = gel(n, n, {
       base: mix(tinted, col('#D9939B'), u.sad.mul(0.4)).mul(mix(float(1), float(0.84), u.night)),
-      shade: mix(col(PAL.shade), col('#9A3A7C'), u.night),
+      // A lighter shade than the body's: at this size a full shadow band reads as a dark nick in the tip.
+      shade: mix(mix(col(PAL.shade), col(PAL.top), 0.55), col('#9A3A7C'), u.night),
       light: col(PAL.light),
       rim: mix(col(PAL.rim), col(PAL.nightRim), u.night),
       rimAmt: float(0.4),
@@ -305,8 +306,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const toys = TOYS.map(({ kind, hex, shade }) => {
     const shape = kind === 'bean' ? beanShape : ballShape
     const jelly = new Jelly(shape.positions, kind === 'bean'
-      ? { stiffness: 0.3, beta: 0.16, damping: 1.1, maxStray: 0.09, gravity: [0, -16, 0], floor: 0, friction: 0.35, substeps: 2 }
-      : { stiffness: 0.3, beta: 0.2, damping: 0.35, gravity: [0, -16, 0], floor: 0, friction: 0.86, substeps: 2 })
+      ? { stiffness: 0.34, beta: 0.04, damping: 1.1, maxStray: 0.06, gravity: [0, -16, 0], floor: 0, friction: 0.35, substeps: 2 }
+      : { stiffness: 0.34, beta: 0.05, damping: 0.35, maxStray: 0.06, gravity: [0, -16, 0], floor: 0, friction: 0.86, substeps: 2 })
     const geo = skinnedJellyGeometry(jelly, shape.index)
     const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shade))
     const hull = new THREE.Mesh(geo, hullMaterial(ink, 0.016))
@@ -354,6 +355,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let wide = true
   const camBase = new THREE.Vector3()
   let camTargetY = 0
+  // Desktop layout (the page's own breakpoint): the stage dissolves over its
+  // last 72px before the chat panel. The camera slides over by half of that so
+  // Lim stands in the middle of what's visible, and `reach` is the half-width
+  // of that visible stage.
+  const desk = window.matchMedia('(min-width: 1024px)')
+  let shiftX = 0
+  let reach = 2.5
   const layout = (sw: number, sh: number) => {
     w = sw
     h = sh
@@ -365,11 +373,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(FOV / 2))
     camTargetY = (FLOOR_LINE - 0.5) * vh
     camera.aspect = aspect
-    camBase.set(0, camTargetY + dist * Math.sin(PITCH), dist * Math.cos(PITCH))
+    unit = sh / vh
+    shiftX = desk.matches ? 36 / unit : 0
+    camBase.set(shiftX, camTargetY + dist * Math.sin(PITCH), dist * Math.cos(PITCH))
     camera.position.copy(camBase)
-    camera.lookAt(0, camTargetY, 0)
+    camera.lookAt(shiftX, camTargetY, 0)
     camera.updateProjectionMatrix()
     halfW = (vh * aspect) / 2
+    reach = halfW - shiftX
     topY = camTargetY + vh / 2 - 0.05
     unit = sh / vh
   }
@@ -380,12 +391,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   // Toys stand clear of Lim and of each other: a bean and the gumball on a
   // narrow stage, all four on a wide one.
   {
-    const right = halfW - 0.06 - (window.matchMedia('(min-width: 1024px)').matches ? 104 / unit : 0)
     const roomy = halfW >= 3.1
     // Lim's skirt reaches 1.42 either side; a narrow stage leaves room for one toy each side.
     const seats: [number, number][] = roomy
-      ? [[-1.75, 0.1], [1.75, 0.3], [Math.min(right - 0.34, 2.45), 0.05], [-2.45, 0.4]]
-      : [[-9, 0], [Math.min(right - 0.34, 1.75), 0.25], [-9, 0], [-Math.min(halfW - 0.5, 1.8), 0.25]]
+      ? [[-1.75, 0.1], [1.75, 0.3], [Math.min(reach - 0.6, 2.45), 0.05], [-Math.min(reach - 0.6, 2.45), 0.4]]
+      : [[-9, 0], [Math.min(reach - 0.6, 1.75), 0.25], [-9, 0], [-Math.min(reach - 0.6, 1.75), 0.25]]
     toys.forEach((toy, i) => {
       toy.slot = seats[i][0]
       toy.depth = seats[i][1]
@@ -444,6 +454,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let lastShout = -9
   let lastKey = 0
   let inflate = 0
+  let nextShiver = 0
+  let shiverSide = 1
   let full = 0
   let chewUntil = 0
   let chewSide = 1
@@ -752,8 +764,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     limShadow.mesh.visible = true
     bodies.unshift(lim)
     popped = null
-    entryScale = 0.5
-    entryVel = 0
+    entryScale = 0.32
+    entryVel = 2
     squash.x = 0
     squash.v = 0
     setAct('happy', 1.6)
@@ -777,28 +789,30 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       toy.backAt = t + 6 + Math.random() * 3
       toy.jelly.anchor = null
       full += 1
-      chewUntil = t + 0.76
-      setAct('chew', 1.3)
+      chewUntil = t + 0.95
+      // Eyes half open for the first chews, shut to savour the rest.
+      setAct('munch', 0.42)
+      later(0.42, () => setAct('chew', 1.1))
       // Four chews, cheeks out on each, then the swallow.
-      for (let k = 0; k < 4; k++) {
-        later(0.06 + k * 0.16, () => {
-          cheeks.v += 5.5
+      for (let k = 0; k < 5; k++) {
+        later(0.06 + k * 0.17, () => {
+          cheeks.v += 9
           chewSide = k % 2 ? 1 : -1
           lim.kick(chewSide * 0.18, 0, 0)
           u.browL.value.y += 0.02
           sound.blip()
         })
       }
-      later(0.76, () => {
+      later(0.95, () => {
         squash.v -= 1.1
         sound.gulp()
         // The colour rises from the belly as the bean goes down.
         u.tint.value.set(toy.hex)
-        u.tintLevel.value = -0.9
+        u.tintLevel.value = 0.1
         tintGoal = 0.56
         tintUntil = t + 9
       })
-      later(1.25, () => {
+      later(1.45, () => {
         happyUntil = t + 1.2
         emote(full >= 3 ? 'so full…' : 'yum!')
         if (full >= 3) later(0.9, () => nod('now'))
@@ -941,9 +955,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const busy = grabbed || mood === 'thinking' || mood === 'talking' || Boolean(dance || flip || spin) || t < dizzyUntil
     if (call && t > call.until) call = null
 
-    // Home: centre stage, a step toward the chat while you type (desktop), or
+    // Home: centre stage, a step toward the chat while you type (where there's room), or
     // wherever the floor was last tapped.
-    const homeX = call ? call.x : wide && (mood === 'typing' || mood === 'talking') ? Math.max(0, halfW - 1.5) * 0.4 : 0
+    const homeX = call ? call.x : reach >= 3.1 && (mood === 'typing' || mood === 'talking') ? 0.3 : 0
     const homeZ = call ? call.z : 0
     const off = homeX - lim.center[0]
     const offZ = homeZ - lim.center[2]
@@ -951,6 +965,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       const dir = Math.sign(off) * Math.min(1, Math.abs(off))
       jump(dir * 2.3, 4.6, offZ * 1.6, 0.08)
       nextHomeHop = t + 0.75
+    }
+
+    // Puffed up and worried: a shiver, and a nervous blink.
+    if (inflate > 0 && t > nextShiver) {
+      shiverSide = -shiverSide
+      lim.kick(shiverSide * 0.45, 0, 0)
+      nextShiver = t + 0.06
+      if (Math.random() < 0.06) blinkUntil = t + 0.12
     }
 
     // Poke combo wears off; a full tummy settles; a tint fades.
@@ -961,7 +983,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     full = Math.max(0, full - dt * 0.04)
     if (t > tintUntil) tintGoal = 0
     u.tintAmt.value = ease(u.tintAmt.value, tintGoal, tintGoal > 0 ? 9 : 0.5, dt)
-    u.tintLevel.value = Math.min(2, u.tintLevel.value + dt * 2.6)
+    u.tintLevel.value = Math.min(3, u.tintLevel.value + dt * 2.3)
     cheeks.v += (-260 * cheeks.x - 16 * cheeks.v) * dt
     cheeks.x += cheeks.v * dt
 
@@ -1030,7 +1052,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // The grabbed patch can't turn with the body, so in hand Lim is held
     // facing you: no folding round the grip, and the face stays in view.
     if (!flip && !spin) lim.upright = grabbed ? 0.6 : UPRIGHT
-    lim.beta = LIM_BETA + (0.44 - LIM_BETA) * goo
+    lim.beta = flip ? 0.04 : LIM_BETA + (0.44 - LIM_BETA) * goo
     lim.stiffness = LIM_STIFF + (0.095 - LIM_STIFF) * goo + (0.3 - LIM_STIFF) * firm
     if (shaken > 1.6 && !grabbed) dizzy()
     prevV[0] = vbar[0]
@@ -1099,6 +1121,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const stretch = hang || airborne && !grabbed && !flip ? hang - Math.min(0.2, Math.abs(vbar[1]) * 0.022 + speed * 0.006) : 0
     squash.v += (-150 * (squash.x - droop - stretch) - 10 * squash.v) * dt
     squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.34, 0.4)
+    // A cartwheel turns as one clean shape: no squash riding through it.
+    if (flip && t > flip.t0) {
+      squash.x *= Math.exp(-14 * dt)
+      squash.v *= Math.exp(-14 * dt)
+    }
     entryVel += (-120 * (entryScale - 1) - 7 * entryVel) * dt
     entryScale += entryVel * dt
     if (size.until && t > size.until) {
@@ -1112,7 +1139,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const breathe = sleep === 'asleep' ? Math.sin(t * 1.8) * 0.045 : Math.sin(t * 2.1) * (mood === 'thinking' ? 0.03 : 0.024)
     lim.scale = entryScale * size.x * (1 + breathe) * (mood === 'sad' ? 0.975 : 1)
     info.get(lim)!.r = lim.scale
-    lim.squash[0] = 1 + squash.x * 0.55 + Math.max(-0.05, cheeks.x) * 0.5
+    lim.squash[0] = 1 + squash.x * 0.55
     lim.squash[2] = 1 + squash.x * 0.55
     lim.squash[1] = 1 - squash.x
   }
@@ -1145,7 +1172,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         }
         burst(30, 0.9)
       })
-      later(0.34, merge)
+      later(0.24, merge)
     }
   }
 
@@ -1210,17 +1237,12 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
   }
 
-  // Desktop layout (the page's own breakpoint): the stage dissolves over its
-  // last 72px before the chat panel, so the right wall stands in front of that.
-  const desk = window.matchMedia('(min-width: 1024px)')
-  const fadeInset = () => (desk.matches ? 104 / unit : 0)
-
   /** Stage walls and ceiling. Returns the hardest wall hit this frame. */
   const walls = (body: Jelly) => {
     // Bodies meet the stage edges whole: the body is moved back inside and its
     // motion reflected, so nothing is ever sliced flat by an invisible plane.
-    const X = halfW - (body === lim ? 0.06 : 0.24)
-    const XR = X - fadeInset()
+    const X = reach - (body === lim ? 0.06 : 0.24)
+    const XR = X
     const { x } = body
     let minX = Infinity
     let maxX = -Infinity
@@ -1542,7 +1564,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       camBase.y - par.y * 0.1 + Math.cos(t * 53) * shake,
       camBase.z,
     )
-    camera.lookAt(par.x * 0.05, camTargetY, 0)
+    camera.lookAt(shiftX + par.x * 0.05, camTargetY, 0)
   }
 
   // The gumdrop's flat base belongs to the floor: off the ground it rounds out
@@ -1563,6 +1585,27 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       const k = amt * Math.min(1, (-0.35 - y) / 0.4) * Math.max(0, 1 - r2)
       out[i] += down.x * k
       out[i + 1] = Math.max(0, out[i + 1] + down.y * k)
+      out[i + 2] += down.z * k
+    }
+  }
+
+  // Chewing: the cheek on the chewing side bulges out, alternating with each chew.
+  const puffCheek = () => {
+    const amt = Math.max(0, cheeks.x) * 0.5
+    if (amt < 0.004) return
+    const out = limGeo.attributes.position.array as Float32Array
+    down.set(chewSide, 0, 0).applyQuaternion(quat.set(...lim.rotation))
+    for (let i = 0; i < out.length; i += 3) {
+      const x = limRestAttr[i] * chewSide
+      const y = limRestAttr[i + 1]
+      const z = limRestAttr[i + 2]
+      if (x < 0.15 || z < 0) continue
+      // A soft bump centred on the cheek.
+      const d2 = ((x - 0.62) / 0.42) ** 2 + ((y + 0.1) / 0.36) ** 2
+      if (d2 >= 1) continue
+      const k = amt * (1 - d2) ** 2
+      out[i] += down.x * k
+      out[i + 1] += down.y * k
       out[i + 2] += down.z * k
     }
   }
@@ -1591,7 +1634,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         if (body === lim && hit > 7 && t - lastBonk > 0.35) {
           lastBonk = t
           const side = Math.sign(lim.center[0])
-          sparkle(side > 0 ? halfW - 0.2 - fadeInset() : -halfW + 0.2, lim.center[1] + 0.3, lim.center[2] + 0.6, 7)
+          sparkle(side * (reach - 0.2), lim.center[1] + 0.3, lim.center[2] + 0.6, 7)
           setAct('hit', 0.45)
           shake += 0.04
           shaken += 0.75
@@ -1609,12 +1652,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       updateCamera(dt)
     }
     updateFace(dt)
+    tuft.scale = topY < 3 ? 0.7 : 1
     tuft.step(dt, (rest, out) => lim.attach(rest, out))
     for (const p of pools) p.step(dt, t, camera)
     if (!popped) {
       // Lim is drawn as a smooth skin over the particles: all of the squash,
       // stretch and tumble, a soft-limited share of the ripples, never a crease.
-      skinJelly(limGeo, lim, 0.06, 0)
+      skinJelly(limGeo, lim, flip ? 0.02 : 0.06 - 0.03 * Math.min(1, shaken), 0)
+      puffCheek()
       roundBase()
       syncJellyGeometry(limGeo)
       u.rot.value.setFromMatrix4(rotM4.makeRotationFromQuaternion(quat.set(...lim.rotation)))
@@ -1811,7 +1856,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         setAct('shock', 0.9)
         if (t - lastShout < 1.5) return
         lastShout = t
-        lim.kick(-0.6, 2.6, 0)
+        lim.kick(-0.4, 1.7, 0)
         emote('eep!')
         sound.squeak()
       } else if (kind === 'wink') {

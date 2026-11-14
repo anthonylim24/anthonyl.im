@@ -122,7 +122,8 @@ export const FACES = {
   yawn: face({ w: 0.1, curve: 0, open: 0.2, o: 1, blush: 0.5, lidTop: 0.04, lidBot: 0.2, seam: -0.1, brow: 1, browL: [0.12, 0.08], browR: [-0.12, 0.08] }),
   asleep: face({ w: 0.07, curve: 1.4, open: 0.015, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.25, smile: -0.8 }),
   aah: face({ w: 0.27, curve: 0.6, open: 0.36, o: 1, blush: 0.7, lidTop: 1.05, brow: 1, browL: [-0.12, 0.1], browR: [0.12, 0.1], pupil: 1.15 }),
-  chew: face({ w: 0.19, curve: 1.2, open: 0, blush: 0.95, ...HAPPY_EYES }),
+  munch: face({ w: 0.15, curve: 1.8, open: 0, blush: 0.9, lidTop: 0.5, lidBot: 0.85, brow: 1, browL: [-0.1, 0.06], browR: [0.1, 0.06] }),
+  chew: face({ w: 0.15, curve: 1.8, open: 0, blush: 0.95, ...HAPPY_EYES }),
   hit: face({ w: 0.11, curve: -1.6, open: 0.02, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.1, smile: -1, brow: 1, browL: [-0.45, -0.02], browR: [0.45, -0.02] }),
   dizzy: face({ w: 0.15, curve: 0, open: 0.03, blush: 0.7, lidTop: 1, dizzy: 1, brow: 1, browL: [0.2, 0.08], browR: [0.2, 0.02] }),
   love: face({ w: 0.17, curve: 2.6, open: 0.12, blush: 1, lidTop: 1.05, heart: 1 }),
@@ -153,8 +154,8 @@ export function createLimUniforms(night: boolean) {
     /** A bean Lim just ate shows through for a while. */
     tint: uniform(new THREE.Color('#9EE6C8')),
     tintAmt: uniform(0),
-    /** Rest-space height the tint has risen to (it fills Lim from the belly up). */
-    tintLevel: uniform(2),
+    /** How far from the belly the tint has spread, in rest units. */
+    tintLevel: uniform(3),
     disco: uniform(0),
     rot: uniform(new THREE.Matrix3()),
   }
@@ -260,8 +261,8 @@ export function hullMaterial(ink: V3, width: number, normal: V3 = normalLocal) {
 export const inkOf = (u: LimUniforms): V3 => mix(col(PAL.ink), col(PAL.nightInk), u.night)
 
 /** Lim's skin tones under the current tint, mood and time of day. */
-function skin(u: LimUniforms, base: V3, height: F) {
-  const filled = float(1).sub(smoothstep(u.tintLevel.sub(0.5), u.tintLevel, height))
+function skin(u: LimUniforms, base: V3, reach: F) {
+  const filled = float(1).sub(smoothstep(u.tintLevel.sub(0.55), u.tintLevel, reach))
   const tinted = mix(base, u.tint as unknown as V3, u.tintAmt.mul(filled))
   const b = mix(tinted, col('#D9939B'), u.sad.mul(0.4)).mul(mix(float(1), float(0.84), u.night))
   const shade = mix(mix(col(PAL.shade), (u.tint as unknown as V3).mul(0.62), u.tintAmt), col('#9A3A7C'), u.night)
@@ -281,13 +282,14 @@ export type FaceAnchors = { restC: Vec3; eyeX: number; eyeY: number }
 export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceAnchors, window = 1): V3 {
   const rest = attribute('rest', 'vec3') as unknown as V3
   const rn = normalize(rest.sub(vec3(...a.restC)))
-  const front = smoothstep(0.3, 0.55, rn.z)
+  const front = smoothstep(0.3, 0.55, rn.z).mul(smoothstep(0.12, 0.4, n.view.z))
   const p = rest.xy as V2
 
   let base: V3 = mix(col(PAL.bottom), col(PAL.top), smoothstep(-0.8, 0.9, rest.y))
   const belly = float(1).sub(smoothstep(0.22, 0.62, length(vec2(p.x.mul(0.85), p.y.add(0.42))))).mul(front)
   base = mix(base, col(PAL.belly), belly.mul(0.55))
-  const s = skin(u, base, rest.y)
+  // The tint spreads from the belly outward (a bloom, not a waterline).
+  const s = skin(u, base, length(rest.sub(vec3(0, -0.45, 0.55))))
   // The highlight keeps off the face: nothing glossy crosses a brow or an eye.
   const gloss = float(1).sub(front.mul(float(1).sub(smoothstep(a.eyeY + 0.43, a.eyeY + 0.5, rest.y))))
   let c = gel(n.view, n.spec, { ...s, window, gloss })
@@ -296,11 +298,11 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
 
   // The back of the head isn't blank: a small swirl, like the knot on a balloon.
   const back = smoothstep(0.3, 0.55, rn.z.negate())
-  const sw = vec2(p.x, p.y.sub(0.05))
+  const sw = vec2(p.x, p.y.sub(0.3))
   const swR = length(sw)
-  const swirl = aaStep(abs(swR.sub(atan(sw.y, sw.x).add(3.1416).mul(0.022).add(0.05))).sub(0.016), 0.012)
-    .mul(float(1).sub(smoothstep(0.2, 0.24, swR)))
-  c = mix(c, s.shade, swirl.mul(back).mul(0.55))
+  const swirl = aaStep(abs(swR.sub(atan(sw.y, sw.x).add(3.1416).mul(0.044).add(0.09))).sub(0.03), 0.014)
+    .mul(float(1).sub(smoothstep(0.38, 0.44, swR)))
+  c = mix(c, s.shade, swirl.mul(back).mul(0.7))
 
   const cheekY = a.eyeY - 0.29
   const cheekX = a.eyeX + 0.24
@@ -411,7 +413,7 @@ export function createEyeMaterial(lim: LimUniforms, side: number) {
   const botLid = smoothstep(-0.02, 0.02, botLine.sub(p.y))
   // The top lid shades the eyeball just under it.
   c = c.mul(mix(float(1), float(0.8), smoothstep(-0.42, 0, ly.sub(topLine)).mul(float(1).sub(u.dizzy))))
-  const s = skin(lim, mix(col(PAL.bottom), col(PAL.top), 0.62), float(0.2))
+  const s = skin(lim, mix(col(PAL.bottom), col(PAL.top), 0.62), float(0.75))
   // Lids take the same ramp as the skin around them, so a shut eye melts into the face.
   const lidWrap = saturate(lit.add(0.45).div(1.45))
   const lidCol = mix(mix(s.shade, s.base, smoothstep(0.12, 0.54, lidWrap)), s.light, smoothstep(0.74, 0.94, lidWrap).mul(0.42))
