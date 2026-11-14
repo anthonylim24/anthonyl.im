@@ -12,6 +12,7 @@ import { sx } from '@/styles/merge'
 import { layout } from '@/styles/common.stylex'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { DAILY_GOAL_OPTIONS, usePracticeStore } from '@/stores/practiceStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { btn } from '../components/buttonStyles.stylex'
 import { vibrate } from '../engine/haptics'
@@ -129,6 +130,8 @@ export function SettingsPage() {
   const voiceGuidance = useSettingsStore((s) => s.voiceGuidance)
   const setVoiceGuidance = useSettingsStore((s) => s.setVoiceGuidance)
   const previewSoundscape = useSoundscapePreview()
+  const dailyGoalMinutes = usePracticeStore((s) => s.dailyGoalMinutes)
+  const setDailyGoalMinutes = usePracticeStore((s) => s.setDailyGoalMinutes)
   const hapticsEnabled = useSettingsStore((s) => s.hapticsEnabled)
   const setHapticsEnabled = useSettingsStore((s) => s.setHapticsEnabled)
 
@@ -174,6 +177,7 @@ export function SettingsPage() {
     useHistoryStore.getState().clearHistory()
     useGamificationStore.getState().resetProgress()
     useSettingsStore.getState().resetSettings()
+    usePracticeStore.getState().resetPractice()
     setConfirmingClear(false)
   }
 
@@ -242,6 +246,24 @@ export function SettingsPage() {
             )
           })}
         </div>
+      </Section>
+
+      <Section title="Practice">
+        <p {...sx(bf.block, st.label)}>Daily goal</p>
+        <p {...sx(st.hint)}>Minutes of breathing to aim for each day. Home shows how close you are.</p>
+        <LayoutGroup id="settings-goal">
+          <div role="group" aria-label="Daily goal" {...sx(bf.mt3, bf.flexWrapGap2)}>
+            {[...DAILY_GOAL_OPTIONS].sort((a, b) => a - b).map((minutes) => (
+              <InkChip
+                key={minutes}
+                active={dailyGoalMinutes === minutes}
+                onClick={() => setDailyGoalMinutes(minutes)}
+                label={`${minutes} min`}
+                layoutId="settings-goal-ink"
+              />
+            ))}
+          </div>
+        </LayoutGroup>
       </Section>
 
       <Section title="Sound">

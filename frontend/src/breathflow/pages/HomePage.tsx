@@ -5,6 +5,9 @@ import { addLocalDays, formatLocalDateKey, getLocalDateKey, getLocalDayStart } f
 import { sx } from '@/styles/merge'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
+import { usePracticeStore } from '@/stores/practiceStore'
+import { JourneysSection } from '../components/JourneysSection'
+import { getDailyGoalStatus, type DailyGoalStatus } from '../gamify/dailyGoal'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { btn } from '../components/buttonStyles.stylex'
 import { InkChip } from '../motion/InkChip'
@@ -90,6 +93,8 @@ export function HomePage() {
   const streak = useHistoryStore((state) => state.getStreak())
   const isFirstRun = sessions.length === 0
   const dailyGoalMet = dailySessionCount > 0
+  const dailyGoalMinutes = usePracticeStore((state) => state.dailyGoalMinutes)
+  const todayGoal = useMemo(() => getDailyGoalStatus(sessions, dailyGoalMinutes), [sessions, dailyGoalMinutes])
 
   const recommendation = useMemo(
     () => recommendProtocols({
@@ -148,6 +153,7 @@ export function HomePage() {
                         : 'A five-minute session starts a new streak.'}
                     </p>
                     <WeekDabs sessions={sessions} />
+                    <GoalRing status={todayGoal} />
                   </div>
                 )}
               </motion.div>
@@ -213,6 +219,8 @@ export function HomePage() {
             </div>
           </div>
         </section>
+
+        <JourneysSection />
 
         {recommendation.alternatives.length > 0 && (
           <section {...sx(wc.section)} aria-labelledby="bf-alts">
@@ -396,6 +404,38 @@ function TechniqueSwatch({ protocolId, reducedMotion }: { protocolId: Parameters
         </span>
       </Link>
     </motion.div>
+  )
+}
+
+const RING_RADIUS = 15
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS
+
+/** Today's minutes against the daily goal: a brushed ring that closes as you practice. */
+function GoalRing({ status }: { status: DailyGoalStatus }) {
+  const minutes = Math.floor(status.seconds / 60)
+  const goalMinutes = Math.round(status.goalSeconds / 60)
+  const label = status.met ? `Daily goal met: ${minutes} min today` : `${minutes} of ${goalMinutes} min today`
+  return (
+    <div role="img" aria-label={label} {...sx(home.goal)}>
+      <svg viewBox="0 0 40 40" aria-hidden="true" {...sx(home.goalRing)}>
+        <circle cx="20" cy="20" r={RING_RADIUS} fill="none" strokeWidth="3.5" {...sx(home.goalTrack)} />
+        <circle
+          cx="20"
+          cy="20"
+          r={RING_RADIUS}
+          fill="none"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeDasharray={`${RING_LENGTH * status.progress} ${RING_LENGTH}`}
+          transform="rotate(-90 20 20)"
+          {...sx(home.goalFill)}
+        />
+      </svg>
+      <span {...sx(home.goalText)}>
+        <span {...sx(home.goalFigure)}>{status.met ? `${minutes} min` : `${minutes} / ${goalMinutes} min`}</span>
+        <span {...sx(home.weekLabel)}>{status.met ? 'goal met today' : 'today'}</span>
+      </span>
+    </div>
   )
 }
 

@@ -1,4 +1,5 @@
 import { BREATH_PHASES, type BreathPhase, type TechniqueId } from '@/lib/constants'
+import { getJourney, isJourneyId, type JourneyId } from '../journeys/catalog'
 import { getProtocol } from '../protocols/catalog'
 import {
   clampRounds,
@@ -9,6 +10,9 @@ import {
 /**
  * Session deep-link contract:
  *   /breathwork/session?technique=<id>&rounds=<n>&phase_<phase>=<seconds>
+ *     [&journey=<id>&step=<n>]
+ * A journey reference survives only while the technique is the one that step
+ * prescribes.
  * Unknown technique → Cyclic Sighing. Invalid rounds → protocol default.
  * Phase params are clamped and dropped when equal to the protocol default.
  */
@@ -17,6 +21,14 @@ export interface SessionParams {
   techniqueId: TechniqueId
   rounds: number
   customDurations?: CustomPhaseDurations
+  /** The journey step this session is, when it was opened from one. */
+  journey?: JourneyRef
+}
+
+export interface JourneyRef {
+  id: JourneyId
+  /** 0-based step index. */
+  step: number
 }
 
 const ALL_PHASES: readonly BreathPhase[] = Object.values(BREATH_PHASES)
@@ -40,11 +52,20 @@ export function parseSessionSearch(search: string | URLSearchParams): SessionPar
     }
   }
 
+  const journey = parseJourneyRef(params, protocol.id)
   return {
     techniqueId: protocol.id,
     rounds,
     customDurations: sanitizeCustomDurations(protocol, custom),
+    ...(journey ? { journey } : {}),
   }
+}
+
+function parseJourneyRef(params: URLSearchParams, techniqueId: TechniqueId): JourneyRef | undefined {
+  const id = params.get('journey')
+  const step = Number.parseInt(params.get('step') ?? '', 10)
+  if (!isJourneyId(id)) return undefined
+  return getJourney(id).steps[step]?.techniqueId === techniqueId ? { id, step } : undefined
 }
 
 export function buildSessionSearch(params: SessionParams): string {
@@ -61,6 +82,11 @@ export function buildSessionSearch(params: SessionParams): string {
         search.set(`phase_${phase}`, String(seconds))
       }
     }
+  }
+
+  if (params.journey && getJourney(params.journey.id).steps[params.journey.step]?.techniqueId === protocol.id) {
+    search.set('journey', params.journey.id)
+    search.set('step', String(params.journey.step))
   }
 
   return search.toString()

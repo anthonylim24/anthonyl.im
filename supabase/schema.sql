@@ -67,6 +67,10 @@ create table if not exists public.user_state (
   updated_at           timestamptz default now()
 );
 
+-- Daily goal and journey progress (the client's practice store).
+alter table if exists public.user_state
+  add column if not exists practice jsonb default '{}'::jsonb;
+
 alter table public.user_state enable row level security;
 
 create policy "Users manage own state"

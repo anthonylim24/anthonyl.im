@@ -12,6 +12,12 @@ import {
 } from '@/stores/settingsStore'
 import { STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
 import { isMoodValue } from '@/lib/mood'
+import {
+  isDefaultPractice,
+  migratePersistedPracticeState,
+  pickPersistedPractice,
+  usePracticeStore,
+} from '@/stores/practiceStore'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ─── Merge utilities (exported for testing) ───────────────────────
@@ -22,6 +28,8 @@ interface CloudUserState {
   selected_theme: string
   personal_bests: Record<string, { techniqueId: string; maxHoldTime: number; date: string }>
   settings: Record<string, unknown>
+  /** Daily goal and journey progress (`PersistedPracticeState`), untrusted until cleaned. */
+  practice?: unknown
   [key: string]: unknown
 }
 
@@ -50,6 +58,10 @@ export function mergeUserState(local: CloudUserState, cloud: CloudUserState): Cl
     ? local.selected_theme
     : cloud.selected_theme
 
+  // Practice: this device's goal and journeys win once it has any; otherwise the cloud's.
+  const localPractice = migratePersistedPracticeState(local.practice)
+  const practice = isDefaultPractice(localPractice) ? migratePersistedPracticeState(cloud.practice) : localPractice
+
   return {
     ...cloud,
     xp,
@@ -57,6 +69,7 @@ export function mergeUserState(local: CloudUserState, cloud: CloudUserState): Cl
     selected_theme,
     personal_bests,
     settings,
+    practice,
   }
 }
 
@@ -159,7 +172,8 @@ export function useCloudSync() {
         localHistory.sessions.length > 0 ||
         localGamification.xp > 0 ||
         localGamification.earnedBadges.length > 0 ||
-        hasNonDefaultSettings(localSettings)
+        hasNonDefaultSettings(localSettings) ||
+        !isDefaultPractice(usePracticeStore.getState())
       const hasMergedCurrentUser = mergedUserIdRef.current === user.id
 
       if (hasLocalData && !hasMergedCurrentUser) {
@@ -176,6 +190,7 @@ export function useCloudSync() {
           vo2_max_manual: localHistory.vo2MaxManual,
           vo2_max_history: localHistory.vo2MaxHistory,
           settings: pickPersistedSettings(localSettings),
+          practice: pickPersistedPractice(usePracticeStore.getState()),
         }
 
         const cloudStateData: CloudUserState = cloudState ?? {
@@ -225,6 +240,7 @@ export function useCloudSync() {
         localStorage.removeItem(STORAGE_KEYS.SESSION_HISTORY)
         localStorage.removeItem(STORAGE_KEYS.GAMIFICATION)
         localStorage.removeItem(STORAGE_KEYS.SETTINGS)
+        localStorage.removeItem(STORAGE_KEYS.PRACTICE)
       } else if (cloudState) {
         // Subsequent login: hydrate from cloud
         const sessions = (cloudSessions ?? []).map(mapCloudSession)
@@ -270,6 +286,7 @@ export function useCloudSync() {
         vo2_max_manual: history.vo2MaxManual,
         vo2_max_history: history.vo2MaxHistory,
         settings: pickPersistedSettings(settings),
+        practice: pickPersistedPractice(usePracticeStore.getState()),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
       assertNoSupabaseError(stateError)
@@ -320,11 +337,13 @@ export function useCloudSync() {
     const unsubHistory = useHistoryStore.subscribe(debouncedSync)
     const unsubGamification = useGamificationStore.subscribe(debouncedSync)
     const unsubSettings = useSettingsStore.subscribe(debouncedSync)
+    const unsubPractice = usePracticeStore.subscribe(debouncedSync)
 
     return () => {
       unsubHistory()
       unsubGamification()
       unsubSettings()
+      unsubPractice()
       flushPendingSync()
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
@@ -416,6 +435,10 @@ function hydrateStores(state: CloudUserState, sessions: CompletedSession[]) {
     lastDailyReset: (state.last_daily_reset as string) ?? '',
     lastWeeklyReset: (state.last_weekly_reset as string) ?? '',
   })
+
+  if (state.practice !== undefined && state.practice !== null) {
+    usePracticeStore.setState(migratePersistedPracticeState(state.practice))
+  }
 
   // Hydrate settings store
   const settings = (state.settings ?? {}) as Record<string, unknown>
