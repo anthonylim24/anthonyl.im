@@ -64,7 +64,7 @@ stack. Not part of every loop.
 It will catch:
 
 - TypeScript errors anywhere in `frontend/` or `server/` (including type
-  drift in test fixtures — see "Type-fixture invariant" in `CLAUDE.md`).
+  drift in test fixtures — see "Type-fixture invariant" in `AGENTS.md`).
 - Server logic regressions covered by the mocked test suite.
 - Missing-export regressions that previously only surfaced at PM2 start-up.
 - Frontend dep-tree drift that previously only surfaced as a `tsc` build

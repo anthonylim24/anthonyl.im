@@ -7,13 +7,11 @@ Relevant skills only: `clerk`, `clerk-react-patterns`, `clerk-testing`, `clerk-c
 Auth code:
 
 - Frontend: `frontend/src/lib/clerk.ts`, `clerkProvider.tsx`, `safeAuth.ts` (`useGetToken`, `useAuthReady`)
-- Gates: `KoreaAuthGate`, `TripsAuthGate`
+- Gate: `TripsAuthGate` (`KoreaAuthGate` is legacy, unrouted)
 - Server JWT: `server/src/middleware/clerkAuth.ts`
 
 Preview screenshots (Clerk-gated `/trips` and `/trips/korea-2026`): `bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026`. The helper applies the session in Chrome — do not paste Agent Task URLs. See [`docs/pr-previews.md`](../../docs/pr-previews.md).
 
 **Local Trips UI work (required bypass):** matching `VITE_DEV_BEARER` + `IG_DEV_BEARER` in dev (see `deploy/README.md`, `frontend/.env.local`). Confirm with `cd frontend && bun run e2e -- e2e/smoke.spec.ts -g "trips skips"`. Never use dev bearer on production or PR previews.
-
-Never bake `VITE_DEV_BEARER` / `IG_DEV_BEARER` into production or PR previews — local-only.
 
 Clerk CLI: confirm with the user before any mutation or production-state change. `clerk deploy --mode agent` and `clerk deploy status --mode agent` are read-only.

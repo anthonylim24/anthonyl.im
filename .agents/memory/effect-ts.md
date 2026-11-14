@@ -1,8 +1,8 @@
 # Effect-TS agent memory
 
-Pointer: full methodology lives at [`.claude/skills/effect-ts/SKILL.md`](../skills/effect-ts/SKILL.md) (same text in [`.agents/skills/effect-ts/SKILL.md`](../skills/effect-ts/SKILL.md)).
+Pointer: full methodology lives at [`.agents/skills/effect-ts/SKILL.md`](../skills/effect-ts/SKILL.md) (symlinked from `.claude/skills/`).
 
-Short rules also live under **Frontend Effect-TS** in [`AGENTS.md`](../../AGENTS.md) and [`CLAUDE.md`](../../CLAUDE.md).
+Short rules also live under **Frontend Effect-TS** in [`AGENTS.md`](../../AGENTS.md).
 
 Read the skill before adding frontend `fetch`, SSE, or API helpers.
 

@@ -1,10 +1,12 @@
 # anthonyl.im — Design Context
 
-This repo hosts five experiences under one Vite SPA: a personal AI chatbot at the root (`/`; `/chatbot` redirects), the **anthonyl.im lab landing page** (`/lab`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
+Read the section for the route you are changing before any UI work. Always-on engineering rules live in [`AGENTS.md`](AGENTS.md); this file is the only copy of the design context.
 
-Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. UI styling uses **StyleX** — do not add Tailwind. Engineering: [`CLAUDE.md`](CLAUDE.md). Skills: [`.agents/skills/README.md`](.agents/skills/README.md).
+Six surfaces share one Vite SPA: Lim the chatbot (`/`), a static home page (`/home`), the lab landing page (`/lab`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`) and the generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
 
 **Register:** landing + chatbot = brand surfaces; BreathFlow / Korea / Trips = product UIs. Infer the register from the route before applying craft rules.
+
+---
 
 ## Shared Design Principles (apply to every route)
 
@@ -20,19 +22,10 @@ Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. U
 - **Reduced motion:** All transforms / pulses / orbital rotations must honor `prefers-reduced-motion`
 - **Touch targets:** Minimum 44 × 44 px for all interactive elements
 - **Focus indicators:** Visible focus rings on every interactive element (route-specific accent color)
-- **ARIA:** Live regions, proper roles, and explicit labels on every dynamic surface (breathing orb, Map Mode bubbles, status banners)
+- **ARIA:** Live regions, proper roles, and explicit labels on every dynamic surface (breathing orb, 3D stop pins, status banners)
 - **i18n:** No layouts that break on long Korean / hangul strings; copy uses `break-words` + `overflow-wrap:anywhere` defensively
 
-## Shared Tech Stack
-
-- React 19 + TypeScript + Vite 8
-- StyleX 0.19 + semantic classes in `index.css` + shadcn/ui (Radix primitives)
-- Zustand (BreathFlow persisted state), Motion 13, Lucide (intentional — keep)
-- Effect v3 for frontend I/O
-- Bun + Hono (server), Clerk (`@clerk/clerk-react`), Supabase, PostHog
-- MapLibre GL JS v6 + OpenFreeMap vector tiles for Trips maps (no API key)
-- Gemini 4 Hydrogen (`GEMINI_MODEL`) leads on every AI surface: trip drafts and reviews, the concierge, Instagram extraction and transcription, entity blurbs and the homepage chatbot. Backups are Gemini 3.8 Flash (when the key cannot use Hydrogen), `gpt-oss-120b` on Groq (Cerebras behind it) and Whisper on Groq. Maps and Search grounding cannot share a request on these models.
-- Three.js (WebGL) for the photoreal 3D view, "Fly the day" (`pages/Trips/photoreal/`)
+---
 
 ## Shared Tokens
 
@@ -51,22 +44,26 @@ Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. U
 | Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | | Motion default |
 | Decel easing | `cubic-bezier(0.33, 0, 0, 1)` | | Smooth stops |
 
-Each app's *accent* color is its own (see per-app sections).
+Each app's *accent* color is its own (see the per-app sections).
 
 ---
 
-## Design Context: `/` — anthonyl.im Lab Landing
+---
+
+## Design Context: `/lab` — anthonyl.im Lab Landing
 
 Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/`, Concierge → `/trips`, BreathFlow → `/breathwork`.
 
 - **Palette:** bone `#EDE8DF` canvas, ink `#0E1024`, one ultramarine accent `#2433E0`. Tokens are `--lim-*` vars on `.landing` in `index.css`. Display type is Archivo (wdth axis), with Fragment Mono for data.
 - **Hero:** WebGPU (WebGL2 fallback) soft-body glass droplet (`scene/heroScene.ts`). It's a three-blocks `MeshTransmissionNodeMaterial` with spring physics (drag, poke, stretch). Normals come from a procedurally hand-painted brush field (`scene/painter.ts`), which also serves as the static still and fallback. TSL post: bloom, scroll-driven ink dissolve, three-blocks `filmHD`. The scene runs only while on screen; reduced motion freezes the clock.
 - **License:** `three-blocks` is PolyForm Noncommercial 1.0.0. The footer carries the Required Notice — keep it. Commercial use needs a three-blocks license.
-- **Chunks:** the hero loads `three-core` + `three-webgpu` only; Map Mode loads `three-core` + `three`.
+- **Chunks:** the hero loads `three-core` + `three-webgpu` only; the photoreal 3D view loads `three-core` + `three`.
+
+---
 
 ## Design Context: `/` — Lim, the jelly companion
 
-Code: `frontend/src/App.tsx` (page shell), `frontend/src/chat/` (`useChat.ts` state + persistence, `LimStage.tsx` lazy 3D stage, `LimArt.tsx` SVG Lim, `caret.ts`, `chat.css` tokens + code theme, `scene/limScene.ts` WebGPU/TSL scene), `frontend/src/styles/chatbot.stylex.ts`, `messageContent.stylex.ts`, `components/message-content.tsx`.
+Code: `frontend/src/chat/` (page shell `frontend/src/App.tsx`). Engineering (files, Lim's world, the model routing and its eval, physics, persistence keys): [`docs/lim.md`](docs/lim.md).
 
 ### Users
 Visitors who open `/` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
@@ -74,13 +71,16 @@ Visitors who open `/` (from the landing page or a shared link). Recruiters, pros
 ### Brand Personality
 **Playful, Warm, Crafted.** Lim is a Pixar-soft coral gumdrop of jelly who answers for Anthony. The craft shows in how Lim moves; the chat itself stays calm and readable.
 
-**Emotional goal:** Delight in the first second (Lim pops in, bounces, looks at you), then a reassuring "this person ships" feeling. The mascot is the demo.
+**Emotional goal:** Delight in the first second (Lim pops in, bounces, shakes it off, looks at you), then a reassuring "this person ships" feeling. The mascot is the demo.
 
 ### Aesthetic Direction
 - **Theme:** "Sorbet studio": cream day canvas `#FFF6EC`, night-indigo `#1E1833` (toggle in header, or `S`). Pastel blobs, doodles and confetti are set dressing only.
-- **Mascot:** the toolkit `Jelly` soft body (shape matching, `upright` righting) with toon/wrap shading, rim fresnel, a smoothed rest-normal blend and an ink hull. Face paint (brows, mouth, blush) lives in the body shader; eyes are attached 3D spheres. A polka-dot floor, a scalloped mint rug, contact shadows and three jelly beans to bump.
-- **Behaviours:** idle breathe + fidgets + blinks; typing leans in and eyes follow the caret; send = hop + squash landing; thinking = wobble + thought bubble; streaming = mouth flaps per chunk; done = happy squish + confetti (first reply); error = droop + "Try again"; poke = giggle + blush; drag/fling bounces off the walls and floor.
-- **Layout:** desktop stage left, chat panel right; mobile stage on top (compact once chatting, so Lim stays visible while typing).
+- **Mascot:** the toolkit `Jelly` soft body (shape matching, `upright` righting) in a gelatin shader (`gel` in `limLook.ts`): a soft toon ramp, light bleeding through the thin far edge, floor bounce, a small studio-window highlight on the crown (masked off the face paint), a swirl on the back of the head so a turn reads as a turn, a smoothed rest-normal blend and an ink hull. Mouth (lens to "o", teeth, tongue), blush and brows are painted in the body shader. Eyes are painted spheres with real lids (`createEyeMaterial`: iris, catch-lights, top / bottom lids meeting at a seam, hearts, dizzy spirals); a shut eye tucks its ink ring away. A springy tuft (`Tuft` in `fx.ts`) gives every move overlapping action and shows the mood (`bend`: wilts when sad or asleep, stands up when startled). A polka-dot floor, a scalloped mint rug, a coral-tinted contact shadow, jelly beans and a bouncy gumball, each with its own seat clear of Lim (three toys on a narrow stage, four on a wide one). Stage edges move a whole body back inside and reflect it; nothing is clipped flat.
+- **Behaviours:** idle breathe + fidgets + blinks + eye darts; typing leans in, nods per keystroke and eyes follow the caret (ALL CAPS startles Lim); send = crouch, hop, squash landing; thinking = wobble + thought bubble; streaming = a new mouth shape per chunk (and a babble syllable with sound on); done = happy squish + confetti and a pirouette (first reply); error = droop + "Try again"; poke = giggle + blush; a gentle drag stretches Lim like taffy and carries it as a teardrop, held facing you (Lim and the toys are drawn through `skinJelly`: the smooth shape-matched goal plus a soft-limited share of each particle's offset, so a hard shake or impact can never crease or facet the surface); a fling bounces off the walls and floor. Every jump is anticipation, stretch, then squash with soft dust discs sliding out along the floor, a floor ripple, a thump that jolts the toys and a little camera shake (`jump` / the landing block in `brain`). Left alone Lim yawns and naps with a nose bubble (sooner at night); shaken or bounced off the walls Lim gets dizzy (spiral eyes, orbiting stars); tap the floor and Lim hops over. Flips are rigid aerial cartwheels and pirouettes are rigid turns (`Jelly.rotate`), so the face stays readable; a stage with no headroom pirouettes instead of flipping.
+- **Easter eggs:** keep them discoverable, never required. Feed Lim a bean (drag it toward the mouth: Lim tracks it, opens wide, snatches it from your hand, chews three times with puffed cheeks, swallows, and the bean's colour rises from the belly for a while; then a burp. Three in a row is a food coma). Ten quick pokes inflate Lim until it pops into six mini Lims that scamper, regroup and merge. A message that names a trick (`stuntFor` in `eggs.ts`: flip, spin, dance, jump, love, sleep, big, tiny, boo, party, pop, a greeting) gets the trick instead of the send hop, and the question is still answered. The Konami code throws a party. The console says hello.
+- **Lim's world:** a visitor can give Lim things and send it places, from the toy box (the brick button in the composer) or by asking in chat. Catalog items and things the model invents are the same data, drawn by the same gel shader and ink outline. Lim plays with what it is given (kick, hug, eat, wear, nap, dance, flee), shoots hoops and scores goals, and reacts to a place's mood. Landscapes stand behind the stage like a pop-up book. With motion reduced, items simply appear and actions apply their outcome only. Details: [`docs/lim.md`](docs/lim.md).
+- **Sound:** off by default; the header speaker button (or `M`) turns on synthesised foley (`sound.ts`: boings, squeaks, gulp, babble, a dance beat). No audio files. Lim's voice pitch follows its size.
+- **Layout:** desktop stage left, chat panel right. Phones: the header floats over the stage's sky, and the stage takes a share of the screen (half before the first message, less on short phones so the greeting fits; 40% once chatting; compact while typing, when the header slides away). The chat sheet's grip (`role="separator"`) drags or taps the stage bigger, arrow keys too, and the choice is kept under `lim-stage`. Phones get short wording (intro, suggestion pills, placeholder) and keep Copy / Regenerate under the latest reply only.
 - **Accent:** Lim coral `#FF7E6B` (send button, Lim's name, list markers). Plum ink `#2B2140` carries the text.
 - **Type:** Fredoka display (headings, chips, captions), Inter body.
 - **Anti-references:** no purple "AI" gradients, no glowing borders, no rainbow typing indicators. Do not reuse the landing's ultramarine, BreathFlow's watercolour or the Trips atlas.
@@ -89,9 +89,7 @@ Visitors who open `/` (from the landing page or a shared link). Recruiters, pros
 - Theme classes: `chatbot-shadow` (day) / `chatbot-dark` (night), both defined in `frontend/src/chat/chat.css` (`--chat-*` vars), not `index.css`
 - `html:has(.chatbot-*)` paints the canvas so iOS safe areas blend
 - The 3D scene is lazy (`import('./scene/limScene')`); `LimArt` SVG is the first paint and the no-WebGPU/WebGL fallback
-- Reduced motion freezes the jiggle and renders on demand; CSS beats are paused
-- Chat history persists in `localStorage` under `lim-chat-v1`; night mode under `lim-chat-night`
-- I/O stays `invokeDeepseek` (Effect SSE) in `lib/apiService.ts`; the optional `signal` param powers Stop (Esc)
+- Reduced motion freezes the jiggle and renders on demand; CSS beats are paused; stunts and easter eggs become a still smile
 
 ---
 
@@ -152,6 +150,10 @@ Unlocked bloom pigments (Settings, by level) override the technique pigment with
 
 ---
 
+The March 2025 audit is historical: BreathFlow was rebuilt in `frontend/src/breathflow/`. Do not search for deleted files (`FluidOrb.tsx`, `BreathingSession.tsx`, `pages/Home.tsx`, `components/breathing/`, `sessionStore`).
+
+---
+
 ## Design Context: `/trips/korea-2026` — Korea Trip Itinerary
 
 The Korea trip is the seeded trip `korea-2026` (rose accent). It renders in the atlas workspace like any other trip; there is no separate rose / amber parchment dossier any more. Page design: the "Design Context: `/trips/*`" section below. Legacy `/korea*` frontend routes redirect here. `/api/korea/*` remains. Do not add new destination-specific routes.
@@ -166,9 +168,11 @@ Anthony (primary) and his partner, planning and executing a 12-day Seoul + Busan
 1. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
 2. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy. Bump `CACHE_VERSION` on every breaking SW change.
 
+---
+
 ## Design Context: photoreal 3D view — "Fly the day"
 
-Code: `frontend/src/pages/Trips/photoreal/`. Any trip day opens it from its "⋯" menu ("Fly the day in 3D"). The day's located stops stand on Google Photorealistic 3D Tiles; chrome is atlas paper plates (opaque `--trips-*` surfaces, no glass stacks).
+Code: `frontend/src/pages/Trips/photoreal/`. Any trip day opens it from the day map's "Fly in 3D" button or its "⋯" menu ("Fly the day in 3D"). The day's located stops stand on Google Photorealistic 3D Tiles; chrome is atlas paper plates (opaque `--trips-*` surfaces, no glass stacks).
 
 - **Files:** `PhotorealOverlay.tsx` (chrome + state, `role="dialog"` with focus trap), `photoreal.stylex.ts`, `scene.ts` (engine), `tilesGround.ts` (Google tiles) / `devGround.ts` (DEV-only procedural model city, dynamic import), `camera.ts` + `sun.ts` + `stops.ts` (pure, tested), `terrainAnchor.ts`, `adaptiveQuality.ts`, `deviceTier.ts`, `youPin.ts`, `available.ts` (`photorealAvailable()`; the only file outside the `photoreal` chunk).
 - **Stops:** the day map's `.atlas-pin` stop pins as DOM buttons (`.photoreal-pin*` in `index.css`), projected from terrain-snapped points, each with a 3D stem and ground ring. Crowded or occluded pins shrink to dots. Numbering comes from `dayStops` and matches `dayPins`.
@@ -181,83 +185,62 @@ Code: `frontend/src/pages/Trips/photoreal/`. Any trip day opens it from its "⋯
 
 ---
 
-## Cross-app Components Worth Knowing
-
-- **`<LinkifiedText>`** (Korea) — universal smart-linker. Detects flight numbers (UA / KE / OZ / AA / DL / AS / BA / JL / NH), KTX trains, Korean phones (+82), emails, URLs, Korean street addresses (`-daero` / `-ro` + `-gil`), subway exit references, and 24-hour times (which become hover-tooltip AM/PM via `<Time>`).
-- **`<ReservationCard>`** (Korea) — status pill (✅ / 🟡 / 🔴), category icon, time with AM/PM tooltip, chip row for Maps / Call / Book.
-- **`<DayCard>`** + **`<DayTreeNav>`** (Korea) — city-tinted gradients, spring entry, today-detection ring.
-- **`<KstClock>`** (Korea) — live Asia/Seoul time pill in the tree nav.
-
 ---
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new destination is a trip document, not a new route tree. Chatbot, BreathFlow, and the Korea seed keep their own visual worlds; do not restyle them as Trips.
-
-Canonical visual spec: [`DESIGN.md`](DESIGN.md). Token source of truth: `frontend/src/index.css` `.trips`. Shared-site Cormorant / parchment does **not** apply here.
+Code: `frontend/src/pages/Trips/`. Visual spec: [`DESIGN.md`](DESIGN.md). Engineering: [`docs/trips.md`](docs/trips.md). Token source of truth: the `.trips` block in `frontend/src/index.css` ("TRIPS — the atlas"). Korea is the seeded trip `korea-2026`; every new destination is a trip document, not a new route tree. Shared-site Cormorant / parchment does not apply here.
 
 ### Users
 The same travelers as Korea, plus future trips and the people they share a link with. Phone for in-trip lookups; desktop for planning, AI drafts, and concierge chat.
 
 ### Brand Personality
-**"The atlas": a cartographer's desk.** Map-first planner. Cool chart-paper surfaces, hairline rules, soft layered shadows, serif names set like map labels, coordinates and data in mono, and one live 3D map per page. Two accents: a constant brand accent (signal orange, `--brand*`) for chrome, and the trip's own accent (`--ta*`) for trip identity; everything else is ink and paper. Precise and quiet. Not a hand-bound Korea dossier. Not Linear, Notion, or Airbnb.
+**"The atlas": a cartographer's desk.** Map-first planner. Cool chart-paper surfaces, hairline rules, soft layered shadows, serif names set like map labels, coordinates and data in mono, and one live 3D map per page. Two accents: a constant brand accent (signal orange, `--brand*`) for chrome, and the trip's own accent (`--ta*`) for trip identity; everything else is ink and paper.
 
 **Emotional goal:** See the trip as a place first, then know what happens next.
 
 ### Aesthetic Direction
-- **Material:** paper surfaces (`--trips-canvas` / `-surface` / `-raised` / `-sunken`), 1px `--trips-line` rules, soft layered `--trips-shadow-1/2/3`. No stickers, no hard offset shadows, no pastel fills.
-- **Map:** MapLibre GL JS v6 + OpenFreeMap vector tiles (no API key). Custom two-palette basemap (`map/mapStyle.ts`): globe projection with atmosphere at low zoom, extruded 3D buildings from zoom ~13.2. One map per viewport; the engine (`map/engine.ts`) is a lazy chunk.
+
+- **Map:** MapLibre GL JS v6 + OpenFreeMap vector tiles (no key). Custom two-palette basemap in `map/mapStyle.ts`: globe projection with atmosphere at low zoom, extruded 3D buildings from zoom ~13.2.
 - **Pins and route:** pins are DOM buttons styled by `.atlas-pin*` in `index.css`. Overview map: one numbered pin per day at that day's centroid (click opens the day) over small dots for every stop, no routes. Day map: numbered stop pins plus the route, one shallow arc per leg (deduplicated), a solid 3px trip-accent line on a paper casing with small direction chevrons. Index globe: trip chips, which flip side past the globe's midline. Arrival frames tilt (pitch 52) for city-scale spans. Hovering a list item lifts its pin; clicking a stop pin flies the camera to it and opens a place card ("Stop N of M", Directions, Edit stop, previous / next stepping that flies the camera).
-- **Type:** Instrument Serif display (`--trips-display`; italic for the emphasised word, e.g. "Where to *next?*"); Fragment Mono for eyebrows and data (`--trips-mono`); Inter body. No Cormorant on `/trips`.
-- **Accent (two, never mixed):** the **brand** accent is constant signal orange (`--brand` text, `--brand-fill`, `--brand-soft`, `--brand-ring`) and paints chrome: focus rings, AI actions, switches, links, the compass mark. The **trip** accent (`--ta`, `--ta-fill`, `--ta-on`, `--ta-soft`, `--ta-ring`; set by `data-trip-accent`, defaults to the brand) is reserved for trip identity: pins, route, date tiles, the status eyebrow, the pinned-location row, covers. Trip accents: rose "Poppy" `#e5484d`, amber "Saffron" `#f2a71b` (dark ink on fill), emerald "Jade" `#0f9b76`, sky "Cobalt" `#2f7bf0`, violet "Iris" `#7c5cff`. Primary buttons are ink.
 - **Index:** hero + ambient globe (no basemap labels, CSS limb shade, faces the next trip at rest) with one chip per trip. With three or fewer trips the cards sit in one row with no headings; from four they are bucketed Happening now / Upcoming / Past. Search `/`, new trip `n`. Card covers are real map stills rendered by one off-screen MapLibre map (`renderStills` in `map/engine.ts`); the SVG chart of the trip's stops (`components/TripCover.tsx`) is the loading / no-WebGL fallback. No stock imagery. **Never "Inbox".**
 - **Create:** destinations with city autocomplete, a custom date-range calendar (`components/DateRange.tsx`, also used in Trip details; no native date inputs), optional name, "Draft the itinerary with AI" switch with a pace / interest brief, sticky submit row, no step circles. The map flies to each destination; on phones it is a small non-interactive strip under the title.
 - **Workspace:** `TripWorkspace` renders `/trips/:tripId` (overview) and `/trips/:tripId/day/:dayId` (that day): itinerary pane + sticky map. The full trip header shows on the overview only; day pages use a compact one-row header (trip name links to the overview, Share, ⋯ with "Improve whole trip with AI"). Left / right arrow keys change day. Phones get a docked bottom bar with an Itinerary | Map switch (`radiogroup`) and the concierge button inside it.
 - **Editing:** inline trip / day titles. Stop cards have a time column on the left (above the title on phones); the drag grip (Motion `Reorder`) shows on hover / focus and is hidden on phones; Alt+↑ / ↓ reorders with a live announcement, and the item editor keeps Move up / Move down. The day menu offers "Sort stops by time" when times are out of order. Stop times use a typed `TimeField` (`parseClock` in `meta.ts`) with "Add end time". One "Add a place, note or booking…" composer per day with keyless place search (picking a result pins it on the map immediately); per-item editor (time, location search / pin, notes, status, booking type + confirmation, move to day, duplicate, delete with Undo toast); autosave with a Saved / Saving / Retry indicator; trip details dialog (name, destinations, dates, colour accent, description, status, time zone); duplicate trip, delete trip (owner), clear day.
 - **Icons:** sparkle = AI generation, lightbulb = "Ideas for this day", chat glyph = concierge.
-- **Instagram import:** "Places from Instagram" sheet. Paste a post or Reel link (the day composer recognises links too). A card appears at once and shows plain step labels while the post is read; each place gets a row (name, address, the line from the post) and a pin; "+ Day N", "Add all", "On day N". Untimed imports land under a "To schedule" heading and stay off the route, numbering and distance until given a time. Everything found is kept under Saved for every trip. Never show pipeline logs or raw errors.
-- **Concierge:** a chat that acts on the trip (`TripChat`, `ConciergeMessage`, `ConciergePlaceCards`, `ConciergeProposalCard`). Lead with the pick; show real tool activity as a status line; place cards with photo, rating, that day's hours, the walk from the plan and a dated "Add to …" action; changes come as one proposal card the traveller ticks, applies and can undo; 2 to 3 relevant follow-up chips; conversation kept per trip with New chat; location shared for one message only, on request. Never invent bookings, never edit without confirmation.
-- **Sharing:** link-first. Owner picks "Can view" / "Can edit" and copies an invite link; anyone signed in who opens `/trips/join/:token` joins with that role. Owner can change roles, remove people, turn a link off. Collaborators can leave.
-- **AI:** full-trip draft (create, the empty overview, or "Start a fresh draft" with a replace confirmation); per-day "Ideas for this day" and whole-trip "Improve with AI" with quick-prompt chips or free text. Added places are auto-applied, flashed in the list and dropped onto the map; other suggestions are reviewed from a checklist, including moving a stop to another day and swapping two days. When a hotel is added or changed, the workspace offers "Staying at X. Rework the plan around it?" (never automatic); yes runs a whole-trip review briefed on the new base. A draft that could not fill every day says which days need another go. Concierge chat FAB (`TripChat`).
-- **Motion:** spring on pins / buttons, fly-to camera moves, drop-in for newly added pins, staggered card rise. Reduced motion: the map uses `jumpTo` and the globe does not spin.
-- **Code:** `pages/Trips/atlas.stylex.ts` (primitives `a`: type, buttons, fields, chips, pills, menu, dialog), `index.stylex.ts` (`shell`, `idx`, `cover`, `create`), `workspace.stylex.ts` (`share`, `ws`), `map/map.stylex.ts`, `chat.stylex.ts`, `components/kit.tsx` (`Menu`, `Modal`), `meta.ts`, `useTripEditor.ts`, `index.css` `.trips` tokens.
-- **IA (locked):** `/trips`, `/trips/new`, `/trips/:tripId`, `/trips/:tripId/day/:dayId`, `/trips/join/:token`. `/trips/:tripId/edit` and `/trips/:tripId/places` redirect to the trip. Removed from the UI: Instagram ingest, the extracted-places library, the per-trip places page, the clay globe scenes, the read-only day page.
-- **Photoreal 3D ("Fly the day"):** Google 3D Tiles (`pages/Trips/photoreal/`), opened from the day map's "Fly in 3D" button or the day's "…" menu. Numbered pins stand on the terrain with route arcs; places parked under "To schedule" show as small hollow pins that are never routed or toured; anything imported from Instagram carries "From Instagram · Open the post". A missing tile falls back to its coarser parent rather than leaving a hole. **Must unmount** when closed; never hide with React `Activity`. Touch targets 44px.
-- **Anti-references:** the previous toy / sticker look, glassmorphism stacks, gradient text, stock travel photography, generic SaaS dashboards.
+- **Instagram import:** "Places from Instagram" sheet. Paste a post or Reel link (pasting is the whole gesture; the day composer recognises links too). Posts are read quickly first (caption + comments) and re-read with the video on their own if that finds nothing; a hairline progress bar and plain step labels show the read. Each place found gets a row (name, address, the line from the post) and a pin on the sheet's own map; "+ Day N" adds it to the day in view or the nearest day, "Add all" adds a post's places at once; untimed imports land under a "To schedule" heading and stay off the route and numbering; and places already on the trip show "On day N". Everything found is kept under Saved for every trip (search, remove). Never show pipeline logs or raw errors.
+- **Sharing:** link-first. Owner picks "Can view" / "Can edit" and copies an invite link; anyone signed in who opens `/trips/join/:token` joins with that role. Owner changes roles, removes people, turns links off; collaborators can leave.
+- **Concierge:** a chat that acts on the trip. Answers lead with the pick; a live status line shows real tool activity ("Checking Google Maps", "Searching the web"); place cards carry a photo, rating, hours for that day, the walk from the plan and "Add to Sat 14 Nov · 13:00"; changes arrive as one proposal card the traveller ticks, applies and can undo; 2 to 3 follow-up chips after each answer; the conversation is kept per trip (`trips-concierge-v1:<tripId>`) with New chat; location is shared for one message only, on request.
+- **AI:** full-trip draft (`/generate`; from create, the empty overview, or "Start a fresh draft" with a replace confirmation), per-day "Ideas for this day" and whole-trip "Improve with AI" (`/enhance`; added places are auto-applied, flashed in the list and dropped onto the map; other suggestions are reviewed from a checklist, including moving a stop to another day and swapping two days), concierge chat FAB (`TripChat`, `chat.stylex.ts`). When a hotel is added or changed, the workspace offers "Staying at X. Rework the plan around it?" (never automatic); yes runs a whole-trip review briefed on the new base. A draft that could not fill every day says which days need another go.
+- **Type:** Instrument Serif display (`--trips-display`, italic for the emphasised word), Inter body, Fragment Mono eyebrows / data (`--trips-mono`).
+- **Accent (two, never mixed):** the **brand** accent is constant signal orange (`--brand` text, `--brand-fill`, `--brand-soft`, `--brand-ring`) and paints chrome: focus rings, AI actions, switches, links, the compass mark. The **trip** accent (`--ta`, `--ta-fill`, `--ta-on`, `--ta-soft`, `--ta-ring`; set by `data-trip-accent`, defaults to the brand) is reserved for trip identity: pins, route, date tiles, the status eyebrow, the pinned-location row, covers. Trip accents: rose "Poppy" `#e5484d`, amber "Saffron" `#f2a71b` (dark ink on fill), emerald "Jade" `#0f9b76`, sky "Cobalt" `#2f7bf0`, violet "Iris" `#7c5cff`. Primary buttons are ink.
+- **Code:** `atlas.stylex.ts` (primitives `a`), `index.stylex.ts` (`shell`, `idx`, `cover`, `create`), `workspace.stylex.ts` (`share`, `ws`), `map/map.stylex.ts`, `chat.stylex.ts`, `components/kit.tsx` (`Menu`, `Modal`), `meta.ts`, `useTripEditor.ts`.
+- **Motion:** spring on pins / buttons, fly-to camera, drop-in for new pins, staggered card rise. Reduced motion: map uses `jumpTo`, globe does not spin.
+- **Anti-references:** the previous toy / sticker look, glassmorphism stacks, gradient text, stock travel photography, generic SaaS dashboards. Do not restyle Trips into the Korea dossier.
 
-### Per-route Tokens (`index.css` `.trips` is canonical)
+### Per-route Tokens
 
 | Token | Light | Dark | Usage |
 |-------|-------|------|-------|
-| Canvas | `#f1f0eb` | `#0b0d10` | Chart-paper page |
+| Canvas | `#f1f0eb` | `#0b0d10` | Page |
 | Surface | `#faf9f6` | `#13161a` | Panes, cards |
 | Raised | `#ffffff` | `#1a1e23` | Menus, dialogs, fields |
 | Sunken | `#e8e7e1` | `#07090b` | Wells, rails |
 | Ink | `#14171a` | `#eceae4` | Text, primary buttons |
 | Ink secondary / tertiary | `#4d5259` / `#696e75` | `#b0b4ba` / `#8b9097` | Body / hints |
 | Line | `rgb(20 23 26 / .1)` | `rgb(255 255 255 / .1)` | Hairline rules |
-| Brand accent | `#f0582b` fill, `#b8400f` text | `#f0582b` fill, `#ff9166` text | `--brand-fill` / `--brand`: chrome (focus, AI, switches, links) |
-| Trip accents | Poppy `#e5484d`, Saffron `#f2a71b`, Jade `#0f9b76`, Cobalt `#2f7bf0`, Iris `#7c5cff` | same fills | `data-trip-accent` → `--ta*`: trip identity (pins, route, date tiles, covers) |
+| Brand accent | `#f0582b` fill, `#b8400f` text | `#f0582b` fill, `#ff9166` text | `--brand-fill` / `--brand`: chrome. `--ta*` defaults to it |
 
-Radius `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`). Spring `cubic-bezier(0.34, 1.4, 0.64, 1)`; ease-out `cubic-bezier(0.16, 1, 0.3, 1)`.
+Radius `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`); shadows `--trips-shadow-1/2/3`; spring `cubic-bezier(0.34, 1.4, 0.64, 1)`; ease-out `cubic-bezier(0.16, 1, 0.3, 1)`.
 
 ### Trips-specific Principles
 
-1. **Do not add `/japan`-style destination routes.** Extend `server/src/trips/` + `frontend/src/pages/Trips/`.
-2. AI-added places must carry structured `TripLocation` (lat/lng/category/source), never prose only.
-3. One map per viewport. Keep the map engine a lazy chunk (`maplibre`).
-4. The photoreal 3D view reads the day document directly and **must unmount** when closed.
-5. Frontend I/O is Effect v3 (`tripsApi.ts`, `tripChatApi.ts`, `geocode.ts` via `fetchExternal`).
-6. Trips disables the global focus outline (`.trips :focus-visible { outline: none }`). Every new control draws its own ring with `--brand-ring` (`a.focusable`).
-7. Editable titles use the `trips-title-input` / `trips-day-title-input` classes to opt out of the 16px phone input pin. Portaled UI goes through `kit.tsx` `Modal` (`.trips.trips-portal` token scope).
-8. Keep the atlas on `/trips`; do not restyle it into Korea parchment/bloom/Cormorant or Linear/Notion zinc, and do not restyle chatbot or BreathFlow as Trips.
-
-## Service Worker / Caching Contract
-
-The app is a PWA. Every deploy must keep these invariants:
-
-- **`/sw.js`** served with `Cache-Control: no-cache, no-store, must-revalidate` + `Service-Worker-Allowed: /`
-- **SPA HTML** served with `no-cache, no-store, must-revalidate`
-- **`/assets/*`** content-hashed bundles served with `public, max-age=31536000, immutable`
-- **`CACHE_VERSION`** in `sw.js` MUST be bumped on every SW-behavior change
-- The client (`serviceWorker.ts`) posts `SKIP_WAITING` and reloads on `controllerchange` — gives users seamless updates without a manual hard refresh
+1. **One map per viewport.** Keep the engine a lazy chunk (`maplibre`).
+2. **AI-added places must carry structured locations**, never prose only.
+3. **Never add destination-specific routes.**
+4. **44px targets; draw your own focus ring.** Trips sets `.trips :focus-visible { outline: none }`, so every new control needs a `--brand-ring` ring (`a.focusable`).
+5. **Editable titles** use the `trips-title-input` / `trips-day-title-input` classes to opt out of the 16px phone input pin.
+6. **Portals** go through `kit.tsx` `Modal`, which re-declares the token scope (`.trips.trips-portal`).
+7. **The photoreal 3D view must unmount** when closed (never React `Activity`).
+8. **Brand for chrome, trip accent for identity.** Never tint focus rings, AI actions, switches or links with `--ta*`.
+9. **One state, one owner.** The workspace remounts per trip (`key={tripId}`); day-scoped overlays reset when the day changes; async results (AI runs, chat writes, duplicates) are dropped once their trip or component is gone; editing is locked while an AI run is in flight; concierge writes to the itinerary are serialised. Model a mode as one union (`status`, `mutation`, `action`), not several booleans.

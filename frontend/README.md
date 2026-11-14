@@ -17,4 +17,4 @@ bun run build
 
 The Vite dev server proxies `/api` to `http://localhost:3000`. Start the Hono server separately when you need live API responses.
 
-Full docs: [`../CLAUDE.md`](../CLAUDE.md).
+Full docs: [`../AGENTS.md`](../AGENTS.md).

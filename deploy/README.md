@@ -370,7 +370,7 @@ The deploy workflow does not run this script; run it by hand after changing thos
 ## Monitoring
 
 - `.github/workflows/uptime.yml` probes `/health`, `/health/ready`, `/`, `/trips` and the sign-in API every 15 minutes from GitHub. A failure opens one issue labelled `uptime` (later failures comment on it); the next healthy run closes it.
-- `/health/ready` and `/health/metrics` are described in `CLAUDE.md` ("Observability and self-healing").
+- `/health/ready` and `/health/metrics` are described in `docs/observability.md`.
 - Browser-side failures appear in the PM2 log as `[client] <kind> …` lines: `grep "\[client\]" ~/.pm2/logs/anthonyl.im-error.log`.
 
 ## Database migrations
