@@ -100,7 +100,8 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        // A second checkout can run its API on another port: API_PROXY_TARGET=http://localhost:3099
+        target: process.env.API_PROXY_TARGET ?? "http://localhost:3000",
         changeOrigin: true
       }
     }

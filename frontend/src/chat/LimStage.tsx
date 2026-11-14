@@ -4,7 +4,9 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { stage as s, chatbot } from '@/styles/chatbot.stylex'
 import { LimArt } from './LimArt'
 import type { Stunt } from './eggs'
-import type { LimMood, LimReaction, LimScene } from './scene/limScene'
+import type { LimMood, LimReaction, LimScene, LimWorld } from './scene/limScene'
+import type { WorldOp } from './world/spec'
+import { loadWorld, saveWorld } from './world/worldApi'
 
 export type LimStageHandle = {
   hop(): void
@@ -14,6 +16,12 @@ export type LimStageHandle = {
   /** Act out a typed easter egg. False when there's no live Lim to do it. */
   stunt(kind: Stunt): boolean
   react(kind: LimReaction): void
+  /** Change Lim's world. False when there is no live scene, or the first thing asked for could not be done. */
+  apply(ops: WorldOp[]): boolean
+  /** Lim conjures while something is being made. */
+  conjure(on: boolean, made?: boolean): void
+  /** What is in the world now, or null without a live scene. */
+  world(): LimWorld | null
 }
 
 const POKE_WORDS = ['hehe!', 'boop!', 'eep!', 'squish!', 'tee-hee', 'wobble!', 'again!']
@@ -28,7 +36,18 @@ const canRender3D = () =>
  * on its first frame. The canvas is created per effect run so StrictMode's
  * double mount never shares a GPU context.
  */
-export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; ref?: Ref<LimStageHandle> }) {
+export function LimStage({
+  mood,
+  night,
+  onWorld,
+  ref,
+}: {
+  mood: LimMood
+  night: boolean
+  /** The items or the place changed (also called once when the scene comes up). */
+  onWorld?: (world: LimWorld) => void
+  ref?: Ref<LimStageHandle>
+}) {
   const hostRef = useRef<HTMLDivElement>(null)
   const slotRef = useRef<HTMLDivElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -39,8 +58,10 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
   const [pop, setPop] = useState<{ n: number; word: string } | null>(null)
   const reducedMotion = useReducedMotion()
 
+  const onWorldRef = useRef(onWorld)
   useLayoutEffect(() => {
     initial.current = { mood, night }
+    onWorldRef.current = onWorld
   })
 
   const emote = useCallback((word: string) => {
@@ -62,6 +83,30 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
         return Boolean(sceneRef.current)
       },
       react: (kind) => sceneRef.current?.react(kind),
+      apply: (ops) => {
+        const scene = sceneRef.current
+        if (!scene) return false
+        let did = ops.length === 0
+        ops.forEach((op, i) => {
+          // One thing at a time, so each gets its moment.
+          const run = () => {
+            if (sceneRef.current !== scene) return false
+            if (op.op === 'item') scene.addItem(op.spec, op.then)
+            else if (op.op === 'place') scene.setPlace(op.spec)
+            else if (op.op === 'clear') scene.clear(op.what)
+            else if (op.op === 'tweak') scene.tweak(op.set)
+            else return scene.act(op.action, op.target)
+            return true
+          }
+          // Whether the first thing asked for could be done (there may be nothing by that name to act on).
+          if (i === 0) did = run()
+          // If the first could not be done, the rest of the order is off too.
+          else if (did) window.setTimeout(run, i * 900)
+        })
+        return did
+      },
+      conjure: (on, made) => sceneRef.current?.conjure(on, made),
+      world: () => sceneRef.current?.world() ?? null,
     }),
     [],
   )
@@ -87,6 +132,11 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
         night: initial.current.night,
         mood: initial.current.mood,
         onEmote: emote,
+        world: loadWorld(),
+        onWorld: (world) => {
+          saveWorld(world)
+          onWorldRef.current?.(world)
+        },
         onAnchor: (x, y, unit) => {
           const a = anchorRef.current
           if (!a) return
@@ -103,6 +153,7 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
         sceneRef.current = created
         created.setMood(initial.current.mood)
         created.setNight(initial.current.night)
+        onWorldRef.current?.(created.world())
       }
     })().catch((error: unknown) => {
       console.warn('[chat] live Lim unavailable; showing the drawing.', error)

@@ -29,6 +29,7 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
   messages: Message[] = [],
   onUpdate?: (content: string) => void,
   signal?: AbortSignal,
+  world?: unknown,
 ) {
   const controller = new AbortController()
   // Caller-driven cancel (Stop button) shares the watchdog's abort path.
@@ -50,7 +51,7 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
         "Content-Type": "application/json",
         Accept: "text/event-stream",
       },
-      body: JSON.stringify({ prompt, messages }),
+      body: JSON.stringify(world ? { prompt, messages, world } : { prompt, messages }),
       credentials: "include",
       signal: controller.signal,
     })
@@ -112,6 +113,8 @@ export async function invokeDeepseek(
   messages: Message[] = [],
   onUpdate?: (content: string) => void,
   signal?: AbortSignal,
+  /** Lim's toy world, when it is up: lets the model answer an order for it. */
+  world?: unknown,
 ): Promise<ApiResponse> {
-  return runPromise(invokeDeepseekEffect(prompt, messages, onUpdate, signal))
+  return runPromise(invokeDeepseekEffect(prompt, messages, onUpdate, signal, world))
 }

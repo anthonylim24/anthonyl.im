@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { formatConciergeError } from "../effect/chatErrors"
 import { TimeoutError, errorMessage } from "../effect/errors"
 import { invokeDeepseek } from "../lib/apiService"
+import { orderState } from "./world/worldApi"
 
 export type ChatRole = "user" | "assistant"
 export type ChatMessage = {
@@ -11,6 +12,13 @@ export type ChatMessage = {
   timestamp: number
   /** Assistant replies only. */
   status?: "streaming" | "done" | "stopped" | "error"
+  /**
+   * How this turn goes back to the model as history, when that differs from
+   * what is shown: a world order is sent as the order it was (so the model
+   * keeps to the format), and "" drops the turn and the question before it
+   * (a toy-box reply the model never wrote).
+   */
+  sent?: string
 }
 /** thinking = waiting for the first token; streaming = tokens arriving. */
 export type ChatStatus = "idle" | "thinking" | "streaming"
@@ -18,8 +26,24 @@ export type ChatStatus = "idle" | "thinking" | "streaming"
 export type ChatEvents = {
   onSend?: () => void
   onChunk?: () => void
-  onDone?: (firstReply: boolean) => void
+  /** `local`: the reply came from `intercept`, not the model. */
+  onDone?: (firstReply: boolean, local: boolean) => void
   onError?: () => void
+  /**
+   * A chance to answer without the model (Lim's toy world). Resolve with the
+   * reply to show, or null to let the question go through as usual.
+   */
+  intercept?: (text: string, signal: AbortSignal) => Promise<string | null>
+  /** Lim's toy world as it is now, sent with the question so the model can answer an order for it. Null when it isn't up. */
+  world?: () => unknown
+  /** The reply turned out to be a world order: it is being written (and is not shown as text). */
+  onWorldStart?: () => void
+  /**
+   * The world order is complete (`content`), or was cut short (null), in
+   * which case `failed` tells a failure from a Stop. Returns the line to show
+   * in its place.
+   */
+  onWorld?: (content: string | null, failed: boolean) => { text: string; ok: boolean }
 }
 
 export const STORAGE_KEY = "lim-chat-v1"
@@ -38,6 +62,7 @@ function load(): ChatMessage[] {
       )
       // A reload mid-stream leaves a half reply; keep it, but as stopped.
       .map((m) => (m.status === "streaming" ? { ...m, status: "stopped" as const } : m))
+      .map((m) => (m.sent === undefined || typeof m.sent === "string" ? m : { ...m, sent: undefined }))
   } catch {
     return []
   }
@@ -52,8 +77,26 @@ function save(messages: ChatMessage[]) {
   }
 }
 
-const toHistory = (messages: ChatMessage[]) =>
-  messages.filter((m) => m.status !== "error" && m.content.trim()).map((m) => ({ role: m.role, content: m.content }))
+// The API takes at most 40 earlier messages; toy-world chatter adds up fast, so send the recent ones.
+const HISTORY_MAX = 30
+const toHistory = (messages: ChatMessage[]) => {
+  const turns: { role: ChatRole; content: string }[] = []
+  for (const m of messages) {
+    if (m.status === "error" || !m.content.trim()) continue
+    if (m.sent === "") {
+      // Lim's own reply to a toy-box order: neither it nor the order is the model's business.
+      if (turns[turns.length - 1]?.role === "user") turns.pop()
+      continue
+    }
+    turns.push({ role: m.role, content: m.sent ?? m.content })
+  }
+  // Recent turns only, starting on a question, never two questions in a row (a dropped pair can leave both).
+  const recent = turns.slice(-HISTORY_MAX)
+  while (recent[0]?.role === "assistant") recent.shift()
+  // The new question follows, so the history must not end on an unanswered one.
+  while (recent[recent.length - 1]?.role === "user") recent.pop()
+  return recent.filter((turn, i) => !(turn.role === "user" && recent[i + 1]?.role === "user"))
+}
 
 /**
  * Conversation state for the chatbot: streaming via `invokeDeepseek`, stop,
@@ -94,25 +137,83 @@ export function useChat(events: ChatEvents = {}) {
     eventsRef.current.onSend?.()
 
     let latest = ""
-    void invokeDeepseek(
-      text,
-      toHistory(base),
-      (content) => {
-        if (controller.signal.aborted) return
-        latest = content
-        patchReply(reply.id, { content })
-        setStatus("streaming")
-        eventsRef.current.onChunk?.()
-      },
-      controller.signal,
-    )
+    let wasLocal = false
+    // A reply that opens with the world marker is an order for Lim's toy
+    // world, not prose: it is held back, and handed over when it is complete.
+    let order: "no" | "writing" | "done" = "no"
+    const finishOrder = (content: string) => {
+      order = "done"
+      const { text: line, ok } = eventsRef.current.onWorld!(content, false)
+      latest = line
+      wasLocal = true
+      // A good order goes back to the model as the order it was; one that came to nothing is left out.
+      if (abortRef.current === controller) patchReply(reply.id, { content: line, sent: ok ? content : "" })
+    }
+    const answer = () =>
+      invokeDeepseek(
+        text,
+        toHistory(base),
+        (content) => {
+          if (controller.signal.aborted) return
+          latest = content
+          if (eventsRef.current.onWorld) {
+            const state = order === "writing" ? "yes" : orderState(content)
+            // "@" or an opening fence could still become an order: show nothing until it is clear which.
+            if (state === "maybe") return
+            if (state === "yes") {
+              if (order === "no") {
+                order = "writing"
+                // Anything shown before the marker turned up (a preface) goes.
+                patchReply(reply.id, { content: "" })
+                eventsRef.current.onWorldStart?.()
+              }
+              return
+            }
+          }
+          patchReply(reply.id, { content })
+          setStatus("streaming")
+          eventsRef.current.onChunk?.()
+        },
+        controller.signal,
+        eventsRef.current.world?.() ?? undefined,
+      ).then(() => {
+        if (order === "writing") return finishOrder(latest)
+        // Only ever the start of a marker or a fence: it was the whole answer.
+        if (eventsRef.current.onWorld && orderState(latest) === "maybe") patchReply(reply.id, { content: latest })
+      })
+    /** Cut short mid-order: the show still has to end. */
+    const dropOrder = (failed: boolean) => {
+      if (order !== "writing") return
+      order = "done"
+      latest = eventsRef.current.onWorld!(null, failed).text
+    }
+    const intercept = eventsRef.current.intercept
+    const work = intercept
+      ? intercept(text, controller.signal)
+          .catch(() => null)
+          .then((handled) => {
+            if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError")
+            if (handled === null) return answer()
+            latest = handled
+            wasLocal = true
+            patchReply(reply.id, { content: handled, sent: "" })
+          })
+      : answer()
+    void work
       .then(() => {
         // Settled after New chat (or a newer send): this request no longer owns the chat.
         if (abortRef.current !== controller) return
         patchReply(reply.id, { status: "done" })
-        eventsRef.current.onDone?.(firstReply)
+        eventsRef.current.onDone?.(firstReply, wasLocal)
       })
       .catch((err: unknown) => {
+        const ordering = order === "writing"
+        dropOrder(!controller.signal.aborted)
+        if (ordering && !controller.signal.aborted && abortRef.current === controller) {
+          // An order that failed is Lim's to own up to, not a chat error.
+          patchReply(reply.id, { content: latest, status: "done", sent: "" })
+          return
+        }
         if (controller.signal.aborted) {
           patchReply(reply.id, { content: latest, status: "stopped" })
           return

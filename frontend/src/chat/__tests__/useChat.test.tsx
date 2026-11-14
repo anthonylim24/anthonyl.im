@@ -7,6 +7,7 @@ type Invoke = (
   history: { role: string; content: string }[],
   onUpdate?: (content: string) => void,
   signal?: AbortSignal,
+  world?: unknown,
 ) => Promise<{ content: string }>
 
 const invoke = vi.fn<Invoke>()
@@ -67,7 +68,7 @@ describe('useChat', () => {
     await reply.finish()
     expect(result.current.status).toBe('idle')
     expect(last(result.current.messages)?.status).toBe('done')
-    expect(events.onDone).toHaveBeenCalledWith(true)
+    expect(events.onDone).toHaveBeenCalledWith(true, false)
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
     expect(stored).toHaveLength(2)
   })
@@ -123,6 +124,182 @@ describe('useChat', () => {
     second.chunk('Lots of places.')
     await second.finish()
     expect(last(result.current.messages)).toMatchObject({ content: 'Lots of places.', status: 'done' })
+  })
+
+  it('lets an intercept answer without the model, and falls through when it declines or fails', async () => {
+    const onDone = vi.fn()
+    const intercept = vi.fn<(text: string, signal: AbortSignal) => Promise<string | null>>()
+    const { result } = renderHook(() => useChat({ intercept, onDone }))
+
+    intercept.mockResolvedValueOnce('One ball, coming up!')
+    act(() => void result.current.send('give Lim a ball'))
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(invoke).not.toHaveBeenCalled()
+    expect(last(result.current.messages)).toMatchObject({ role: 'assistant', content: 'One ball, coming up!', status: 'done' })
+    expect(onDone).toHaveBeenLastCalledWith(true, true)
+
+    // Declined: the question goes to the model as usual.
+    intercept.mockResolvedValueOnce(null)
+    const reply = deferredReply()
+    act(() => void result.current.send('Who is Anthony?'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledOnce())
+    reply.chunk('An engineer.')
+    await reply.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(last(result.current.messages)).toMatchObject({ content: 'An engineer.', status: 'done' })
+
+    // Broken: same.
+    intercept.mockRejectedValueOnce(new Error('boom'))
+    const again = deferredReply()
+    act(() => void result.current.send('And his skills?'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(2))
+    await again.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+  })
+
+  it('stop during an intercept leaves a stopped reply and never calls the model', async () => {
+    let release!: (v: string | null) => void
+    const intercept = vi.fn(() => new Promise<string | null>((res) => (release = res)))
+    const { result } = renderHook(() => useChat({ intercept }))
+    act(() => void result.current.send('give him a kite'))
+    act(() => result.current.stop())
+    await act(async () => release('Here you go!'))
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(invoke).not.toHaveBeenCalled()
+    expect(last(result.current.messages)).toMatchObject({ role: 'assistant', status: 'stopped' })
+  })
+
+  it('hands a world order to onWorld instead of showing it, and shows Lim\'s line', async () => {
+    const events = { world: () => ({ items: ['ball'], place: 'studio' }), onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A kite!', ok: true })), onChunk: vi.fn(), onDone: vi.fn() }
+    const reply = deferredReply()
+    const { result } = renderHook(() => useChat(events))
+    act(() => void result.current.send('give him a kite'))
+    // The world goes along with the question.
+    expect(invoke.mock.calls[0][4]).toEqual({ items: ['ball'], place: 'studio' })
+    reply.chunk('@@')
+    reply.chunk('@@world {"ops":[{"op":"item"')
+    expect(events.onWorldStart).toHaveBeenCalledOnce()
+    // Nothing of the order is ever shown, and Lim doesn't lip-sync to it.
+    expect(last(result.current.messages).content).toBe('')
+    expect(events.onChunk).not.toHaveBeenCalled()
+    reply.chunk('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}')
+    await reply.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorld).toHaveBeenCalledWith('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}', false)
+    expect(last(result.current.messages)).toMatchObject({ content: 'A kite!', status: 'done' })
+    expect(events.onDone).toHaveBeenCalledWith(true, true)
+
+    // The order goes back to the model as the order it was, so it keeps to the format;
+    // a toy-box reply the model never wrote is left out, with its question.
+    const next = deferredReply()
+    act(() => void result.current.send('Who is Anthony?'))
+    expect(invoke.mock.calls[1][1]).toEqual([
+      { role: 'user', content: 'give him a kite' },
+      { role: 'assistant', content: '@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}' },
+    ])
+    await next.finish()
+  })
+
+  it('leaves toy-box replies out of the history the model sees', async () => {
+    const intercept = vi.fn<(text: string, signal: AbortSignal) => Promise<string | null>>()
+    const { result } = renderHook(() => useChat({ intercept }))
+    intercept.mockResolvedValueOnce('A ball, coming up!')
+    act(() => void result.current.send('give him a ball'))
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    intercept.mockResolvedValueOnce(null)
+    const reply = deferredReply()
+    act(() => void result.current.send('Who is Anthony?'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledOnce())
+    expect(invoke.mock.calls[0][1]).toEqual([])
+    await reply.finish()
+  })
+
+  it('shows a reply that only looked like the start of the marker', async () => {
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'x', ok: true })) }
+    const reply = deferredReply()
+    const { result } = renderHook(() => useChat(events))
+    act(() => void result.current.send('How do I reach him?'))
+    reply.chunk('@')
+    expect(last(result.current.messages).content).toBe('')
+    reply.chunk('@anthony on GitHub.')
+    expect(last(result.current.messages).content).toBe('@anthony on GitHub.')
+    await reply.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorldStart).not.toHaveBeenCalled()
+    expect(events.onWorld).not.toHaveBeenCalled()
+    expect(last(result.current.messages).content).toBe('@anthony on GitHub.')
+  })
+
+  it('still treats a fenced or prefaced order as an order', async () => {
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A kite!', ok: true })), onChunk: vi.fn() }
+    const { result } = renderHook(() => useChat(events))
+    // Fenced, arriving piece by piece: none of it is ever shown.
+    const fenced = deferredReply()
+    act(() => void result.current.send('give him a kite'))
+    for (const piece of ['`', '```', '```json\n', '```json\n@@wor', '```json\n@@world {"ops":[{"op":"item"']) {
+      fenced.chunk(piece)
+      expect(last(result.current.messages).content).toBe('')
+    }
+    expect(events.onWorldStart).toHaveBeenCalledOnce()
+    expect(events.onChunk).not.toHaveBeenCalled()
+    fenced.chunk('```json\n@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}\n```')
+    await fenced.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(last(result.current.messages).content).toBe('A kite!')
+
+    // Prefaced: the preface is withdrawn the moment the marker turns up.
+    const prefaced = deferredReply()
+    act(() => void result.current.send('give him a boat'))
+    prefaced.chunk('Sure!')
+    expect(last(result.current.messages).content).toBe('Sure!')
+    prefaced.chunk('Sure!\n@@world {"ops":[')
+    expect(last(result.current.messages).content).toBe('')
+    act(() => result.current.stop())
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    // Stopped mid-order: no JSON is left on screen.
+    expect(last(result.current.messages).content).not.toContain('@@world')
+  })
+
+  it('an ordinary answer is untouched, even one that mentions the marker later', async () => {
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'x', ok: true })) }
+    const reply = deferredReply()
+    const { result } = renderHook(() => useChat(events))
+    act(() => void result.current.send('Who is Anthony?'))
+    reply.chunk('An engineer. The docs mention @@world orders.')
+    await reply.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorldStart).not.toHaveBeenCalled()
+    expect(last(result.current.messages).content).toBe('An engineer. The docs mention @@world orders.')
+  })
+
+  it('ends the show when an order is stopped or fails part-way', async () => {
+    // As the page does it: nothing to add after a Stop, an apology after a failure.
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn((c: string | null, failed: boolean) => ({ text: c ? 'ok' : failed ? "I couldn't make that." : '', ok: Boolean(c) })), onError: vi.fn() }
+    const { result } = renderHook(() => useChat(events))
+
+    const stopped = deferredReply()
+    act(() => void result.current.send('give him a kite'))
+    stopped.chunk('@@world {"ops":[')
+    act(() => result.current.stop())
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorld).toHaveBeenLastCalledWith(null, false)
+    expect(last(result.current.messages).status).toBe('stopped')
+
+    const failed = deferredReply()
+    act(() => void result.current.send('give him a boat'))
+    failed.chunk('@@world {"ops":[')
+    await failed.fail(new Error('boom'))
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorld).toHaveBeenLastCalledWith(null, true)
+    // Lim owns up to it; it is not shown as a chat error.
+    expect(last(result.current.messages)).toMatchObject({ content: "I couldn't make that.", status: 'done' })
+    expect(events.onError).not.toHaveBeenCalled()
+
+    // Neither the failed order nor Lim's apology is sent back to the model as its own words.
+    const next = deferredReply()
+    act(() => void result.current.send('Who is Anthony?'))
+    expect(invoke.mock.calls[2][1]).toEqual([])
+    await next.finish()
   })
 
   it('restores a saved chat and clears it on new chat', () => {
