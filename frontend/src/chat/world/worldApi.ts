@@ -1,37 +1,30 @@
 /**
- * Lim's world, client side: ask the model what a message means for the toy
- * world, and keep what the visitor has built between visits.
+ * Lim's world, client side: read the model's world orders out of the chat
+ * stream, and keep what the visitor has built between visits.
  */
-import { Effect } from "effect"
-import { fetchApi, parseJson, requireOk } from "../../effect/http"
-import { runPromise } from "../../effect/runtime"
-import { cleanItem, cleanOps, cleanPlace, cleanTweak, type ItemSpec, type PlaceSpec, type Tweak, type WorldOp } from "./spec"
+import { WORLD_MARK, cleanItem, cleanOps, cleanPlace, cleanTweak, type ItemSpec, type PlaceSpec, type Tweak, type WorldOp } from "./spec"
 
-export type WorldAnswer = { ops: WorldOp[]; reply: string; chat: boolean }
 export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
 
-// Only explicit orders about Lim's world get this far (see spec.ts), so the
-// call can take the time a good model needs; past this the message goes to
-// the chat instead.
-const TIMEOUT_MS = 22_000
+/** True while a streamed reply could still be, or is, a world order (so it is not shown as text). */
+export function isWorldReply(content: string): boolean {
+  const head = content.trimStart()
+  return head.length > 0 && (head.startsWith(WORLD_MARK) || WORLD_MARK.startsWith(head))
+}
 
-const askWorldEffect = Effect.fn("LimWorld.ask")(function* (message: string, world: { items: string[]; place: string }, signal?: AbortSignal) {
-  const res = yield* fetchApi("/api/lim/world", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: message.slice(0, 240), world: { items: world.items.slice(0, 8), place: world.place.slice(0, 32) } }),
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS),
-  })
-  yield* requireOk(res)
-  const raw = yield* parseJson<{ ops?: unknown; reply?: unknown; chat?: unknown }>(res)
-  const ops = cleanOps(raw.ops)
-  const reply = typeof raw.reply === "string" ? raw.reply.replace(/\s+/g, " ").trim().slice(0, 140) : ""
-  return { ops, reply, chat: ops.length === 0 || raw.chat === true } satisfies WorldAnswer
-})
-
-/** Rejects when the model is unreachable; the caller carries on without it. */
-export const askWorld = (message: string, world: { items: string[]; place: string }, signal?: AbortSignal): Promise<WorldAnswer> =>
-  runPromise(askWorldEffect(message, world, signal))
+/** The model's `@@world {json}` answer as safe ops and Lim's line. Never throws. */
+export function readWorldReply(content: string): { ops: WorldOp[]; reply: string } {
+  const from = content.indexOf('{')
+  const to = content.lastIndexOf('}')
+  if (from < 0 || to <= from) return { ops: [], reply: '' }
+  try {
+    const raw = JSON.parse(content.slice(from, to + 1)) as { ops?: unknown; reply?: unknown }
+    const reply = typeof raw.reply === 'string' ? raw.reply.replace(/\s+/g, ' ').trim().slice(0, 140) : ''
+    return { ops: cleanOps(raw.ops), reply }
+  } catch {
+    return { ops: [], reply: '' }
+  }
+}
 
 /* ── Between visits ──────────────────────────────────────────────── */
 

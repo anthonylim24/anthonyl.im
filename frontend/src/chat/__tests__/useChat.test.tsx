@@ -7,6 +7,7 @@ type Invoke = (
   history: { role: string; content: string }[],
   onUpdate?: (content: string) => void,
   signal?: AbortSignal,
+  world?: unknown,
 ) => Promise<{ content: string }>
 
 const invoke = vi.fn<Invoke>()
@@ -166,6 +167,62 @@ describe('useChat', () => {
     await waitFor(() => expect(result.current.status).toBe('idle'))
     expect(invoke).not.toHaveBeenCalled()
     expect(last(result.current.messages)).toMatchObject({ role: 'assistant', status: 'stopped' })
+  })
+
+  it('hands a world order to onWorld instead of showing it, and shows Lim\'s line', async () => {
+    const events = { world: () => ({ items: ['ball'], place: 'studio' }), onWorldStart: vi.fn(), onWorld: vi.fn(() => 'A kite!'), onChunk: vi.fn(), onDone: vi.fn() }
+    const reply = deferredReply()
+    const { result } = renderHook(() => useChat(events))
+    act(() => void result.current.send('give him a kite'))
+    // The world goes along with the question.
+    expect(invoke.mock.calls[0][4]).toEqual({ items: ['ball'], place: 'studio' })
+    reply.chunk('@@')
+    reply.chunk('@@world {"ops":[{"op":"item"')
+    expect(events.onWorldStart).toHaveBeenCalledOnce()
+    // Nothing of the order is ever shown, and Lim doesn't lip-sync to it.
+    expect(last(result.current.messages).content).toBe('')
+    expect(events.onChunk).not.toHaveBeenCalled()
+    reply.chunk('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}')
+    await reply.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorld).toHaveBeenCalledWith('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}')
+    expect(last(result.current.messages)).toMatchObject({ content: 'A kite!', status: 'done' })
+    expect(events.onDone).toHaveBeenCalledWith(true, true)
+  })
+
+  it('an ordinary answer is untouched, even one that mentions the marker later', async () => {
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => 'x') }
+    const reply = deferredReply()
+    const { result } = renderHook(() => useChat(events))
+    act(() => void result.current.send('Who is Anthony?'))
+    reply.chunk('An engineer. @@world is not a thing.')
+    await reply.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorldStart).not.toHaveBeenCalled()
+    expect(last(result.current.messages).content).toBe('An engineer. @@world is not a thing.')
+  })
+
+  it('ends the show when an order is stopped or fails part-way', async () => {
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn((c: string | null) => (c ? 'ok' : "I couldn't make that.")), onError: vi.fn() }
+    const { result } = renderHook(() => useChat(events))
+
+    const stopped = deferredReply()
+    act(() => void result.current.send('give him a kite'))
+    stopped.chunk('@@world {"ops":[')
+    act(() => result.current.stop())
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorld).toHaveBeenLastCalledWith(null)
+    expect(last(result.current.messages).status).toBe('stopped')
+
+    const failed = deferredReply()
+    act(() => void result.current.send('give him a boat'))
+    failed.chunk('@@world {"ops":[')
+    await failed.fail(new Error('boom'))
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(events.onWorld).toHaveBeenCalledTimes(2)
+    // Lim owns up to it; it is not shown as a chat error.
+    expect(last(result.current.messages)).toMatchObject({ content: "I couldn't make that.", status: 'done' })
+    expect(events.onError).not.toHaveBeenCalled()
   })
 
   it('restores a saved chat and clears it on new chat', () => {

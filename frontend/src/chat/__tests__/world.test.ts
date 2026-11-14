@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isWorldReply, readWorldReply } from '../world/worldApi'
 import {
   ACTIONS, ITEMS, PLACES, SHAPES, TRAITS, actionsFor, cleanItem, cleanName, cleanOps, cleanPlace, cleanTweak, localIntent,
   looksLikeWorldRequest, soften,
@@ -123,21 +124,22 @@ describe('cleaning what the model sends', () => {
 })
 
 describe('reading a message without the model', () => {
-  const op = (text: string, inWorld = [] as Parameters<typeof localIntent>[1], extra?: Parameters<typeof localIntent>[2]) => localIntent(text, inWorld, extra)?.ops[0]
+  const op = (text: string, inWorld = [] as Parameters<typeof localIntent>[1], extra?: Parameters<typeof localIntent>[2], worn: string[] = []) =>
+    localIntent(text, inWorld, extra, worn)?.ops[0]
 
   it('handles plain catalog requests locally', () => {
     expect(op('give Lim a ball')).toMatchObject({ op: 'item', spec: { name: 'ball' } })
     expect(op('bring him a rubber duck please')).toMatchObject({ op: 'item', spec: { name: 'rubber duck' } })
     expect(op('can he have a teddy bear?')).toMatchObject({ op: 'item', spec: { name: 'teddy' } })
     expect(op('Lim deserves a crown')).toMatchObject({ op: 'item', spec: { name: 'crown' } })
-    expect(op('beach ball')).toMatchObject({ op: 'item', spec: { name: 'ball' } })
+    expect(op('beach ball please')).toMatchObject({ op: 'item', spec: { name: 'ball' } })
     expect(op('a ball please')).toMatchObject({ op: 'item', spec: { name: 'ball' } })
     expect(op('take him to the beach')).toMatchObject({ op: 'place', spec: { name: 'beach' } })
     expect(op('go to space')).toMatchObject({ op: 'place', spec: { name: 'space' } })
     expect(op('the beach please')).toMatchObject({ op: 'place', spec: { name: 'beach' } })
     expect(op('go home')).toEqual({ op: 'place', spec: null })
     expect(op('take him home')).toEqual({ op: 'place', spec: null })
-    expect(op('tidy up')).toEqual({ op: 'clear', what: 'items' })
+    expect(op('tidy up the toys')).toEqual({ op: 'clear', what: 'items' })
     expect(op('get rid of all the toys')).toEqual({ op: 'clear', what: 'items' })
     expect(op('reset the world')).toEqual({ op: 'clear', what: 'all' })
     expect(op('make it snow')).toMatchObject({ op: 'tweak', set: { weather: 'snow' } })
@@ -159,14 +161,25 @@ describe('reading a message without the model', () => {
     expect(op('put a crown on lim')).toMatchObject({ op: 'item', spec: { name: 'crown' }, then: 'wear' })
     expect(op('put the party hat on him', [ITEMS['party hat'].spec])).toEqual({ op: 'act', action: 'wear', target: 'party hat' })
     // Taking things off and putting them away never conjures one.
-    expect(op('take off the party hat', [ITEMS['party hat'].spec])).toEqual({ op: 'act', action: 'remove', target: 'party hat' })
-    expect(op('take it off', [ITEMS.ball.spec, ITEMS.crown.spec])).toEqual({ op: 'act', action: 'remove', target: 'crown' })
-    expect(localIntent('take off the party hat')).toEqual({ ops: [], reply: "There's no party hat here." })
-    expect(localIntent('put away the drum')).toEqual({ ops: [], reply: "There's no drum here." })
-    expect(localIntent('take it off', [ITEMS.ball.spec])).toBeNull()
-    // The reply doesn't promise what the item can't do, and nothing is conjured for it.
+    const hat = ITEMS['party hat'].spec
+    const shades = ITEMS.sunglasses.spec
+    expect(localIntent('take off the party hat', [hat], undefined, ['party hat'])).toEqual({ ops: [{ op: 'act', action: 'remove', target: 'party hat' }], reply: 'Off it comes!' })
+    // "it" is whatever Lim has on, not the newest hat-like thing on the floor.
+    expect(op('take it off', [hat, shades], undefined, ['party hat'])).toEqual({ op: 'act', action: 'remove', target: 'party hat' })
+    expect(localIntent('take it off', [hat])).toBeNull()
+    expect(localIntent('take off the party hat')).toEqual({ ops: [], reply: 'There is no party hat here.' })
+    expect(localIntent('put away the sunglasses')).toEqual({ ops: [], reply: 'There are no sunglasses here.' })
+    // Feeding is eating, and uses the bean that is there.
+    expect(op('feed him the bean', [ITEMS.bean.spec])).toEqual({ op: 'act', action: 'eat', target: 'jelly bean' })
+    expect(localIntent('feed him the cactus')).toBeNull()
+    // "play with" is whatever the item is best for.
+    expect(op('play with the drum', [ITEMS.drum.spec])).toEqual({ op: 'act', action: 'dance', target: 'drum' })
+    expect(op('play with the teddy', [ITEMS.teddy.spec])).toEqual({ op: 'act', action: 'hug', target: 'teddy' })
+    expect(op('play with the ball', [ITEMS.ball.spec])).toEqual({ op: 'act', action: 'bounce', target: 'ball' })
+    // The reply doesn't promise what the item can't do, in the visitor's own words; nothing is conjured for it.
     expect(localIntent('eat the ball', [ITEMS.ball.spec])).toEqual({ ops: [], reply: "Hmm, I don't think I can eat a ball." })
-    expect(localIntent('wear the apple')).toEqual({ ops: [], reply: "Hmm, I don't think I can wear an apple." })
+    expect(localIntent('nap on the cactus', [ITEMS.cactus.spec])).toEqual({ ops: [], reply: "Hmm, I don't think I can nap on a cactus." })
+    expect(localIntent('wear the apple')).toBeNull()
   })
 
   it('knows things the model made earlier, so asking again is free', () => {
@@ -189,6 +202,7 @@ describe('reading a message without the model', () => {
       'Lim needs a scarf', 'give lim a giant pop-up book', 'bring her a hot dog stand', 'send him to a neon city', 'make it foggy',
       'please give lim a robot dog', 'could you give him a snail?', 'can he wear a wizard hat', 'take him to the moon', 'buy him a skateboard',
     ]
+    // (The model decides; this guess only stops a typed trick firing on "tiny castle".)
     for (const m of invent) {
       expect(localIntent(m), m).toBeNull()
       expect(looksLikeWorldRequest(m), m).toBe(true)
@@ -231,10 +245,33 @@ describe('reading a message without the model', () => {
       'Make it night and day better', 'Change the scene', 'Turn on the rain sounds', "Let's go home", 'Give him a hand', 'Give him a minute',
       'Give him a name', 'Give him hell', 'Give it a shot', 'Give him a heart attack', 'Give him a star rating', 'some space please',
       'go to the beach with him', 'hug the apple and the ball',
+      // Round 4.
+      'remove the items', 'remove the stuff', 'clear the things', 'get rid of the stuff', 'Clean up', 'tidy', 'tidy up', 'Make him a star',
+      'Dance with the stars', 'Zero gravity?', 'no gravity?', 'normal gravity?', 'Bring him back', 'Take him back', 'The Crown', 'a heart',
+      'dance floor', 'beach', 'rubber duck', 'Give him a buzz', 'Give him the benefit of the doubt', 'put the blame on him', 'take him to task',
     ]
-    const leaked = chat.filter((m) => localIntent(m) !== null || looksLikeWorldRequest(m))
+    // Nothing here may be acted on locally. (What the model then makes of it is the model's call.)
+    const leaked = chat.filter((m) => localIntent(m) !== null)
     expect(leaked).toEqual([])
     expect(looksLikeWorldRequest('give him ' + 'x '.repeat(100))).toBe(false)
     expect(looksLikeWorldRequest('')).toBe(false)
+  })
+})
+
+describe('reading the model\'s world order', () => {
+  it('spots the marker as it streams in, and only at the start', () => {
+    for (const head of ['@', '@@', '@@wor', '@@world', '  @@world {"ops"', '@@world {"ops":[]}']) expect(isWorldReply(head), head).toBe(true)
+    for (const text of ['', 'Anthony is…', '@anthony', 'See @@world', '@@worlds apart']) expect(isWorldReply(text), text).toBe(text === '@@worlds apart')
+  })
+
+  it('reads ops and the line, and survives anything', () => {
+    const good = readWorldReply('@@world {"ops":[{"op":"item","id":"ball"},{"op":"tweak","set":{"weather":"rain"}}],"reply":"  Catch!  "}')
+    expect(good.reply).toBe('Catch!')
+    expect(good.ops).toHaveLength(2)
+    expect(good.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
+    for (const bad of ['@@world', '@@world {', '@@world {"ops":"x"}', '@@world not json }', '@@world {"ops":[{"op":"item","spec":{"parts":[]}}]}']) {
+      expect(readWorldReply(bad).ops, bad).toEqual([])
+    }
+    expect(readWorldReply('@@world {"ops":[],"reply":"' + 'y'.repeat(500) + '"}').reply).toHaveLength(140)
   })
 })

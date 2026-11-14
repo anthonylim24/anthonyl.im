@@ -359,27 +359,30 @@ export const PLACES: Record<string, { spec: PlaceSpec; aliases: string[] }> = {
 /* ── Reading a message without the model ─────────────────────────── */
 
 /*
- * Intercepting a message means the visitor gets Lim's one-liner instead of an
- * answer (and, for an invention, a wait while the model works), so the bar is
- * high. A message is about Lim's world only when the WHOLE of it parses as an
- * order: "give him a kite", "can he have a tiny castle?", "take Lim to the
- * beach", "kick the ball", "make it rain", "tidy up". Nothing may be left
- * over, the thing must be a short concrete noun phrase, and anything about
- * Anthony, the visitor or the conversation is chat. Idioms that merely start
- * like an order ("give him a break", "kick the tires on his API", "remove all
- * the fluff") do not parse and go to the chat.
+ * The model decides what a message means (the chat's system prompt teaches it
+ * to answer a world order with `@@world {json}`, see server/src/lim/world.ts).
+ * This is only the shortcut in front of it: an order whose WHOLE text parses
+ * and names something Lim already knows (the catalog, something made earlier,
+ * something in the world) is acted out at once, with no model call. Anything
+ * that does not parse exactly ("give him a break", "remove all the fluff",
+ * "Can he play music?") is left for the model, which answers it normally.
  */
+/** How the model's answer starts when it is an order for the world. */
+export const WORLD_MARK = '@@world'
+
 const END = String.raw`(?:\s+(?:please|pls|now|too|again))*[\s.!?]*$`
+/** For forms that would also read as a question ("zero gravity?"). */
+const END_FLAT = String.raw`(?:\s+(?:please|pls|now))*[\s.!]*$`
 const START = String.raw`^\s*(?:(?:please|pls|hey|ok|okay|now|lim)[,!]?\s+)*(?:(?:can|could|would|will) you (?:please )?)?`
 const WHO = String.raw`(?:lim|him|her)`
 const DET = String.raw`(?:a|an|some|the|another|more|his|her|lim's)`
 /** One to five words. */
 const THING = String.raw`((?:[\p{L}\p{N}'-]+\s+){0,4}[\p{L}\p{N}'-]+)`
-const rx = (body: string) => new RegExp(START + body + END, 'iu')
+const rx = (body: string, end = END) => new RegExp(START + body + end, 'iu')
 
 const GIVE = [
-  rx(String.raw`(?:give|bring|get|hand|toss|throw|feed|buy|make|build) ${WHO} ${DET} ${THING}`),
-  rx(String.raw`(?:give|bring|hand|toss|throw|feed) ${DET} ${THING} to ${WHO}`),
+  rx(String.raw`(?:give|bring|get|hand|toss|throw|buy) ${WHO} ${DET} ${THING}`),
+  rx(String.raw`(?:give|bring|hand|toss|throw) ${DET} ${THING} to ${WHO}`),
   rx(String.raw`(?:can|could|may) (?:lim|he|she) (?:please )?(?:have|get) ${DET} ${THING}`),
   rx(String.raw`lim (?:needs|wants|deserves|should have|should get) ${DET} ${THING}`),
 ]
@@ -394,18 +397,21 @@ const GO = [
 ]
 /** No one named: only a place Lim knows. */
 const GO_SELF = rx(String.raw`go to (?:(?:a|an|the) )?${THING}`)
-const HOME = rx(String.raw`(?:(?:take|send|bring) ${WHO} (?:home|back(?: home| to the studio)?)|go home|go back home|(?:go )?back to the studio)`)
+const HOME = rx(String.raw`(?:(?:take|send|bring) ${WHO} (?:home|back home|back to the studio)|go home|go back home|(?:go )?back to the studio)`)
+const FEED = rx(String.raw`feed ${WHO} (?:the|a|an|that|this|his|her|some) ${THING}`)
 const ACT = rx(
-  String.raw`(?:(?:make|let|have) ${WHO} )?(eat|wear|try on|put on|kick|punt|hug|cuddle|snuggle|bounce|juggle|play with|nap on|sleep on|dance to|dance with|remove|take off|take away|put away|get rid of) (?:the|a|an|that|this|his|her|lim's|some) ${THING}`,
+  String.raw`(?:(?:make|let|have) ${WHO} )?(eat|wear|try on|put on|kick|punt|hug|cuddle|snuggle|bounce|juggle|nap on|sleep on|dance to|dance with|remove|take off|take away|put away|get rid of) (?:the|a|an|that|this|his|her|lim's|some) ${THING}`,
 )
+const PLAY = rx(String.raw`(?:(?:make|let|have) ${WHO} )?play with (?:the|a|an|that|this|his|her|lim's|some) ${THING}`)
 const TAKE_OFF = rx(String.raw`take (?:(?:it|that|the hat|his hat|her hat|the glasses) off|off (?:his hat|her hat|lim's hat|the hat|the glasses))`)
 const CLEAR = rx(
-  String.raw`(?:tidy up|tidy|clean up|(?:clear|remove|get rid of|put away|tidy up|clean up) (?:all )?(?:the |his |her |lim's )?(?:toys|items|things|stuff)|reset (?:the |lim's )?(world|room|stage))`,
+  String.raw`(?:(?:tidy up|clean up|clear up|clear|remove|get rid of|put away) (?:all )?(?:the |his |her |lim's )(?:toys|room|stage)|reset (?:the |lim's )(world|room|stage))`,
+  END_FLAT,
 )
 const RAIN = rx(String.raw`(?:make|let) it (rain|snow)`)
 const DRY = rx(String.raw`(?:stop|no more|clear) (?:the )?(?:rain|snow|weather)`)
-const FLOAT = rx(String.raw`(?:(?:make it|turn on|switch to) )?(?:low|zero|no|moon) ?-?gravity`)
-const HEAVY = rx(String.raw`(?:(?:make it|turn on|switch to|back to) )?(?:normal|regular|earth) ?-?gravity`)
+const FLOAT = rx(String.raw`(?:(?:make it|turn on|switch to) )?(?:low|zero|no|moon) ?-?gravity`, END_FLAT)
+const HEAVY = rx(String.raw`(?:(?:make it|turn on|switch to|back to) )?(?:normal|regular|earth) ?-?gravity`, END_FLAT)
 /** The air, in words the catalog doesn't cover: the model picks the weather. */
 const SKY = rx(String.raw`(?:make it (?:night|nighttime|day|daytime|dark|sunny|windy|foggy|misty|stormy|cloudy|winter|summer|autumn|spring|cold|hot)|change the weather(?: to ${THING})?)`)
 
@@ -433,7 +439,11 @@ const thingOf = (text: string, patterns: RegExp[]): string | null => {
   return null
 }
 
-/** Worth asking the model to invent something. Anything else is chat. */
+/**
+ * Shaped like an order for something Lim doesn't know yet. The model has the
+ * final say; this only keeps a typed trick ("tiny", "pop") from firing on
+ * "can he have a tiny castle", so a wrong guess costs nothing.
+ */
 export function looksLikeWorldRequest(text: string): boolean {
   const s = text.trim()
   if (!s || s.length > 120 || NOT_THE_WORLD.test(s)) return false
@@ -442,7 +452,7 @@ export function looksLikeWorldRequest(text: string): boolean {
 
 const VERBS: Record<string, Action> = {
   eat: 'eat', wear: 'wear', 'try on': 'wear', 'put on': 'wear', kick: 'kick', punt: 'kick', hug: 'hug', cuddle: 'hug', snuggle: 'hug',
-  bounce: 'bounce', juggle: 'bounce', 'play with': 'bounce', 'nap on': 'nap', 'sleep on': 'nap', 'dance to': 'dance', 'dance with': 'dance',
+  bounce: 'bounce', juggle: 'bounce', 'nap on': 'nap', 'sleep on': 'nap', 'dance to': 'dance', 'dance with': 'dance',
   remove: 'remove', 'take off': 'remove', 'take away': 'remove', 'put away': 'remove', 'get rid of': 'remove',
 }
 
@@ -465,7 +475,8 @@ function placeNamed(thing: string, extra?: Extra): PlaceSpec | null {
 }
 
 /** "a ball", "an apple", "some sunglasses". */
-export const withArticle = (name: string) => (/[^s]s$/.test(name) ? `some ${name}` : /^[aeiou]/.test(name) ? `an ${name}` : `a ${name}`)
+const plural = (name: string) => /(glasses|[^su]s)$/.test(name)
+export const withArticle = (name: string) => (plural(name) ? `some ${name}` : /^[aeiou]/.test(name) ? `an ${name}` : `a ${name}`)
 const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 export type LocalIntent = { ops: WorldOp[]; reply: string }
@@ -476,7 +487,7 @@ export type LocalIntent = { ops: WorldOp[]; reply: string }
  * the message isn't one, so the caller can ask the model to invent it
  * (`looksLikeWorldRequest`) or just answer the question.
  */
-export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extra): LocalIntent | null {
+export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extra, worn: string[] = []): LocalIntent | null {
   const s = text.trim()
   if (!s || s.length > 120) return null
   const clear = CLEAR.exec(s)
@@ -495,22 +506,33 @@ export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extr
 
   const here = (thing: string) => inWorld.find((item) => [item.name, ...catalogWords(item.name)].some((w) => same(thing, w))) ?? null
   if (TAKE_OFF.test(s)) {
-    const worn = [...inWorld].reverse().find((item) => item.traits.includes('hat') || item.traits.includes('glasses'))
-    return worn ? { ops: [{ op: 'act', action: 'remove', target: worn.name }], reply: 'Off it comes!' } : null
+    // Whatever Lim has on. Nothing on: not ours to answer.
+    const on = worn[worn.length - 1]
+    return on ? { ops: [{ op: 'act', action: 'remove', target: on }], reply: 'Off it comes!' } : null
   }
 
+  // "feed him the bean" is "eat the bean"; "play with the drum" is whatever that item is best for.
+  const fed = thingOf(s, [FEED])
   const act = ACT.exec(s)
-  if (act) {
-    const action = VERBS[act[1].toLowerCase()]
-    const thing = tidy(act[2])
+  const played = thingOf(s, [PLAY])
+  if (fed || act || played) {
+    const thing = fed ?? played ?? tidy(act![2])
     const present = here(thing)
     const spec = present ?? itemNamed(thing, extra)
     if (!spec) return null
-    const can = actionsFor(spec).includes(action)
-    if (!can) return { ops: [], reply: `Hmm, I don't think I can ${action} ${withArticle(spec.name)}.` }
-    if (present) return { ops: [{ op: 'act', action, target: present.name }], reply: actReply(action, present.name) }
+    const able = actionsFor(spec)
+    const action: Action = fed ? 'eat' : played ? (['bounce', 'dance', 'hug'] as const).find((a) => able.includes(a))! : VERBS[act![1].toLowerCase()]
+    const said = fed ? 'eat' : played ? 'play with' : act![1].toLowerCase()
+    if (!able.includes(action)) {
+      // Only worth saying about something that is actually here.
+      return present ? { ops: [], reply: `Hmm, I don't think I can ${said} ${withArticle(spec.name)}.` } : null
+    }
+    if (present) {
+      const off = action === 'remove' && worn.includes(present.name)
+      return { ops: [{ op: 'act', action, target: present.name }], reply: off ? 'Off it comes!' : actReply(action, present.name) }
+    }
     // Not here: putting it away is moot; anything else, bring it and then do it.
-    if (action === 'remove') return { ops: [], reply: `There's no ${spec.name} here.` }
+    if (action === 'remove') return { ops: [], reply: `There ${plural(spec.name) ? 'are' : 'is'} no ${spec.name} here.` }
     return { ops: [{ op: 'item', spec, then: action }], reply: actReply(action, spec.name) }
   }
 
@@ -518,7 +540,7 @@ export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extr
   if (dress) {
     const spec = here(dress) ?? itemNamed(dress, extra)
     if (!spec) return null
-    if (!actionsFor(spec).includes('wear')) return { ops: [], reply: `Hmm, I don't think I can wear ${withArticle(spec.name)}.` }
+    if (!actionsFor(spec).includes('wear')) return here(dress) ? { ops: [], reply: `Hmm, I don't think I can wear ${withArticle(spec.name)}.` } : null
     return here(dress)
       ? { ops: [{ op: 'act', action: 'wear', target: spec.name }], reply: actReply('wear', spec.name) }
       : { ops: [{ op: 'item', spec, then: 'wear' }], reply: actReply('wear', spec.name) }
@@ -537,13 +559,14 @@ export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extr
     return spec ? { ops: [{ op: 'place', spec }], reply: `Scene change: ${spec.name}!` } : null
   }
 
-  // Just a catalog name, asked for: "a ball", "the beach please", "rubber duck".
-  const bare = /^\s*(?:(a|an|the)\s+)?([\p{L}' -]+?)((?:\s+(?:please|pls))?)[\s.!]*$/iu.exec(s)
-  if (bare && (bare[1] || bare[3] || bare[2].trim().includes(' '))) {
-    const thing = bare[2].trim().toLowerCase()
+  // Just a catalog name, asked for politely: "a ball please", "the beach please".
+  const bare = /^\s*(?:(?:a|an|the|some)\s+)?([\p{L}' -]+?)\s+(?:please|pls)[\s.!]*$/iu.exec(s)
+  if (bare) {
+    const thing = bare[1].trim().toLowerCase()
     const item = itemNamed(thing)
     if (item) return { ops: [{ op: 'item', spec: item }], reply: `${cap(withArticle(item.name))}, coming up!` }
-    const spot = placeNamed(thing)
+    // "some space please" is a figure of speech, not a trip.
+    const spot = /^\s*some\b/i.test(s) ? null : placeNamed(thing)
     if (spot) return { ops: [{ op: 'place', spec: spot }], reply: `Scene change: ${spot.name}!` }
   }
   return null

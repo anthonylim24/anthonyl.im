@@ -37,7 +37,7 @@ import { konami, stuntFor, type Stunt } from "./chat/eggs";
 import { sound } from "./chat/sound";
 import type { LimWorld } from "./chat/scene/limScene";
 import { ITEMS, PLACES, localIntent, looksLikeWorldRequest, type WorldOp } from "./chat/world/spec";
-import { askWorld, loadMade, rememberMade } from "./chat/world/worldApi";
+import { loadMade, readWorldReply, rememberMade } from "./chat/world/worldApi";
 import "./chat/chat.css";
 
 const MessageContent = lazy(() => import("./components/message-content"));
@@ -199,7 +199,7 @@ function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stick = useRef(true);
   const pendingStunt = useRef<Stunt | null>(null);
-  const makingId = useRef(0);
+  const makingTick = useRef(0);
   const cheerTimer = useRef(0);
   const copyTimer = useRef(0);
 
@@ -237,11 +237,10 @@ function App() {
     onChunk: () => stageRef.current?.talk(),
     // A message about Lim's world is acted out instead of sent to the model:
     // the catalog needs no model at all; anything else asks a small, fast one.
-    intercept: async (text, signal) => {
+    intercept: async (text) => {
       const stage = stageRef.current;
       const now = stage?.world();
-      const names = now?.items.map((item) => item.name) ?? [];
-      const local = localIntent(text, now?.items ?? [], made);
+      const local = localIntent(text, now?.items ?? [], made, now?.worn ?? []);
       if (!stage || !now) {
         // No live scene (still loading, or no WebGL): say so rather than answer as if it were about Anthony.
         return local || looksLikeWorldRequest(text) ? "My toy box isn't up right now (it needs the live 3D scene)." : null;
@@ -255,31 +254,35 @@ function App() {
         stage.apply(local.ops);
         return honest(local.ops, local.reply);
       }
-      if (!looksLikeWorldRequest(text)) return null;
-      const mine = ++makingId.current;
+      // Anything else is the model's call: it answers, or orders something for the world (onWorld).
+      return null;
+    },
+    world: () => {
+      const now = stageRef.current?.world();
+      return now ? { items: now.items.map((item) => item.name), place: now.place?.name ?? "studio", weather: now.tweak?.weather } : null;
+    },
+    // The model is writing an order for Lim's world (an invention takes it a
+    // while): Lim conjures and the reply shows what it's up to.
+    onWorldStart: () => {
       setMaking(1);
-      stage.conjure(true);
-      const tick = window.setInterval(() => setMaking((n) => n + 1), 2200);
-      let ok = false;
-      try {
-        const answer = await askWorld(text, { items: names, place: now.place?.name ?? "studio" }, signal);
-        if (!answer.ops.length || signal.aborted) return null;
-        ok = true;
-        stage.apply(answer.ops);
-        setMade((m) => rememberMade(m, answer.ops, KNOWN));
-        // It may have asked a real question too: then the model still answers.
-        return answer.chat ? null : honest(answer.ops, answer.reply || "Done!");
-      } catch {
-        // It was an order for Lim's world, so say so rather than hand it to the chat (which only knows Anthony).
-        return signal.aborted ? null : "I couldn't make that just now. Try me again, or pick something from the toy box!";
-      } finally {
-        window.clearInterval(tick);
-        // A newer request may have started (New chat, then another order): leave its show alone.
-        if (makingId.current === mine) {
-          setMaking(0);
-          stageRef.current?.conjure(false, ok);
-        }
-      }
+      stageRef.current?.conjure(true);
+      window.clearInterval(makingTick.current);
+      makingTick.current = window.setInterval(() => setMaking((n) => n + 1), 2200);
+    },
+    onWorld: (content) => {
+      window.clearInterval(makingTick.current);
+      setMaking(0);
+      const stage = stageRef.current;
+      const { ops, reply } = content ? readWorldReply(content) : { ops: [], reply: "" };
+      const ok = Boolean(stage && ops.length);
+      stage?.conjure(false, ok);
+      if (!content) return "";
+      if (!stage || !ok) return "I couldn't make that just now. Try me again, or pick something from the toy box!";
+      stage.apply(ops);
+      setMade((m) => rememberMade(m, ops, KNOWN));
+      return reducedMotion && ops.some((op) => (op.op === "act" && !["remove", "wear", "eat", "look"].includes(op.action)) || (op.op === "item" && op.then))
+        ? "I'm keeping still (reduced motion is on), but it's right here."
+        : reply || "Done!";
     },
     onDone: (firstReply, local) => {
       if (local) {
@@ -333,6 +336,7 @@ function App() {
     () => () => {
       window.clearTimeout(cheerTimer.current);
       window.clearTimeout(copyTimer.current);
+      window.clearInterval(makingTick.current);
     },
     [],
   );
@@ -449,7 +453,7 @@ function App() {
     // "Bounce the ball" is about the ball, not a request for a jump.
     const here = stageRef.current?.world()?.items ?? [];
     // And "can he have a tiny castle" is about the castle, not a cue to shrink.
-    pendingStunt.current = localIntent(text, here, made) || looksLikeWorldRequest(text) ? null : stuntFor(text);
+    pendingStunt.current = localIntent(text, here, made, stageRef.current?.world()?.worn ?? []) || looksLikeWorldRequest(text) ? null : stuntFor(text);
     setToyOpen(false);
     if (!send(text)) return;
     setInput("");
@@ -653,7 +657,7 @@ function App() {
                   followCaret();
                 }}
                 onBlur={() => setFocused(false)}
-                placeholder="Ask Lim about Anthony…"
+                placeholder="Ask about Anthony, or give Lim a toy…"
                 enterKeyHint="send"
                 {...sx(chatbot.textarea)}
               />

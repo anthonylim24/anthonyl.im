@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { formatConciergeError } from "../effect/chatErrors"
 import { TimeoutError, errorMessage } from "../effect/errors"
 import { invokeDeepseek } from "../lib/apiService"
+import { isWorldReply } from "./world/worldApi"
 
 export type ChatRole = "user" | "assistant"
 export type ChatMessage = {
@@ -26,6 +27,15 @@ export type ChatEvents = {
    * reply to show, or null to let the question go through as usual.
    */
   intercept?: (text: string, signal: AbortSignal) => Promise<string | null>
+  /** Lim's toy world as it is now, sent with the question so the model can answer an order for it. Null when it isn't up. */
+  world?: () => unknown
+  /** The reply turned out to be a world order: it is being written (and is not shown as text). */
+  onWorldStart?: () => void
+  /**
+   * The world order is complete (`content`), or was cut short (null: stopped
+   * or failed). Returns the line to show in its place.
+   */
+  onWorld?: (content: string | null) => string
 }
 
 export const STORAGE_KEY = "lim-chat-v1"
@@ -106,6 +116,9 @@ export function useChat(events: ChatEvents = {}) {
 
     let latest = ""
     let wasLocal = false
+    // A reply that opens with the world marker is an order for Lim's toy
+    // world, not prose: it is held back, and handed over when it is complete.
+    let order: "no" | "writing" | "done" = "no"
     const answer = () =>
       invokeDeepseek(
         text,
@@ -113,12 +126,32 @@ export function useChat(events: ChatEvents = {}) {
         (content) => {
           if (controller.signal.aborted) return
           latest = content
+          if (eventsRef.current.onWorld && isWorldReply(content)) {
+            if (order === "no") {
+              order = "writing"
+              eventsRef.current.onWorldStart?.()
+            }
+            return
+          }
           patchReply(reply.id, { content })
           setStatus("streaming")
           eventsRef.current.onChunk?.()
         },
         controller.signal,
-      )
+        eventsRef.current.world?.() ?? undefined,
+      ).then(() => {
+        if (order !== "writing") return
+        order = "done"
+        latest = eventsRef.current.onWorld!(latest)
+        wasLocal = true
+        if (abortRef.current === controller) patchReply(reply.id, { content: latest })
+      })
+    /** Cut short mid-order: the show still has to end. */
+    const dropOrder = () => {
+      if (order !== "writing") return
+      order = "done"
+      latest = eventsRef.current.onWorld!(null)
+    }
     const intercept = eventsRef.current.intercept
     const work = intercept
       ? intercept(text, controller.signal)
@@ -139,6 +172,13 @@ export function useChat(events: ChatEvents = {}) {
         eventsRef.current.onDone?.(firstReply, wasLocal)
       })
       .catch((err: unknown) => {
+        const ordering = order === "writing"
+        dropOrder()
+        if (ordering && !controller.signal.aborted && abortRef.current === controller) {
+          // An order that failed is Lim's to own up to, not a chat error.
+          patchReply(reply.id, { content: latest, status: "done" })
+          return
+        }
         if (controller.signal.aborted) {
           patchReply(reply.id, { content: latest, status: "stopped" })
           return

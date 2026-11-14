@@ -70,7 +70,7 @@ export type LimSceneOptions = {
   onWorld?: (world: LimWorld) => void
 }
 
-export type LimWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
+export type LimWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak; /** Names of what Lim has on. */ worn?: string[] }
 
 export type LimScene = {
   setMood(mood: LimMood): void
@@ -932,8 +932,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
 
   // ── The world: items in and out ──────────────────────────────────
-  const worldNow = (): LimWorld => ({ items: toys.filter((toy) => toy.backAt !== Infinity).map((toy) => toy.spec), place: site, tweak: mods })
-  const changed = () => opts.onWorld?.(worldNow())
+  // `saved` keeps a bean that has been eaten and is growing back; otherwise only what is really on the stage.
+  const worldNow = (saved = false): LimWorld => ({
+    items: toys.filter((toy) => (saved ? toy.backAt !== Infinity : toy.backAt < 0)).map((toy) => toy.spec),
+    place: site,
+    tweak: mods,
+    worn: toys.filter((toy) => toy.worn).map((toy) => toy.spec.name),
+  })
+  const changed = () => opts.onWorld?.(worldNow(true))
   /** A free spot on the floor: clear of Lim's skirt, as far from the other items as it can get. */
   const seat = (toy: Toy) => {
     const edge = Math.max(1.45, reach - 0.3 - toy.r)
@@ -2462,7 +2468,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           : (live.find((x) => x.spec.name === name) ?? live.find((x) => x.spec.name.includes(name) || name.includes(x.spec.name)))
       if (!found) return false
       // "Take it off" means the one Lim has on, if there are two alike.
-      const toy = action === 'remove' && !found.worn ? (live.find((x) => x.worn && x.has('hat') === found.has('hat')) ?? found) : found
+      const toy = action === 'remove' && !found.worn ? (live.find((x) => x.worn && x.spec.name === found.spec.name) ?? found) : found
       if (reducedMotion) {
         // No performance, just the outcome (where there is one).
         if (action === 'remove' && toy.worn) {
@@ -2494,7 +2500,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       changed()
       stage.requestRender()
     },
-    world: worldNow,
+    world: () => worldNow(),
     conjure(on, made = true) {
       if (reducedMotion || Boolean(conjuring) === on) return
       if (on) {

@@ -6,7 +6,6 @@ import { prettyJSON } from "hono/pretty-json";
 import { config } from "./src/config";
 import { errorHandler } from "./src/middleware/error";
 import invokeRouter from "./src/routes/invoke";
-import limWorldRouter from "./src/routes/limWorld";
 import koreaRouter from "./src/routes/korea";
 import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
@@ -197,15 +196,10 @@ app.use("/api/trips/:id/chat", async (c, next) => {
 const invokeRateLimit = createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "invoke" });
 const entityRateLimit = createRateLimit({ windowMs: 60_000, max: 30, keyPrefix: "entity" });
 app.use("/api/invoke/*", invokeRateLimit);
-// Lim's toy world: a small model call per request, in its own bucket keyed on
-// the connecting peer (not the caller-supplied forwarded hop). Catalog requests
-// never reach it, and answers are cached, so 12 a minute is plenty for play.
-app.use("/api/lim/*", createRateLimit({ windowMs: 60_000, max: 12, keyPrefix: "lim-world", key: trustedProxyClientAddress }));
 app.use("/api/entity/*", entityRateLimit);
 
 // API Routes
 app.route("/api/invoke", invokeRouter);
-app.route("/api/lim", limWorldRouter);
 app.route("/api/korea", koreaRouter);
 app.route("/api/entity", entityRouter);
 
