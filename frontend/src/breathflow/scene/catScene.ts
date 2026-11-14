@@ -14,6 +14,11 @@
  *  - idle: blinks, ear twitches, a lazy tail swish. Poke for a giggle.
  *  - drag (mouse or touch): the body goes loose and stretches after the
  *    finger, then boings home, wobbles and squashes on the paper.
+ *  - yarn (Home and session setup only): a ball of yarn rests beside the
+ *    cat. Toss, bat or drag it: it bounces off the paper, the cat and the
+ *    edges of the picture (`bodyImpulse` in src/three/physics.ts), the cat
+ *    turns to watch it and flinches when hit, the exhale nudges it away and
+ *    a hollow in the paper rolls it back.
  *
  * Easter egg: five quick taps and the cat pops (in a paint splash) into a
  * pink puffball who puffs up hugely on the inhale, floats on the hold, and
@@ -60,6 +65,7 @@ import { filmHD } from 'three-blocks/core-tsl-effects'
 import { Jelly, icosphere, type Vec3 } from '@/three/jelly'
 import { jellyGeometry, syncJellyGeometry } from '@/three/jellyMesh'
 import { bindJellyPointer, type JellyPointer } from '@/three/jellyPointer'
+import { bodyImpulse } from '@/three/physics'
 import { createStage, type Stage } from '@/three/stage'
 import type { Pigment } from '../pigments'
 import type { BreathSample } from './breathDrive'
@@ -120,6 +126,11 @@ const PAPER_NIGHT = '#15161C'
 const BODY_Y = -0.6
 const HEAD_Y = 0.33
 const PUFF_Y = -0.12
+// The yarn ball (play mode only): its radius, and where it rests beside the cat.
+const YARN_R = 0.19
+const YARN_X = -1.02
+/** In front of the cat, so it never cuts into the tail or paws. */
+const YARN_Z = 0.3
 
 const PAINT = {
   iris: '#D9A13B',
@@ -241,6 +252,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   /** The contact shadow: x in screen UV, and how far the body is lifted (cat units). */
   const uShadowX = uniform(0.5)
   const uLift = uniform(0)
+  /** The yarn ball's shadow: x in screen UV, lift in cat units, and 0 when there is no ball. */
+  const uYarn = uniform(new THREE.Vector3(0.5, 0, 0))
   const paperDay = uniform(rgb(PAPER_DAY))
   const paperNight = uniform(rgb(PAPER_NIGHT))
   const massNode = uMass
@@ -298,6 +311,12 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     const shadow = float(1).sub(smoothstep(0.5, 1, length(sh).add(fine.mul(0.12)))).div(uLift.mul(2.2).add(1))
     // By day a glaze of pigment; at night the dark paper just gets darker.
     col = mix(glaze(col, massNode, shadow.mul(0.3).mul(settle)), col.mul(float(1).sub(shadow.mul(0.45))), uNight)
+    // The yarn ball pools a smaller wash of its own on the same floor line.
+    const ySpread = uYarn.y.mul(0.5).add(1)
+    const yc = vec2(uYarn.x.mul(uAspect), c.y.add(uUnitUV.mul(1.1)))
+    const ys = p.sub(yc).div(vec2(uUnitUV.mul(0.27), uUnitUV.mul(0.055)).mul(ySpread))
+    const yShadow = float(1).sub(smoothstep(0.4, 1, length(ys).add(fine.mul(0.12)))).div(uYarn.y.mul(2.2).add(1)).mul(uYarn.z)
+    col = mix(glaze(col, massNode, yShadow.mul(0.26).mul(settle)), col.mul(float(1).sub(yShadow.mul(0.4))), uNight)
 
     if (splatter) {
       const flick = uBreath.mul(0.16).add(0.92)
@@ -582,6 +601,17 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const airMat = new THREE.MeshBasicNodeMaterial()
   airMat.colorNode = mix(paint(color(PAINT.air) as unknown as V3, 0.38), color(PAINT.moonGlint), uNight.mul(0.55))
 
+  // Yarn: a rosy wash wound with pen-line strands, two windings crossing.
+  const yarnMat = new THREE.MeshBasicNodeMaterial()
+  {
+    const n = normalize(attribute<'vec3'>('rest', 'vec3'))
+    const strands = (axis: V3) => float(1).sub(smoothstep(0.08, 0.42, abs(dot(n, normalize(axis)).mul(15).sin())))
+    const over = smoothstep(0.25, 0.4, dot(n, normalize(vec3(0.45, 0.5, 0.74))))
+    const wound = mix(strands(vec3(0.3, 1, 0.2) as V3), strands(vec3(1, -0.35, 0.3) as V3), over)
+    const pig = mix(color(PAINT.blush), massNode, 0.3) as unknown as V3
+    yarnMat.colorNode = mix(paint(pig, 0.72), ink, wound.mul(0.42))
+  }
+
   const sphereGeo = new THREE.SphereGeometry(1, 28, 18)
   const coneGeo = new THREE.ConeGeometry(1, 1, 28, 1)
   coneGeo.translate(0, 0.5, 0) // base at the origin
@@ -589,7 +619,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   // ── Bodies (rebuilt when the anchor resizes) ─────────────────────
   const catGroup = new THREE.Group()
   const puffGroup = new THREE.Group()
-  scene.add(catGroup, puffGroup)
+  const toyGroup = new THREE.Group()
+  scene.add(catGroup, puffGroup, toyGroup)
 
   type Soft = {
     jelly: Jelly
@@ -710,6 +741,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   let body: Soft | null = null
   let head: Soft | null = null
   let puff: Soft | null = null
+  let yarn: Soft | null = null
   const home: Vec3 = [0, 0, 0]
   const bodies: Jelly[] = []
   const headMount: Vec3 = [0, 0, 0]
@@ -725,6 +757,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     dropSoft(body)
     dropSoft(head)
     dropSoft(puff)
+    dropSoft(yarn)
     const scaled = (s: { positions: Float32Array; index: Uint32Array }) => {
       for (let i = 0; i < s.positions.length; i++) s.positions[i] *= u
       return s
@@ -736,6 +769,16 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     head = makeSoft(catGroup, h.positions, h.index, catHeadMat, { stiffness: 0.12, beta: 0.3, damping: 1.8, substeps: 2 }, { k: 90, c: 13, minK: 0.3 }, 0.08)
     const k = scaled(shape(4, puffBody))
     puff = makeSoft(puffGroup, k.positions, k.index, puffMat, { stiffness: 0.08, beta: 0.4, damping: 1.4, substeps: 2 }, { k: 16, c: 5.5, minK: 0.1 }, 0.05)
+    // The yarn ball has no anchor: it is thrown, rolls and bounces under gravity.
+    const y = icosphere(YARN_R * u, 2)
+    yarn = makeSoft(
+      toyGroup, y.positions, y.index, yarnMat,
+      { stiffness: 0.7, beta: 0.12, damping: 0.35, gravity: [0, -15 * u, 0], friction: 0.985, restitution: 0.55, maxStray: 0.1 * u, substeps: 3 },
+      { k: 0, c: 0, minK: 0 }, 0,
+    )
+    yarn.jelly.maxTravel = YARN_R * u * 0.5
+    toyGroup.visible = mode === 'play'
+    uYarn.value.z = mode === 'play' ? 1 : 0
     // The neck: the head rides this point on the body's goal shape.
     headMount[0] = 0
     headMount[1] = (HEAD_Y - BODY_Y) * u
@@ -758,12 +801,28 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       }
       s.jelly.anchor = { target: t, k: s.firm.k, c: s.firm.c }
     }
+    if (snap && yarn) restYarn()
+  }
+
+  /** The paper under the cat (world y). */
+  const paperY = () => home[1] + BODY_Y * U + (body?.bottom ?? -0.5 * U) - 0.03 * U
+  /** Put the yarn ball back where it rests, still. */
+  const restYarn = () => {
+    if (!yarn) return
+    const j = yarn.jelly
+    j.translate(home[0] + YARN_X * U - j.center[0], paperY() + YARN_R * U - j.center[1], home[2] + YARN_Z * U - j.center[2])
+    j.v.fill(0)
+    j.center[0] = home[0] + YARN_X * U
+    j.center[1] = paperY() + YARN_R * U
+    j.center[2] = home[2] + YARN_Z * U
   }
 
   const setBodies = () => {
     bodies.length = 0
     if (form === 'cat' && head && body) bodies.push(head.jelly, body.jelly)
     else if (puff) bodies.push(puff.jelly)
+    // Last, so a grab where they overlap takes the cat.
+    if (yarn && mode === 'play') bodies.push(yarn.jelly)
   }
 
   // ── Layout: track the anchor element ─────────────────────────────
@@ -795,7 +854,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
 
     if (!body || Math.abs(u - U) / U > 0.04) build(u)
     else {
-      for (const s of [body, head, puff]) s?.jelly.translate(dx, dy, 0)
+      for (const s of [body, head, puff, yarn]) s?.jelly.translate(dx, dy, 0)
       place(false)
     }
   }
@@ -817,6 +876,10 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   /** The body being dragged. */
   let held: Jelly | null = null
   let pokedUntil = 0
+  /** How closely the cat is watching the yarn ball (0..1), and which side it is on. */
+  let watch = 0
+  let watchSide = -1
+  let bonkedUntil = 0
   let nextBlink = now() + 2
   let blinkUntil = 0
   let nextTwitch = now() + 3
@@ -902,7 +965,13 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       pickScale: 1.3,
       grabRadius: 1.15,
       grip: 0.42,
-      onPoke: (_, point) => {
+      onPoke: (j, point) => {
+        if (j === yarn?.jelly) {
+          // A tap bats the ball up and away from the finger (the cat is not tickled).
+          const away = j.center[0] - point[0]
+          j.kick((away / (YARN_R * U)) * 2.2 * U, 4.2 * U, 0)
+          return
+        }
         dropAt(point[0], point[1])
         tapped()
       },
@@ -1054,6 +1123,61 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     j.upright = s.firm.upright + 0.3 * s.grab
     j.floor = floorY === null ? null : floorY + s.bottom * j.scale * j.squash[1] - 0.03 * U
   }
+  const vel: Vec3 = [0, 0, 0]
+  /**
+   * The yarn ball against one of the cat's bodies, both taken as circles on
+   * the paper plane. The ball takes the whole correction (the cat is anchored)
+   * and nearly all of the bounce; a hard hit makes the cat flinch.
+   */
+  const bump = (cat: Jelly, r: number, t: number) => {
+    const j = yarn!.jelly
+    const dx = j.center[0] - cat.center[0]
+    const dy = j.center[1] - cat.center[1]
+    const d = Math.hypot(dx, dy)
+    const reach = r + YARN_R * U
+    if (d >= reach || d < 1e-5) return
+    const nx = dx / d
+    const ny = dy / d
+    j.translate(nx * (reach - d), ny * (reach - d), 0)
+    const hit = bodyImpulse(cat, j, nx, ny, 0, { wa: 0.12, wb: 0.88, ra: r, rb: YARN_R * U, restitution: 0.45, friction: 0.4, spinA: false })
+    if (hit > 2.4 * U && held !== j) bonkedUntil = t + 0.32
+  }
+  /** Throw, roll and bounce the yarn ball; the cat's exhale nudges it and the paper's hollow rolls it back. */
+  const playYarn = (dt: number, t: number, exhale: number) => {
+    const s = yarn!
+    const j = s.jelly
+    const r = YARN_R * U
+    j.floor = paperY()
+    const restX = home[0] + YARN_X * U
+    if (held !== j) {
+      const dx = j.center[0] - home[0]
+      const onPaper = j.contacts > 0
+      // A shallow hollow in the paper brings it back beside the cat.
+      j.velocity(vel)
+      j.kick((-(j.center[0] - restX) * (onPaper ? 5 : 1.5) - (onPaper ? 2.4 * vel[0] : 0)) * dt, 0, 0)
+      if (onPaper && Math.abs(dx) < 1.5 * U) j.kick(Math.sign(dx || -1) * 1.1 * U * exhale * dt, 0, 0)
+    }
+    j.step(dt)
+    if (form === 'cat' ? pop.cat > 0.5 : pop.puff > 0.5) {
+      if (form === 'cat') {
+        bump(body!.jelly, 0.6 * U * body!.jelly.scale, t)
+        bump(head!.jelly, 0.5 * U, t)
+      } else bump(puff!.jelly, 0.84 * U * puff!.jelly.scale, t)
+    }
+    // Stay on the cat's plane and inside the picture.
+    j.velocity(vel)
+    const halfW = Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * (CAM_Z - j.center[2]) * camera.aspect
+    const over = Math.abs(j.center[0]) - (halfW - r)
+    const side = Math.sign(j.center[0])
+    j.translate(over > 0 ? -side * over : 0, 0, home[2] + YARN_Z * U - j.center[2])
+    j.kick(over > 0 && vel[0] * side > 0 ? -1.5 * vel[0] : 0, 0, -vel[2])
+    // Lost (thrown far out of the picture, or the tab slept mid-flight): put it back.
+    if (!(j.center[1] > j.floor - 2 * U && j.center[1] < j.floor + 40 * U)) restYarn()
+
+    const busy = held === j || Math.hypot(vel[0], vel[1]) > 1.1 * U
+    watch = ease(watch, busy ? 1 : 0, busy ? 9 : 1.6, dt)
+    if (busy) watchSide = Math.max(-1, Math.min(1, (j.center[0] - home[0]) / U))
+  }
   const shadowAt = new THREE.Vector3()
   /** Lift the contact shadow and follow the body on screen. */
   const castShadow = (j: Jelly, restY: number) => {
@@ -1112,12 +1236,18 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
 
     // ── Face targets ──
     let target: Face
-    const holding = held !== null
+    const holding = held !== null && held !== yarn?.jelly
+    const bonked = t < bonkedUntil
+    const watching = watch > 0.4
     if (form === 'cat') {
       target = holding
         ? face({ open: 1.25, pupil: 0.1, mouth: 0.4, blush: 0.7, ear: 0.45, whisker: 0.16 })
         : poked
         ? face({ open: 0, lid: -1, mouth: 0.45, blush: 0.9, ear: 0.3, whisker: 0.12 })
+        : bonked
+        ? face({ open: 0, lid: 1, mouth: 0.2, blush: 0.6, ear: -0.5, whisker: -0.1 })
+        : watching
+        ? face({ open: 1.22, pupil: 0.14, blush: 0.35, ear: 0.5, whisker: 0.15 })
         : phase === 'in'
           ? face({ open: 0.95 + 0.25 * a, pupil: 0.2, blush: 0.2, ear: 0.35 * a, whisker: 0.1 * a })
           : phase === 'full'
@@ -1130,6 +1260,10 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
         ? face({ open: 0, squint: 1, mouth: 0.7, blush: 1 })
         : poked
         ? face({ open: 0, lid: -1, mouth: 0.4, blush: 1 })
+        : bonked
+        ? face({ open: 0, squint: 1, mouth: 0.3, blush: 0.8 })
+        : watching
+        ? face({ open: 1.1, mouth: 0.3, blush: 0.7 })
         : phase === 'in'
           ? face({ open: 0, squint: 1, mouth: 0.35 + 0.65 * Math.min(1, sighBell + 0.4), blush: 0.4 })
           : phase === 'full'
@@ -1138,7 +1272,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
               ? face({ open: 0.85, mouth: 0.45 * sighBell, blush: 0.5 })
               : face({ open: 0, lid: -1, blush: 0.5 })
     }
-    const r = poked ? 20 : 7
+    const r = poked || bonked ? 20 : 7
     f.open = ease(f.open, blinking ? 0 : target.open, blinking ? 60 : r, dt)
     f.lid = ease(f.lid, blinking ? 1 : target.lid, 14, dt)
     f.squint = ease(f.squint, blinking ? 0 : target.squint, 14, dt)
@@ -1174,7 +1308,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       hj.squash[1] = 1 - 0.03 * f.puff
       hj.squash[2] = 1 + 0.04 * f.puff
       // The head nods up on the inhale, bows on the exhale, tilts when poked.
-      euler.set(-0.12 * (a - 0.5) + (phase === 'empty' ? 0.06 : 0), 0, poked ? 0.12 * Math.sin(t * 18) : 0.04 * Math.sin(clock * 0.7))
+      // It turns and cocks its head toward a moving yarn ball.
+      euler.set(-0.12 * (a - 0.5) + (phase === 'empty' ? 0.06 : 0), 0.3 * watch * watchSide, (poked ? 0.12 * Math.sin(t * 18) : 0.04 * Math.sin(clock * 0.7)) - 0.1 * watch * watchSide)
       quat.setFromEuler(euler)
       if (reducedMotion) {
         pose(body, bj.anchor!.target)
@@ -1342,6 +1477,17 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       airLine.instanceMatrix.needsUpdate = true
     }
 
+    // ── Yarn ball ──
+    if (yarn && toyGroup.visible) {
+      const yj = yarn.jelly
+      if (reducedMotion) pose(yarn, [home[0] + YARN_X * U, paperY() + YARN_R * U, home[2] + YARN_Z * U])
+      else playYarn(dt, t, phase === 'out' ? sighBell : 0)
+      syncJellyGeometry(yarn.geo)
+      shadowAt.set(yj.center[0], yj.center[1], yj.center[2]).project(camera)
+      uYarn.value.x = shadowAt.x * 0.5 + 0.5
+      uYarn.value.y = Math.max(0, (yj.center[1] - YARN_R * U - paperY()) / U)
+    }
+
     pipeline.render()
     if (first) {
       first = false
@@ -1394,7 +1540,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       dropSoft(body)
       dropSoft(head)
       dropSoft(puff)
-      for (const m of [sheetMat, catBodyMat, catHeadMat, earMat, earInnerMat, pawMat, tailMat, puffMat, footMat, armMat, airMat, shellMat]) m.dispose()
+      dropSoft(yarn)
+      for (const m of [yarnMat, sheetMat, catBodyMat, catHeadMat, earMat, earInnerMat, pawMat, tailMat, puffMat, footMat, armMat, airMat, shellMat]) m.dispose()
       sheet.geometry.dispose()
       sphereGeo.dispose()
       coneGeo.dispose()
