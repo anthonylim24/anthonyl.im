@@ -384,6 +384,18 @@ const spaShell = async (c: Context) => {
 // Registered ahead of serveStatic, which would otherwise answer "/" with the
 // raw dist/index.html (no landing metadata, no no-cache headers).
 app.get("/", spaShell);
+// Plain HTML, readable without JavaScript, because Google's OAuth branding
+// review fetches these URLs and does not run the SPA.
+const staticPages: Record<string, string> = {
+  "/privacy": "privacy.html",
+  "/terms": "terms.html",
+};
+for (const [path, file] of Object.entries(staticPages)) {
+  app.get(path, async (c) => {
+    c.header("Cache-Control", "no-cache");
+    return c.html(await Bun.file(join(distPath, file)).text());
+  });
+}
 app.use("*", serveStatic({ root: distPath }));
 
 // Legacy Korea dossier URLs fold into the seeded trip.
