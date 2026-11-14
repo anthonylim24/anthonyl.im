@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { geminiText } from "../geminiText";
+import { geminiText, resetUnavailableModels } from "../geminiText";
 import { GEMINI_MODEL, resetGeminiModelFallback } from "../igPlaces/gemini";
 import { LIM_MODEL_SWITCH_AT, limGeminiModel } from "./model";
 
@@ -25,7 +25,10 @@ describe("limGeminiModel", () => {
 });
 
 describe("geminiText with a per-call model", () => {
-  afterEach(resetGeminiModelFallback);
+  afterEach(() => {
+    resetGeminiModelFallback();
+    resetUnavailableModels();
+  });
 
   test("asks the requested model", async () => {
     const urls: string[] = [];
@@ -44,6 +47,16 @@ describe("geminiText with a per-call model", () => {
     const out = await geminiText({ apiKey: "K", model: "gemini-4-carbon", system: "s", messages: [{ role: "user", content: "x" }], fetchImpl });
     expect(out).toBe("ok");
     expect(urls[1]).toContain(`/models/${GEMINI_MODEL}:generateContent`);
+    // …and it remembers: the next call goes straight to the app model.
+    await geminiText({ apiKey: "K", model: "gemini-4-carbon", system: "s", messages: [{ role: "user", content: "x" }], fetchImpl });
+    expect(urls).toHaveLength(3);
+    expect(urls[2]).toContain(`/models/${GEMINI_MODEL}:generateContent`);
+  });
+
+  test("a JSON answer cut off at the token limit is an error, not half an object", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: '{"ops":[{"op":"item","spec":{"parts":[' }] } }] }))) as unknown as typeof fetch;
+    await expect(geminiText({ apiKey: "K", json: true, system: "s", messages: [{ role: "user", content: "x" }], fetchImpl })).rejects.toThrow(/cut off/);
   });
 
   test("a quota error on the requested model is an error (the caller's backup takes over)", async () => {

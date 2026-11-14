@@ -58,8 +58,13 @@ function save(messages: ChatMessage[]) {
   }
 }
 
+// The API takes at most 40 earlier messages; toy-world chatter adds up fast, so send the recent ones.
+const HISTORY_MAX = 30
 const toHistory = (messages: ChatMessage[]) =>
-  messages.filter((m) => m.status !== "error" && m.content.trim()).map((m) => ({ role: m.role, content: m.content }))
+  messages
+    .filter((m) => m.status !== "error" && m.content.trim())
+    .slice(-HISTORY_MAX)
+    .map((m) => ({ role: m.role, content: m.content }))
 
 /**
  * Conversation state for the chatbot: streaming via `invokeDeepseek`, stop,

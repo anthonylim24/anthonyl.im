@@ -217,10 +217,10 @@ function App() {
       const stage = stageRef.current;
       const now = stage?.world();
       const names = now?.items.map((item) => item.name) ?? [];
-      const local = localIntent(text, names, made);
+      const local = localIntent(text, now?.items ?? [], made);
       if (!stage || !now) {
         // No live scene (still loading, or no WebGL): say so rather than answer as if it were about Anthony.
-        return local ? "My toy box isn't ready yet. Ask me again in a moment!" : null;
+        return local || looksLikeWorldRequest(text) ? "My toy box isn't up right now (it needs the live 3D scene)." : null;
       }
       // With motion reduced Lim stays put: say that, rather than promise a performance.
       const honest = (ops: WorldOp[], reply: string) =>
@@ -231,7 +231,7 @@ function App() {
         stage.apply(local.ops);
         return honest(local.ops, local.reply);
       }
-      if (stuntFor(text) || !looksLikeWorldRequest(text)) return null;
+      if (!looksLikeWorldRequest(text)) return null;
       try {
         const answer = await askWorld(text, { items: names, place: now.place?.name ?? "studio" }, signal);
         if (!answer.ops.length || signal.aborted) return null;
@@ -409,8 +409,9 @@ function App() {
 
   const submit = (text: string) => {
     // "Bounce the ball" is about the ball, not a request for a jump.
-    const names = stageRef.current?.world()?.items.map((item) => item.name) ?? [];
-    pendingStunt.current = localIntent(text, names, made) ? null : stuntFor(text);
+    const here = stageRef.current?.world()?.items ?? [];
+    // And "can he have a tiny castle" is about the castle, not a cue to shrink.
+    pendingStunt.current = localIntent(text, here, made) || looksLikeWorldRequest(text) ? null : stuntFor(text);
     setToyOpen(false);
     if (!send(text)) return;
     setInput("");
@@ -644,7 +645,7 @@ function App() {
                         <button
                           key={spec.name}
                           type="button"
-                          onClick={() => give({ op: "item", spec }, `Gave Lim a ${spec.name}.`)}
+                          onClick={() => give({ op: "item", spec }, `Gave Lim: ${spec.name}.`)}
                           {...sx(chatbot.toyChip)}
                         >
                           <span aria-hidden="true" {...sx(chatbot.toyDot)} style={{ backgroundColor: spec.parts[0].color }} />
@@ -668,7 +669,7 @@ function App() {
                           key={spec.name}
                           type="button"
                           aria-pressed={world.place?.name === spec.name}
-                          onClick={() => give({ op: "place", spec }, `Lim is at the ${spec.name}.`)}
+                          onClick={() => give({ op: "place", spec }, `Lim's place: ${spec.name}.`)}
                           {...sx(chatbot.toyChip, world.place?.name === spec.name && chatbot.toyChipOn)}
                         >
                           <span aria-hidden="true" {...sx(chatbot.toyDot)} style={{ backgroundImage: `linear-gradient(${spec.sky[0]}, ${spec.floor})` }} />

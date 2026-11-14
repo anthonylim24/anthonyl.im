@@ -13,7 +13,7 @@ export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: T
 // Only explicit orders about Lim's world get this far (see spec.ts), so the
 // call can take the time a good model needs; past this the message goes to
 // the chat instead.
-const TIMEOUT_MS = 12_000
+const TIMEOUT_MS = 22_000
 
 const askWorldEffect = Effect.fn("LimWorld.ask")(function* (message: string, world: { items: string[]; place: string }, signal?: AbortSignal) {
   const res = yield* fetchApi("/api/lim/world", {
@@ -78,9 +78,10 @@ export function loadMade(): Made {
 export function rememberMade(made: Made, ops: WorldOp[], known: { items: Set<string>; places: Set<string> }): Made {
   const next: Made = { items: [...made.items], places: [...made.places] }
   for (const op of ops) {
-    if (op.op === "item" && !known.items.has(op.spec.name)) {
+    // A spec the cleaner had to name itself is not worth remembering.
+    if (op.op === "item" && !known.items.has(op.spec.name) && op.spec.name !== "thing") {
       next.items = [op.spec, ...next.items.filter((x) => x.name !== op.spec.name)].slice(0, MADE_MAX)
-    } else if (op.op === "place" && op.spec && !known.places.has(op.spec.name)) {
+    } else if (op.op === "place" && op.spec && !known.places.has(op.spec.name) && op.spec.name !== "somewhere") {
       const spec = op.spec
       next.places = [spec, ...next.places.filter((x) => x.name !== spec.name)].slice(0, MADE_MAX)
     }

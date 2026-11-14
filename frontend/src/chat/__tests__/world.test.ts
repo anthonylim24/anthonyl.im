@@ -128,8 +128,9 @@ describe('reading a message without the model', () => {
     expect(localIntent('drop a rubber duck please')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'rubber duck' } })
     expect(localIntent('can he have a teddy bear?')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'teddy' } })
     expect(localIntent('beach ball')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
+    expect(localIntent('a ball please')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
     expect(localIntent('take him to the beach')?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'beach' } })
-    expect(localIntent('space!')?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'space' } })
+    expect(localIntent('the beach please')?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'beach' } })
     expect(localIntent('go home')?.ops[0]).toEqual({ op: 'place', spec: null })
     expect(localIntent('tidy up')?.ops[0]).toEqual({ op: 'clear', what: 'items' })
     expect(localIntent('make it snow')?.ops[0]).toMatchObject({ op: 'tweak', set: { weather: 'snow' } })
@@ -138,8 +139,14 @@ describe('reading a message without the model', () => {
   })
 
   it('acts on what is already there, or brings it and then acts', () => {
-    expect(localIntent('eat the apple', ['apple'])?.ops[0]).toEqual({ op: 'act', action: 'eat', target: 'apple' })
-    expect(localIntent('kick the snail', ['snail'])?.ops[0]).toEqual({ op: 'act', action: 'kick', target: 'snail' })
+    const snail = cleanItem({ name: 'snail', parts: [{ shape: 'bean', color: '#B9E59B' }] })!
+    expect(localIntent('eat the apple', [ITEMS.apple.spec])?.ops[0]).toEqual({ op: 'act', action: 'eat', target: 'apple' })
+    expect(localIntent('kick the snail', [snail])?.ops[0]).toEqual({ op: 'act', action: 'kick', target: 'snail' })
+    // Known by what the catalog calls it, not only by its display name: no duplicates.
+    expect(localIntent('eat the bean', [ITEMS.bean.spec])?.ops[0]).toEqual({ op: 'act', action: 'eat', target: 'jelly bean' })
+    expect(localIntent('kick the duck', [ITEMS.duck.spec])?.ops[0]).toEqual({ op: 'act', action: 'kick', target: 'rubber duck' })
+    // The reply doesn't promise what the item can't do.
+    expect(localIntent('eat the ball', [ITEMS.ball.spec])?.reply).toMatch(/don't think I can eat/)
     expect(localIntent('wear a crown')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'crown' }, then: 'wear' })
     // Not something this item can do: just bring it.
     expect(localIntent('eat the crown')?.ops[0]).toMatchObject({ op: 'item', then: undefined })
@@ -151,6 +158,11 @@ describe('reading a message without the model', () => {
     const extra = { items: [snail], places: [candy] }
     expect(localIntent('give him a snail', [], extra)?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'snail' } })
     expect(localIntent('take lim to candy land', [], extra)?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'candy land' } })
+    // Everyday names the model once used don't turn remarks into requests.
+    const coffee = cleanItem({ name: 'coffee', parts: [{ shape: 'cylinder', color: '#C99A6B' }] })!
+    expect(localIntent('Can he get a coffee with me?', [], { items: [coffee], places: [] })).toBeNull()
+    expect(localIntent('can he have a coffee', [], { items: [coffee], places: [] })).toBeNull()
+    expect(localIntent('give him a coffee', [], { items: [coffee], places: [] })?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'coffee' } })
     expect(localIntent('give him a snail')).toBeNull()
   })
 
@@ -159,7 +171,7 @@ describe('reading a message without the model', () => {
     expect(localIntent('give lim a golden apple tree')).toBeNull()
     expect(localIntent('take him to the beach at night with fireworks')).toBeNull()
     expect(localIntent('make it rain frogs')).toBeNull()
-    for (const m of ['give him a kite', 'can he have a tiny castle', 'take lim to a candy land', 'put a hat on his head', 'make it rain frogs', 'Lim needs a scarf']) {
+    for (const m of ['give him a kite', 'can he have a tiny castle', 'take lim to a candy land', 'put a hat on his head', 'make it rain frogs', 'Lim needs a scarf', 'can he have a tiny castle', 'give lim a giant pop-up book', 'take off the party hat', 'go to the moon']) {
       expect(looksLikeWorldRequest(m), m).toBe(true)
     }
   })
@@ -170,7 +182,13 @@ describe('reading a message without the model', () => {
       'How can I contact him?', 'Can he play music?', 'Bear with me', 'Sweet!', 'music', 'light', 'party', 'club', 'spring', 'pool',
       'plant', 'moon', 'boo', 'Where did he go to school?', 'What did he build at Google?', 'how can I get in touch', 'Can I see his github',
       'What does he like to eat?', 'Does he like the beach?', 'Is he a star engineer?', 'Tell me about his heart for teaching',
-      'What makes him tick?', 'Can you give me his email?', 'Give me a summary of his work', 'Add more detail please', 'Put simply, who is he?',
+      'What makes him tick?', 'Make it short', 'Put it in a table', 'Give me the tl;dr', 'Can you add some detail?',
+      'Can you give me a list of languages he knows?', 'Create a poem about him', 'Go to the next topic', 'Change the subject',
+      'Can he have a call next week?', 'Could he visit our office?', 'He needs a better website', 'Should he get a promotion?', 'Make him an offer',
+      'Put him in touch with me', "It's raining here today", "What's his take on zero gravity?", 'Clear the chat', 'Reset the conversation',
+      'Turn on dark mode', 'Remove the last message', 'Can he have a heart to heart with me?', 'Could he have a ball with us?', 'Should he get a star?',
+      'Make it a star', 'I want to go to the beach', 'apple', 'Star', 'Heart', 'space', 'ball', 'Give me his number', 'Throw me a bone here',
+      'Bring me up to speed', 'Tell me a joke', 'Send me his resume', 'Make it simpler', 'Go on', 'Take me through his career', 'Can you give me his email?', 'Give me a summary of his work', 'Add more detail please', 'Put simply, who is he?',
       'Clear explanation, thanks', 'Is the ball in his court?', 'thanks!', 'cool', 'That was sweet', 'I love space', 'Show me his projects',
     ]
     for (const m of chat) {

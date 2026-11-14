@@ -365,25 +365,32 @@ export const PLACES: Record<string, { spec: PlaceSpec; aliases: string[] }> = {
  * A question, a remark, or anything about Anthony always goes to the chat.
  */
 const LEAD = String.raw`(?:(?:please|pls|hey|hi|ok|okay|now|so|and|lim)[,!]?\s+)*`
+const LIM = String.raw`(?:lim|him|her|it|them)`
 const ORDER = new RegExp(
-  String.raw`^\s*${LEAD}(?:(?:can|could|would|will) you (?:please )?|let'?s |i(?: would|'d)? (?:like|love) (?:you )?to |i want (?:you )?to )?` +
-    String.raw`(?:give|gimme|drop|toss|throw|bring|feed|summon|conjure|spawn|add (?:a|an|some|the)|put (?:a|an|some|the|lim|him|her|it|them|on)|hand (?:lim|him|her|it|them)|` +
-    String.raw`take (?:lim|him|her|it|them)|send (?:lim|him|her|it|them)|go (?:to|home|back)|teleport|wear|eat|kick|hug|cuddle|bounce|juggle|play with|` +
-    String.raw`tidy|clean up|clear (?:up|everything|all|the)|remove|get rid of|reset the|make (?:it|lim|him|her|them|the)|let it|turn (?:on|off|it|the)|` +
-    String.raw`change the|set the|stop the|no more|decorate|create (?:a|an|some)|build (?:lim|him|her|it|them))\b`,
+  String.raw`^\s*${LEAD}(?:(?:can|could|would|will) you (?:please )?|let'?s )?` +
+    String.raw`(?:(?:give|bring|feed|hand|toss|throw|get|buy) ${LIM}\b|(?:give|drop|toss|throw|bring|summon|conjure|spawn) (?:a|an|some|the|another|more)\b|gimme\b|` +
+    String.raw`put (?:(?:a|an|some|the) .*\bon (?:lim|him|her|it|his|its|her)\b|${LIM} (?:in|on|at|under|by)\b)|take ${LIM} (?:to|home|back)\b|send ${LIM} (?:to|home|back)\b|` +
+    String.raw`go (?:to (?:the|a|an|outer)\b|home\b|back (?:home|to the studio)\b)|teleport\b|(?:wear|eat|kick|hug|cuddle|bounce|juggle|play with|nap on|sleep on|dance with) (?:a|an|some|the|that|this|it)\b|` +
+    String.raw`tidy\b|clean up\b|clear (?:up|everything|all|the (?:toys|items|things|stuff|room|stage|weather|sky))\b|(?:remove|get rid of|put away|take away|take off) (?:the|that|this|all|everything|${LIM}'?s?)\b|` +
+    String.raw`reset the (?:world|room|stage)\b|make it (?:rain|snow|night|nighttime|day|daytime|dark|sunny|windy|winter|summer|autumn|spring|cold|hot|foggy|stormy)\b|let it (?:rain|snow)\b|` +
+    String.raw`make (?:lim|him|her|them) (?:a|an|some|wear|eat|kick|hug|dance|bounce|nap)\b|stop the (?:rain|snow|weather)\b|no more (?:rain|snow)\b|(?:turn|switch) (?:on|off) the (?:rain|snow|gravity)\b|` +
+    String.raw`change the (?:weather|place|scene|scenery|background|floor|sky)\b|set the (?:weather|scene|gravity)\b|decorate\b|build ${LIM}\b)`,
   'i',
 )
 const WISH =
-  /\b(?:can|could|may|should) (?:lim|he|she|it|they) (?:please )?(?:have|get|wear|try on|eat|go to|visit|play with)\b|\b(?:lim|he|she|it) (?:needs|wants|deserves|should have|should get|should wear) (?:a|an|some|the)\b|\bi want (?:lim|him|her|it|them) to (?:have|get|wear|eat|go|visit)\b|\b(?:get|buy) (?:lim|him|her|it|them) (?:a|an|some)\b/i
+  /\b(?:can|could|may) (?:lim|he|she|it|they) (?:please )?(?:have|get|wear|try on|eat|go to|visit|play with)\b|\blim (?:needs|wants|deserves|should have|should get|should wear) (?:a|an|some|the)\b|\bi want (?:lim|him|her|it|them) to (?:have|get|wear|eat|go|visit)\b/i
 const AIR =
-  /^\s*(?:please )?(?:make|let) it (?:rain|snow)\b|^\s*(?:it'?s |it is )?(?:rain|snow)ing\b|\b(?:low|zero|no|moon|normal|regular|earth) ?-?gravity\b|\bweightless\b|^\s*(?:stop|no more|clear) (?:the )?(?:rain|snow|weather)\b/i
+  /^\s*(?:please )?(?:make|let) it (?:rain|snow)\b|^\s*(?:please )?(?:(?:make|set|turn on|switch to|give (?:lim|him|her|it|them)) (?:it )?)?(?:low|zero|no|moon|normal|regular|earth) ?-?gravity(?: please)?[.!]*$|^\s*(?:stop|no more|clear) (?:the )?(?:rain|snow|weather)\b/i
+/** The site owner, the visitor, or the conversation itself: never Lim's world. */
 const ABOUT_ANTHONY =
-  /\b(anthony|anthony's|resume|résumé|cv|career|jobs?|works?|worked|working|experience|skills?|projects?|contact|email|hire|hiring|school|college|degree|company|companies|github|linkedin|background|portfolio|salary|interview)\b/i
+  /\b(anthony|anthony's|resume|résumé|cv|career|jobs?|works?|worked|working|experience|skills?|projects?|contact|email|hire|hiring|school|college|degree|company|companies|github|linkedin|background|portfolio|salary|interview|call|meeting|office|role|offer|promotion|website|languages?|stack|team|clients?|touch|coffee with|lunch|week|tomorrow|today)\b|\b(?:with|for|to|at|about) (?:me|us|my|our)\b|\b(?:give|bring|throw|toss|hand|get|buy|show|tell|send) (?:me|us)\b/i
+const ABOUT_THE_CHAT =
+  /\b(topic|subject|question|answer|chat|conversation|messages?|list|table|summary|tl;?dr|details?|poem|story|joke|code|links?|page|site|mode|theme|section|points?|examples?|shorter|longer|short|brief|simple|simpler|clear(?:er)?ly|again|bullet|paragraph|sentence|words?)\b/i
 
 /** Worth asking the model what this means for Lim's world. Anything else is chat. */
 export function looksLikeWorldRequest(text: string): boolean {
   const s = text.trim()
-  if (!s || s.length > 220 || ABOUT_ANTHONY.test(s)) return false
+  if (!s || s.length > 220 || ABOUT_ANTHONY.test(s) || ABOUT_THE_CHAT.test(s)) return false
   return ORDER.test(s) || WISH.test(s) || AIR.test(s)
 }
 
@@ -399,6 +406,11 @@ const ACTION_WORDS: [RegExp, Action][] = [
 ]
 
 const mentions = (text: string, word: string) => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`, 'i').test(text)
+
+const catalogWords = (name: string): string[] => {
+  const hit = Object.entries(ITEMS).find(([, x]) => x.spec.name === name)
+  return hit ? [hit[0], ...hit[1].aliases] : []
+}
 
 /** Things the model made earlier for this visitor: as good as catalog entries. */
 export type Extra = { items: ItemSpec[]; places: PlaceSpec[] }
@@ -422,10 +434,13 @@ function findNoun(text: string, extra?: Extra): Noun | null {
 }
 
 /** The whole message is a catalog name: "beach!", "a rubber duck please". */
-function bareNoun(text: string, extra?: Extra): Noun | null {
+function bareNoun(text: string): Noun | null {
   const core = text.toLowerCase().replace(/[!.\s]+$/g, '').replace(/^(a|an|the|some)\s+/, '').replace(/\s+(please|pls)$/, '').trim()
-  // Single-word aliases are too easy to say by accident ("sweet!", "bear with me").
-  return nouns(extra).find((noun) => noun.kind !== 'studio' && noun.words.some((w, i) => w === core && (i < 2 || w.includes(' ')))) ?? null
+  // A lone word is just a word ("apple", "sweet!"); "a ball", "space please" or
+  // a two-word name ("rubber duck") is a request. Catalog names only.
+  const asked = /^(a|an|the|some)\s/i.test(text.trim()) || /\b(please|pls)[!.\s]*$/i.test(text) || core.includes(' ')
+  if (!asked) return null
+  return nouns().find((noun) => noun.kind !== 'studio' && noun.words.some((w) => w === core)) ?? null
 }
 
 const FILLER = new Set(
@@ -448,10 +463,10 @@ export type LocalIntent = { ops: WorldOp[]; reply: string }
  * earlier) needs no model. Returns null when the message isn't one, so the
  * caller can ask the model, or just answer the question.
  */
-export function localIntent(text: string, inWorld: string[] = [], extra?: Extra): LocalIntent | null {
+export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extra): LocalIntent | null {
   const s = text.trim()
   if (!s || s.length > 120 || ABOUT_ANTHONY.test(s)) return null
-  const bare = bareNoun(s, extra)
+  const bare = bareNoun(s)
   if (!bare && !looksLikeWorldRequest(s)) return null
   if (/\b(tidy|clean) up\b|\b(clear|remove|get rid of) (everything|all|the (toys|items|things|stuff))\b|\breset the (world|room|stage)\b/i.test(s)) {
     return { ops: [{ op: 'clear', what: /everything|all\b|reset/i.test(s) ? 'all' : 'items' }], reply: 'All tidy!' }
@@ -466,10 +481,17 @@ export function localIntent(text: string, inWorld: string[] = [], extra?: Extra)
   }
   const action = ACTION_WORDS.find(([re]) => re.test(s))?.[1]
   // Something already here, named with an action: just do it.
-  const here = inWorld.find((name) => mentions(s, name))
-  if (here && action) return { ops: [{ op: 'act', action, target: here }], reply: actReply(action, here) }
+  // Known by its name, or by what the catalog calls it ("the bean", "the duck").
+  const here = inWorld.find((item) => [item.name, ...catalogWords(item.name)].some((w) => mentions(s, w)))
+  if (here && action) {
+    const can = actionsFor(here).includes(action)
+    return { ops: [{ op: 'act', action, target: here.name }], reply: can ? actReply(action, here.name) : `Hmm, I don't think I can ${action} a ${here.name}.` }
+  }
   const noun = bare ?? findNoun(s, extra)
   if (!noun) return null
+  // Something the model made earlier has an everyday name ("coffee", "office"):
+  // only a plain order brings it back.
+  if (!bare && !nouns().some((n) => n.kind === noun.kind && n.words[0] === noun.words[0]) && !ORDER.test(s)) return null
   // Only when that is all the message says: "a candy castle" or "the beach at
   // night" is more than the catalog's candy or beach, and goes to the model.
   if (extraWords(s, noun) > 0) return null

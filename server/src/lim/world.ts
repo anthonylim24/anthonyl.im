@@ -147,8 +147,11 @@ export type Complete = (system: string, user: string, signal: AbortSignal) => Pr
 // with its own quota, and no SDK retries (a retry waits out the rate limit,
 // and a toy is not worth that wait).
 const GROQ_BACKUPS = (process.env.LIM_WORLD_BACKUP_MODELS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",").map((m) => m.trim()).filter(Boolean);
-const GEMINI_MS = 8_000;
-const BACKUP_MS = 3_000;
+// Measured on this prompt: Carbon answers in 7 to 15 s, Hydrogen in 2.5 to 6 s,
+// the Groq backups in under 1 s. Gemini gets long enough for Carbon to finish;
+// 16 s + 2 × 2.5 s fits inside the 21.5 s the route allows (the page waits 22 s).
+const GEMINI_MS = 16_000;
+const BACKUP_MS = 2_500;
 
 /** Gemini first, then the Groq backups. Throws when none can answer. */
 export const complete: Complete = async (system, user, signal) => {
@@ -164,7 +167,7 @@ export const complete: Complete = async (system, user, signal) => {
         system,
         messages: [{ role: "user", content: user }],
         json: true,
-        maxOutputTokens: 1100,
+        maxOutputTokens: 1600,
         signal: AbortSignal.any([signal, AbortSignal.timeout(GEMINI_MS)]),
       });
     } catch (err) {
@@ -212,7 +215,7 @@ const norm = (message: string) => message.trim().toLowerCase().replace(/\s+/g, "
  * answer acts on something already there (then what is there matters too), so
  * "give him a kite" costs one call however the world looks.
  */
-export async function askLimWorld(message: string, world: WorldState, run: Complete = complete, timeoutMs = 13_000, outer?: AbortSignal): Promise<LimWorldAnswer> {
+export async function askLimWorld(message: string, world: WorldState, run: Complete = complete, timeoutMs = 21_500, outer?: AbortSignal): Promise<LimWorldAnswer> {
   const plain = norm(message);
   const exact = JSON.stringify([plain, world.items, world.place]);
   for (const key of [plain, exact]) {

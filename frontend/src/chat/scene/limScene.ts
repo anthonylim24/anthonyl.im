@@ -945,7 +945,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
     }
     // Nothing nudges things apart when motion is reduced, so fan them out in depth.
-    toy.depth = reducedMotion ? -0.5 + (toys.indexOf(toy) % 5) * 0.3 : 0.05 + (toys.indexOf(toy) % 3) * 0.2
+    toy.depth = reducedMotion ? -0.5 + (toys.indexOf(toy) % 5) * 0.3 : -0.4 + (toys.indexOf(toy) % 3) * 0.42
   }
   const addToy = (spec: ItemSpec, renew: boolean, height: number) => {
     const toy = makeToy(spec, renew)
@@ -2361,7 +2361,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       const live = toys.filter((toy) => toy.backAt < 0)
       if (live.length >= MAX_ITEMS) removeToy(live.find((toy) => !toy.worn && toy !== held) ?? live[0], true)
       // With motion reduced nothing falls: it is simply there, on the floor.
-      const toy = addToy(spec, false, spec.traits.includes('floaty') ? 1.4 : reducedMotion ? 0 : topY + 0.5)
+      const toy = addToy(spec, spec.name === 'jelly bean', spec.traits.includes('floaty') ? 1.4 : reducedMotion ? 0 : topY + 0.5)
       active(true)
       greet(toy, then)
       // Still: no performance, but a hat still ends up on Lim's head.
