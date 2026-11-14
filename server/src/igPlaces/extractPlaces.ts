@@ -5,7 +5,7 @@ import { RetryableError } from './types';
 import { canonicalize, levenshteinDistance, fuzzyEq as _fuzzyEq } from './textMatch';
 export { canonicalize, levenshteinDistance };
 
-export const SYSTEM_PROMPT = `You extract real-world places from a social-media post about Korea.
+export const SYSTEM_PROMPT = `You extract real-world places from a social-media travel or food post. The post can be about anywhere in the world; work out the city and country from the caption, hashtags, account name, language and location tag.
 
 Rules:
 1. Include any place a reader could LOCATE OR VISIT based on the post. This means:

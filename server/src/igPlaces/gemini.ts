@@ -484,7 +484,7 @@ export function createGeminiVideoTranscriber(deps: GeminiVideoTranscriberDeps): 
           role: 'user',
           parts: [
             { text: 'Transcribe every spoken word in this video verbatim. ' +
-                    'Include Korean Hangul where spoken, English where spoken. ' +
+                    'Keep each language as spoken (do not translate). ' +
                     'Return ONLY the transcript text — no preamble, no labels, no timestamps.' },
             { file_data: { mime_type: 'video/mp4', file_uri: fileUri } },
           ],
@@ -756,7 +756,7 @@ function buildCarouselPrompt(post: PostPayload, slideCount: number): string {
 
 You are analyzing an Instagram carousel with ${slideCount} image${slideCount === 1 ? '' : 's'}. Treat each image as one slide in a sequence. Read every readable text overlay, store sign, menu, banner, or burned-in caption visible on every slide.
 
-Many Korea-trip carousels are "list" posts (e.g. "10 Seoul restaurants I loved", "Cafés in Seongsu"). Each slide typically pictures a SINGLE venue with its name burned into the image. When a clear theme emerges from the caption, hashtags, or repeated visual cues across slides (e.g. all signage in Hangul, all neighborhoods named in Seoul), use that theme to infer the city/neighborhood for slides that don't state it explicitly. Do NOT invent unrelated cities.
+Many travel carousels are "list" posts (e.g. "10 Seoul restaurants I loved", "Where to eat in Lisbon"). Each slide typically pictures a SINGLE venue with its name burned into the image. When a clear theme emerges from the caption, hashtags, or repeated visual cues across slides (e.g. all signage in one language, every neighbourhood named in one city), use that theme to infer the city/neighborhood for slides that don't state it explicitly. Do NOT invent unrelated cities.
 
 Return a single JSON object with EXACTLY these fields:
 
@@ -767,7 +767,7 @@ Return a single JSON object with EXACTLY these fields:
     {
       "name": "<English-first venue name; see SYSTEM_PROMPT rule 2>",
       "name_romanized": "<original-script name from rule 3>",
-      "city": "<Seoul | Busan | …>",
+      "city": "<the city, e.g. Seoul, Lisbon, Mexico City>",
       "address": "<verbatim address from caption / on-screen text; null if not stated>",
       "category": "<restaurant | cafe | bar | shopping | activity | hotel | landmark | other>",
       "confidence": <0..1>,
@@ -789,13 +789,13 @@ function buildAnalyzerPrompt(post: PostPayload): string {
 You are analyzing an Instagram video. Watch every frame, listen to every spoken word, and read every on-screen text overlay. Then return a single JSON object with EXACTLY these three fields:
 
 {
-  "transcript": "<verbatim transcript of every spoken word, English where spoken English, Hangul where spoken Korean>",
+  "transcript": "<verbatim transcript of every spoken word, each language as spoken, not translated>",
   "ocrText": "<every readable text overlay, store sign, menu, or burned-in caption visible in any frame, joined by newlines>",
   "places": [
     {
       "name": "<English-first venue name; see SYSTEM_PROMPT rule 2>",
       "name_romanized": "<original-script name from rule 3>",
-      "city": "<Seoul | Busan | …>",
+      "city": "<the city, e.g. Seoul, Lisbon, Mexico City>",
       "address": "<verbatim address from caption / transcript / on-screen text; null if not stated>",
       "category": "<restaurant | cafe | bar | shopping | activity | hotel | landmark | other>",
       "confidence": <0..1>,

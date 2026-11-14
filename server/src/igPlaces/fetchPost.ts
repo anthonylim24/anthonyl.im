@@ -1,5 +1,6 @@
 import { type PostPayload, type MediaItem, type LocationTag,
          RetryableError, NonRetryableError } from './types';
+import { rememberComments, tryApify } from './apify';
 
 /** Extract the post shortcode from any IG URL form: /p/, /reel/, /tv/.
  *  Handles trailing slashes + query strings without choking. */
@@ -15,6 +16,8 @@ export interface FetchPostDeps {
   };
   fetch?: typeof fetch;
   brightDataApiKey: string | undefined;
+  /** Apify API token. When set, Apify's Instagram scraper is tried first. */
+  apifyToken?: string | undefined;
 }
 
 export type FetchPost = (url: string, cached: PostPayload | null) => Promise<PostPayload>;
@@ -25,16 +28,37 @@ export function createFetchPost(deps: FetchPostDeps): FetchPost {
 
   return async function fetchPost(url, cached) {
     if (cached) return cached;
-    // Bright Data first — more reliable from cloud IPs, surfaces the
-    // location tag + richer metadata than yt-dlp. yt-dlp is the free
-    // backup when Bright Data is unavailable (key missing, quota hit,
-    // transient error).
-    const bd = await tryBrightData(url, f, deps.brightDataApiKey);
-    if (bd.payload) return bd.payload;
+    // 1. Apify: seconds, works from any server, free plan covers personal
+    //    use, and the post arrives with its latest comments.
+    // 2. Bright Data: paid; only when a key is configured.
+    // 3. yt-dlp: free, but Instagram asks datacenter IPs to log in, so it
+    //    mostly helps when the worker runs on a home machine.
+    const errors: Error[] = [];
+    if (deps.apifyToken) {
+      const apify = await tryApify(url, f, deps.apifyToken);
+      if (apify.payload) {
+        if (apify.comments?.length) rememberComments(url, apify.comments);
+        return apify.payload;
+      }
+      if (apify.error) errors.push(apify.error);
+    }
+    if (deps.brightDataApiKey) {
+      const bd = await tryBrightData(url, f, deps.brightDataApiKey);
+      if (bd.payload) return bd.payload;
+      if (bd.error) errors.push(bd.error);
+    }
     const local = await tryYtDlp(url, spawn);
     if (local) return local;
-    if (bd.error) throw bd.error;
-    throw new NonRetryableError('no payload from any extractor');
+    if (errors.length === 0) {
+      throw new NonRetryableError('no Instagram fetcher is configured (set APIFY_TOKEN)');
+    }
+    // "Private or deleted" from any source is the answer; otherwise a
+    // retryable failure outranks a permanent one so the job tries again.
+    throw (
+      errors.find((err) => /not found|private or deleted|empty array/i.test(err.message)) ??
+      errors.find((err) => !(err instanceof NonRetryableError)) ??
+      errors[0]!
+    );
   };
 }
 

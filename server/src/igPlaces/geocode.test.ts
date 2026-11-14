@@ -1,6 +1,6 @@
 // server/src/igPlaces/geocode.test.ts
 import { test, expect, describe, mock } from 'bun:test';
-import { createGeocoder, haversineMeters, withinKoreaBbox } from './geocode';
+import { createGeocoder, expectsKorea, haversineMeters, withinKoreaBbox } from './geocode';
 import type { VotedPlace, LocationTag } from './types';
 
 const base: VotedPlace = {
@@ -237,5 +237,28 @@ describe('realKakaoLookup multi-query fallback', () => {
     expect(r).not.toBeNull();
     expect(r?.address).toContain('테헤란로');
     expect(queries[0]).toContain('샘플 장소'); // Korean first
+  });
+});
+
+describe('worldwide geocoding', () => {
+  test('a Korean post is biased to Korea; any other post is not', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const f = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ places: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const lookup = realGoogleLookup('KEY', f);
+    await lookup({ name: 'Bougain', nameRomanized: null, city: 'Cascais', address: null, category: 'restaurant' });
+    await lookup({ name: '카페 어니언', nameRomanized: 'Cafe Onion', city: null, address: null, category: 'cafe' });
+    await lookup({ name: 'Tak', nameRomanized: null, city: 'Seoul', address: null, category: 'restaurant' });
+    expect(bodies[0]!.regionCode).toBeUndefined();
+    expect(bodies.find((b) => String(b.textQuery).includes('Onion') || String(b.textQuery).includes('어니언'))!.regionCode).toBe('KR');
+    expect(bodies.find((b) => String(b.textQuery).includes('Tak'))!.regionCode).toBe('KR');
+  });
+
+  test('expectsKorea reads Hangul and Korean place names, nothing else', () => {
+    expect(expectsKorea({ name: 'JNcQUOI Fish', city: 'Lisbon' })).toBe(false);
+    expect(expectsKorea({ name: 'Onion', city: 'Seongsu' })).toBe(true);
+    expect(expectsKorea({ name: '목멱산방' })).toBe(true);
   });
 });

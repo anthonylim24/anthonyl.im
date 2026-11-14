@@ -91,10 +91,11 @@ function stepLabel(job: IgJob): string {
 
 /** A plain-language reason for a job that will not finish. */
 /** The server's own access to Instagram is broken: retrying cannot help. */
-const OFFLINE = /\b(401|403)\b|token expired|auth failed|unauthori[sz]ed/i
+const OFFLINE = /\b(401|403)\b|token expired|auth failed|unauthori[sz]ed|no Instagram fetcher/i
 
 export function describeProblem(error: string | null): string {
   const text = error ?? ""
+  if (/monthly credit/i.test(text)) return "This month’s free import allowance is used up. It resets next month."
   if (OFFLINE.test(text)) return "Instagram import is offline right now. It needs attention on the server, so trying again won’t help yet."
   if (/empty array|not found|404|private|login/i.test(text)) {
     return "Instagram wouldn’t open this post. It may be private or deleted."
