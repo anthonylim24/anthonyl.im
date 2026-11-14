@@ -200,7 +200,7 @@ function App() {
   const stick = useRef(true);
   const pendingStunt = useRef<Stunt | null>(null);
   const makingTick = useRef(0);
-  const worldOk = useRef(true);
+  const worldChanged = useRef(false);
   const cheerTimer = useRef(0);
   const copyTimer = useRef(0);
 
@@ -225,11 +225,17 @@ function App() {
 
   const reducedMotion = useReducedMotion();
   const toyButtonRef = useRef<HTMLButtonElement>(null);
+  // With motion reduced Lim stays put: say that, rather than promise a performance.
+  const honest = (ops: WorldOp[], reply: string) =>
+    reducedMotion && ops.some((op) => (op.op === "act" && !["remove", "wear", "eat", "look"].includes(op.action)) || (op.op === "item" && op.then))
+      ? "I'm keeping still (reduced motion is on), but it's right here."
+      : reply;
   const { messages, status, busy, send, stop, regenerate, newChat } = useChat({
     onSend: () => {
       setSad(false);
       setCheering(false);
       setNotice("");
+      worldChanged.current = false;
       // A message that names a trick ("do a flip") gets the trick, not the hop.
       const stunt = pendingStunt.current;
       pendingStunt.current = null;
@@ -248,13 +254,10 @@ function App() {
         // anything else goes to the model, which is told the toy box is down (see `world` below).
         return local ? "My toy box isn't up right now (it needs the live 3D scene)." : null;
       }
-      // With motion reduced Lim stays put: say that, rather than promise a performance.
-      const honest = (ops: WorldOp[], reply: string) =>
-        reducedMotion && ops.some((op) => (op.op === "act" && !["remove", "wear", "eat", "look"].includes(op.action)) || (op.op === "item" && op.then))
-          ? "I'm keeping still (reduced motion is on), but it's right here."
-          : reply;
       if (local) {
-        stage.apply(local.ops);
+        if (!local.ops.length) return local.reply;
+        if (!stage.apply(local.ops)) return "Hmm, I can't find that here.";
+        worldChanged.current = true;
         return honest(local.ops, local.reply);
       }
       // Anything else is the model's call: it answers, or orders something for the world (onWorld).
@@ -281,20 +284,17 @@ function App() {
       const { ops, reply } = content ? readWorldReply(content) : { ops: [], reply: "" };
       const ok = Boolean(stage && ops.length);
       stage?.conjure(false, ok);
-      worldOk.current = ok;
       // Stopped by the visitor: nothing to add. Anything else that came to nothing, Lim owns up to.
-      if (!content && !failed) return "";
-      if (!stage || !ok) return "I couldn't make that just now. Try me again, or pick something from the toy box!";
-      stage.apply(ops);
+      if (!content && !failed) return { text: "", ok: false };
+      if (!stage || !ok) return { text: "I couldn't make that just now. Try me again, or pick something from the toy box!", ok: false };
+      if (!stage.apply(ops)) return { text: "Hmm, I can't find that here.", ok: false };
+      worldChanged.current = true;
       setMade((m) => rememberMade(m, ops, KNOWN));
-      return reducedMotion && ops.some((op) => (op.op === "act" && !["remove", "wear", "eat", "look"].includes(op.action)) || (op.op === "item" && op.then))
-        ? "I'm keeping still (reduced motion is on), but it's right here."
-        : reply || "Done!";
+      return { text: honest(ops, reply || "Done!"), ok: true };
     },
     onDone: (firstReply, local) => {
       if (local) {
-        setNotice(worldOk.current ? "Lim's world changed." : "Lim answered.");
-        worldOk.current = true;
+        setNotice(worldChanged.current ? "Lim's world changed." : "Lim answered.");
         return;
       }
       stageRef.current?.cheer(firstReply);

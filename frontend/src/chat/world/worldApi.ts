@@ -6,15 +6,23 @@ import { WORLD_MARK, cleanItem, cleanOps, cleanPlace, cleanTweak, type ItemSpec,
 
 export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
 
-/** A streamed reply that has begun with the world marker: an order, not prose. */
-export const isWorldReply = (content: string) => content.trimStart().startsWith(WORLD_MARK)
-/** Too early to tell: what has arrived so far is only the start of the marker ("@", "@@wo"). */
-export const maybeWorldReply = (content: string) => {
-  const head = content.trimStart()
-  return head.length > 0 && head.length < WORLD_MARK.length && WORLD_MARK.startsWith(head)
+/** A finished or streaming reply with the marker at the start of some line (bare, fenced, or prefaced). */
+export const hasWorldOrder = (content: string) => new RegExp(`(^|\\n)[\\s\`]*${WORLD_MARK}`).test(content)
+
+/**
+ * What a reply looks like so far: an order ("yes"), prose ("no"), or too early
+ * to tell ("maybe": only whitespace, the start of a code fence, or the start
+ * of the marker has arrived, so nothing should be shown yet).
+ */
+export function orderState(content: string): 'no' | 'maybe' | 'yes' {
+  if (hasWorldOrder(content)) return 'yes'
+  if (/^\s*`{1,3}[a-z]*\s*$/i.test(content)) return 'maybe'
+  const head = content.replace(/^\s*(?:```[a-z]*\s*)?/i, '')
+  if (!head) return content.trim() ? 'maybe' : 'no'
+  return head.length < WORLD_MARK.length && WORLD_MARK.startsWith(head) ? 'maybe' : 'no'
 }
-/** A finished reply with the marker at the start of some line (the model wrapped it in a fence, or prefaced it). */
-export const hasWorldOrder = (content: string) => new RegExp(`(^|\\n)[\\s\`]*${WORLD_MARK}\\s*\\{`).test(content)
+export const isWorldReply = (content: string) => orderState(content) === 'yes'
+export const maybeWorldReply = (content: string) => orderState(content) === 'maybe'
 
 /** The first balanced {...} after the marker, minding strings. */
 function firstObject(text: string): string | null {

@@ -170,7 +170,7 @@ describe('useChat', () => {
   })
 
   it('hands a world order to onWorld instead of showing it, and shows Lim\'s line', async () => {
-    const events = { world: () => ({ items: ['ball'], place: 'studio' }), onWorldStart: vi.fn(), onWorld: vi.fn(() => 'A kite!'), onChunk: vi.fn(), onDone: vi.fn() }
+    const events = { world: () => ({ items: ['ball'], place: 'studio' }), onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A kite!', ok: true })), onChunk: vi.fn(), onDone: vi.fn() }
     const reply = deferredReply()
     const { result } = renderHook(() => useChat(events))
     act(() => void result.current.send('give him a kite'))
@@ -215,7 +215,7 @@ describe('useChat', () => {
   })
 
   it('shows a reply that only looked like the start of the marker', async () => {
-    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => 'x') }
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'x', ok: true })) }
     const reply = deferredReply()
     const { result } = renderHook(() => useChat(events))
     act(() => void result.current.send('How do I reach him?'))
@@ -231,32 +231,50 @@ describe('useChat', () => {
   })
 
   it('still treats a fenced or prefaced order as an order', async () => {
-    const events = { onWorld: vi.fn(() => 'A kite!') }
-    const reply = deferredReply()
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A kite!', ok: true })), onChunk: vi.fn() }
     const { result } = renderHook(() => useChat(events))
+    // Fenced, arriving piece by piece: none of it is ever shown.
+    const fenced = deferredReply()
     act(() => void result.current.send('give him a kite'))
-    reply.chunk('```\n@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}\n```')
-    await reply.finish()
+    for (const piece of ['`', '```', '```json\n', '```json\n@@wor', '```json\n@@world {"ops":[{"op":"item"']) {
+      fenced.chunk(piece)
+      expect(last(result.current.messages).content).toBe('')
+    }
+    expect(events.onWorldStart).toHaveBeenCalledOnce()
+    expect(events.onChunk).not.toHaveBeenCalled()
+    fenced.chunk('```json\n@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}\n```')
+    await fenced.finish()
     await waitFor(() => expect(result.current.status).toBe('idle'))
-    expect(events.onWorld).toHaveBeenCalledOnce()
     expect(last(result.current.messages).content).toBe('A kite!')
+
+    // Prefaced: the preface is withdrawn the moment the marker turns up.
+    const prefaced = deferredReply()
+    act(() => void result.current.send('give him a boat'))
+    prefaced.chunk('Sure!')
+    expect(last(result.current.messages).content).toBe('Sure!')
+    prefaced.chunk('Sure!\n@@world {"ops":[')
+    expect(last(result.current.messages).content).toBe('')
+    act(() => result.current.stop())
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    // Stopped mid-order: no JSON is left on screen.
+    expect(last(result.current.messages).content).not.toContain('@@world')
   })
 
   it('an ordinary answer is untouched, even one that mentions the marker later', async () => {
-    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => 'x') }
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'x', ok: true })) }
     const reply = deferredReply()
     const { result } = renderHook(() => useChat(events))
     act(() => void result.current.send('Who is Anthony?'))
-    reply.chunk('An engineer. @@world is not a thing.')
+    reply.chunk('An engineer. The docs mention @@world orders.')
     await reply.finish()
     await waitFor(() => expect(result.current.status).toBe('idle'))
     expect(events.onWorldStart).not.toHaveBeenCalled()
-    expect(last(result.current.messages).content).toBe('An engineer. @@world is not a thing.')
+    expect(last(result.current.messages).content).toBe('An engineer. The docs mention @@world orders.')
   })
 
   it('ends the show when an order is stopped or fails part-way', async () => {
     // As the page does it: nothing to add after a Stop, an apology after a failure.
-    const events = { onWorldStart: vi.fn(), onWorld: vi.fn((c: string | null, failed: boolean) => (c ? 'ok' : failed ? "I couldn't make that." : '')), onError: vi.fn() }
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn((c: string | null, failed: boolean) => ({ text: c ? 'ok' : failed ? "I couldn't make that." : '', ok: Boolean(c) })), onError: vi.fn() }
     const { result } = renderHook(() => useChat(events))
 
     const stopped = deferredReply()
@@ -276,6 +294,12 @@ describe('useChat', () => {
     // Lim owns up to it; it is not shown as a chat error.
     expect(last(result.current.messages)).toMatchObject({ content: "I couldn't make that.", status: 'done' })
     expect(events.onError).not.toHaveBeenCalled()
+
+    // Neither the failed order nor Lim's apology is sent back to the model as its own words.
+    const next = deferredReply()
+    act(() => void result.current.send('Who is Anthony?'))
+    expect(invoke.mock.calls[2][1]).toEqual([])
+    await next.finish()
   })
 
   it('restores a saved chat and clears it on new chat', () => {

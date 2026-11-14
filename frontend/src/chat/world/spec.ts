@@ -599,15 +599,16 @@ export function cleanOps(raw: unknown): WorldOp[] {
     const o = obj(entry)
     if (!o) continue
     if (o.op === 'item') {
-      const known = typeof o.id === 'string' ? ITEMS[o.id.toLowerCase()] : undefined
-      const spec = known?.spec ?? cleanItem(o.spec)
+      // By catalog id, display name or alias: the model sees names ("jelly bean"), the catalog keys are ids ("bean").
+      const known = typeof o.id === 'string' ? itemNamed(cleanName(o.id)) : null
+      const spec = known ?? cleanItem(o.spec)
       const then = pick(o.then, ACTIONS, 'look')
       if (spec) ops.push({ op: 'item', spec, then: o.then && then !== 'remove' ? then : undefined })
     } else if (o.op === 'place') {
-      const id = typeof o.id === 'string' ? o.id.toLowerCase() : ''
+      const id = typeof o.id === 'string' ? cleanName(o.id) : ''
       if (id === 'studio') ops.push({ op: 'place', spec: null })
       else {
-        const spec = PLACES[id]?.spec ?? cleanPlace(o.spec)
+        const spec = (id ? placeNamed(id) : null) ?? cleanPlace(o.spec)
         if (spec) ops.push({ op: 'place', spec })
       }
     } else if (o.op === 'tweak') {

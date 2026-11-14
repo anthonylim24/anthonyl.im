@@ -116,6 +116,9 @@ describe('cleaning what the model sends', () => {
     expect(more).toHaveLength(3)
     expect(more[0]).toEqual({ op: 'act', action: 'look', target: 'the b apple b' })
     expect(more[1]).toEqual({ op: 'clear', what: 'items' })
+    // By display name or alias too: the model is shown names, the catalog is keyed by id.
+    expect(cleanOps([{ op: 'item', id: 'jelly bean' }, { op: 'item', id: 'Rubber Duck' }, { op: 'place', id: 'outer space' }]).map((o) => ('spec' in o ? o.spec?.name : ''))).toEqual(['jelly bean', 'rubber duck', 'space'])
+    expect(cleanOps([{ op: 'item', id: 'kite' }])).toEqual([])
     expect(cleanOps('nonsense')).toEqual([])
     expect(cleanOps([{ op: 'tweak', set: {} }])).toEqual([])
     expect(cleanTweak({ weather: 'acid' })).toBeNull()
@@ -281,6 +284,8 @@ describe('reading the model\'s world order', () => {
     expect(hasWorldOrder('```\n@@world {"ops":[]}\n```')).toBe(true)
     expect(hasWorldOrder('Sure!\n@@world {"ops":[]}')).toBe(true)
     expect(hasWorldOrder('The marker is @@world {…} in the docs')).toBe(false)
+    for (const early of ['`', '```', '```json', '```json\n', '```\n@@wo', '\n\n@']) expect(maybeWorldReply(early), JSON.stringify(early)).toBe(true)
+    expect(maybeWorldReply('```js\nconst x = 1')).toBe(false)
   })
 
   it('reads ops and the line, and survives anything', () => {

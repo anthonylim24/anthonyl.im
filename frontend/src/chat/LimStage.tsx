@@ -16,7 +16,7 @@ export type LimStageHandle = {
   /** Act out a typed easter egg. False when there's no live Lim to do it. */
   stunt(kind: Stunt): boolean
   react(kind: LimReaction): void
-  /** Change Lim's world. False when there is no live scene to change. */
+  /** Change Lim's world. False when there is no live scene, or the first thing asked for could not be done. */
   apply(ops: WorldOp[]): boolean
   /** Lim conjures while something is being made. */
   conjure(on: boolean, made?: boolean): void
@@ -86,20 +86,23 @@ export function LimStage({
       apply: (ops) => {
         const scene = sceneRef.current
         if (!scene) return false
+        let did = ops.length === 0
         ops.forEach((op, i) => {
           // One thing at a time, so each gets its moment.
           const run = () => {
-            if (sceneRef.current !== scene) return
+            if (sceneRef.current !== scene) return false
             if (op.op === 'item') scene.addItem(op.spec, op.then)
             else if (op.op === 'place') scene.setPlace(op.spec)
             else if (op.op === 'clear') scene.clear(op.what)
             else if (op.op === 'tweak') scene.tweak(op.set)
-            else scene.act(op.action, op.target)
+            else return scene.act(op.action, op.target)
+            return true
           }
-          if (i === 0) run()
+          // Whether the first thing asked for could be done (there may be nothing by that name to act on).
+          if (i === 0) did = run()
           else window.setTimeout(run, i * 900)
         })
-        return true
+        return did
       },
       conjure: (on, made) => sceneRef.current?.conjure(on, made),
       world: () => sceneRef.current?.world() ?? null,
