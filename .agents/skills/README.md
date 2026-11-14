@@ -10,8 +10,8 @@ Read the matching skill before writing code. Effect I/O rules win when they conf
 |-------|------|----------------|
 | **effect-ts** | Any frontend `/api`, SSE, or third-party HTTP | [`.agents/skills/effect-ts/SKILL.md`](./effect-ts/SKILL.md) (symlinked from `.claude/skills/`) |
 | **stylex** | UI styling, layout, tokens, visual parity, `*.stylex.ts`, `index.css` semantic classes | [`.agents/skills/stylex/SKILL.md`](./stylex/SKILL.md) (symlinked from `.claude/skills/`) |
-| **vercel-react-best-practices** | React 19 render/bundle only. Translate Next.js examples to Vite `React.lazy` + Hono. Effect wins on I/O. Never hide Map Mode / WebGL with React `Activity`. | [`.agents/skills/vercel-react-best-practices/SKILL.md`](./vercel-react-best-practices/SKILL.md) |
-| **clerk** + **clerk-react-patterns** | Clerk auth changes. This repo uses `@clerk/clerk-react` ^5 (Core 2) in a Vite SPA. Gates: `KoreaAuthGate`, `TripsAuthGate`. Tokens: `frontend/src/lib/safeAuth.ts` (`useGetToken`, `useAuthReady`). Server JWT: `server/src/middleware/clerkAuth.ts`. Preview login: `scripts/clerk-agent-login.ts` (applies in Chrome; do not paste tickets). | [`.agents/skills/clerk/SKILL.md`](./clerk/SKILL.md), [`.agents/skills/clerk-react-patterns/SKILL.md`](./clerk-react-patterns/SKILL.md) |
+| **vercel-react-best-practices** | React 19 render/bundle only. Translate Next.js examples to Vite `React.lazy` + Hono. Effect wins on I/O. Never hide the photoreal 3D view / WebGL with React `Activity`. | [`.agents/skills/vercel-react-best-practices/SKILL.md`](./vercel-react-best-practices/SKILL.md) |
+| **clerk** + **clerk-react-patterns** | Clerk auth changes. This repo uses `@clerk/clerk-react` ^5 (Core 2) in a Vite SPA. Gate: `TripsAuthGate` (`KoreaAuthGate` belongs to the unrouted legacy Korea pages). Tokens: `frontend/src/lib/safeAuth.ts` (`useGetToken`, `useAuthReady`). Server JWT: `server/src/middleware/clerkAuth.ts`. Preview login: `scripts/clerk-agent-login.ts` (applies in Chrome; do not paste tickets). | [`.agents/skills/clerk/SKILL.md`](./clerk/SKILL.md), [`.agents/skills/clerk-react-patterns/SKILL.md`](./clerk-react-patterns/SKILL.md) |
 | **clerk-testing** | Playwright / Clerk test helpers if needed | [`.agents/skills/clerk-testing/SKILL.md`](./clerk-testing/SKILL.md) |
 | **clerk-cli** | Dashboard/CLI ops only — do not invent a new Clerk app | [`.agents/skills/clerk-cli/SKILL.md`](./clerk-cli/SKILL.md) |
 
@@ -30,7 +30,7 @@ These vendor skills are present for completeness. Do **not** apply them here:
 
 ## Design skills with caveats
 
-- **design-taste-frontend** — marketing/landing **only**. Do not use for `/breathwork`, `/korea`, `/trips`. This repo uses **StyleX**, not Tailwind — follow [`stylex`](./stylex/SKILL.md) for UI styling here.
+- **design-taste-frontend** — marketing/landing **only**. Do not use for `/` (Lim), `/breathwork` or `/trips`. This repo uses **StyleX**, not Tailwind — follow [`stylex`](./stylex/SKILL.md) for UI styling here.
 - **redesign-existing-projects** — prefer root `PRODUCT.md`. Do not replace Inter/Lucide. This repo uses StyleX — do not assume Tailwind.
 
 Short pointers: [`.agents/memory/effect-ts.md`](../memory/effect-ts.md), [`.agents/memory/stylex.md`](../memory/stylex.md), [`.agents/memory/clerk.md`](../memory/clerk.md).

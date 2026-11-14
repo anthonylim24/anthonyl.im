@@ -1,12 +1,12 @@
 # Plans and design history
 
-This folder keeps historical implementation plans in place so existing links stay stable. **Do not execute these plans.** Current behavior lives in [`CLAUDE.md`](../../CLAUDE.md), [`PRODUCT.md`](../../PRODUCT.md), and the live code.
+This folder keeps historical implementation plans in place so existing links stay stable. **Do not execute these plans.** Current behavior lives in [`AGENTS.md`](../../AGENTS.md), [`PRODUCT.md`](../../PRODUCT.md), and the live code.
 
 ## Living docs (not plans)
 
 | Doc | Role |
 |-----|------|
-| [`CLAUDE.md`](../../CLAUDE.md) | Engineering, routing, stack |
+| [`AGENTS.md`](../../AGENTS.md) | Engineering, routing, stack |
 | [`PRODUCT.md`](../../PRODUCT.md) | Design context |
 | [`docs/ci-cd.md`](../ci-cd.md) | CI/CD agent memory |
 | [`docs/pr-previews.md`](../pr-previews.md) | Remote PR preview URLs + agent screenshot flow |

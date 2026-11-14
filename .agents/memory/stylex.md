@@ -2,7 +2,7 @@
 
 Pointer: full methodology lives at [`.agents/skills/stylex/SKILL.md`](../skills/stylex/SKILL.md) (symlinked from `.claude/skills/stylex/SKILL.md`).
 
-Short rules also live under **Frontend StyleX** in [`AGENTS.md`](../../AGENTS.md) and [`CLAUDE.md`](../../CLAUDE.md).
+Short rules also live under **Frontend StyleX** in [`AGENTS.md`](../../AGENTS.md).
 
 Read the skill before editing UI styling. Effect I/O rules still win for `/api` work — use [`effect-ts`](./effect-ts.md) for network code.
 

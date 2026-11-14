@@ -2,7 +2,7 @@
 
 Personal site: AI chatbot (`/`), BreathFlow (`/breathwork`), Korea itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic trip planner (`/trips`).
 
-- Engineering + routing: [`CLAUDE.md`](CLAUDE.md)
+- Engineering + routing: [`AGENTS.md`](AGENTS.md)
 - Design context: [`PRODUCT.md`](PRODUCT.md)
 - Agent skills: [`.agents/skills/README.md`](.agents/skills/README.md)
 - CI/CD: [`docs/ci-cd.md`](docs/ci-cd.md)

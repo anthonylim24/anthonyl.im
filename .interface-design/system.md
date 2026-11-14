@@ -2,7 +2,7 @@
 
 # BreathFlow — Interface Design System
 
-> The hub of design decisions for the BreathFlow app. CLAUDE.md holds the brand context and audit; this file holds the *interface-design* commitments — what to build, what to refuse.
+> The hub of design decisions for the BreathFlow app. `PRODUCT.md` holds the brand context; this file holds the *interface-design* commitments — what to build, what to refuse.
 
 ## Direction
 

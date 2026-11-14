@@ -117,7 +117,7 @@ Frontend **unit** tests ARE in GitHub `pr-gate` (`pr-frontend-tests`). Older doc
 When changing CI/CD:
 
 1. Keep `pr-gate` as the sole required status check name (or update `.github/branch-protection.json` + re-apply via `gh api`). Do not give `pr-gate` a `needs:` list.
-2. Update this file + the CI/CD sections in `AGENTS.md` / `CLAUDE.md` + `deploy/README.md`.
+2. Update this file + the CI/CD sections in `AGENTS.md` + `deploy/README.md`.
 3. Prefer extending `.github/actions/setup-ci` over copy-pasting cache/install steps.
 4. Never remove `appLoad.test.ts` or `verify_frontend_typescript` without a replacement.
 5. Bump nothing on the droplet that assumes apt works — tool installs must stay non-fatal with static-binary fallbacks.
