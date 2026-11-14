@@ -200,6 +200,7 @@ function App() {
   const stick = useRef(true);
   const pendingStunt = useRef<Stunt | null>(null);
   const makingTick = useRef(0);
+  const worldOk = useRef(true);
   const cheerTimer = useRef(0);
   const copyTimer = useRef(0);
 
@@ -235,15 +236,17 @@ function App() {
       if (!stunt || !stageRef.current?.stunt(stunt)) stageRef.current?.hop();
     },
     onChunk: () => stageRef.current?.talk(),
-    // A message about Lim's world is acted out instead of sent to the model:
-    // the catalog needs no model at all; anything else asks a small, fast one.
+    // A plain order for something Lim already knows is acted out at once, with
+    // no model call. Everything else goes to the model, which answers it or
+    // writes an order for the world (see `onWorld`).
     intercept: async (text) => {
       const stage = stageRef.current;
       const now = stage?.world();
       const local = localIntent(text, now?.items ?? [], made, now?.worn ?? []);
       if (!stage || !now) {
-        // No live scene (still loading, or no WebGL): say so rather than answer as if it were about Anthony.
-        return local || looksLikeWorldRequest(text) ? "My toy box isn't up right now (it needs the live 3D scene)." : null;
+        // No live scene (still loading, or no WebGL). A plain catalog order gets a straight answer;
+        // anything else goes to the model, which is told the toy box is down (see `world` below).
+        return local ? "My toy box isn't up right now (it needs the live 3D scene)." : null;
       }
       // With motion reduced Lim stays put: say that, rather than promise a performance.
       const honest = (ops: WorldOp[], reply: string) =>
@@ -259,7 +262,9 @@ function App() {
     },
     world: () => {
       const now = stageRef.current?.world();
-      return now ? { items: now.items.map((item) => item.name), place: now.place?.name ?? "studio", weather: now.tweak?.weather } : null;
+      return now
+        ? { items: now.items.map((item) => item.name), place: now.place?.name ?? "studio", weather: now.tweak?.weather }
+        : { items: [], place: "studio", unavailable: true };
     },
     // The model is writing an order for Lim's world (an invention takes it a
     // while): Lim conjures and the reply shows what it's up to.
@@ -269,14 +274,16 @@ function App() {
       window.clearInterval(makingTick.current);
       makingTick.current = window.setInterval(() => setMaking((n) => n + 1), 2200);
     },
-    onWorld: (content) => {
+    onWorld: (content, failed) => {
       window.clearInterval(makingTick.current);
       setMaking(0);
       const stage = stageRef.current;
       const { ops, reply } = content ? readWorldReply(content) : { ops: [], reply: "" };
       const ok = Boolean(stage && ops.length);
       stage?.conjure(false, ok);
-      if (!content) return "";
+      worldOk.current = ok;
+      // Stopped by the visitor: nothing to add. Anything else that came to nothing, Lim owns up to.
+      if (!content && !failed) return "";
       if (!stage || !ok) return "I couldn't make that just now. Try me again, or pick something from the toy box!";
       stage.apply(ops);
       setMade((m) => rememberMade(m, ops, KNOWN));
@@ -286,7 +293,8 @@ function App() {
     },
     onDone: (firstReply, local) => {
       if (local) {
-        setNotice("Lim's world changed.");
+        setNotice(worldOk.current ? "Lim's world changed." : "Lim answered.");
+        worldOk.current = true;
         return;
       }
       stageRef.current?.cheer(firstReply);

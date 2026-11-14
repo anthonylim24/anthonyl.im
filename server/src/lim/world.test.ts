@@ -14,7 +14,18 @@ describe("worldPrompt", () => {
   });
 
   test("carries the world as data", () => {
-    expect(prompt).toContain('In the world right now: {"items":["apple","a \\"quoted\\" thing"],"place":"beach","weather":"rain"}');
+    expect(prompt.endsWith('In the world right now: {"items":["apple","a \\"quoted\\" thing"],"place":"beach","weather":"rain"}')).toBe(true);
+    // Everything before the state is identical whatever the world holds.
+    const other = worldPrompt({ items: [], place: "studio" });
+    const stable = (p: string) => p.slice(0, p.indexOf("In the world right now"));
+    expect(stable(other)).toBe(stable(prompt));
+  });
+
+  test("a page without the 3D scene gets a short note instead of the order format", () => {
+    const note = worldPrompt({ items: [], place: "studio", unavailable: true });
+    expect(note).not.toContain(WORLD_MARK);
+    expect(note).toContain("isn't up right now");
+    expect(note.length).toBeLessThan(700);
   });
 
   test("every example answer is valid JSON behind the marker", () => {

@@ -2412,6 +2412,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
     },
     addItem(spec, then) {
+      // A bean that was eaten and is growing back just comes back now, rather than a second one piling up.
+      const regrowing = toys.find((toy) => toy.spec.name === spec.name && toy.renew && toy.backAt >= 0 && toy.backAt !== Infinity)
+      if (regrowing && !popped) {
+        returnToy(regrowing)
+        active(true)
+        greet(regrowing, then)
+        changed()
+        return
+      }
       // Room for one more: the oldest thing not being worn makes way.
       const live = toys.filter((toy) => toy.backAt < 0)
       // A narrow stage has two seats' worth of floor: fewer things before the oldest makes way.

@@ -1,6 +1,6 @@
 /**
- * Which Gemini model Lim uses, for both the chat (`/api/invoke`) and the toy
- * world (`/api/lim/world`): Gemini 4 Carbon through December 1, 2026, then
+ * Which Gemini model Lim's chat uses (`/api/invoke`; the same call writes the
+ * toy-world orders): Gemini 4 Carbon through December 1, 2026, then
  * Gemini 4 Hydrogen (the app-wide model) from December 2 (UTC). Set
  * `LIM_GEMINI_MODEL` to pin one regardless of the date.
  */

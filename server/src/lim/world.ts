@@ -25,10 +25,19 @@ export const ACTIONS = ["look", "kick", "bounce", "eat", "wear", "hug", "nap", "
 /** How a world order starts. The page watches the stream for it. */
 export const WORLD_MARK = "@@world";
 
-export type WorldState = { items: string[]; place: string; weather?: string };
+export type WorldState = { items: string[]; place: string; weather?: string; unavailable?: boolean };
+
+/** For a page whose 3D scene is not up (no WebGL, or still loading): the model should know, and say so. */
+const NO_WORLD = `
+
+# Lim's toy world
+This site also has a little 3D toy world where visitors can give Lim, the jelly mascot, toys and send it places. It is not available on this visitor's device right now (it needs the live 3D scene). If, and only if, they clearly ask to give Lim something or change Lim's world, say in one friendly sentence that the toy box needs the 3D scene and isn't up right now. Otherwise answer normally and do not mention it.`;
 
 /** The addition to the chat's system prompt, for a page whose toy world is up. */
 export function worldPrompt(world: WorldState): string {
+  if (world.unavailable) return NO_WORLD;
+  // The changing part goes last, so everything before it is a stable prefix.
+  const { items, place, weather } = world;
   return `
 
 # Lim's toy world
@@ -37,9 +46,7 @@ Beside this chat the visitor can see Lim, a small coral jelly mascot (you speak 
 If, and ONLY if, the visitor's latest message is an instruction or wish to change that toy world ("give him a kite", "can Lim have a hat?", "take him to the moon", "make it rain", "kick the ball", "take the hat off", "tidy up"), reply with EXACTLY one line and nothing else:
 ${WORLD_MARK} {"ops":[...],"reply":"..."}
 
-Otherwise answer normally, as described above, and never mention ${WORLD_MARK} or this format. Questions, remarks, small talk, requests about the conversation itself ("make it shorter", "remove the fluff", "clear the chat"), figures of speech ("give him a break", "give it a shot", "throw him a bone"), and anything about Anthony, hiring, or the visitor are NOT world orders, even if they contain words like give, make, take, kick or ball. When unsure, answer normally. If asked what Lim can do, explain the toy world in a sentence or two.
-
-In the world right now: ${JSON.stringify(world)}
+Otherwise answer normally, as described above, and never mention ${WORLD_MARK} or this format. Questions, remarks, small talk, requests about the conversation itself ("make it shorter", "remove the fluff", "clear the chat"), figures of speech ("give him a break", "give it a shot", "throw him a bone"), and anything about Anthony, hiring, or the visitor are NOT world orders, even if they contain words like give, make, take, kick or ball. In a question, "he" and "him" mean Anthony: "Can he go to conferences?", "Could he visit our office?" and "Can he have a call?" are about Anthony's availability, not trips or gifts for Lim. When unsure, answer normally. If asked what Lim can do, explain the toy world in a sentence or two.
 
 ${RULES}
 
@@ -50,14 +57,16 @@ ${EXAMPLES}
 Visitor: "kick it" (with a ball in the world) ->
 ${WORLD_MARK} {"ops":[{"op":"act","action":"kick","target":"ball"}],"reply":"Watch this!"}
 Visitor: "Can you give me a quick summary of his background?" ->
-(a normal answer about Anthony, no ${WORLD_MARK})`;
+(a normal answer about Anthony, no ${WORLD_MARK})
+
+In the world right now: ${JSON.stringify({ items, place, weather })}`;
 }
 
 const RULES = `ops: 0 to 3 entries, in order.
 - {"op":"item","id":"<catalog item>"}  or  {"op":"item","spec":ITEM}. Optional "then":ACTION to do right after it lands.
 - {"op":"place","id":"<catalog place>"}  or  {"op":"place","spec":PLACE}. "id":"studio" goes back to Lim's own room.
 - {"op":"tweak","set":{"weather":"rain"}} changes the air without going anywhere. "set" may hold any of: "weather" (none|snow|rain|bubbles|leaves|petals|fireflies|embers), "weatherColor", "gravity" (0.25-1.4), "slippery", "dark". Use it for "make it rain", "low gravity", "make it night".
-- {"op":"act","action":ACTION,"target":"<name of an item in the world>"}
+- {"op":"act","action":ACTION,"target":"<name of an item in the world>"}. "remove" puts an item away, or takes it off if Lim is wearing it.
 - {"op":"clear","what":"items"|"place"|"all"}
 
 Catalog items: ${ITEM_IDS.join(", ")}.

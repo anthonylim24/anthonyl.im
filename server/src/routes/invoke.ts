@@ -35,6 +35,8 @@ const invokeSchema = z.object({
       items: z.array(z.string().max(32)).max(8).default([]),
       place: z.string().max(32).default("studio"),
       weather: z.string().max(16).optional(),
+      /** The page has no live 3D scene. */
+      unavailable: z.boolean().optional(),
     })
     .optional(),
 });

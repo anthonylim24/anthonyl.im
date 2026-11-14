@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { formatConciergeError } from "../effect/chatErrors"
 import { TimeoutError, errorMessage } from "../effect/errors"
 import { invokeDeepseek } from "../lib/apiService"
-import { isWorldReply } from "./world/worldApi"
+import { hasWorldOrder, isWorldReply, maybeWorldReply } from "./world/worldApi"
 
 export type ChatRole = "user" | "assistant"
 export type ChatMessage = {
@@ -12,6 +12,13 @@ export type ChatMessage = {
   timestamp: number
   /** Assistant replies only. */
   status?: "streaming" | "done" | "stopped" | "error"
+  /**
+   * How this turn goes back to the model as history, when that differs from
+   * what is shown: a world order is sent as the order it was (so the model
+   * keeps to the format), and "" drops the turn and the question before it
+   * (a toy-box reply the model never wrote).
+   */
+  sent?: string
 }
 /** thinking = waiting for the first token; streaming = tokens arriving. */
 export type ChatStatus = "idle" | "thinking" | "streaming"
@@ -32,10 +39,11 @@ export type ChatEvents = {
   /** The reply turned out to be a world order: it is being written (and is not shown as text). */
   onWorldStart?: () => void
   /**
-   * The world order is complete (`content`), or was cut short (null: stopped
-   * or failed). Returns the line to show in its place.
+   * The world order is complete (`content`), or was cut short (null), in
+   * which case `failed` tells a failure from a Stop. Returns the line to show
+   * in its place.
    */
-  onWorld?: (content: string | null) => string
+  onWorld?: (content: string | null, failed: boolean) => string
 }
 
 export const STORAGE_KEY = "lim-chat-v1"
@@ -70,11 +78,19 @@ function save(messages: ChatMessage[]) {
 
 // The API takes at most 40 earlier messages; toy-world chatter adds up fast, so send the recent ones.
 const HISTORY_MAX = 30
-const toHistory = (messages: ChatMessage[]) =>
-  messages
-    .filter((m) => m.status !== "error" && m.content.trim())
-    .slice(-HISTORY_MAX)
-    .map((m) => ({ role: m.role, content: m.content }))
+const toHistory = (messages: ChatMessage[]) => {
+  const turns: { role: ChatRole; content: string }[] = []
+  for (const m of messages) {
+    if (m.status === "error" || !m.content.trim()) continue
+    if (m.sent === "") {
+      // Lim's own reply to a toy-box order: neither it nor the order is the model's business.
+      if (turns[turns.length - 1]?.role === "user") turns.pop()
+      continue
+    }
+    turns.push({ role: m.role, content: m.sent ?? m.content })
+  }
+  return turns.slice(-HISTORY_MAX)
+}
 
 /**
  * Conversation state for the chatbot: streaming via `invokeDeepseek`, stop,
@@ -119,6 +135,13 @@ export function useChat(events: ChatEvents = {}) {
     // A reply that opens with the world marker is an order for Lim's toy
     // world, not prose: it is held back, and handed over when it is complete.
     let order: "no" | "writing" | "done" = "no"
+    const finishOrder = (content: string) => {
+      order = "done"
+      const raw = content
+      latest = eventsRef.current.onWorld!(content, false)
+      wasLocal = true
+      if (abortRef.current === controller) patchReply(reply.id, { content: latest, sent: raw })
+    }
     const answer = () =>
       invokeDeepseek(
         text,
@@ -126,12 +149,16 @@ export function useChat(events: ChatEvents = {}) {
         (content) => {
           if (controller.signal.aborted) return
           latest = content
-          if (eventsRef.current.onWorld && isWorldReply(content)) {
-            if (order === "no") {
-              order = "writing"
-              eventsRef.current.onWorldStart?.()
+          if (eventsRef.current.onWorld) {
+            // "@" could still become the marker: show nothing until it is clear which.
+            if (maybeWorldReply(content)) return
+            if (isWorldReply(content)) {
+              if (order === "no") {
+                order = "writing"
+                eventsRef.current.onWorldStart?.()
+              }
+              return
             }
-            return
           }
           patchReply(reply.id, { content })
           setStatus("streaming")
@@ -140,17 +167,17 @@ export function useChat(events: ChatEvents = {}) {
         controller.signal,
         eventsRef.current.world?.() ?? undefined,
       ).then(() => {
-        if (order !== "writing") return
-        order = "done"
-        latest = eventsRef.current.onWorld!(latest)
-        wasLocal = true
-        if (abortRef.current === controller) patchReply(reply.id, { content: latest })
+        if (order === "writing") return finishOrder(latest)
+        // The model wrapped the order in a fence or prefaced it: still an order.
+        if (eventsRef.current.onWorld && hasWorldOrder(latest)) return finishOrder(latest)
+        // Only ever the start of a marker ("@"): it was the whole answer.
+        if (maybeWorldReply(latest)) patchReply(reply.id, { content: latest })
       })
     /** Cut short mid-order: the show still has to end. */
-    const dropOrder = () => {
+    const dropOrder = (failed: boolean) => {
       if (order !== "writing") return
       order = "done"
-      latest = eventsRef.current.onWorld!(null)
+      latest = eventsRef.current.onWorld!(null, failed)
     }
     const intercept = eventsRef.current.intercept
     const work = intercept
@@ -161,7 +188,7 @@ export function useChat(events: ChatEvents = {}) {
             if (handled === null) return answer()
             latest = handled
             wasLocal = true
-            patchReply(reply.id, { content: handled })
+            patchReply(reply.id, { content: handled, sent: "" })
           })
       : answer()
     void work
@@ -173,7 +200,7 @@ export function useChat(events: ChatEvents = {}) {
       })
       .catch((err: unknown) => {
         const ordering = order === "writing"
-        dropOrder()
+        dropOrder(!controller.signal.aborted)
         if (ordering && !controller.signal.aborted && abortRef.current === controller) {
           // An order that failed is Lim's to own up to, not a chat error.
           patchReply(reply.id, { content: latest, status: "done" })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isWorldReply, readWorldReply } from '../world/worldApi'
+import { hasWorldOrder, isWorldReply, maybeWorldReply, readWorldReply } from '../world/worldApi'
 import {
   ACTIONS, ITEMS, PLACES, SHAPES, TRAITS, actionsFor, cleanItem, cleanName, cleanOps, cleanPlace, cleanTweak, localIntent,
   looksLikeWorldRequest, soften,
@@ -148,6 +148,7 @@ describe('reading a message without the model', () => {
     expect(localIntent('give him an apple')?.reply).toBe('An apple, coming up!')
     expect(localIntent('give him sunglasses please')).toBeNull()
     expect(localIntent('give him some sunglasses')?.reply).toBe('Some sunglasses, coming up!')
+    expect(localIntent('give him a cactus')?.reply).toBe('A cactus, coming up!')
   })
 
   it('acts on what is already there, or brings it and then acts', () => {
@@ -166,6 +167,10 @@ describe('reading a message without the model', () => {
     expect(localIntent('take off the party hat', [hat], undefined, ['party hat'])).toEqual({ ops: [{ op: 'act', action: 'remove', target: 'party hat' }], reply: 'Off it comes!' })
     // "it" is whatever Lim has on, not the newest hat-like thing on the floor.
     expect(op('take it off', [hat, shades], undefined, ['party hat'])).toEqual({ op: 'act', action: 'remove', target: 'party hat' })
+    // "The glasses" are the glasses, even when the hat went on last.
+    expect(op('take off the glasses', [shades, hat], undefined, ['sunglasses', 'party hat'])).toEqual({ op: 'act', action: 'remove', target: 'sunglasses' })
+    expect(op('take the hat off', [shades, hat], undefined, ['party hat', 'sunglasses'])).toEqual({ op: 'act', action: 'remove', target: 'party hat' })
+    expect(localIntent('take off the glasses', [hat], undefined, ['party hat'])).toBeNull()
     expect(localIntent('take it off', [hat])).toBeNull()
     expect(localIntent('take off the party hat')).toEqual({ ops: [], reply: 'There is no party hat here.' })
     expect(localIntent('put away the sunglasses')).toEqual({ ops: [], reply: 'There are no sunglasses here.' })
@@ -248,7 +253,7 @@ describe('reading a message without the model', () => {
       // Round 4.
       'remove the items', 'remove the stuff', 'clear the things', 'get rid of the stuff', 'Clean up', 'tidy', 'tidy up', 'Make him a star',
       'Dance with the stars', 'Zero gravity?', 'no gravity?', 'normal gravity?', 'Bring him back', 'Take him back', 'The Crown', 'a heart',
-      'dance floor', 'beach', 'rubber duck', 'Give him a buzz', 'Give him the benefit of the doubt', 'put the blame on him', 'take him to task',
+      'dance floor', 'beach', 'rubber duck', 'remove the stage', 'play with his heart', 'Give him a buzz', 'Give him the benefit of the doubt', 'put the blame on him', 'take him to task',
     ]
     // Nothing here may be acted on locally. (What the model then makes of it is the model's call.)
     const leaked = chat.filter((m) => localIntent(m) !== null)
@@ -259,9 +264,23 @@ describe('reading a message without the model', () => {
 })
 
 describe('reading the model\'s world order', () => {
-  it('spots the marker as it streams in, and only at the start', () => {
-    for (const head of ['@', '@@', '@@wor', '@@world', '  @@world {"ops"', '@@world {"ops":[]}']) expect(isWorldReply(head), head).toBe(true)
-    for (const text of ['', 'Anthony is…', '@anthony', 'See @@world', '@@worlds apart']) expect(isWorldReply(text), text).toBe(text === '@@worlds apart')
+  it('tells an order from prose as it streams in', () => {
+    for (const head of ['@', '@@', '@@wor', '  @@worl']) {
+      expect(maybeWorldReply(head), head).toBe(true)
+      expect(isWorldReply(head), head).toBe(false)
+    }
+    for (const head of ['@@world', '  @@world {"ops"', '@@world {"ops":[]}']) {
+      expect(isWorldReply(head), head).toBe(true)
+      expect(maybeWorldReply(head), head).toBe(false)
+    }
+    for (const text of ['', 'Anthony is…', '@anthony', 'See @@world', '@ me later']) {
+      expect(isWorldReply(text), text).toBe(false)
+      expect(maybeWorldReply(text), text).toBe(false)
+    }
+    // Wrapped or prefaced by the model: found once the reply is complete.
+    expect(hasWorldOrder('```\n@@world {"ops":[]}\n```')).toBe(true)
+    expect(hasWorldOrder('Sure!\n@@world {"ops":[]}')).toBe(true)
+    expect(hasWorldOrder('The marker is @@world {…} in the docs')).toBe(false)
   })
 
   it('reads ops and the line, and survives anything', () => {
@@ -269,6 +288,10 @@ describe('reading the model\'s world order', () => {
     expect(good.reply).toBe('Catch!')
     expect(good.ops).toHaveLength(2)
     expect(good.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
+    // Trailing prose, a second order, braces in strings: the first object wins.
+    expect(readWorldReply('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"a } b"} Enjoy {it}!').reply).toBe('a } b')
+    expect(readWorldReply('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"1"}\n@@world {"ops":[],"reply":"2"}').reply).toBe('1')
+    expect(readWorldReply('```\n@@world {"ops":[{"op":"place","id":"beach"}],"reply":"x"}\n```').ops).toHaveLength(1)
     for (const bad of ['@@world', '@@world {', '@@world {"ops":"x"}', '@@world not json }', '@@world {"ops":[{"op":"item","spec":{"parts":[]}}]}']) {
       expect(readWorldReply(bad).ops, bad).toEqual([])
     }

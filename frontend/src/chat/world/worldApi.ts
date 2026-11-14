@@ -6,19 +6,42 @@ import { WORLD_MARK, cleanItem, cleanOps, cleanPlace, cleanTweak, type ItemSpec,
 
 export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
 
-/** True while a streamed reply could still be, or is, a world order (so it is not shown as text). */
-export function isWorldReply(content: string): boolean {
+/** A streamed reply that has begun with the world marker: an order, not prose. */
+export const isWorldReply = (content: string) => content.trimStart().startsWith(WORLD_MARK)
+/** Too early to tell: what has arrived so far is only the start of the marker ("@", "@@wo"). */
+export const maybeWorldReply = (content: string) => {
   const head = content.trimStart()
-  return head.length > 0 && (head.startsWith(WORLD_MARK) || WORLD_MARK.startsWith(head))
+  return head.length > 0 && head.length < WORLD_MARK.length && WORLD_MARK.startsWith(head)
+}
+/** A finished reply with the marker at the start of some line (the model wrapped it in a fence, or prefaced it). */
+export const hasWorldOrder = (content: string) => new RegExp(`(^|\\n)[\\s\`]*${WORLD_MARK}\\s*\\{`).test(content)
+
+/** The first balanced {...} after the marker, minding strings. */
+function firstObject(text: string): string | null {
+  const start = text.indexOf('{', Math.max(0, text.indexOf(WORLD_MARK)))
+  if (start < 0) return null
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+    } else if (ch === '"') inString = true
+    else if (ch === '{') depth++
+    else if (ch === '}' && --depth === 0) return text.slice(start, i + 1)
+  }
+  return null
 }
 
 /** The model's `@@world {json}` answer as safe ops and Lim's line. Never throws. */
 export function readWorldReply(content: string): { ops: WorldOp[]; reply: string } {
-  const from = content.indexOf('{')
-  const to = content.lastIndexOf('}')
-  if (from < 0 || to <= from) return { ops: [], reply: '' }
+  const json = firstObject(content)
+  if (!json) return { ops: [], reply: '' }
   try {
-    const raw = JSON.parse(content.slice(from, to + 1)) as { ops?: unknown; reply?: unknown }
+    const raw = JSON.parse(json) as { ops?: unknown; reply?: unknown }
     const reply = typeof raw.reply === 'string' ? raw.reply.replace(/\s+/g, ' ').trim().slice(0, 140) : ''
     return { ops: cleanOps(raw.ops), reply }
   } catch {

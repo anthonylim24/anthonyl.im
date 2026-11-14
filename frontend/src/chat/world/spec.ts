@@ -402,10 +402,10 @@ const FEED = rx(String.raw`feed ${WHO} (?:the|a|an|that|this|his|her|some) ${THI
 const ACT = rx(
   String.raw`(?:(?:make|let|have) ${WHO} )?(eat|wear|try on|put on|kick|punt|hug|cuddle|snuggle|bounce|juggle|nap on|sleep on|dance to|dance with|remove|take off|take away|put away|get rid of) (?:the|a|an|that|this|his|her|lim's|some) ${THING}`,
 )
-const PLAY = rx(String.raw`(?:(?:make|let|have) ${WHO} )?play with (?:the|a|an|that|this|his|her|lim's|some) ${THING}`)
-const TAKE_OFF = rx(String.raw`take (?:(?:it|that|the hat|his hat|her hat|the glasses) off|off (?:his hat|her hat|lim's hat|the hat|the glasses))`)
+const PLAY = rx(String.raw`(?:(?:make|let|have) ${WHO} )?play with (?:the|a|an|that|this) ${THING}`)
+const TAKE_OFF = rx(String.raw`take (?:(?:(it|that)|(?:the|his|her) (hat|glasses)) off|off (?:the|his|her|lim's) (hat|glasses))`)
 const CLEAR = rx(
-  String.raw`(?:(?:tidy up|clean up|clear up|clear|remove|get rid of|put away) (?:all )?(?:the |his |her |lim's )(?:toys|room|stage)|reset (?:the |lim's )(world|room|stage))`,
+  String.raw`(?:(?:tidy up|clean up|clear up|clear|remove|get rid of|put away) (?:all )?(?:the |his |her |lim's )toys|(?:tidy up|clean up|clear up) (?:the |his |her |lim's )(?:room|stage)|reset (?:the |lim's )(world|room|stage))`,
   END_FLAT,
 )
 const RAIN = rx(String.raw`(?:make|let) it (rain|snow)`)
@@ -475,8 +475,10 @@ function placeNamed(thing: string, extra?: Extra): PlaceSpec | null {
 }
 
 /** "a ball", "an apple", "some sunglasses". */
-const plural = (name: string) => /(glasses|[^su]s)$/.test(name)
-export const withArticle = (name: string) => (plural(name) ? `some ${name}` : /^[aeiou]/.test(name) ? `an ${name}` : `a ${name}`)
+const plural = (name: string) => /glasses$/.test(name) || (/s$/.test(name) && !/(ss|us|is|ns)$/.test(name))
+/** By sound, near enough: "a unicorn", "an hourglass". */
+const an = (name: string) => (/^[aeiou]/.test(name) && !/^(uni|use|usa|uku|eu|one)/.test(name)) || /^(hour|honest|heir)/.test(name)
+export const withArticle = (name: string) => (plural(name) ? `some ${name}` : an(name) ? `an ${name}` : `a ${name}`)
 const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 export type LocalIntent = { ops: WorldOp[]; reply: string }
@@ -505,9 +507,11 @@ export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extr
   if (NOT_THE_WORLD.test(s)) return null
 
   const here = (thing: string) => inWorld.find((item) => [item.name, ...catalogWords(item.name)].some((w) => same(thing, w))) ?? null
-  if (TAKE_OFF.test(s)) {
-    // Whatever Lim has on. Nothing on: not ours to answer.
-    const on = worn[worn.length - 1]
+  const off = TAKE_OFF.exec(s)
+  if (off) {
+    // "The hat" is the hat Lim has on; "it" is whatever went on last. Nothing on: not ours to answer.
+    const kind = (off[2] ?? off[3])?.toLowerCase() as 'hat' | 'glasses' | undefined
+    const on = [...worn].reverse().find((name) => !kind || inWorld.find((item) => item.name === name)?.traits.includes(kind))
     return on ? { ops: [{ op: 'act', action: 'remove', target: on }], reply: 'Off it comes!' } : null
   }
 
@@ -528,8 +532,8 @@ export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extr
       return present ? { ops: [], reply: `Hmm, I don't think I can ${said} ${withArticle(spec.name)}.` } : null
     }
     if (present) {
-      const off = action === 'remove' && worn.includes(present.name)
-      return { ops: [{ op: 'act', action, target: present.name }], reply: off ? 'Off it comes!' : actReply(action, present.name) }
+      const takenOff = action === 'remove' && worn.includes(present.name)
+      return { ops: [{ op: 'act', action, target: present.name }], reply: takenOff ? 'Off it comes!' : actReply(action, present.name) }
     }
     // Not here: putting it away is moot; anything else, bring it and then do it.
     if (action === 'remove') return { ops: [], reply: `There ${plural(spec.name) ? 'are' : 'is'} no ${spec.name} here.` }

@@ -12,13 +12,18 @@ function fakeGroqStream(contents: string[]) {
   };
 }
 
+let lastGroqMessages: { role: string; content: string }[] = [];
+
 // We mock groq-sdk before importing invoke so the module picks up the mock.
 mock.module("groq-sdk", () => {
   return {
     default: class MockGroq {
       chat = {
         completions: {
-          create: async () => fakeGroqStream(["Hello", " world"]),
+          create: async (args: { messages: { role: string; content: string }[] }) => {
+            lastGroqMessages = args.messages;
+            return fakeGroqStream(["Hello", " world"]);
+          },
         },
       };
     },
@@ -66,5 +71,30 @@ describe("POST /api/invoke", () => {
     expect(text).toContain(`data: ${JSON.stringify("Hello")}`);
     expect(text).toContain(`data: ${JSON.stringify(" world")}`);
     expect(text).toContain("data: [DONE]");
+  });
+
+  const systemFor = async (body: unknown) => {
+    const res = await makeApp().request("/api/invoke", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await res.text();
+    return { status: res.status, system: lastGroqMessages.find((m) => m.role === "system")?.content ?? "" };
+  };
+
+  test("the toy world rides along only when the page sends it", async () => {
+    const plain = await systemFor({ prompt: "who is he?" });
+    expect(plain.system).not.toContain("@@world");
+    const withWorld = await systemFor({ prompt: "give him a kite", world: { items: ["ball"], place: "beach", weather: "rain" } });
+    expect(withWorld.status).toBe(200);
+    expect(withWorld.system.startsWith(plain.system)).toBe(true);
+    expect(withWorld.system).toContain("@@world");
+    expect(withWorld.system).toContain('{"items":["ball"],"place":"beach","weather":"rain"}');
+    const noScene = await systemFor({ prompt: "give him a kite", world: { unavailable: true } });
+    expect(noScene.system).not.toContain("@@world");
+    expect(noScene.system).toContain("isn't up right now");
+  });
+
+  test("bounds the world it is sent", async () => {
+    expect((await systemFor({ prompt: "x", world: { items: Array(9).fill("a"), place: "studio" } })).status).toBe(400);
+    expect((await systemFor({ prompt: "x", world: { items: ["a".repeat(33)], place: "studio" } })).status).toBe(400);
+    expect((await systemFor({ prompt: "x", world: { items: [], place: "p".repeat(33) } })).status).toBe(400);
   });
 });
