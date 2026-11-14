@@ -49,16 +49,19 @@ describe('createOptionalClerkTree', () => {
         children,
         proxyUrl,
         publishableKey,
+        signInUrl,
       }: {
         afterSignOutUrl: string
         children: ReactNode
         proxyUrl?: string
         publishableKey: string
+        signInUrl?: string
       }) => (
         <div
           data-testid="clerk-provider"
           data-after-sign-out-url={afterSignOutUrl}
           data-proxy-url={proxyUrl}
+          data-sign-in-url={signInUrl}
           data-publishable-key={publishableKey}
         >
           {children}
@@ -75,6 +78,7 @@ describe('createOptionalClerkTree', () => {
     expect(provider).toHaveAttribute('data-after-sign-out-url', '/breathwork')
     expect(provider).toHaveAttribute('data-publishable-key', 'pk_test_123')
     expect(provider).toHaveAttribute('data-proxy-url', 'https://anthonyl.im/__clerk')
+    expect(provider).toHaveAttribute('data-sign-in-url', '/sign-in')
     expect(screen.getByText('BreathFlow')).toBeInTheDocument()
   })
 })

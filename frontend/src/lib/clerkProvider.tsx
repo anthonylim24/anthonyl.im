@@ -9,7 +9,13 @@ export async function createOptionalClerkTree(children: ReactNode): Promise<Reac
   const { ClerkProvider } = await import('@clerk/clerk-react')
 
   return (
-    <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} proxyUrl={CLERK_PROXY_URL} afterSignOutUrl="/breathwork">
+    <ClerkProvider
+      publishableKey={CLERK_PUBLISHABLE_KEY}
+      proxyUrl={CLERK_PROXY_URL}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      afterSignOutUrl="/breathwork"
+    >
       {children}
     </ClerkProvider>
   )

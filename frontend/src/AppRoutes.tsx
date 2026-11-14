@@ -10,6 +10,9 @@ import { routeFallback } from './styles/chatbot.stylex'
 // The chatbot lived at `/` until the lab landing page took the root; it is
 // now `/chatbot` only, so it loads lazily like every other app.
 const App = lazyRetry(() => import('./App'))
+const AuthPage = lazyRetry(() =>
+  import('./pages/Auth/AuthPage').then((module) => ({ default: module.AuthPage })),
+)
 // Lazy load the BreathFlow shell and pages for better initial bundle size.
 const BreathworkLayout = lazyRetry(() =>
   import('./breathflow/pages/BreathflowLayout').then((module) => ({
@@ -238,6 +241,23 @@ export function AppRoutes() {
           <Route path=":tripId/places" element={<TripEditRedirect />} />
           <Route path="*" element={<TripsNotFound />} />
         </Route>
+
+        <Route
+          path="/sign-in"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <AuthPage mode="sign-in" />
+            </Guarded>
+          }
+        />
+        <Route
+          path="/sign-up"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <AuthPage mode="sign-up" />
+            </Guarded>
+          }
+        />
 
         <Route
           path="*"
