@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from 'react'
+import { Suspense, useEffect, type ReactNode } from 'react'
 import { lazyRetry } from './lib/lazyRetry'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Landing } from './pages/Landing/Landing'
@@ -76,6 +76,15 @@ const TripsNotFound = lazyRetry(() =>
   import('./pages/Trips/TripsNotFound').then((module) => ({ default: module.TripsNotFound })),
 )
 
+// "/" is a static page the server sends (public/home.html). An in-app link to
+// it reloads the document so the browser gets that page, not an empty route.
+function ServerPage() {
+  useEffect(() => {
+    window.location.reload()
+  }, [])
+  return null
+}
+
 // Route-aware skeletons so a lazy chunk that's still streaming (or hung on a
 // stale SW transition) shows recognizable parchment instead of a blank canvas
 // the user reads as "site is down."
@@ -141,8 +150,9 @@ export function AppRoutes() {
   return (
     <BrowserRouter basename={routerBasename()}>
       <Routes>
+        <Route path="/" element={<ServerPage />} />
         <Route
-          path="/"
+          path="/lab"
           element={
             <Guarded app="chatbot" fallback={<ChatbotFallback />}>
               <Landing />

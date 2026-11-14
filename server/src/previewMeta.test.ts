@@ -13,7 +13,7 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
   process.env.IG_WORKER_ENABLED ||= 'false';
   const app = (await import('../app')).default;
   const cases: [string, string, string][] = [
-    ['/', 'anthonyl.im — Applied intelligence lab', 'og-landing'],
+    ['/lab', 'anthonyl.im — Applied intelligence lab', 'og-landing'],
     ['/chatbot', 'Lim — Ask Anthony Lim&#39;s AI', 'og-chatbot'],
     ['/breathwork', 'BreathFlow — Guided breathing with a watercolour cat', 'og-breathwork'],
     ['/breathwork/progress', 'Progress · BreathFlow', 'og-breathwork'],
@@ -30,12 +30,13 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
   }
 });
 
-test.skipIf(!built)('legal pages are plain HTML the home page links to', async () => {
+test.skipIf(!built)('home and legal pages are plain HTML, and home links the policy', async () => {
   process.env.KLUSTER_API_KEY ||= 'load-test-stub';
   process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
   process.env.IG_WORKER_ENABLED ||= 'false';
   const app = (await import('../app')).default;
   for (const [path, title] of [
+    ['/', 'anthonyl.im · Anthony Lim'],
     ['/privacy', 'Privacy Policy · anthonyl.im'],
     ['/terms', 'Terms of Service · anthonyl.im'],
   ]) {
