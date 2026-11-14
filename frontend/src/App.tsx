@@ -16,6 +16,7 @@ import {
   Sparkles,
   Square,
   Sun,
+  ToyBrick,
   Volume2,
   VolumeX,
   Wrench,
@@ -33,6 +34,9 @@ import { caretPoint } from "./chat/caret";
 import type { LimMood } from "./chat/scene/limScene";
 import { konami, stuntFor, type Stunt } from "./chat/eggs";
 import { sound } from "./chat/sound";
+import type { LimWorld } from "./chat/scene/limScene";
+import { ITEMS, PLACES, localIntent, looksLikeWorldRequest, type WorldOp } from "./chat/world/spec";
+import { askWorld, loadMade, rememberMade } from "./chat/world/worldApi";
 import "./chat/chat.css";
 
 const MessageContent = lazy(() => import("./components/message-content"));
@@ -47,6 +51,10 @@ const SUGGESTIONS = [
 ];
 const CHIP_TINTS = [chatbot.chip1, chatbot.chip2, chatbot.chip3, chatbot.chip4];
 const NIGHT_KEY = "lim-chat-night";
+const KNOWN = {
+  items: new Set(Object.values(ITEMS).map((x) => x.spec.name)),
+  places: new Set(Object.values(PLACES).map((x) => x.spec.name)),
+};
 const THEME = { light: "#FFF6EC", dark: "#1E1833" };
 
 const readNight = () => {
@@ -184,6 +192,10 @@ function App() {
   const [sendBeat, setSendBeat] = useState(0);
   const [keyboardH, setKeyboardH] = useState<number | null>(null);
   const [played, setPlayed] = useState(false);
+  const [toyOpen, setToyOpen] = useState(false);
+  const [made, setMade] = useState(loadMade);
+  // Lim's world as the live scene has it; null until (unless) the 3D scene is up.
+  const [world, setWorld] = useState<LimWorld | null>(null);
 
   const { messages, status, busy, send, stop, regenerate, newChat } = useChat({
     onSend: () => {
@@ -196,7 +208,35 @@ function App() {
       if (!stunt || !stageRef.current?.stunt(stunt)) stageRef.current?.hop();
     },
     onChunk: () => stageRef.current?.talk(),
-    onDone: (firstReply) => {
+    // A message about Lim's world is acted out instead of sent to the model:
+    // the catalog needs no model at all; anything else asks a small, fast one.
+    intercept: async (text, signal) => {
+      const stage = stageRef.current;
+      const now = stage?.world();
+      if (!stage || !now) return null;
+      const names = now.items.map((item) => item.name);
+      const local = localIntent(text, names);
+      if (local) {
+        stage.apply(local.ops);
+        return local.reply;
+      }
+      if (stuntFor(text) || !looksLikeWorldRequest(text)) return null;
+      try {
+        const answer = await askWorld(text, { items: names, place: now.place?.name ?? "studio" }, signal);
+        if (!answer.ops.length || signal.aborted) return null;
+        stage.apply(answer.ops);
+        setMade((m) => rememberMade(m, answer.ops, KNOWN));
+        // It may have asked a real question too: then the model still answers.
+        return answer.chat ? null : answer.reply || "Done!";
+      } catch {
+        return null;
+      }
+    },
+    onDone: (firstReply, local) => {
+      if (local) {
+        setNotice("Lim's world changed.");
+        return;
+      }
       stageRef.current?.cheer(firstReply);
       setCheering(true);
       window.clearTimeout(cheerTimer.current);
@@ -271,6 +311,10 @@ function App() {
       if (e.pointerType === "mouse") stageRef.current?.lookAt(e.clientX, e.clientY);
     };
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && toyOpen) {
+        setToyOpen(false);
+        return;
+      }
       if (e.key === "Escape" && busy) {
         stop();
         setNotice("Stopped.");
@@ -288,7 +332,7 @@ function App() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("keydown", onKey);
     };
-  }, [busy, stop, toggleSound]);
+  }, [busy, stop, toggleSound, toyOpen]);
 
   // On-screen keyboards: size the shell to the visual viewport so the stage
   // (and Lim) stay above the composer instead of scrolling off.
@@ -344,8 +388,17 @@ function App() {
     stageRef.current?.react(text.length >= 6 && /[A-Z]/.test(text) && text === text.toUpperCase() ? "shout" : "key");
   };
 
+  /** From the toy box: straight into the world, no chat message. */
+  const give = (op: WorldOp, label: string) => {
+    const ok = stageRef.current?.apply([op]);
+    setNotice(ok ? label : "Lim's world isn't available right now.");
+  };
+
   const submit = (text: string) => {
-    pendingStunt.current = stuntFor(text);
+    // "Bounce the ball" is about the ball, not a request for a jump.
+    const names = stageRef.current?.world()?.items.map((item) => item.name) ?? [];
+    pendingStunt.current = localIntent(text, names) ? null : stuntFor(text);
+    setToyOpen(false);
     if (!send(text)) return;
     setInput("");
     stick.current = true;
@@ -441,7 +494,7 @@ function App() {
       </header>
 
       <div {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
-        <LimStage ref={stageRef} mood={mood} night={night} />
+        <LimStage ref={stageRef} mood={mood} night={night} onWorld={setWorld} />
         <p {...sx(chatbot.stageCaption, (focused || !empty || played) && chatbot.stageCaptionHidden)}>
           psst — poke me, fling me, or feed me a bean
         </p>
@@ -518,10 +571,74 @@ function App() {
             </button>
           )}
           <div {...sx(chatbot.composerInner)}>
+            {toyOpen && (
+              <div id="toy-box" role="group" aria-label="Lim's toy box" {...sx(chatbot.toyPanel)}>
+                {world ? (
+                  <>
+                    <p {...sx(chatbot.toyLabel)}>Give Lim</p>
+                    <div {...sx(chatbot.toyChips)}>
+                      {[...Object.values(ITEMS).map((x) => x.spec), ...made.items].map((spec) => (
+                        <button
+                          key={spec.name}
+                          type="button"
+                          onClick={() => give({ op: "item", spec }, `Gave Lim a ${spec.name}.`)}
+                          {...sx(chatbot.toyChip)}
+                        >
+                          <span aria-hidden="true" {...sx(chatbot.toyDot)} style={{ backgroundColor: spec.parts[0].color }} />
+                          {spec.name}
+                        </button>
+                      ))}
+                    </div>
+                    <p {...sx(chatbot.toyLabel)}>Take Lim to</p>
+                    <div {...sx(chatbot.toyChips)}>
+                      <button
+                        type="button"
+                        aria-pressed={!world.place}
+                        onClick={() => give({ op: "place", spec: null }, "Back in the studio.")}
+                        {...sx(chatbot.toyChip, !world.place && chatbot.toyChipOn)}
+                      >
+                        <span aria-hidden="true" {...sx(chatbot.toyDot)} style={{ backgroundColor: "var(--chat-rug)" }} />
+                        studio
+                      </button>
+                      {[...Object.values(PLACES).map((x) => x.spec), ...made.places].map((spec) => (
+                        <button
+                          key={spec.name}
+                          type="button"
+                          aria-pressed={world.place?.name === spec.name}
+                          onClick={() => give({ op: "place", spec }, `Lim is at the ${spec.name}.`)}
+                          {...sx(chatbot.toyChip, world.place?.name === spec.name && chatbot.toyChipOn)}
+                        >
+                          <span aria-hidden="true" {...sx(chatbot.toyDot)} style={{ backgroundImage: `linear-gradient(${spec.sky[0]}, ${spec.floor})` }} />
+                          {spec.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div {...sx(chatbot.toyFoot)}>
+                      <span>Or just ask: “give Lim a kite”, “make it rain”.</span>
+                      <button type="button" onClick={() => give({ op: "clear", what: "all" }, "All tidied up.")} {...sx(chatbot.toyTidy)}>
+                        Tidy up
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p {...sx(chatbot.toyLabel)}>Lim's toy box needs the live 3D scene, which isn't available here.</p>
+                )}
+              </div>
+            )}
             <label htmlFor="chat-input" {...sx(layout.srOnly)}>
               Ask about Anthony
             </label>
             <div {...sx(chatbot.box)}>
+              <button
+                type="button"
+                onClick={() => setToyOpen((open) => !open)}
+                aria-label="Toy box"
+                aria-expanded={toyOpen}
+                aria-controls="toy-box"
+                {...sx(chatbot.toyButton, toyOpen && chatbot.toyButtonOn)}
+              >
+                <ToyBrick size={20} aria-hidden="true" />
+              </button>
               <textarea
                 ref={inputRef}
                 id="chat-input"

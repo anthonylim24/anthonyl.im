@@ -67,7 +67,7 @@ describe('useChat', () => {
     await reply.finish()
     expect(result.current.status).toBe('idle')
     expect(last(result.current.messages)?.status).toBe('done')
-    expect(events.onDone).toHaveBeenCalledWith(true)
+    expect(events.onDone).toHaveBeenCalledWith(true, false)
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
     expect(stored).toHaveLength(2)
   })
@@ -123,6 +123,49 @@ describe('useChat', () => {
     second.chunk('Lots of places.')
     await second.finish()
     expect(last(result.current.messages)).toMatchObject({ content: 'Lots of places.', status: 'done' })
+  })
+
+  it('lets an intercept answer without the model, and falls through when it declines or fails', async () => {
+    const onDone = vi.fn()
+    const intercept = vi.fn<(text: string, signal: AbortSignal) => Promise<string | null>>()
+    const { result } = renderHook(() => useChat({ intercept, onDone }))
+
+    intercept.mockResolvedValueOnce('One ball, coming up!')
+    act(() => void result.current.send('give Lim a ball'))
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(invoke).not.toHaveBeenCalled()
+    expect(last(result.current.messages)).toMatchObject({ role: 'assistant', content: 'One ball, coming up!', status: 'done' })
+    expect(onDone).toHaveBeenLastCalledWith(true, true)
+
+    // Declined: the question goes to the model as usual.
+    intercept.mockResolvedValueOnce(null)
+    const reply = deferredReply()
+    act(() => void result.current.send('Who is Anthony?'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledOnce())
+    reply.chunk('An engineer.')
+    await reply.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(last(result.current.messages)).toMatchObject({ content: 'An engineer.', status: 'done' })
+
+    // Broken: same.
+    intercept.mockRejectedValueOnce(new Error('boom'))
+    const again = deferredReply()
+    act(() => void result.current.send('And his skills?'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(2))
+    await again.finish()
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+  })
+
+  it('stop during an intercept leaves a stopped reply and never calls the model', async () => {
+    let release!: (v: string | null) => void
+    const intercept = vi.fn(() => new Promise<string | null>((res) => (release = res)))
+    const { result } = renderHook(() => useChat({ intercept }))
+    act(() => void result.current.send('give him a kite'))
+    act(() => result.current.stop())
+    await act(async () => release('Here you go!'))
+    await waitFor(() => expect(result.current.status).toBe('idle'))
+    expect(invoke).not.toHaveBeenCalled()
+    expect(last(result.current.messages)).toMatchObject({ role: 'assistant', status: 'stopped' })
   })
 
   it('restores a saved chat and clears it on new chat', () => {

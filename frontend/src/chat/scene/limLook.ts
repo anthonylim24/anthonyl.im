@@ -68,12 +68,6 @@ export const PAL = {
   shadow: '#5B2D55',
   heart: '#FF4F86',
 }
-export const TOYS: { kind: 'bean' | 'ball'; hex: string; shade: string }[] = [
-  { kind: 'bean', hex: '#9EE6C8', shade: '#4FB894' },
-  { kind: 'bean', hex: '#C7B6FF', shade: '#8B6FEA' },
-  { kind: 'bean', hex: '#FFD978', shade: '#EDA436' },
-  { kind: 'ball', hex: '#9FD3FF', shade: '#4E9BE0' },
-]
 export const CONFETTI = ['#FF7E6B', '#9EE6C8', '#C7B6FF', '#FFD978', '#9FD3FF', '#FF9FC5']
 
 /* ── Expressions ─────────────────────────────────────────────────── */
@@ -448,7 +442,17 @@ export function toyMaterial(u: LimUniforms, hex: string, shadeHex: string) {
 
 const rainbow = (h: F): V3 => cos(vec3(0, 0.33, 0.67).add(h).mul(6.2832)).mul(0.5).add(0.5) as unknown as V3
 
-export function floorMaterial(u: LimUniforms) {
+/** What the floor needs to know about the place Lim is in (see scene/env.ts). */
+export type FloorPlace = {
+  amount: F
+  floor: Node<'color'>
+  dots: Node<'color'>
+  rug: Node<'color'>
+  /** Weights for dots, stripes, checks, waves, plain. */
+  pattern: F[]
+}
+
+export function floorMaterial(u: LimUniforms, place: FloorPlace) {
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true })
   const wp = positionWorld.xz as V2
   const grid = wp.mul(1.5)
@@ -456,8 +460,9 @@ export function floorMaterial(u: LimUniforms) {
   const id = floor(grid)
   const dd = length(cell)
   const aa = fwidth(dd).mul(1.2)
-  // Dots fade out toward the horizon before they can shimmer.
-  const dots = float(1).sub(smoothstep(float(0.085).sub(aa), float(0.085).add(aa), dd)).mul(smoothstep(-6, -1.5, wp.y))
+  // Patterns fade out toward the horizon before they can shimmer.
+  const far = smoothstep(-6, -1.5, wp.y)
+  const dots = float(1).sub(smoothstep(float(0.085).sub(aa), float(0.085).add(aa), dd)).mul(far)
   const r = length(wp)
   const edge = float(1.6).add(cos(atan(wp.y, wp.x).mul(18)).mul(0.035))
   const ea = fwidth(r).mul(1.5)
@@ -470,9 +475,28 @@ export function floorMaterial(u: LimUniforms) {
   const lit = rainbow(hash.add(floor(u.time.mul(4)).mul(0.37)))
   dotCol = mix(dotCol, mix(lit, vec3(1, 1, 1), 0.42), u.disco)
   c = mix(c, dotCol, dots.mul(mix(float(0.8), float(1), u.disco)))
-  c = mix(c, mix(col('#C8F0E0'), col('#3D3474'), u.night), rug.mul(mix(float(1), float(0.82), u.disco)))
-  c = mix(c, mix(col('#A6E3CA'), col('#4F4592'), u.night), ring.mul(rug))
+  let rugCol: V3 = mix(col('#C8F0E0'), col('#3D3474'), u.night)
+  let ringCol: V3 = mix(col('#A6E3CA'), col('#4F4592'), u.night)
+
+  // Somewhere else: the place's own ground, pattern and mat.
+  const [wDots, wStripes, wChecks, wWaves] = place.pattern
+  const sw = fwidth(wp.x).mul(1.5)
+  const stripes = smoothstep(float(0.25).sub(sw), float(0.25).add(sw), abs(fract(wp.x.mul(0.9)).sub(0.5)))
+  const chk = fract(grid.mul(0.5))
+  const checks = abs(smoothstep(0.48, 0.52, chk.x).sub(smoothstep(0.48, 0.52, chk.y)))
+  const waves = smoothstep(0.55, 0.75, sin(wp.y.mul(5).add(sin(wp.x.mul(2.2)).mul(1.2))).mul(0.5).add(0.5))
+  const mark = wDots.mul(dots).add(wStripes.mul(stripes).mul(far)).add(wChecks.mul(checks).mul(far)).add(wWaves.mul(waves).mul(far))
+  const placeDots = mix(place.dots as unknown as V3, mix(lit, vec3(1, 1, 1), 0.3), u.disco)
+  const ground = mix(place.floor as unknown as V3, placeDots, saturate(mark).mul(0.85))
+  c = mix(c, ground, place.amount)
+  rugCol = mix(rugCol, place.rug as unknown as V3, place.amount)
+  ringCol = mix(ringCol, (place.rug as unknown as V3).mul(0.86), place.amount)
+
+  c = mix(c, rugCol, rug.mul(mix(float(1), float(0.82), u.disco)))
+  c = mix(c, ringCol, ring.mul(rug))
   mat.colorNode = c
+  // The floor thins out with distance: into the page in the studio, into the
+  // backdrop's ground (the same colour) anywhere else.
   mat.opacityNode = smoothstep(-7.5, -2.5, wp.y).mul(float(1).sub(smoothstep(9, 12, abs(wp.x))))
   return mat
 }

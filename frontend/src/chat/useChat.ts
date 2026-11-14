@@ -18,8 +18,14 @@ export type ChatStatus = "idle" | "thinking" | "streaming"
 export type ChatEvents = {
   onSend?: () => void
   onChunk?: () => void
-  onDone?: (firstReply: boolean) => void
+  /** `local`: the reply came from `intercept`, not the model. */
+  onDone?: (firstReply: boolean, local: boolean) => void
   onError?: () => void
+  /**
+   * A chance to answer without the model (Lim's toy world). Resolve with the
+   * reply to show, or null to let the question go through as usual.
+   */
+  intercept?: (text: string, signal: AbortSignal) => Promise<string | null>
 }
 
 export const STORAGE_KEY = "lim-chat-v1"
@@ -97,21 +103,36 @@ export function useChat(events: ChatEvents = {}) {
     eventsRef.current.onSend?.()
 
     let latest = ""
-    void invokeDeepseek(
-      text,
-      toHistory(base),
-      (content) => {
-        if (controller.signal.aborted) return
-        latest = content
-        patchLast({ content })
-        setStatus("streaming")
-        eventsRef.current.onChunk?.()
-      },
-      controller.signal,
-    )
+    let wasLocal = false
+    const answer = () =>
+      invokeDeepseek(
+        text,
+        toHistory(base),
+        (content) => {
+          if (controller.signal.aborted) return
+          latest = content
+          patchLast({ content })
+          setStatus("streaming")
+          eventsRef.current.onChunk?.()
+        },
+        controller.signal,
+      )
+    const intercept = eventsRef.current.intercept
+    const work = intercept
+      ? intercept(text, controller.signal)
+          .catch(() => null)
+          .then((handled) => {
+            if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError")
+            if (handled === null) return answer()
+            latest = handled
+            wasLocal = true
+            patchLast({ content: handled })
+          })
+      : answer()
+    void work
       .then(() => {
         patchLast({ status: "done" })
-        eventsRef.current.onDone?.(firstReply)
+        eventsRef.current.onDone?.(firstReply, wasLocal)
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) {

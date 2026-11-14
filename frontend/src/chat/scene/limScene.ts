@@ -20,12 +20,14 @@ import { skinJelly, skinnedJellyGeometry, syncJellyGeometry } from '../../three/
 import { bindJellyPointer } from '../../three/jellyPointer'
 import { sound } from '../sound'
 import type { Stunt } from '../eggs'
+import { ITEMS, actionsFor, type Action, type ItemSpec, type PlaceSpec, type Trait, type Tweak } from '../world/spec'
+import { Weather, backdropMaterial, createPlaceUniforms, easePlace } from './env'
+import { ItemExtras, bodyRest, createItemMaterials, shadeOf } from './items'
 import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
 import {
   CONFETTI,
   FACES,
   PAL,
-  TOYS,
   addRestNormals,
   bubbleMaterial,
   dustMaterial,
@@ -62,7 +64,13 @@ export type LimSceneOptions = {
   /** Top of Lim's head in host px, plus px per world unit. */
   onAnchor?: (x: number, y: number, unit: number) => void
   onFirstFrame?: () => void
+  /** The world to start in (restored from a previous visit). */
+  world?: LimWorld
+  /** The items or the place changed. */
+  onWorld?: (world: LimWorld) => void
 }
+
+export type LimWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
 
 export type LimScene = {
   setMood(mood: LimMood): void
@@ -74,6 +82,16 @@ export type LimScene = {
   cheer(confetti: boolean): void
   stunt(kind: Stunt): void
   react(kind: LimReaction): void
+  /** Drop an item into the world; `then` is what Lim does with it once it lands. */
+  addItem(spec: ItemSpec, then?: Action): void
+  /** Move to a place, or back to the studio with null. */
+  setPlace(spec: PlaceSpec | null): void
+  /** Have Lim do something with an item by name ('' = the newest). False if there is no such item. */
+  act(action: Action, target: string): boolean
+  /** Change the weather, gravity, grip or light of wherever Lim is. */
+  tweak(set: Tweak): void
+  clear(what: 'items' | 'place' | 'all'): void
+  world(): LimWorld
   dispose(): void
 }
 
@@ -82,7 +100,10 @@ const PITCH = THREE.MathUtils.degToRad(10)
 const LIM_H = 1.75
 const FLOOR_LINE = 0.8
 const G = 14
+/** Items fall a little faster than Lim: small things read better snappy. */
+const ITEM_G = 16
 const MINIS = 6
+const MAX_ITEMS = 6
 const MINI = 0.36
 const POKE_WORDS = ['hehe!', 'boop!', 'eep!', 'squish!', 'tee-hee', 'wobble!', 'again!']
 
@@ -99,17 +120,6 @@ function gumdropRest(detail: number): { positions: Float32Array; index: Uint32Ar
     positions[i] *= widen
     positions[i + 1] = ny
     positions[i + 2] *= widen * 0.92
-  }
-  return { positions, index }
-}
-
-function beanRest(): { positions: Float32Array; index: Uint32Array } {
-  const { positions, index } = icosphere(1, 3)
-  for (let i = 0; i < positions.length; i += 3) {
-    const x = positions[i]
-    positions[i] = x * 0.34
-    positions[i + 1] = positions[i + 1] * 0.21 + 0.05 * (1 - x * x)
-    positions[i + 2] *= 0.22
   }
   return { positions, index }
 }
@@ -260,12 +270,37 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const limParts = [limMesh, limHull, tuftMesh, tuftHull, halo, ...eyes]
 
   // ── Floor, shadows, ripples ──────────────────────────────────────
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), floorMaterial(u))
+  const pu = createPlaceUniforms()
+  let site: PlaceSpec | null = opts.world?.place ?? null
+  /** Tweaks on top of the place (or of the studio): weather, gravity, grip, light. */
+  let mods: Tweak = { ...opts.world?.tweak }
+  const air = () => ({
+    weather: mods.weather ?? site?.weather ?? 'none',
+    weatherColor: mods.weatherColor ?? site?.weatherColor ?? '#FFFFFF',
+    gravity: mods.gravity ?? site?.gravity ?? 1,
+    slippery: mods.slippery ?? site?.slippery ?? false,
+    dark: mods.dark ?? site?.dark ?? false,
+  })
+  easePlace(pu, site, 1)
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 30),
+    floorMaterial(u, { amount: pu.amount, floor: pu.floor, dots: pu.dots, rug: pu.rug, pattern: pu.pattern }),
+  )
   floor.rotation.x = -Math.PI / 2
   floor.position.z = 3
   // A hair below the contact plane, so the ink line closes under every body.
   floor.position.y = -0.045
   scene.add(floor)
+  // The sky rides on the camera, far behind everything, so it always fills the view.
+  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), backdropMaterial(pu))
+  backdrop.position.z = -60
+  backdrop.renderOrder = -20
+  backdrop.frustumCulled = false
+  camera.add(backdrop)
+  scene.add(camera)
+  const weather = new Weather()
+  scene.add(weather.mesh)
+  weather.set(air().weather, air().weatherColor)
 
   const flat = new THREE.PlaneGeometry(1, 1)
   const makeShadow = (tint: string | null) => {
@@ -302,30 +337,50 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     r.mesh.visible = true
   }
 
-  // ── Toys ─────────────────────────────────────────────────────────
-  const beanShape = beanRest()
-  const ballShape = icosphere(0.27, 3)
-  const toys = TOYS.map(({ kind, hex, shade }) => {
-    const shape = kind === 'bean' ? beanShape : ballShape
-    const jelly = new Jelly(shape.positions, kind === 'bean'
-      ? { stiffness: 0.34, beta: 0.04, damping: 1.1, maxStray: 0.06, gravity: [0, -16, 0], floor: 0, friction: 0.35, substeps: 2 }
-      : { stiffness: 0.34, beta: 0.05, damping: 0.35, maxStray: 0.06, gravity: [0, -16, 0], floor: 0, friction: 0.86, substeps: 2 })
-    const geo = skinnedJellyGeometry(jelly, shape.index)
-    const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shade))
+  // ── Items ────────────────────────────────────────────────────────
+  // Everything on the stage that isn't Lim: built from a spec (see items.ts),
+  // so the starter toys, the catalog and things the model invents are one kind.
+  const itemMats = createItemMaterials(u, ink)
+  const makeToy = (spec: ItemSpec, renew: boolean) => {
+    const rest = bodyRest(spec)
+    const has = (trait: Trait) => spec.traits.includes(trait)
+    const soft = has('soft')
+    const jelly = new Jelly(rest.positions, {
+      stiffness: soft ? 0.24 : 0.34,
+      beta: soft ? 0.16 : 0.05,
+      damping: has('bouncy') ? 0.35 : has('floaty') ? 1.6 : 1.1,
+      maxStray: soft ? 0.1 : 0.06,
+      gravity: [0, -16, 0],
+      floor: rest.lift,
+      friction: has('bouncy') ? 0.86 : 0.4,
+      substeps: 2,
+    })
+    const geo = skinnedJellyGeometry(jelly, rest.index)
+    const hex = spec.parts[0].color
+    // The body gets materials of its own: they change while it is in hand.
+    const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shadeOf(hex)))
     const hull = new THREE.Mesh(geo, hullMaterial(ink, 0.016))
     mesh.frustumCulled = hull.frustumCulled = false
-    scene.add(mesh, hull)
+    const extras = new ItemExtras(spec, [0, 0, 0], itemMats)
+    scene.add(mesh, hull, extras.group)
     return {
-      kind, hex, jelly, geo, mesh, hull, shadow: makeShadow(null), slot: 0, depth: 0.25, gravity: jelly.gravity, beta: jelly.beta, stiffness: jelly.stiffness,
+      spec, has, hex, jelly, geo, mesh, hull, extras, shadow: makeShadow(null), r: rest.radius, half: rest.half,
+      slot: 0, depth: 0.25, beta: jelly.beta, stiffness: jelly.stiffness,
+      /** A starter toy comes back after it is eaten; anything else is gone. */
+      renew,
       /** Seconds at rest; the sim skips toys that have settled. */
       still: 0,
       asleep: false,
       /** Being swallowed since this time, then gone until `backAt`. */
       eatenAt: -1,
       backAt: -1 as number,
+      worn: null as 'hat' | 'glasses' | null,
+      lastVy: 0,
+      nextFx: 0,
     }
-  })
-  type Toy = (typeof toys)[number]
+  }
+  type Toy = ReturnType<typeof makeToy>
+  const toys: Toy[] = []
   const wakeToy = (toy: Toy) => {
     toy.asleep = false
     toy.still = 0
@@ -381,6 +436,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     camera.position.copy(camBase)
     camera.lookAt(shiftX, camTargetY, 0)
     camera.updateProjectionMatrix()
+    backdrop.scale.set(2 * 60 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * aspect * 1.04, 2 * 60 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * 1.04, 1)
+    pu.aspect.value = aspect
     halfW = (vh * aspect) / 2
     reach = halfW - shiftX
     topY = camTargetY + vh / 2 - 0.05
@@ -390,31 +447,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Start pose: Lim pops to life where the static mascot stood ───
   lim.translate(0, 0.81, 0)
-  // Toys stand clear of Lim and of each other: a bean and the gumball on a
-  // narrow stage, all four on a wide one.
-  {
-    const roomy = halfW >= 3.1
-    // Lim's skirt reaches 1.42 either side; a narrow stage leaves room for one toy each side.
-    const seats: [number, number][] = roomy
-      ? [[-1.75, 0.1], [1.75, 0.3], [Math.min(reach - 0.6, 2.45), 0.05], [-Math.min(reach - 0.6, 2.45), 0.4]]
-      : [[-9, 0], [Math.min(reach - 0.62, 1.75), 0.25], [-9, 0], [-Math.min(reach - 0.62, 1.75), 0.25]]
-    toys.forEach((toy, i) => {
-      toy.slot = seats[i][0]
-      toy.depth = seats[i][1]
-      if (toy.slot < -8) {
-        // No seat on this stage: this one stays in the toy box.
-        toy.backAt = Infinity
-        toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = false
-        return
-      }
-      toy.jelly.translate(toy.slot, reducedMotion ? 0.2 : 1.2 + i * 0.45, toy.depth)
-    })
-  }
-
-  /** Everything the pointer can grab and that collides; minis come and go. */
-  const bodies: Jelly[] = [lim, ...toys.filter((t) => t.backAt < 0).map((t) => t.jelly)]
+  /** Everything the pointer can grab and that collides; items and minis come and go. */
+  const bodies: Jelly[] = [lim]
   const info = new Map<Jelly, { r: number; m: number; toy?: Toy }>([[lim, { r: 1, m: 6 }]])
-  for (const toy of toys) info.set(toy.jelly, { r: 0.26, m: 1, toy })
 
   // ── State ────────────────────────────────────────────────────────
   let t = 0
@@ -423,6 +458,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let grabbed = false
   let grabbedAt = 0
   let held: Toy | null = null
+  let errand: { toy: Toy; then: () => void; by: number; x: number } | null = null
+  let keepy: { toy: Toy; count: number; until: number; cool: number } | null = null
+  let hugUntil = 0
+  let hugSide = 1
+  let lastOuch = -9
   let nearSince = 0
   let snatched = false
   let pokedUntil = 0
@@ -568,10 +608,24 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       hrt.angle = (Math.random() - 0.5) * 0.6
     }
   }
+  const grav = () => G * air().gravity
+  const toyGravity = (toy: Toy): Vec3 => [0, toy.has('floaty') ? 2.4 : -ITEM_G * air().gravity, 0]
+  /** Gravity, grip and light follow the place. */
+  const applyPlace = () => {
+    lim.gravity = [0, -grav(), 0]
+    lim.friction = air().slippery ? 0.95 : 0.45
+    for (const toy of toys) {
+      if (!toy.worn && toy.eatenAt < 0) toy.jelly.gravity = toyGravity(toy)
+      toy.jelly.friction = air().slippery ? 0.96 : toy.has('bouncy') ? 0.86 : 0.4
+      wakeToy(toy)
+    }
+    u.night.value = night || air().dark ? 1 : 0
+    weather.set(air().weather, air().weatherColor)
+  }
   /** A thump on the floor jolts every toy near it. */
   const shock = (x: number, z: number, power: number) => {
     for (const toy of toys) {
-      if (toy.eatenAt >= 0 || toy.backAt >= 0) continue
+      if (toy.eatenAt >= 0 || toy.backAt >= 0 || toy.worn) continue
       const d = Math.hypot(toy.jelly.center[0] - x, toy.jelly.center[2] - z)
       const k = power / (1 + d * d * 0.6)
       if (k < 0.4) continue
@@ -586,7 +640,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const jump = (vx: number, vyAsked: number, vz: number, antic = 0.11) => {
     if (reducedMotion) return
     // Never higher than the stage has room for (head and tuft included).
-    const vy = Math.min(vyAsked, Math.sqrt(2 * G * Math.max(0.04, topY - 1.75 * lim.scale - 0.6)))
+    const vy = Math.min(vyAsked, Math.sqrt(2 * grav() * Math.max(0.04, topY - 1.75 * lim.scale - 0.6)))
     squash.v += 2.2 + vy * 0.2
     later(antic, () => {
       if (popped) return
@@ -656,10 +710,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     sound.whoosh()
   }
   const startFlip = () => {
-    const vy = Math.min(wide ? 8.2 : 6.4, Math.sqrt(2 * G * Math.max(0.2, topY - 3.4)))
+    const vy = Math.min(wide ? 8.2 : 6.4, Math.sqrt(2 * grav() * Math.max(0.2, topY - 3.4)))
     const antic = 0.16
     jump(0, vy, 0, antic)
-    flip = { t0: t + antic + 0.07, dur: Math.max(0.4, (2 * vy) / G - 0.16), at: 0 }
+    flip = { t0: t + antic + 0.07, dur: Math.max(0.4, (2 * vy) / grav() - 0.16), at: 0 }
     setAct('flying', flip.dur + antic + 0.07)
     later(antic + flip.dur + 0.05, () => {
       setAct('smug', 1.2)
@@ -731,6 +785,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     minis ??= buildMinis()
     popped = { t0: t, merging: false }
     const [cx, cy, cz] = lim.center
+    for (const toy of toys) unwear(toy)
+    errand = keepy = null
     for (const p of limParts) p.visible = false
     limShadow.mesh.visible = false
     bodies.splice(bodies.indexOf(lim), 1)
@@ -788,10 +844,12 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.jelly.anchor = { target: mouthAt, k: 420, c: 30 }
     bodies.splice(bodies.indexOf(toy.jelly), 1)
     later(0.26, () => {
-      toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = false
+      toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = toy.extras.group.visible = false
       toy.eatenAt = -1
-      toy.backAt = t + 6 + Math.random() * 3
+      toy.backAt = toy.renew ? t + 6 + Math.random() * 3 : Infinity
       toy.jelly.anchor = null
+      // Anything but a starter toy is gone for good once it is swallowed.
+      if (!toy.renew) later(0, () => removeToy(toy, false))
       full += 1
       chewUntil = t + 1.1
       // Eyes open and on the busy cheek while chewing; shut only for the swallow.
@@ -819,6 +877,22 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         tintUntil = t + 9
       })
       later(1.45, () => {
+        if (toy.has('hot')) {
+          // Too spicy: steam, a yelp, and a lap of the stage.
+          setAct('shock', 1.4)
+          u.tint.value.set('#E8402E')
+          emote('HOT!')
+          sound.squeak()
+          jump(0, 6, 0, 0.04)
+          for (let k = 0; k < 4; k++) later(k * 0.12, () => sparkle(mouthAt[0], mouthAt[1], mouthAt[2] + 0.2, 4, 0.7))
+          return
+        }
+        if (toy.has('cold')) {
+          setAct('worried', 1.4)
+          emote('brr!')
+          for (let k = 0; k < 8; k++) later(k * 0.06, () => lim.kick(k % 2 ? -0.9 : 0.9, 0, 0))
+          return
+        }
         setAct('smug', 1.1)
         emote(full >= 3 ? 'so full…' : 'yum!')
         if (full >= 3) later(0.9, () => nod('now'))
@@ -840,12 +914,339 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const returnToy = (toy: Toy) => {
     toy.backAt = -1
     toy.jelly.scale = 1
-    toy.jelly.gravity = toy.gravity
+    toy.jelly.gravity = toyGravity(toy)
+    seat(toy)
     place(toy.jelly, toy.geo, 1, toy.slot, topY + 0.4, toy.depth)
-    toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = true
+    toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = toy.extras.group.visible = true
     onTop(toy, false)
     wakeToy(toy)
     bodies.push(toy.jelly)
+  }
+
+  // ── The world: items in and out ──────────────────────────────────
+  const worldNow = (): LimWorld => ({ items: toys.filter((toy) => toy.backAt !== Infinity).map((toy) => toy.spec), place: site, tweak: mods })
+  const changed = () => opts.onWorld?.(worldNow())
+  /** A free spot on the floor: clear of Lim's skirt, as far from the other items as it can get. */
+  const seat = (toy: Toy) => {
+    const edge = Math.max(1.45, reach - 0.3 - toy.r)
+    let bestScore = -Infinity
+    for (let k = 0; k < 14; k++) {
+      const x = (k % 2 ? 1 : -1) * Math.min(edge, 1.5 + toy.r + Math.floor(k / 2) * 0.42)
+      let room = 3
+      for (const other of toys) {
+        if (other !== toy && other.backAt < 0 && !other.worn) room = Math.min(room, Math.abs(other.jelly.center[0] - x))
+      }
+      const score = Math.min(1.4, room) - Math.abs(x) * 0.12
+      if (score > bestScore) {
+        bestScore = score
+        toy.slot = x
+      }
+    }
+    toy.depth = 0.05 + (toys.indexOf(toy) % 3) * 0.2
+  }
+  const addToy = (spec: ItemSpec, renew: boolean, height: number) => {
+    const toy = makeToy(spec, renew)
+    toys.push(toy)
+    info.set(toy.jelly, { r: toy.r, m: toy.has('heavy') ? 4 : 1, toy })
+    bodies.push(toy.jelly)
+    seat(toy)
+    toy.jelly.gravity = toyGravity(toy)
+    if (air().slippery) toy.jelly.friction = 0.96
+    place(toy.jelly, toy.geo, 1, toy.slot, Math.max(height, toy.half[1] + 0.02), toy.depth)
+    return toy
+  }
+  const removeToy = (toy: Toy, poof: boolean) => {
+    const i = toys.indexOf(toy)
+    if (i < 0) return
+    if (held === toy) {
+      snatched = true
+      pointer.release()
+      snatched = false
+      held = null
+    }
+    toys.splice(i, 1)
+    const b = bodies.indexOf(toy.jelly)
+    if (b >= 0) bodies.splice(b, 1)
+    info.delete(toy.jelly)
+    if (errand?.toy === toy) errand = null
+    if (keepy?.toy === toy) keepy = null
+    if (poof && !reducedMotion) {
+      sparkle(toy.jelly.center[0], toy.jelly.center[1], toy.jelly.center[2] + 0.2, 7, 0.8)
+      sound.pop()
+    }
+    scene.remove(toy.mesh, toy.hull, toy.shadow.mesh)
+    toy.extras.dispose()
+    toy.geo.dispose()
+    for (const m of [toy.mesh.material, toy.hull.material, toy.shadow.mesh.material] as THREE.Material[]) m.dispose()
+    changed()
+  }
+
+  // ── Wearing things ───────────────────────────────────────────────
+  const unwear = (toy: Toy) => {
+    if (!toy.worn) return
+    toy.worn = null
+    toy.jelly.anchor = null
+    toy.jelly.upright = 0
+    toy.jelly.gravity = toyGravity(toy)
+    bodies.push(toy.jelly)
+    wakeToy(toy)
+    toy.jelly.kick((Math.random() < 0.5 ? -1 : 1) * 2.4, 3.2, 0)
+  }
+  const wear = (toy: Toy) => {
+    const slot = toy.has('hat') ? 'hat' : 'glasses'
+    for (const other of toys) if (other.worn === slot) unwear(other)
+    toy.worn = slot
+    wakeToy(toy)
+    onTop(toy, false)
+    const b = bodies.indexOf(toy.jelly)
+    if (b >= 0) bodies.splice(b, 1)
+    toy.jelly.gravity = [0, 0, 0]
+    toy.jelly.anchor = { target: [...toy.jelly.center], k: 900, c: 55 }
+    toy.jelly.upright = 0.5
+    if (reducedMotion) {
+      // Nothing will spring it into place: put it there.
+      lim.attach(slot === 'hat' ? [0, 0.84 + toy.half[1], 0.02] : [0, anchors.eyeY + 0.01, eyeL.p[2] + 0.2], tmp)
+      place(toy.jelly, toy.geo, 1, tmp[0], tmp[1], tmp[2])
+      return
+    }
+    later(0.45, () => {
+      setAct('smug', 1.3)
+      emote('ta-da!')
+      sound.sparkle()
+      squash.v += 2
+    })
+  }
+
+  // ── Things Lim does with an item ─────────────────────────────────
+  /** Hop over next to an item, then do something once there. */
+  const approach = (toy: Toy, then: () => void, gap = 0.15) => {
+    const side = Math.sign(lim.center[0] - toy.jelly.center[0]) || 1
+    // Lim's skirt is about 1.25 wide: stand that far off, plus the item, plus a gap.
+    const x = THREE.MathUtils.clamp(toy.jelly.center[0] + side * (1.25 * lim.scale + toy.r + gap), -reach + 1.15, reach - 1.15)
+    call = { x, z: 0, until: t + 3.2 }
+    errand = { toy, then, by: t + 2.8, x }
+    nextHomeHop = Math.min(nextHomeHop, t + 0.15)
+  }
+  /** Send an item up in an arc that comes down over Lim's head. */
+  const lob = (toy: Toy) => {
+    const g = Math.max(2, -toyGravity(toy)[1] || ITEM_G * air().gravity)
+    lim.attach(headTopRest, tmp2)
+    const peak = Math.min(topY - toy.r - 0.1, tmp2[1] + 1.25)
+    const up = Math.sqrt(2 * g * Math.max(0.3, peak - toy.jelly.center[1]))
+    // Time to rise to the peak and fall back to just above the head.
+    const time = up / g + Math.sqrt((2 * Math.max(0.05, peak - tmp2[1] - toy.r - 0.3)) / g)
+    toy.jelly.velocity(tmp)
+    toy.jelly.kick((lim.center[0] - toy.jelly.center[0]) / time - tmp[0], up - tmp[1], -tmp[2])
+    toy.jelly.spin(0, 0, (Math.random() - 0.5) * 5)
+  }
+  const play = (action: Action, toy: Toy) => {
+    if (reducedMotion || popped || toy.backAt >= 0 || toy.eatenAt >= 0) return
+    active(true)
+    const gaze = () => {
+      wander.x = THREE.MathUtils.clamp((toy.jelly.center[0] - lim.center[0]) / 1.4, -1, 1)
+      wander.y = THREE.MathUtils.clamp((toy.jelly.center[1] - lim.center[1]) / 1.2, -0.7, 0.9)
+      wander.until = t + 1.8
+      look.at = -10
+    }
+    gaze()
+    if (action === 'remove') {
+      emote('bye!')
+      return removeToy(toy, true)
+    }
+    if (toy.worn && action !== 'look') unwear(toy)
+    if (action === 'look') {
+      setAct('ooh', 0.9)
+      squash.v += 1.5
+    } else if (action === 'eat') {
+      if (!toy.has('edible')) {
+        setAct('squint', 0.9)
+        emote('not food!')
+        for (let k = 0; k < 4; k++) later(k * 0.09, () => lim.kick(k % 2 ? -1 : 1, 0, 0))
+        return
+      }
+      setAct('aah', 0.5)
+      wakeToy(toy)
+      later(0.3, () => {
+        if (toys.includes(toy) && toy.eatenAt < 0 && !popped) {
+          onTop(toy, true)
+          eat(toy)
+        }
+      })
+    } else if (action === 'wear') {
+      if (!toy.has('hat') && !toy.has('glasses')) {
+        setAct('thinking', 0.9)
+        return emote('how?')
+      }
+      wakeToy(toy)
+      wear(toy)
+    } else if (action === 'kick') {
+      approach(toy, () => {
+        const dir = Math.sign(toy.jelly.center[0] - lim.center[0]) || 1
+        lim.kick(dir * 2.4, 2.6, 0)
+        squash.v += 2
+        later(0.13, () => {
+          wakeToy(toy)
+          toy.jelly.kick(dir * (4.5 + Math.random() * 2), 5.5 + Math.random() * 1.5, 0)
+          toy.jelly.spin(0, 0, -dir * 7)
+          sparkle(toy.jelly.center[0], toy.jelly.center[1], toy.jelly.center[2] + 0.3, 5)
+          sound.bonk(0.7)
+          setAct('happy', 1)
+          if (toy.has('musical')) sound.beat(0)
+        })
+      })
+    } else if (action === 'bounce') {
+      approach(toy, () => {
+        // Pop it up over Lim's head and keep it up.
+        wakeToy(toy)
+        toy.jelly.velocity(tmp)
+        lob(toy)
+        keepy = { toy, count: 0, until: t + 8, cool: t + 0.4 }
+        setAct('whee', 0.8)
+      }, 0.3)
+    } else if (action === 'hug') {
+      approach(toy, () => {
+        hugSide = Math.sign(toy.jelly.center[0] - lim.center[0]) || 1
+        hugUntil = t + 1.5
+        setAct('chew', 1.5)
+        happyUntil = t + 2.2
+        love(4)
+        wakeToy(toy)
+        toy.jelly.kick(-hugSide * 1.2, 1.2, 0)
+        emote('aww')
+        sound.sparkle()
+      }, 0)
+    } else if (action === 'nap') {
+      approach(toy, () => {
+        napUntil = t + 9
+        nod('now')
+      }, 0.05)
+    } else if (action === 'dance') {
+      startDance(4.5)
+      emote('♪')
+    }
+  }
+  /** What Lim makes of something new. */
+  const greet = (toy: Toy, then?: Action) => {
+    if (reducedMotion) return
+    const act1 =
+      then ??
+      (toy.has('scary') ? null
+        : toy.has('hat') || toy.has('glasses') ? 'wear'
+        : toy.has('musical') ? 'dance'
+        : toy.has('bouncy') && !toy.has('floaty') ? 'bounce'
+        : 'look')
+    later(0.2, () => {
+      if (!toys.includes(toy)) return
+      play('look', toy)
+      emote(toy.spec.name.length <= 12 ? `${toy.spec.name}!` : 'ooh!')
+    })
+    later(1.1, () => {
+      if (!toys.includes(toy) || popped) return
+      if (!act1) {
+        // Scary: jump, then back off to the far side and peek.
+        setAct('shock', 0.9)
+        emote('eek!')
+        sound.squeak()
+        lim.kick(-Math.sign(toy.jelly.center[0]) * 1.5, 3.4, 0)
+        call = { x: -Math.sign(toy.jelly.center[0] || 1) * Math.max(0, reach - 1.25), z: 0, until: t + 6 }
+        later(0.9, () => setAct('worried', 2.4))
+      } else if (act1 !== 'look') play(act1, toy)
+    })
+  }
+  const ouch = (toy: Toy) => {
+    lastOuch = t
+    setAct('hit', 0.6)
+    emote('ouch!')
+    sound.squeak()
+    const away = Math.sign(lim.center[0] - toy.jelly.center[0]) || 1
+    lim.kick(away * 2.6, 3.6, 0)
+    sparkle(toy.jelly.center[0], toy.jelly.center[1] + toy.r, toy.jelly.center[2] + 0.3, 4, 0.6)
+    later(0.6, () => setAct('worried', 1.2))
+  }
+  /** Errands and games in progress (called every frame). */
+  const pastimes = () => {
+    if (errand) {
+      const near = Math.abs(lim.center[0] - errand.x) < 0.4 && lim.contacts > 0
+      if (!toys.includes(errand.toy) || popped) errand = null
+      else if (near || t > errand.by) {
+        const { then } = errand
+        errand = null
+        call = null
+        then()
+      }
+    }
+    if (keepy) {
+      const { toy } = keepy
+      toy.jelly.velocity(tmp)
+      const dx = toy.jelly.center[0] - lim.center[0]
+      lim.attach(headTopRest, tmp2)
+      const overhead = Math.abs(dx) < 1.1 && toy.jelly.center[1] < tmp2[1] + 0.5 + toy.r && toy.jelly.center[1] > tmp2[1] - 0.3
+      if (!toys.includes(toy) || popped || grabbed || t > keepy.until || held === toy) keepy = null
+      else if (overhead && tmp[1] < 0 && t > keepy.cool) {
+        // Header: Lim hops into it and sends it back up over its head.
+        keepy.count++
+        keepy.cool = t + 0.35
+        if (lim.contacts > 0) lim.kick(dx * 0.8, 2.4, 0)
+        squash.v -= 2
+        tuft.flick(0, 4, 0)
+        lob(toy)
+        sound.boing(0.5)
+        emote(`${keepy.count}!`)
+        if (keepy.count >= 5) {
+          keepy = null
+          later(0.5, () => {
+            setAct('smug', 1.3)
+            burst(24, 0.8)
+          })
+        }
+      } else if (toy.jelly.contacts > 0 && t > keepy.cool + 0.5) {
+        // Dropped it.
+        const count = keepy.count
+        keepy = null
+        setAct(count >= 2 ? 'happy' : 'sad', 1)
+        emote(count >= 2 ? 'phew!' : 'oops')
+      }
+    }
+  }
+  /** How the place makes Lim feel, now and then. */
+  const moodBeat = () => {
+    const w = air().weather
+    const mood2 = w === 'rain' ? 'wet' : w === 'snow' ? 'cold' : (site?.mood ?? (air().gravity < 0.6 ? 'floaty' : null))
+    if (!mood2) return
+    if (mood2 === 'cold') {
+      setAct('worried', 1.1)
+      emote('brr')
+      for (let k = 0; k < 10; k++) later(k * 0.055, () => lim.kick(k % 2 ? -0.8 : 0.8, 0, 0))
+    } else if (mood2 === 'hot') {
+      setAct('squint', 1.3)
+      squash.v += 3.5
+      emote('phew')
+    } else if (mood2 === 'floaty') {
+      jump((Math.random() - 0.5) * 2, 5.4, 0)
+      setAct('whee', 1.6)
+      later(0.3, () => lim.spin(0, 0, (Math.random() < 0.5 ? -1 : 1) * 1.2))
+    } else if (mood2 === 'wet') {
+      setAct('squint', 0.9)
+      for (let k = 0; k < 6; k++) later(k * 0.08, () => lim.kick(k % 2 ? -1.4 : 1.4, 0, 0))
+      tuft.flick(6, 0, 0)
+    } else if (mood2 === 'spooky') {
+      setAct('worried', 1.6)
+      wander.x = Math.random() < 0.5 ? -1 : 1
+      wander.y = 0.2
+      wander.until = t + 0.7
+      later(0.7, () => {
+        wander.x = -wander.x
+        wander.until = t + 0.8
+      })
+    } else if (mood2 === 'party') {
+      startDance(2.4)
+    } else if (mood2 === 'cozy') {
+      setAct('sleepy', 1.6)
+      squash.v += 1.5
+    } else {
+      setAct('happy', 1)
+      squash.v += 1.5
+    }
   }
 
   // ── Pointer: grab, fling, poke, feed, call ───────────────────────
@@ -884,6 +1285,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       squash.v += 3
       tuft.flick((Math.random() - 0.5) * 4, 2, 0)
       sound.squeak()
+      // The third poke in a row knocks off whatever Lim is wearing.
+      if (pokes.length === 3) for (const toy of toys) unwear(toy)
       // Keep poking and Lim puffs up… and up… and pops.
       if (pokes.length === 5) {
         happyUntil = t + 2
@@ -926,8 +1329,12 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       held = null
       wakeToy(toy)
       const near = Math.hypot(toy.jelly.center[0] - mouthAt[0], toy.jelly.center[1] - mouthAt[1])
-      if (toy.kind === 'bean' && !popped && sleep === 'awake' && near < 0.62) eat(toy)
-      else onTop(toy, false)
+      if (toy.has('edible') && !popped && sleep === 'awake' && near < 0.62) return eat(toy)
+      onTop(toy, false)
+      // Let go of a hat over Lim's head (or glasses over its eyes) and it goes on.
+      lim.attach(headTopRest, tmp)
+      const overHead = Math.hypot(toy.jelly.center[0] - tmp[0], toy.jelly.center[1] - tmp[1]) < 0.75
+      if (!popped && ((toy.has('hat') && overHead) || (toy.has('glasses') && near < 0.8))) wear(toy)
     },
   })
 
@@ -1008,7 +1415,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // Idle life: little unprompted beats so Lim never stands frozen.
     if (!busy && (mood === 'idle' || mood === 'happy') && sleep === 'awake' && !held && t > nextFidget) {
       const roll = Math.random()
-      if (roll < 0.2) jump(0, 3.4, 0)
+      const pals = toys.filter((toy) => toy.backAt < 0 && toy.eatenAt < 0 && !toy.has('scary') && !toy.has('prickly'))
+      const whim = Math.random()
+      if ((site || mods.weather || mods.gravity) && whim < 0.35) moodBeat()
+      else if (pals.length && whim < 0.7 && !errand && !keepy) {
+        // Play with something: whatever this item allows, short of eating it or putting it away.
+        const toy = pals[Math.floor(Math.random() * pals.length)]
+        const options = actionsFor(toy.spec).filter((a) => a !== 'remove' && a !== 'eat' && a !== 'nap' && !(a === 'wear' && toy.worn))
+        play(options[Math.floor(Math.random() * options.length)], toy)
+      } else if (roll < 0.2) jump(0, 3.4, 0)
       else if (roll < 0.42) {
         lim.attach(headTopRest, tmp)
         lim.impulse(tmp, [(Math.random() < 0.5 ? -1 : 1) * 2.2, 0, 0], 1.1)
@@ -1017,6 +1432,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       else if (roll < 0.8) {
         // Notice a toy.
         const toy = toys[Math.floor(Math.random() * toys.length)]
+        if (!toy) return
         wander.x = THREE.MathUtils.clamp((toy.jelly.center[0] - lim.center[0]) / 1.4, -1, 1)
         wander.y = -0.55
         wander.until = t + 1.6
@@ -1032,7 +1448,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
 
     // Ignored for a while: a yawn, then a nap.
-    if (sleep === 'awake' && mood === 'idle' && !busy && !popped && !held && t - lastActive > (night ? 24 : 50)) nod('sleepy')
+    if (sleep === 'awake' && mood === 'idle' && !busy && !popped && !held && t - lastActive > (night || site?.mood === 'cozy' ? 24 : 50)) nod('sleepy')
     if (sleep !== 'awake' && (mood !== 'idle' || grabbed)) active(grabbed)
     if (sleep === 'asleep' && t > nextZ) {
       emote('z')
@@ -1090,7 +1506,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           squash.v += 2.6
           tuft.flick(-side * 4, 0, 0)
           toys.forEach((toy, i) => {
-            if (toy.backAt >= 0 || toy.eatenAt >= 0 || (i + step / 2) % 2) return
+            if (toy.backAt >= 0 || toy.eatenAt >= 0 || toy.worn || (i + step / 2) % 2) return
             wakeToy(toy)
             toy.jelly.kick(0, 3.4, 0)
             toy.jelly.spin(0, 0, side * 1.6)
@@ -1199,6 +1615,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         if (dist >= min || dist < 1e-4) continue
         // Lim opens wide for a bean in hand; don't shove it away from the mouth.
         if ((A === lim && ib.toy === held) || (B === lim && ia.toy === held)) continue
+        // Nor the ball mid keepy-uppy: the header does that job.
+        if (keepy && A === lim && ib.toy === keepy.toy) continue
         if (ia.toy) wakeToy(ia.toy)
         if (ib.toy) wakeToy(ib.toy)
         const nx = dx / dist
@@ -1211,9 +1629,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         B.translate(nx * pen * wb, ny * pen * wb, nz * pen * wb)
         // Nothing gets pressed through the floor (a sleeping toy has no sim to push it back up).
         for (const body of [A, B]) {
-          let low = 0
+          const ground = body.floor ?? 0
+          let low = ground
           for (let i = 1; i < body.x.length; i += 3) if (body.x[i] < low) low = body.x[i]
-          if (low < 0) body.translate(0, -low, 0)
+          if (low < ground) body.translate(0, ground - low, 0)
         }
         A.velocity(tmp)
         B.velocity(tmp2)
@@ -1223,6 +1642,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         A.kick(-nx * j * wa, -ny * j * wa, -nz * j * wa)
         B.kick(nx * j * wb, ny * j * wb, nz * j * wb)
         // Something small hitting Lim leaves a dent that rings, not a shove.
+        if (A === lim && ib.toy?.has('prickly') && j > 1 && t - lastOuch > 1.4 && !grabbed) ouch(ib.toy)
         if (A === lim && j > 2) {
           const cx = A.center[0] + nx * ia.r
           const cy = A.center[1] - low + ny * ia.r
@@ -1283,7 +1703,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   /** A bean held close enough to the open mouth gets snatched out of your hand. */
   const snatch = () => {
-    if (!held || held.kind !== 'bean' || popped || sleep !== 'awake' || grabbed) return
+    if (!held || !held.has('edible') || popped || sleep !== 'awake' || grabbed) return
     const d = Math.hypot(held.jelly.center[0] - mouthAt[0], held.jelly.center[1] - mouthAt[1])
     if (d > 0.8) {
       nearSince = d < 1.7 ? nearSince : t
@@ -1307,10 +1727,30 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         continue
       }
       if (toy.eatenAt >= 0) toy.jelly.scale = Math.max(0.05, 1 - (t - toy.eatenAt) / 0.24)
+      if (toy.worn && toy.jelly.anchor) {
+        // Worn things are sprung to their spot on Lim, so they wobble along.
+        lim.attach(toy.worn === 'hat' ? [0, 0.84 + toy.half[1], 0.02] : [0, anchors.eyeY + 0.01, eyeL.p[2] + 0.2], toy.jelly.anchor.target)
+        for (let k = 0; k < 4; k++) toy.jelly.uprightTarget[k] = lim.rotation[k]
+      }
+      if (toy.has('glowing') && t > toy.nextFx && !reducedMotion) {
+        toy.nextFx = t + 1.1 + Math.random() * 1.4
+        sparkle(toy.jelly.center[0], toy.jelly.center[1] + toy.r * 0.6, toy.jelly.center[2] + 0.2, 2, 0.35)
+      }
+      // Floaty things hover at head height instead of escaping to the ceiling.
+      if (toy.has('floaty') && !toy.worn && toy.eatenAt < 0 && toy !== held) {
+        toy.jelly.gravity[1] = THREE.MathUtils.clamp((1.35 + toy.r - toy.jelly.center[1]) * 7, -4, 4) + Math.sin(t * 1.3 + toy.r * 40) * 0.5
+        toy.asleep = false
+      }
       if (toy.asleep) continue
       toy.jelly.step(dt)
       toy.jelly.velocity(tmp)
-      const calm = toy.jelly.contacts > 0 && Math.hypot(tmp[0], tmp[1], tmp[2]) < 0.06 && toy !== held && toy.eatenAt < 0
+      // Bouncy things give back most of a fall.
+      if (toy.has('bouncy') && toy.jelly.contacts > 0 && toy.lastVy < -2.2 && toy !== held && !toy.worn) {
+        toy.jelly.kick(0, -toy.lastVy * 0.72, 0)
+        tmp[1] = -toy.lastVy * 0.72
+      }
+      toy.lastVy = toy.jelly.contacts > 0 ? 0 : tmp[1]
+      const calm = toy.jelly.contacts > 0 && Math.hypot(tmp[0], tmp[1], tmp[2]) < 0.06 && toy !== held && toy.eatenAt < 0 && !toy.worn
       toy.still = calm ? toy.still + dt : 0
       if (toy.still > 0.7) toy.asleep = true
     }
@@ -1323,7 +1763,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       return k < 1.1 ? 'grabbed' : k < 2.4 ? 'worried' : 'ooh'
     }
     if (act && t < act.until) return act.face
-    if (held && held.kind === 'bean' && sleep === 'awake') {
+    if (held && held.has('edible') && sleep === 'awake') {
       const d = Math.hypot(held.jelly.center[0] - mouthAt[0], held.jelly.center[1] - mouthAt[1])
       if (d < 1.7) return 'aah'
     }
@@ -1433,7 +1873,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       : t < dizzyUntil ? Math.sin(t * 3.1) * 0.16
       : mood === 'thinking' ? thinkSide * 0.1
       : 0
-    lean.roll = ease(lean.roll, -lean.yaw * 0.3 + (dance?.lean ?? 0) + sway + (t < chewUntil ? -chewSide * 0.07 : 0), dance ? 14 : 5, dt)
+    lean.roll = ease(lean.roll, -lean.yaw * 0.3 + (dance?.lean ?? 0) + sway + (t < chewUntil ? -chewSide * 0.07 : 0) + (t < hugUntil ? hugSide * 0.2 : 0), dance ? 14 : 5, dt)
     // Flips and pirouettes are rigid turns of the whole body (so nothing
     // twists or creases), with the upright target turning in step. The flip
     // is an aerial cartwheel: Lim's face stays toward you all the way round.
@@ -1621,6 +2061,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (dt > 0) {
       t += dt
       u.time.value = t
+      pu.time.value = t
       for (let i = queue.length - 1; i >= 0; i--) {
         if (queue[i].at <= t) queue.splice(i, 1)[0].fn()
       }
@@ -1628,6 +2069,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         minisBrain()
         for (const m of minis!) m.jelly.step(dt)
       } else {
+        pastimes()
         brain(dt)
         lim.step(dt)
       }
@@ -1656,6 +2098,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
       updateCamera(dt)
     }
+    easePlace(pu, site, dt > 0 ? 1 - Math.exp(-3.5 * dt) : 1)
     updateFace(dt)
     tuft.scale = topY < 3 ? 0.62 : 1
     tuft.slack = flip || spin ? 0.3 : 1
@@ -1674,10 +2117,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     updateMinis()
     for (const toy of toys) {
       if (toy.asleep && !first) continue
-      skinJelly(toy.geo, toy.jelly, 0.045, 0)
+      skinJelly(toy.geo, toy.jelly, 0.045, toy.jelly.floor)
       syncJellyGeometry(toy.geo)
-      updateShadow(toy.shadow, toy.jelly, 0.9 * toy.jelly.scale, 0.24)
+      toy.extras.update(toy.jelly)
+      toy.shadow.mesh.visible = !toy.worn && toy.mesh.visible
+      updateShadow(toy.shadow, toy.jelly, 3.4 * toy.r * toy.jelly.scale, 0.24)
     }
+    const hatOn = toys.some((toy) => toy.worn === 'hat')
+    if (!popped) tuftMesh.visible = tuftHull.visible = !hatOn
+    weather.step(dt, t, { w: reach, h: topY }, camera, 0)
     renderer.render(scene, camera)
     if (import.meta.env.DEV) (window as { __limFrame?: () => void }).__limFrame?.()
     if (opts.onAnchor) {
@@ -1696,11 +2144,16 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
   }
 
-  // Start each toy's geometry at its slot (the shared rest got translated).
+  // Starter toys (or whatever was here last visit) drop in one after another.
+  ;(opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]).slice(0, MAX_ITEMS).forEach((spec, i) => {
+    addToy(spec, !opts.world, reducedMotion ? 0 : 1.2 + i * 0.45)
+  })
   for (const toy of toys) {
     skinJelly(toy.geo, toy.jelly, 0.045, 0)
     syncJellyGeometry(toy.geo)
+    toy.extras.update(toy.jelly)
   }
+  applyPlace()
   await renderer.compileAsync(scene, camera)
   stage.start(frame)
   if (!reducedMotion) {
@@ -1736,7 +2189,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       stage.requestRender()
     },
     setNight(next) {
-      u.night.value = next ? 1 : 0
+      u.night.value = next || air().dark ? 1 : 0
       if (next !== night && !reducedMotion && t > 0.5) {
         active()
         if (next) {
@@ -1787,6 +2240,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       if (popped) return
       jump(0, wide ? 5.2 : 4.2, 0)
       for (const toy of toys) {
+        if (toy.worn || toy.backAt >= 0) continue
         wakeToy(toy)
         toy.jelly.kick((Math.random() - 0.5) * 2, 4 + Math.random() * 2, 0)
       }
@@ -1814,7 +2268,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         emote('party!')
       } else if (kind === 'pop') later(0.3, pop)
       else if (kind === 'jump') {
-        jump(0, Math.min(9.2, Math.sqrt(2 * G * Math.max(0.2, topY - 3.35))), 0, 0.2)
+        jump(0, Math.min(9.2, Math.sqrt(2 * grav() * Math.max(0.2, topY - 3.35))), 0, 0.2)
         setAct('whee', 1.5)
         emote('whee!')
       } else if (kind === 'love') {
@@ -1870,6 +2324,74 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         squash.v += 2
       }
     },
+    addItem(spec, then) {
+      // Room for one more: the oldest thing not being worn makes way.
+      const live = toys.filter((toy) => toy.backAt < 0 && !toy.worn)
+      if (live.length >= MAX_ITEMS) removeToy(live[0], true)
+      const toy = addToy(spec, false, spec.traits.includes('floaty') ? 1.4 : topY + 0.5)
+      active(true)
+      greet(toy, then)
+      changed()
+      stage.requestRender()
+    },
+    setPlace(spec) {
+      if (spec?.name === site?.name && Boolean(spec) === Boolean(site) && Object.keys(mods).length === 0) return
+      site = spec
+      // A new place brings its own air.
+      mods = {}
+      applyPlace()
+      changed()
+      stage.requestRender()
+      if (reducedMotion) return
+      active(true)
+      // Look around at the new place, then feel it.
+      setAct('ooh', 1.2)
+      wander.x = 0.3
+      wander.y = 0.9
+      wander.until = t + 1.2
+      look.at = -10
+      squash.v += 3
+      sound.whoosh()
+      if (spec) later(1.4, moodBeat)
+    },
+    tweak(set) {
+      mods = { ...mods, ...set }
+      applyPlace()
+      changed()
+      stage.requestRender()
+      if (reducedMotion) return
+      active(true)
+      setAct('ooh', 1)
+      wander.x = 0
+      wander.y = 0.9
+      wander.until = t + 1
+      look.at = -10
+      later(1.1, moodBeat)
+    },
+    act(action, target) {
+      const name = target.trim().toLowerCase()
+      const live = toys.filter((toy) => toy.backAt < 0 && toy.eatenAt < 0)
+      const toy =
+        !name || name === 'it' || name === 'that'
+          ? live[live.length - 1]
+          : (live.find((x) => x.spec.name === name) ?? live.find((x) => x.spec.name.includes(name) || name.includes(x.spec.name)))
+      if (!toy) return false
+      if (reducedMotion) {
+        if (action === 'remove') removeToy(toy, false)
+        else if (action === 'wear' && (toy.has('hat') || toy.has('glasses'))) wear(toy)
+        stage.requestRender()
+        return true
+      }
+      play(action, toy)
+      return true
+    },
+    clear(what) {
+      if (what !== 'place') for (const toy of [...toys]) removeToy(toy, true)
+      if (what !== 'items') api.setPlace(null)
+      changed()
+      stage.requestRender()
+    },
+    world: worldNow,
     dispose() {
       clearTimeout(cheerTimer)
       host.removeEventListener('pointerdown', onTap)
