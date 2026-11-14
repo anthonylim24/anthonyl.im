@@ -8,9 +8,18 @@
  * body's best-fit rotation + (volume-normalised) stretch, so the blob jiggles,
  * squashes on the floor, stretches when grabbed, and always springs back.
  *
+ * Contacts are solved the position-based way, in small steps: every step
+ * projects particles out of the floor and out of any static colliders
+ * (physics.ts), takes velocities from the corrected positions, then rubs the
+ * touching particles (friction, which is also what makes a ball roll and
+ * spin) and gives the body back a share of its approach speed (restitution).
+ * A fast body takes more, smaller steps, and an inner core sphere is kept out
+ * of every collider, so nothing tunnels through a thin rim or post.
+ *
  * Pure math on typed arrays: no GPU, no three.js, unit-testable. `x` can be
  * handed to a BufferAttribute directly (see jellyMesh.ts).
  */
+import { sdf, type Collider } from './physics'
 
 export type Vec3 = [number, number, number]
 
@@ -32,9 +41,13 @@ export type JellyOptions = {
    */
   maxStray?: number
   substeps?: number
+  /** Share of the approach speed given back by a bounce (0 = none; the floor and each collider scale it). */
+  restitution?: number
 }
 
 const EPS = 1e-9
+const NO_COLLIDERS: readonly Collider[] = []
+const MAX_STEPS = 8
 
 export class Jelly {
   readonly count: number
@@ -72,8 +85,27 @@ export class Jelly {
   friction: number
   maxStray: number
   substeps: number
+  restitution: number
+  /** Slower approaches than this do not bounce (the body just settles). */
+  bounceMin = 1.5
+  /** Static shapes to stay out of. Shared, not copied: the owner may move them. */
+  colliders: readonly Collider[] = NO_COLLIDERS
+  /** Radius of an inner sphere that is never allowed inside a collider (0 = off). */
+  core = 0
+  /** Furthest the body may travel in one small step; a fast body takes more steps. */
+  maxTravel = Infinity
+  /** Particles touching a collider in the last step. */
+  touching = 0
+  /** Hardest approach speed into a floor or collider since the owner last cleared it. */
+  impact = 0
 
   private readonly q: Float32Array
+  /** Furthest rest particle from the centroid: with `scale`, a bounding sphere. */
+  private readonly span: number
+  /** Per particle: the contact normal, and how much tangential velocity the contact keeps (0 = not touching). */
+  private readonly cn: Float32Array
+  private readonly cf: Float32Array
+  private readonly sN: Vec3 = [0, 0, 0]
   private readonly rest0: Vec3
   private readonly aqq: number[]
   private readonly p: Float32Array
@@ -105,6 +137,9 @@ export class Jelly {
     this.friction = opts.friction ?? 0.6
     this.maxStray = opts.maxStray ?? Infinity
     this.substeps = opts.substeps ?? 3
+    this.restitution = opts.restitution ?? 0
+    this.cn = new Float32Array(this.count * 3)
+    this.cf = new Float32Array(this.count)
 
     const c = centroid(this.x, this.count)
     this.rest0 = c
@@ -124,6 +159,48 @@ export class Jelly {
       s[6] += qz * qx; s[7] += qz * qy; s[8] += qz * qz
     }
     this.aqq = invert3(s)
+    let span = 0
+    for (let i = 0; i < this.count * 3; i += 3) span = Math.max(span, Math.hypot(this.q[i], this.q[i + 1], this.q[i + 2]))
+    this.span = span
+  }
+
+  /** Turning rate about the centroid (rad/s, world axes), as if the body were a rigid shell. */
+  angularVelocity(out: Vec3 = [0, 0, 0]): Vec3 {
+    const { x, v, count } = this
+    const [cx, cy, cz] = this.center
+    let mx = 0
+    let my = 0
+    let mz = 0
+    for (let i = 0; i < count * 3; i += 3) {
+      mx += v[i]
+      my += v[i + 1]
+      mz += v[i + 2]
+    }
+    mx /= count
+    my /= count
+    mz /= count
+    let lx = 0
+    let ly = 0
+    let lz = 0
+    let r2 = 0
+    for (let i = 0; i < count * 3; i += 3) {
+      const rx = x[i] - cx
+      const ry = x[i + 1] - cy
+      const rz = x[i + 2] - cz
+      const vx = v[i] - mx
+      const vy = v[i + 1] - my
+      const vz = v[i + 2] - mz
+      lx += ry * vz - rz * vy
+      ly += rz * vx - rx * vz
+      lz += rx * vy - ry * vx
+      r2 += rx * rx + ry * ry + rz * rz
+    }
+    // Σ r × (ω × r) over a shell is ⅔ ω Σ|r|².
+    const k = r2 > EPS ? 1.5 / r2 : 0
+    out[0] = lx * k
+    out[1] = ly * k
+    out[2] = lz * k
+    return out
   }
 
   /** Mean distance of particles from the centroid. */
@@ -280,14 +357,23 @@ export class Jelly {
 
   step(dt: number) {
     if (dt <= 0) return
-    const n = Math.max(1, this.substeps)
+    let n = Math.max(1, this.substeps)
+    if (this.maxTravel < Infinity) {
+      // Small steps: never further than `maxTravel` at a time, so thin things are not stepped over.
+      this.velocity(this.sVbar)
+      const far = Math.hypot(this.sVbar[0], this.sVbar[1], this.sVbar[2]) * dt
+      n = Math.min(MAX_STEPS, Math.max(n, Math.ceil(far / this.maxTravel)))
+    }
     const h = dt / n
     const pull = 1 - Math.pow(1 - Math.min(0.999, this.stiffness), h * 60)
     const rightBy = this.upright > 0 ? 1 - Math.pow(1 - Math.min(0.999, this.upright), h * 60) : 0
     const goalRot = this.sGoal
     const keep = Math.exp(-this.damping * h)
     const slide = Math.pow(this.friction, h * 60)
-    const { x, v, p, q, count } = this
+    const { x, v, p, q, count, cn, cf } = this
+    const colliders = this.colliders
+    const reach = this.span * this.scale * Math.max(this.squash[0], this.squash[1], this.squash[2]) * 1.3 + 0.05
+    const N = this.sN
     const [gx, gy, gz] = this.gravity
     const vbar = this.sVbar
     const apq = this.sApq
@@ -306,10 +392,17 @@ export class Jelly {
         ay += k * (target[1] - this.center[1]) - c * vbar[1]
         az += k * (target[2] - this.center[2]) - c * vbar[2]
       }
+      // Mean velocity going into the step: what a bounce is measured against.
+      let ux = 0
+      let uy = 0
+      let uz = 0
       for (let i = 0; i < count * 3; i += 3) {
         v[i] += ax * h
         v[i + 1] += ay * h
         v[i + 2] += az * h
+        ux += v[i]
+        uy += v[i + 1]
+        uz += v[i + 2]
         p[i] = x[i] + v[i] * h
         p[i + 1] = x[i + 1] + v[i + 1] * h
         p[i + 2] = x[i + 2] + v[i + 2] * h
@@ -384,29 +477,123 @@ export class Jelly {
         p[j + 2] += (pin.target[2] - p[j + 2]) * pin.k
       }
 
-      // Floor contact, then velocities from the corrected positions.
+      // Contacts: out of every collider, then the floor (which always wins).
+      let nx = 0
+      let ny = 0
+      let nz = 0
+      let depth = 0
+      let spring = 0
+      let touching = 0
+      cf.fill(0)
+      for (let k = 0; k < colliders.length; k++) {
+        const col = colliders[k]
+        col.touch = false
+        if (!col.on) continue
+        const far = reach + col.reach
+        const bx = c[0] - col.centre[0]
+        const by = c[1] - col.centre[1]
+        const bz = c[2] - col.centre[2]
+        if (bx * bx + by * by + bz * bz > far * far) continue
+        const keepT = Math.pow(col.friction, h * 60)
+        for (let i = 0, j = 0; i < count * 3; i += 3, j++) {
+          const d = sdf(col, p[i], p[i + 1], p[i + 2], N)
+          if (d >= 0) continue
+          p[i] -= N[0] * d
+          p[i + 1] -= N[1] * d
+          p[i + 2] -= N[2] * d
+          cn[i] = N[0]
+          cn[i + 1] = N[1]
+          cn[i + 2] = N[2]
+          cf[j] = keepT
+          nx -= N[0] * d
+          ny -= N[1] * d
+          nz -= N[2] * d
+          depth -= d
+          spring -= d * col.bounce
+          touching++
+          col.touch = true
+        }
+        // The core: the whole body backs out before its middle can pass through.
+        if (this.core > 0) {
+          const d = sdf(col, c[0], c[1], c[2], N) - this.core * this.scale
+          if (d < 0) {
+            for (let i = 0; i < count * 3; i += 3) {
+              p[i] -= N[0] * d
+              p[i + 1] -= N[1] * d
+              p[i + 2] -= N[2] * d
+            }
+            const w = -d * count
+            nx += N[0] * w
+            ny += N[1] * w
+            nz += N[2] * w
+            depth += w
+            spring += w * col.bounce
+            col.touch = true
+          }
+        }
+      }
       let contacts = 0
       const floor = this.floor
-      for (let i = 0; i < count * 3; i += 3) {
-        let touching = false
-        if (floor !== null && p[i + 1] < floor) {
+      if (floor !== null) {
+        for (let i = 0, j = 0; i < count * 3; i += 3, j++) {
+          if (p[i + 1] >= floor) continue
+          const d = floor - p[i + 1]
           p[i + 1] = floor
-          touching = true
+          cn[i] = 0
+          cn[i + 1] = 1
+          cn[i + 2] = 0
+          cf[j] = slide
+          ny += d
+          depth += d
+          spring += d
           contacts++
         }
-        v[i] = ((p[i] - x[i]) / h) * keep
-        v[i + 1] = ((p[i + 1] - x[i + 1]) / h) * keep
-        v[i + 2] = ((p[i + 2] - x[i + 2]) / h) * keep
-        if (touching) {
-          v[i] *= slide
-          v[i + 2] *= slide
-          if (v[i + 1] < 0) v[i + 1] = 0
+      }
+
+      // Velocities from the corrected positions; touching particles lose their
+      // approach and some of their slide (friction, and so rolling).
+      for (let i = 0, j = 0; i < count * 3; i += 3, j++) {
+        let vx = ((p[i] - x[i]) / h) * keep
+        let vy = ((p[i + 1] - x[i + 1]) / h) * keep
+        let vz = ((p[i + 2] - x[i + 2]) / h) * keep
+        const kt = cf[j]
+        if (kt > 0) {
+          const vn = vx * cn[i] + vy * cn[i + 1] + vz * cn[i + 2]
+          const out = vn > 0 ? vn : 0
+          vx = (vx - vn * cn[i]) * kt + out * cn[i]
+          vy = (vy - vn * cn[i + 1]) * kt + out * cn[i + 1]
+          vz = (vz - vn * cn[i + 2]) * kt + out * cn[i + 2]
         }
+        v[i] = vx
+        v[i + 1] = vy
+        v[i + 2] = vz
         x[i] = p[i]
         x[i + 1] = p[i + 1]
         x[i + 2] = p[i + 2]
       }
       this.contacts = contacts
+      this.touching = touching
+
+      // Restitution, for the body as a whole: shape matching would swallow a
+      // per-particle bounce, so the body gets back a share of the speed it
+      // arrived with, along the mean contact normal.
+      const nl = Math.hypot(nx, ny, nz)
+      if (depth > 0 && nl > EPS) {
+        nx /= nl
+        ny /= nl
+        nz /= nl
+        const approach = -(ux * nx + uy * ny + uz * nz) / count
+        if (approach > this.bounceMin) {
+          if (approach > this.impact) this.impact = approach
+          for (let k = 0; k < colliders.length; k++) if (colliders[k].touch && approach > colliders[k].hit) colliders[k].hit = approach
+          const e = this.restitution * (spring / depth)
+          if (e > 0 && this.pins.size === 0) {
+            this.velocity(vbar)
+            const dv = e * approach - (vbar[0] * nx + vbar[1] * ny + vbar[2] * nz)
+            if (dv > 0) this.kick(nx * dv, ny * dv, nz * dv)
+          }
+        }
+      }
     }
     centroid(x, count, this.center)
   }

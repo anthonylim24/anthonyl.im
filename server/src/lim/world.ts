@@ -14,13 +14,14 @@
 export const ITEM_IDS = [
   "bean", "gumball", "ball", "apple", "donut", "cupcake", "chili", "party hat", "crown", "sunglasses",
   "teddy", "pillow", "drum", "balloon", "duck", "cactus", "ghost", "ice cube", "star", "heart",
+  "basketball", "soccer ball", "hoop", "goal",
 ] as const;
 export const PLACE_IDS = ["beach", "snow", "space", "meadow", "underwater", "volcano", "haunted", "disco"] as const;
 export const SHAPES = ["ball", "box", "cylinder", "cone", "disc", "drop", "star", "heart", "bean", "ring"] as const;
 export const TRAITS = [
-  "edible", "bouncy", "heavy", "floaty", "hat", "glasses", "soft", "cozy", "musical", "scary", "hot", "cold", "glowing", "prickly",
+  "edible", "bouncy", "heavy", "floaty", "hat", "glasses", "soft", "cozy", "musical", "scary", "hot", "cold", "glowing", "prickly", "hoop", "goal",
 ] as const;
-export const ACTIONS = ["look", "kick", "bounce", "eat", "wear", "hug", "nap", "dance", "remove"] as const;
+export const ACTIONS = ["look", "kick", "bounce", "eat", "wear", "hug", "nap", "dance", "remove", "shoot"] as const;
 
 /** How a world order starts. The page watches the stream for it. */
 export const WORLD_MARK = "@@world";
@@ -54,6 +55,8 @@ ${RULES}
 Keep it friendly for all ages: no realistic weapons, gore, or anything sexual or hateful. Offer a silly harmless version instead (a foam sword, a squirt toy).
 
 ${EXAMPLES}
+Visitor: "let's play basketball" (with nothing for it in the world) ->
+${WORLD_MARK} {"ops":[{"op":"item","id":"hoop"},{"op":"item","id":"basketball","then":"shoot"}],"reply":"Game on! Watch my jump shot."}
 Visitor: "kick it" (with a ball in the world) ->
 ${WORLD_MARK} {"ops":[{"op":"act","action":"kick","target":"ball"}],"reply":"Watch this!"}
 Visitor: "Can you give me a quick summary of his background?" ->
@@ -68,6 +71,7 @@ const RULES = `ops: 0 to 3 entries, in order.
 - {"op":"tweak","set":{"weather":"rain"}} changes the air without going anywhere. "set" may hold any of: "weather" (none|snow|rain|bubbles|leaves|petals|fireflies|embers), "weatherColor", "gravity" (0.25-1.4), "slippery", "dark". Use it for "make it rain", "low gravity", "make it night".
 - {"op":"act","action":ACTION,"target":"<name of an item in the world>"}. "remove" puts an item away, or takes it off if Lim is wearing it.
 - {"op":"clear","what":"items"|"place"|"all"}
+- Sports: "hoop" (a basketball hoop) and "goal" (a soccer goal) stand at the edge of the stage and keep score. "shoot" has Lim shoot a ball at them (target: the ball). For "play basketball" give whichever of hoop and basketball is not in the world yet, the ball with "then":"shoot"; if both are there, {"op":"act","action":"shoot","target":"basketball"}. Soccer is the same with goal and soccer ball.
 
 Catalog items: ${ITEM_IDS.join(", ")}.
 Catalog places: ${PLACE_IDS.join(", ")}, studio.
@@ -75,15 +79,17 @@ Use a catalog id when one fits what was asked. Otherwise invent a spec.
 Do only what the message asks: no extra ops, and never a place op unless the message asks to go somewhere.
 
 ITEM = {"name":"1-3 words","size":0.8-1.7,"traits":[...],"face":-1,"parts":[PART,...]}
-PART = {"shape":S,"color":"#RRGGBB","at":[x,y,z],"scale":[x,y,z],"tilt":degrees}
+PART = {"shape":S,"color":"#RRGGBB","at":[x,y,z],"scale":[x,y,z],"tilt":degrees,"paint":"plain|seams|patches|stripes|spots","ink":"#RRGGBB"}
 - 1 to 6 parts. The first part is the body, at [0,0,0]. Other parts are placed relative to it in body radii: x right, y up, z toward the viewer. "scale" is each part's half-size in body radii (the body is about [1,1,1]). "tilt" leans a part left/right.
 - S is one of: ${SHAPES.join(", ")}. cone points up; disc lies flat like a plate; ring faces the viewer like a donut; drop is a teardrop, point up.
 - traits, any that apply (they decide what Lim can do with it): ${TRAITS.join(", ")}. "hat" sits on Lim's head, "glasses" on its face, "cozy" is for napping on. "floaty" is ONLY for things that hang in the air by themselves (balloon, cloud, bubble, ghost, kite); everything else rests on the floor.
 - Parts may not hang below the body by much: put the biggest, lowest part first.
+- "paint" is optional: a pattern drawn on the part in the "ink" colour (seams like a basketball, patches like a soccer ball, stripes like a beach ball, spots like a ladybird). Leave both out for a plain part. Never give an invented item the "hoop" or "goal" trait.
 - "face": index of a part to give two cute eyes (animals, creatures), or -1.
 - Look: chunky, simple, cute; soft candy colours (no pure black, no neon). Use 3 to 6 parts so the thing is recognisable from its silhouette: think toy blocks. Give animals and creatures a head part and set "face" to its index.
 
-PLACE = {"name":"1-2 words","sky":["#top","#bottom"],"floor":"#hex","dots":"#hex","rug":"#hex","pattern":"dots|stripes|checks|waves|plain","horizon":"none|hills|dunes|waves|mountains|city|trees|wall","horizonColor":"#hex","orb":"none|sun|moon|planet","orbColor":"#hex","stars":false,"weather":"none|snow|rain|bubbles|leaves|petals|fireflies|embers","weatherColor":"#hex","gravity":1,"slippery":false,"dark":false,"mood":"calm|cozy|cold|hot|floaty|wet|spooky|party"}
+PLACE = {"name":"1-2 words","sky":["#top","#bottom"],"floor":"#hex","dots":"#hex","rug":"#hex","pattern":"dots|stripes|checks|waves|plain","horizon":"none|hills|dunes|waves|mountains|city|trees|wall","horizonColor":"#hex","orb":"none|sun|moon|planet","orbColor":"#hex","stars":false,"weather":"none|snow|rain|bubbles|leaves|petals|fireflies|embers","weatherColor":"#hex","gravity":1,"slippery":false,"dark":false,"mood":"calm|cozy|cold|hot|floaty|wet|spooky|party","scenery":["trees","clouds"]}
+- "scenery": 2 to 5 kinds of landscape that stand behind the stage, from: clouds, trees, pines, palms, rocks, flowers, mushrooms, cacti, volcano, coral, seaweed, fish, craters, buildings, spotlights, graves, deadtrees, snowmen, mist. Pick what belongs there (a jungle: trees, palms, flowers, mist).
 - gravity 0.25 (floaty) to 1.4 (heavy). "dark": true for night scenes. "dots" is the floor pattern colour (different from "floor"), "rug" the mat Lim stands on.
 - Make it feel like somewhere: pick a horizon ("wall" for indoor rooms, never "none" outdoors), a sky gradient with two different colours, weather when it suits, and a mood.
 

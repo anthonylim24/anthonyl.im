@@ -668,6 +668,51 @@ export const chatbot = stylex.create({
     color: 'var(--chat-soft)',
   },
   toyChips: { display: 'flex', flexWrap: 'wrap', gap: '8px', marginBlockEnd: '14px' },
+  // Toys: a picture of the real model on top, the name below.
+  toyGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))',
+    gap: '8px',
+    marginBlockEnd: '14px',
+  },
+  toyCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '2px',
+    minWidth: 0,
+    padding: '8px 6px 9px',
+    borderRadius: '18px',
+    borderWidth: '1.5px',
+    borderStyle: 'solid',
+    borderColor: { default: 'transparent', ':hover': { default: null, [HOVER]: 'var(--chat-line)' } },
+    backgroundColor: { default: 'var(--chat-panel)', ':hover': { default: null, [HOVER]: 'var(--chat-chip-1)' } },
+    color: 'var(--chat-text)',
+    cursor: 'pointer',
+    transform: { default: null, ':hover': { default: null, [HOVER]: 'translateY(-2px)' }, ':active': 'scale(0.94)' },
+    transitionProperty: 'transform, background-color, border-color',
+    transitionDuration: '240ms',
+    transitionTimingFunction: SPRING,
+    ...focusRing,
+  },
+  toyPic: { position: 'relative', display: 'block', width: '64px', height: '64px' },
+  toyCanvas: { display: 'block', width: '64px', height: '64px' },
+  toyCanvasOff: { visibility: 'hidden' },
+  toySwatch: {
+    position: 'absolute',
+    inset: '18px',
+    borderRadius: '50%',
+    boxShadow: 'inset 0 0 0 1.5px rgba(43, 33, 64, 0.28)',
+  },
+  toyName: {
+    maxWidth: '100%',
+    fontFamily: DISPLAY,
+    fontWeight: 500,
+    fontSize: '13px',
+    lineHeight: 1.2,
+    textAlign: 'center',
+    overflowWrap: 'anywhere',
+  },
   toyChip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -857,7 +902,43 @@ const thoughtFloat = stylex.keyframes({
 })
 
 /** Lim's stage (LimStage.tsx): canvas, vector stand-in, head-anchored bubbles. */
+const scoreBump = stylex.keyframes({
+  '0%': { transform: 'scale(0.82)' },
+  '55%': { transform: 'scale(1.12)' },
+  '100%': { transform: 'scale(1)' },
+})
+
 export const stage = stylex.create({
+  // The game so far, when there is a hoop or a goal up.
+  score: {
+    position: 'absolute',
+    // Top centre on a desk; on a phone the hint lives there, so it sits in the bottom corner.
+    top: { default: 'auto', [DESK]: '18px' },
+    bottom: { default: '10px', [DESK]: 'auto' },
+    left: { default: '12px', [DESK]: '50%' },
+    translate: { default: 'none', [DESK]: '-50% 0' },
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    paddingBlock: '5px',
+    paddingInline: '14px',
+    borderRadius: '999px',
+    borderWidth: '1.5px',
+    borderStyle: 'solid',
+    borderColor: 'var(--chat-line)',
+    backgroundColor: 'var(--chat-card)',
+    color: 'var(--chat-mid)',
+    fontFamily: DISPLAY,
+    fontWeight: 500,
+    fontSize: '13px',
+    whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+    animationName: { default: scoreBump, [RM]: 'none' },
+    animationDuration: '420ms',
+    animationTimingFunction: EASE,
+  },
+  scoreNum: { fontWeight: 700, fontSize: '17px', color: 'var(--chat-text)', fontVariantNumeric: 'tabular-nums' },
+  scoreLim: { color: 'var(--chat-accent-deep)' },
   host: {
     position: 'absolute',
     inset: 0,

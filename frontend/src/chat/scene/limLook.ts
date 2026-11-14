@@ -41,6 +41,7 @@ import {
 } from 'three/tsl'
 import type { Node } from 'three/webgpu'
 import type { Vec3 } from '../../three/jelly'
+import type { Paint } from '../world/spec'
 
 export type F = Node<'float'>
 export type V2 = Node<'vec2'>
@@ -425,12 +426,47 @@ export function createEyeMaterial(lim: LimUniforms, side: number) {
 
 /* ── Toys, floor, shadows ────────────────────────────────────────── */
 
-export function toyMaterial(u: LimUniforms, hex: string, shadeHex: string) {
+// The twelve corners of an icosahedron: where a football's dark patches sit.
+const PHI = (1 + Math.sqrt(5)) / 2
+const ICO = [
+  [-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0], [0, -1, PHI], [0, 1, PHI],
+  [0, -1, -PHI], [0, 1, -PHI], [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1],
+].map(([x, y, z]) => new THREE.Vector3(x, y, z).normalize())
+
+/** How much of a second colour is painted at a direction from the part's centre (0..1). */
+export function paintMask(kind: Paint, d: V3): F {
+  const line = (x: F, w = 0.034) => aaStep(x.sub(w), 0.012)
+  if (kind === 'seams') {
+    // A basketball: the equator, the meridian, and a bowed seam either side of it.
+    const bowed = abs(abs(d.x).sub(d.y.mul(d.y).mul(0.2).add(0.6)))
+    return max(max(line(abs(d.y)), line(abs(d.x))), line(bowed))
+  }
+  if (kind === 'stripes') return aaStep(abs(fract(d.y.mul(2.2).add(0.25)).sub(0.5)).sub(0.25), 0.02)
+  if (kind === 'patches' || kind === 'spots') {
+    let best: F = float(-1)
+    let second: F = float(-1)
+    for (const v of ICO) {
+      const k = dot(d, vec3(v.x, v.y, v.z))
+      second = max(second, min(best, k))
+      best = max(best, k)
+    }
+    // A pentagon is where one corner beats its neighbours by a margin; a spot is just near a corner.
+    return kind === 'spots' ? aaStep(float(0.9).sub(best), 0.012) : aaStep(float(0.3).sub(best.sub(second)), 0.012)
+  }
+  return float(0)
+}
+
+export type ToyPaint = { kind: Paint; ink: string; shade: string; dir: V3 }
+
+export function toyMaterial(u: LimUniforms, hex: string, shadeHex: string, paint?: ToyPaint) {
   const mat = new THREE.MeshBasicNodeMaterial()
   const n = normalize(normalView)
+  const mask = paint && paint.kind !== 'plain' ? paintMask(paint.kind, paint.dir) : null
+  const base = mask && paint ? mix(col(hex), col(paint.ink), mask) : col(hex)
+  const shade = mask && paint ? mix(col(shadeHex), col(paint.shade), mask) : col(shadeHex)
   mat.colorNode = gel(n, n, {
-    base: col(hex).mul(mix(float(1), float(0.8), u.night)),
-    shade: col(shadeHex).mul(mix(float(1), float(0.7), u.night)),
+    base: base.mul(mix(float(1), float(0.8), u.night)),
+    shade: shade.mul(mix(float(1), float(0.7), u.night)),
     light: col('#FFFFFF').mul(0.92),
     rim: mix(col('#FFFFFF'), col(PAL.nightRim), u.night),
     rimAmt: float(0.45),
@@ -532,6 +568,16 @@ export function rippleMaterial(u: LimUniforms) {
   mat.colorNode = mix(col('#FFFFFF'), col(PAL.nightRim), u.night)
   mat.opacityNode = band.mul(float(1).sub(k)).mul(0.75)
   return { mat, k }
+}
+
+/** A net: an open diamond lattice of cord (the rest is cut away), lit flat. `cells` is the mesh count across the uv square. */
+export function netMaterial(u: LimUniforms, hex: string, cells: [number, number]) {
+  const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, alphaTest: 0.5 })
+  const p = uv().mul(vec2(cells[0], cells[1]))
+  const cord = (x: F) => aaStep(abs(fract(x).sub(0.5)).sub(0.085), 0.02)
+  mat.colorNode = col(hex).mul(mix(float(1), float(0.72), u.night))
+  mat.opacityNode = max(cord(p.x.add(p.y)), cord(p.x.sub(p.y)))
+  return mat
 }
 
 /** A puff of floor dust: a soft-edged, mostly transparent disc lying on the floor. */
