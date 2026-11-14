@@ -298,7 +298,7 @@ export const ig = stylex.create({
   // Saved rows carry two actions: on a phone they drop under the text so
   // the name and address keep the full width.
   placeWrap: { [PHONE]: { display: "grid", gridTemplateColumns: "2.25rem minmax(0, 1fr)", columnGap: "0.75rem", rowGap: "0.25rem" } },
-  placeActionsWide: { [PHONE]: { gridColumnStart: "2", justifyContent: "space-between" } },
+  placeActionsWide: { [PHONE]: { gridColumnStart: "2", justifyContent: "space-between", marginLeft: "-0.5rem" } },
   added: {
     display: "inline-flex",
     alignItems: "center",

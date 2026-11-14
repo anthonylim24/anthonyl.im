@@ -1,4 +1,4 @@
-import { distanceMeters, locatedItems, type LngLat } from "../map/geo"
+import { distanceMeters, isLocated, locatedItems, splitDay, type LngLat } from "../map/geo"
 import { formatClock } from "../meta"
 import { formatDistance, formatWalkMinutes } from "../reservationView"
 import type { ItineraryItem, TripDay } from "../types"
@@ -18,7 +18,25 @@ export interface Stop extends LngLat {
   title: string
   /** A second line, only when the plan's wording says something the name doesn't. */
   plan?: string
+  /** On the day but not on its route yet: parked under "To schedule" (Instagram imports land there). */
+  parked: boolean
+  /** The Instagram post this place was saved from, when it has one. */
+  instagram?: string
   item: ItineraryItem
+}
+
+/** The first link that is an Instagram post, reel or profile; undefined otherwise. */
+export function instagramLink(item: Pick<ItineraryItem, "links">): string | undefined {
+  for (const link of item.links ?? []) {
+    try {
+      const url = new URL(link)
+      const host = url.hostname.toLowerCase().replace(/^www\./, "")
+      if (url.protocol === "https:" && (host === "instagram.com" || host === "instagr.am")) return url.toString()
+    } catch {
+      // Not a URL: not a link we can open.
+    }
+  }
+  return undefined
 }
 
 const fold = (text: string) =>
@@ -53,15 +71,38 @@ export function dayStops(day: TripDay): Stop[] {
     index,
     label: String(index + 1),
     ...stopNames(item.title, item.location?.name),
+    parked: false,
+    instagram: instagramLink(item),
     lat: item.location!.lat!,
     lng: item.location!.lng!,
     item,
   }))
 }
 
-/** The day list's own thresholds for its leg rows (workspace/DayPanel.tsx). */
+/**
+ * Located places parked under "To schedule". They stand on the map as
+ * secondary pins: no number, no leg, and the tour never visits them.
+ */
+export function parkedStops(day: TripDay): Stop[] {
+  return splitDay(day)
+    .parked.filter(isLocated)
+    .map((item, index) => ({
+      id: item.id,
+      index,
+      label: "",
+      ...stopNames(item.title, item.location.name),
+      parked: true,
+      instagram: instagramLink(item),
+      lat: item.location.lat,
+      lng: item.location.lng,
+      item,
+    }))
+}
+
+/** The day list's own thresholds for its leg rows (workspace/DayPanel.tsx): keep the two in step. */
 const LEG_MIN_M = 40
-const WALK_LIMIT_M = 4000
+/** Up to here a leg is a walk; past it the plan surely means a tram, and we say "ride". */
+const WALK_LIMIT_M = 2000
 
 export interface Leg {
   meters: number
@@ -130,6 +171,7 @@ export function tourStart(current: number | null, count: number): number | null 
 }
 
 export function announcement(stop: Stop, count: number): string {
+  if (stop.parked) return `To schedule: ${stop.title}`
   const time = formatClock(stop.item.time)
   return `Stop ${stop.index + 1} of ${count}: ${stop.title}${time ? `, ${time}` : ""}`
 }

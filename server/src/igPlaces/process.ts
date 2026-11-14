@@ -94,14 +94,14 @@ export function createProcessor(deps: ProcessorDeps) {
         await deps.log(job.id, 'extracting', 'info',
           `using Gemini primary extraction (${voted.length} place(s); bands: ` +
           voted.map(p => p.confidence_band).join(', ') + ')').catch(() => {});
-      } else if (job.skipVideo && deps.geminiPrimaryExtract) {
-        // Skip-video runs never get a video signal, so the gpt-oss-120b
-        // 3-vote extractor has only the caption to work with. Gemini with
-        // Maps grounding is a strictly better primary in that mode —
-        // single call, grounded against the live Maps index. gpt-oss-120b
-        // stays as the backup when Gemini returns 0.
+      } else if (deps.geminiPrimaryExtract) {
+        // Gemini with Maps grounding leads for every post: one call,
+        // checked against the live Maps index, over whatever the bundle
+        // holds (caption, comments, transcript, on-screen text). The
+        // gpt-oss-120b three-way vote is the backup when Gemini fails or
+        // finds nothing.
         await deps.log(job.id, 'extracting', 'info',
-          'skipVideo=true → trying Gemini w/ Maps grounding (caption-only primary)'
+          'trying Gemini w/ Maps grounding (primary)'
         ).catch(() => {});
         try {
           voted = await deps.geminiPrimaryExtract(bundle);
@@ -114,7 +114,7 @@ export function createProcessor(deps: ProcessorDeps) {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           await deps.log(job.id, 'extracting', 'warn',
-            `Gemini skip-video primary failed: ${msg}; falling back to gpt-oss-120b`
+            `Gemini primary failed: ${msg}; falling back to gpt-oss-120b`
           ).catch(() => {});
           voted = [];
         }

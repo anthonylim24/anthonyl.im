@@ -7,6 +7,8 @@ import {
   announcement,
   dayMeters,
   dayStops,
+  instagramLink,
+  parkedStops,
   distanceToStops,
   formatDistance,
   isNearby,
@@ -68,6 +70,53 @@ describe("names", () => {
   })
 })
 
+describe("parked places and Instagram", () => {
+  const withParked: TripDay = {
+    id: "d2",
+    date: "2026-12-05",
+    items: [
+      place("a", "Pastéis de Belém", 38.6975, -9.2033, "09:30"),
+      { ...place("b", "Jerónimos Monastery", 38.6979, -9.2068), links: ["https://www.instagram.com/p/C8abc123/"] },
+      makeItem({ id: "sec", kind: "section", title: "To schedule" }),
+      { ...place("p1", "Miradouro de Santa Catarina", 38.7096, -9.1474), links: ["https://example.com/x", "https://instagram.com/reel/DAxyz987/"] },
+      makeItem({ id: "p2", title: "Somewhere without a pin" }),
+      place("p3", "LX Factory", 38.7036, -9.1787),
+    ],
+  }
+
+  it("keeps parked places off the numbered route", () => {
+    expect(dayStops(withParked).map((s) => [s.id, s.label, s.parked])).toEqual([
+      ["a", "1", false],
+      ["b", "2", false],
+    ])
+  })
+
+  it("lists located parked places, unnumbered", () => {
+    const parked = parkedStops(withParked)
+    expect(parked.map((s) => [s.id, s.label, s.parked])).toEqual([
+      ["p1", "", true],
+      ["p3", "", true],
+    ])
+    expect(parkedStops(day)).toEqual([])
+    expect(announcement(parked[0]!, 2)).toBe("To schedule: Miradouro de Santa Catarina")
+  })
+
+  it("finds the Instagram post on stops and parked places alike", () => {
+    expect(dayStops(withParked)[0]!.instagram).toBeUndefined()
+    expect(dayStops(withParked)[1]!.instagram).toBe("https://www.instagram.com/p/C8abc123/")
+    expect(parkedStops(withParked)[0]!.instagram).toBe("https://instagram.com/reel/DAxyz987/")
+    expect(parkedStops(withParked)[1]!.instagram).toBeUndefined()
+  })
+
+  it("only accepts real Instagram https links", () => {
+    expect(instagramLink({ links: ["https://www.instagram.com/p/abc/"] })).toBe("https://www.instagram.com/p/abc/")
+    expect(instagramLink({ links: ["https://instagr.am/p/abc"] })).toBe("https://instagr.am/p/abc")
+    expect(instagramLink({ links: ["http://instagram.com/p/abc"] })).toBeUndefined()
+    expect(instagramLink({ links: ["https://notinstagram.com/p/abc", "https://instagram.com.evil.example/p", "not a url"] })).toBeUndefined()
+    expect(instagramLink({})).toBeUndefined()
+  })
+})
+
 describe("stacked pins", () => {
   it("labels a run as a range and a short scatter as a list", () => {
     expect(stackLabel([4, 5, 6])).toBe("4–6")
@@ -97,9 +146,16 @@ describe("legs", () => {
 
   it("does not invent a duration once the day list stops calling it a walk", () => {
     const leg = legInto(stops, 2)!
-    expect(leg.meters).toBeGreaterThan(4000)
+    expect(leg.meters).toBeGreaterThan(2000)
     expect(leg.walk).toBeNull()
     expect(legSummary(leg)).toMatch(/^\d+\.\d km · ride$/)
+  })
+
+  it("calls a leg a walk up to 2 km and a ride beyond", () => {
+    const hop = (meters: number) =>
+      legInto(dayStops({ id: "x", date: "2026-12-05", items: [place("a", "A", 38.7, -9.14), place("b", "B", 38.7 + meters / 111_195, -9.14)] }), 1)!
+    expect(legSummary(hop(1900))).toMatch(/min walk$/)
+    expect(legSummary(hop(2800))).toBe("2.8 km · ride")
   })
 
   it("adds the legs up", () => {

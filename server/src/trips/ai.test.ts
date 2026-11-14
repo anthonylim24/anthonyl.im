@@ -598,7 +598,7 @@ describe("createGeminiLlm", () => {
     const out = await llm({ system: "SYS", user: "USER" })
     expect(out).toBe('{"summary":"ok","days":[]}')
     expect(captured!.url).toContain(`${GEMINI_MODEL}:generateContent`)
-    expect(captured!.body.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(captured!.body.tools).toEqual([{ googleMaps: {} }])
     expect(captured!.body.toolConfig).toBeUndefined()
     const gen = captured!.body.generationConfig as { thinkingConfig: { thinkingLevel: string } }
     expect(gen.thinkingConfig).toEqual({ thinkingLevel: "low" })
@@ -623,7 +623,7 @@ describe("createGeminiLlm", () => {
     expect(calls).toBe(2)
   })
 
-  test("sends Maps retrieval latLng with Search+Maps", async () => {
+  test("sends Maps retrieval latLng with Maps grounding", async () => {
     let captured: Record<string, unknown> | null = null
     const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
       captured = JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -635,18 +635,18 @@ describe("createGeminiLlm", () => {
 
     const llm = createGeminiLlm("test-key", fetchImpl)
     await llm({ system: "s", user: "u", latLng: { latitude: 37.5665, longitude: 126.978 } })
-    expect(captured!.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(captured!.tools).toEqual([{ googleMaps: {} }])
     expect(captured!.toolConfig).toEqual({
       retrievalConfig: { latLng: { latitude: 37.5665, longitude: 126.978 } },
     })
   })
 
-  test("retries Maps, Search, then JSON when Search+Maps fails", async () => {
+  test("steps down from Maps to Search to JSON when grounding fails", async () => {
     const calls: Array<Record<string, unknown>> = []
     const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>
       calls.push(body)
-      if (calls.length < 4) return new Response("grounding unavailable", { status: 400 })
+      if (calls.length < 3) return new Response("grounding unavailable", { status: 400 })
       return new Response(
         JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
         { status: 200 },
@@ -656,16 +656,16 @@ describe("createGeminiLlm", () => {
     const llm = createGeminiLlm("test-key", fetchImpl)
     const out = await llm({ system: "s", user: "u", latLng: { latitude: 35.6, longitude: 139.7 } })
     expect(out).toBe('{"ok":true}')
-    expect(calls).toHaveLength(4)
-    expect(calls[0]!.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    // Maps and Search are never sent together: current models reject it.
+    expect(calls).toHaveLength(3)
+    expect(calls[0]!.tools).toEqual([{ googleMaps: {} }])
     expect(calls[0]!.toolConfig).toEqual({
       retrievalConfig: { latLng: { latitude: 35.6, longitude: 139.7 } },
     })
-    expect(calls[1]!.tools).toEqual([{ googleMaps: {} }])
-    expect(calls[2]!.tools).toEqual([{ googleSearch: {} }])
-    expect(calls[2]!.toolConfig).toBeUndefined()
-    expect(calls[3]!.tools).toBeUndefined()
-    const gen = calls[3]!.generationConfig as { responseMimeType?: string }
+    expect(calls[1]!.tools).toEqual([{ googleSearch: {} }])
+    expect(calls[1]!.toolConfig).toBeUndefined()
+    expect(calls[2]!.tools).toBeUndefined()
+    const gen = calls[2]!.generationConfig as { responseMimeType?: string }
     expect(gen.responseMimeType).toBe("application/json")
   })
 
@@ -688,7 +688,7 @@ describe("createGeminiLlm", () => {
     }) as typeof fetch
     const llm = createGeminiLlm("test-key", fetchImpl)
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/empty/)
-    expect(calls).toBe(4)
+    expect(calls).toBe(3)
   })
 })
 

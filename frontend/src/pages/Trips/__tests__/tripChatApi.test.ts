@@ -1,5 +1,20 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { streamTripChat } from "../tripChatApi"
+import { streamTripChat as stream, type TripChatMessage } from "../tripChatApi"
+import type { Trip } from "../types"
+
+/** Positional shorthand for the request most of these tests make. */
+function streamTripChat(
+  tripId: string,
+  prompt: string,
+  messages: TripChatMessage[],
+  dayId: string | undefined,
+  token: () => Promise<string | null>,
+  onText: (content: string) => void,
+  signal?: AbortSignal,
+  trip?: Trip,
+) {
+  return stream({ tripId, prompt, messages, dayId, signal, trip }, token, { onText })
+}
 
 function sseResponse(lines: string[], status = 200): Response {
   const encoder = new TextEncoder()
@@ -254,5 +269,71 @@ describe("streamTripChat", () => {
     await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(
       /lost its connection/i,
     )
+  })
+
+  it("relays live status, the model, a proposal and follow-ups as they arrive", async () => {
+    const proposal = {
+      id: "prop-1",
+      summary: "Move dinner to 20:00",
+      changes: [
+        { id: "c1", op: "set_time", dayId: "day-1", itemId: "dinner", title: "Dinner", from: "20:30", time: "20:00" },
+        { id: "c2", op: "teleport" },
+      ],
+    }
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([
+        `data: ${JSON.stringify({ meta: { model: "gemini-4-hydrogen", tools: ["search", "places"] } })}\n\n`,
+        `data: ${JSON.stringify({ status: { kind: "places", label: "Checking Google Maps", detail: "coffee near MAAT" } })}\n\n`,
+        `data: ${JSON.stringify("Apply moves dinner.")}\n\n`,
+        `data: ${JSON.stringify({ proposal })}\n\n`,
+        `data: ${JSON.stringify({ status: { kind: "done" } })}\n\n`,
+        `data: ${JSON.stringify({ followups: ["How do we get there?", "", 7] })}\n\n`,
+        `data: [DONE]\n\n`,
+      ]),
+    )
+    const seen: string[] = []
+    const result = await stream({ tripId: "tokyo", prompt: "move dinner to 8", messages: [] }, getToken, {
+      onText: () => seen.push("text"),
+      onStatus: (status) => seen.push(`status:${status.kind}:${status.detail ?? ""}`),
+      onMeta: (meta) => seen.push(`meta:${meta.model}`),
+      onProposal: (p) => seen.push(`proposal:${p.changes.length}`),
+      onFollowups: (f) => seen.push(`followups:${f.length}`),
+    })
+    expect(seen).toEqual([
+      "meta:gemini-4-hydrogen",
+      "status:places:coffee near MAAT",
+      "text",
+      "proposal:1",
+      "status:done:",
+      "followups:1",
+    ])
+    expect(result.meta?.model).toBe("gemini-4-hydrogen")
+    // The malformed change is dropped; the valid one survives.
+    expect(result.proposal?.changes).toEqual([proposal.changes[0]])
+    expect(result.followups).toEqual(["How do we get there?"])
+  })
+
+  it("sends a shared position and the cards of earlier replies", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse([`data: [DONE]\n\n`]))
+    const messages: TripChatMessage[] = [
+      { role: "user", content: "wine bars?" },
+      {
+        role: "assistant",
+        content: "Bloco.",
+        places: [{ ref: "ChIJbloco", name: "Bloco", dayId: "day-3", time: "21:00" }],
+        proposal: { summary: "Add Bloco", state: "applied" },
+      },
+    ]
+    await stream({ tripId: "tokyo", prompt: "near me?", messages, location: { lat: 38.7, lng: -9.1 } }, getToken, {
+      onText: () => {},
+    })
+    const body = JSON.parse((spy.mock.calls[0]![1] as RequestInit).body as string)
+    expect(body.location).toEqual({ lat: 38.7, lng: -9.1 })
+    expect(body.messages).toEqual(messages)
+  })
+
+  it("explains a rate limit", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 429 }))
+    await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(/busy/i)
   })
 })

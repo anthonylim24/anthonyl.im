@@ -74,6 +74,9 @@ export const config = {
   // (caption + videoUrl + locationTag) + comments fallback. Synchronous
   // /datasets/v3/scrape endpoint, one HTTP round-trip per call.
   brightDataApiKey: process.env.BRIGHT_DATA_API_KEY,
+  // Apify Instagram scraper — the first-choice post fetcher (free plan is
+  // enough for personal use). Bright Data and yt-dlp are fallbacks.
+  apifyToken: process.env.APIFY_TOKEN,
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
   googleVisionApiKey: process.env.GOOGLE_VISION_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY,
   kakaoRestApiKey: process.env.KAKAO_REST_API_KEY,
@@ -103,8 +106,11 @@ for (const v of requiredAlways) {
 }
 
 if (config.igWorkerEnabled) {
-  const required = ['BRIGHT_DATA_API_KEY', 'GOOGLE_MAPS_API_KEY', 'GROQ_API_KEY', 'CLERK_SECRET_KEY',
+  const required = ['GOOGLE_MAPS_API_KEY', 'GROQ_API_KEY', 'CLERK_SECRET_KEY',
                     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
+  if (!process.env.APIFY_TOKEN && !process.env.BRIGHT_DATA_API_KEY) {
+    console.warn('[ig-worker] env missing: APIFY_TOKEN (or BRIGHT_DATA_API_KEY) — posts can only be fetched with yt-dlp');
+  }
   for (const v of required) {
     if (!process.env[v] && !(v === 'SUPABASE_URL' && process.env.VITE_SUPABASE_URL)) {
       console.warn(`[ig-worker] env missing: ${v} — worker will fail on first job`);

@@ -48,7 +48,7 @@ export interface PostPayload {
   caption: string;
   mediaItems: MediaItem[];
   locationTag?: LocationTag;
-  source: 'yt-dlp' | 'bright-data';
+  source: 'apify' | 'yt-dlp' | 'bright-data';
   raw: unknown;
 }
 

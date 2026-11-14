@@ -76,6 +76,8 @@ export interface SceneStop extends LngLat {
   title: string
   /** "HH:MM", lights the scene for that hour when the stop is selected. */
   time?: string
+  /** A place on the day but not on its route: a small hollow pin, no number, no arcs. */
+  parked?: boolean
 }
 
 export interface Insets {
@@ -153,6 +155,10 @@ const SETTLED = 0.92
 const SETTLE_AFTER_CONTENT_MS = 4500
 /** …or, with nothing at all, after this. */
 const ARRIVAL_DEADLINE_MS = 9000
+/** With no ground at all by the deadline, wait this much longer before giving up. */
+const NOTHING_GRACE_MS = 36_000
+/** After the reveal, how long arcs wait for their ends to find the ground before drawing anyway. */
+const UNSNAPPED_GRACE_MS = 5000
 /** Occlusion only means something up close; from high up every pin "hides" behind a hill. */
 const VEIL_RANGE_M = 1400
 const ORBIT_RATE = 1.5 * DEG
@@ -210,6 +216,8 @@ export class PhotorealScene {
   private ready = false
   private arrival: { pose: Pose; deadline: number; contentAt: number } | null = null
   private lastProgress = -1
+  private readyAt = 0
+  private drawUnsnapped = false
   private refining = false
   private refiningSince = 0
   private width = 1
@@ -415,8 +423,8 @@ export class PhotorealScene {
       const kept = old && Math.hypot(old.local.x - local.x, old.local.z - local.z) < 1 ? old : null
       const button = document.createElement("button")
       button.type = "button"
-      button.className = "atlas-pin atlas-pin--stop photoreal-pin"
-      button.setAttribute("aria-label", `Stop ${stop.label}: ${stop.title}`)
+      button.className = stop.parked ? "atlas-pin photoreal-pin photoreal-pin--parked" : "atlas-pin atlas-pin--stop photoreal-pin"
+      button.setAttribute("aria-label", stop.parked ? `To schedule: ${stop.title}` : `Stop ${stop.label}: ${stop.title}`)
       button.dataset.stop = stop.id
       const body = document.createElement("span")
       body.className = "atlas-pin__body"
@@ -545,7 +553,9 @@ export class PhotorealScene {
     }
     if (!this.you) {
       this.you = new YouPin({
-        transmission: true,
+        // No refraction pass: over real photogrammetry it turned the droplet a muddy
+        // brown (and cost a second render of the city). A tinted, glossy pin reads cleanly.
+        transmission: false,
         reducedMotion: this.opts.reducedMotion,
         accent: new Color(css(this.opts.tokens, "--brand-fill", "#f0582b")),
       })
@@ -577,7 +587,7 @@ export class PhotorealScene {
     const pose = this.currentPose()
     this.goal = null
     this.fly(
-      { ...pose, x: this.youLocal.x, y: this.you?.surfaceY ?? 0, z: this.youLocal.z, distance: 420, tilt: TILT_STOP },
+      { ...pose, x: this.youLocal.x, y: this.you?.hasAnchor ? this.you.surfaceY : pose.y, z: this.youLocal.z, distance: 420, tilt: TILT_STOP },
       flightSeconds(Math.hypot(this.youLocal.x - pose.x, this.youLocal.z - pose.z)),
       easeInOutCubic,
     )
@@ -702,8 +712,10 @@ export class PhotorealScene {
           const d = Math.hypot(other.local.x - pin.local.x, other.local.z - pin.local.z)
           if (d > 20 && (nearest === null || d < nearest)) nearest = d
         }
-        const onward = this.pins[index + 1] ?? null
-        const before = this.pins[index - 1] ?? null
+        const route = this.routed()
+        const at = route.indexOf(pin)
+        const onward = at >= 0 ? (route[at + 1] ?? null) : null
+        const before = at >= 0 ? (route[at - 1] ?? null) : null
         const travel = onward ? headingBetween(pin.local, onward.local) : before ? headingBetween(before.local, pin.local) : null
         const bearing = keepBearing === null ? (travel ?? 0) - 24 * DEG : chooseBearing(keepBearing, travel)
         const portrait = this.width < this.height
@@ -799,7 +811,10 @@ export class PhotorealScene {
     this.arrival = null
     if (!this.ready) {
       this.ready = true
+      this.readyAt = performance.now()
       this.opts.onReady()
+      // Wake once more after the grace period so held-back arcs get drawn even if the view is at rest.
+      window.setTimeout(this.invalidate, UNSNAPPED_GRACE_MS + 200)
     }
     if (fly && this.opts.reducedMotion) this.applyPose(arrival.pose)
     else if (fly) {
@@ -821,7 +836,7 @@ export class PhotorealScene {
       if (on) pin.button.setAttribute("aria-current", "true")
       else pin.button.removeAttribute("aria-current")
     }
-    const at = this.pins.findIndex((p) => p.stop.id === this.selectedId)
+    const at = this.routed().findIndex((p) => p.stop.id === this.selectedId)
     this.legs.forEach((leg, i) => {
       // Leg i runs from stop i to stop i + 1.
       const hot = at >= 0 && (i === at || i === at - 1)
@@ -844,18 +859,26 @@ export class PhotorealScene {
     this.legs = []
   }
 
+  /** The numbered stops, in order: what the route and the tour run through. */
+  private routed(): Pin[] {
+    return this.pins.filter((p) => !p.stop.parked)
+  }
+
   private buildRoute() {
     this.routeStale = false
     this.clearLegs()
     const seen = new Set<string>()
-    for (let i = 0; i + 1 < this.pins.length; i++) {
-      const a = this.pins[i]!
-      const b = this.pins[i + 1]!
+    const route = this.routed()
+    for (let i = 0; i + 1 < route.length; i++) {
+      const a = route[i]!
+      const b = route[i + 1]!
       const geo = new LineGeometry()
       const key = [a.stop.id, b.stop.id].sort().join("|")
       const length = Math.hypot(b.local.x - a.local.x, b.local.z - a.local.z)
       // Same pair twice (out and back) or two stops on one spot: nothing to draw.
-      const skip = seen.has(key) || length < 4
+      // And never before both ends stand on the ground: an arc from sea level to nowhere reads as a glitch.
+      const grounded = this.drawUnsnapped || (a.snapped && b.snapped)
+      const skip = seen.has(key) || length < 4 || !grounded
       seen.add(key)
       geo.setPositions(arcPoints({ x: a.local.x, y: a.floor + 3, z: a.local.z }, { x: b.local.x, y: b.floor + 3, z: b.local.z }, 40))
       const casing = new Line2(geo, this.lineMats.casing)
@@ -914,9 +937,10 @@ export class PhotorealScene {
     let at = 0
     for (const pin of this.pins) {
       const distance = Math.hypot(cam.x - pin.local.x, cam.y - pin.floor, cam.z - pin.local.z)
-      const lift = Math.min(150, Math.max(5, distance * 0.05))
+      const small = pin.stop.parked && pin.stop.id !== this.selectedId ? 0.6 : 1
+      const lift = Math.min(150, Math.max(5, distance * 0.05)) * small
       pin.head.set(pin.local.x, pin.floor + lift, pin.local.z)
-      const radius = Math.min(60, Math.max(2.4, distance * 0.012)) * (pin.stop.id === this.selectedId ? 1.5 : 1)
+      const radius = Math.min(60, Math.max(2.4, distance * 0.012)) * (pin.stop.id === this.selectedId ? 1.5 : small)
       for (const mesh of [pin.ring, pin.disc]) {
         mesh.position.set(pin.local.x, pin.floor + 0.7, pin.local.z)
         mesh.scale.setScalar(radius)
@@ -947,13 +971,25 @@ export class PhotorealScene {
     // Declutter without ever dropping a stop: pins that overlap on screen
     // merge into one badge carrying their numbers ("4–6"), led by the
     // earliest of them. The selected stop always stands alone.
-    const order = this.pins
-      .filter((p) => p.shown)
-      .sort((a, b) => Number(b.stop.id === this.selectedId) - Number(a.stop.id === this.selectedId))
+    // Parked places are secondary: one that overlaps anything already
+    // placed simply steps aside until the camera is close enough to part them.
+    const rank = (p: Pin) => (p.stop.id === this.selectedId ? 0 : p.stop.parked ? 2 : 1)
+    const order = this.pins.filter((p) => p.shown).sort((a, b) => rank(a) - rank(b))
     const stacks = new Map<Pin, Pin[]>()
     for (const pin of order) {
       const selected = pin.stop.id === this.selectedId
       let leader: Pin | undefined
+      if (!selected && pin.stop.parked) {
+        let crowded = false
+        for (const k of stacks.keys()) {
+          if (Math.hypot(k.sx - pin.sx, k.sy - pin.sy) < PIN_GAP_PX * 0.8) {
+            crowded = true
+            break
+          }
+        }
+        if (!crowded) stacks.set(pin, [pin])
+        continue
+      }
       if (!selected) {
         for (const k of stacks.keys()) {
           if (k.stop.id !== this.selectedId && Math.hypot(k.sx - pin.sx, k.sy - pin.sy) < PIN_GAP_PX) {
@@ -976,7 +1012,11 @@ export class PhotorealScene {
         pin.button.classList.toggle("photoreal-pin--stack", members.length > 1)
         pin.button.setAttribute(
           "aria-label",
-          members.length > 1 ? `Stops ${label}: ${members.map((m) => m.stop.title).join(", ")}` : `Stop ${pin.stop.label}: ${pin.stop.title}`,
+          members.length > 1
+            ? `Stops ${label}: ${members.map((m) => m.stop.title).join(", ")}`
+            : pin.stop.parked
+              ? `To schedule: ${pin.stop.title}`
+              : `Stop ${pin.stop.label}: ${pin.stop.title}`,
         )
       }
       pin.button.classList.toggle("photoreal-pin--veiled", !selected && members.every((m) => m.veiled))
@@ -1064,7 +1104,16 @@ export class PhotorealScene {
         this.opts.onProgress(progress)
       }
       const settled = ground.hasContent() && (progress >= SETTLED || now - arrival.contentAt > SETTLE_AFTER_CONTENT_MS)
-      if (settled || now > arrival.deadline) this.finishArrival(true)
+      if (settled) this.finishArrival(true)
+      else if (now > arrival.deadline) {
+        if (ground.hasContent()) this.finishArrival(true)
+        else if (ground.failures() > 0 || now > arrival.deadline + NOTHING_GRACE_MS) {
+          // Nothing to stand on: say so instead of revealing an empty sky.
+          this.arrival = null
+          this.opts.onError(ground.failures() > 0 ? "unavailable" : "timeout")
+          return
+        }
+      }
     }
     if (this.flight) {
       const f = this.flight
@@ -1103,6 +1152,11 @@ export class PhotorealScene {
       if (this.snapQueue.length) {
         this.snapOne(this.snapQueue.shift()!)
         active = true
+      }
+      if (!this.drawUnsnapped && this.ready && now - this.readyAt > UNSNAPPED_GRACE_MS) {
+        // A stop over water or a gap in the data may never snap; don't lose its legs for good.
+        this.drawUnsnapped = true
+        this.routeStale = true
       }
       if (this.routeStale && this.snapQueue.length === 0) this.buildRoute()
 

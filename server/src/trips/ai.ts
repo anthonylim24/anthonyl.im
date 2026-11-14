@@ -65,7 +65,9 @@ export const GROQ_DEFAULT_MAX_TOKENS = 2048
 const TRAVELER_REVIEW_ERROR = "The review did not finish. Try again in a moment."
 const TRAVELER_PARSE_ERROR = "The review came back in a form we could not use. Try again."
 
-const GEMINI_MODES = ["search+maps", "maps", "search", "json"] as const
+// Maps and Search grounding cannot share a request on current models
+// (400 "cannot be combined"), so the ladder starts at Maps alone.
+const GEMINI_MODES = ["maps", "search", "json"] as const
 type GeminiMode = (typeof GEMINI_MODES)[number]
 
 function toolsForGeminiMode(mode: GeminiMode): GeminiToolList | undefined {
@@ -262,7 +264,9 @@ export function createTripsLlm(args: {
 }): LlmCall | null {
   const gemini = args.geminiApiKey ? createGeminiLlm(args.geminiApiKey) : null
   const groq = args.groqApiKey ? createGroqLlm(args.groqApiKey) : null
-  return pickTripsLlm(gemini, groq)
+  // Gemini leads; Groq is the backup when a Gemini call fails outright (and
+  // the prompt fits Groq's token budget), and the only model without a key.
+  return gemini && groq ? withLlmFallback(gemini, groq) : pickTripsLlm(gemini, groq)
 }
 
 export function createGoogleGeocoder(apiKey: string): Geocoder {

@@ -8,6 +8,7 @@ import { InvokeRequest } from "../types";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { commonConfig, SYSTEM_PROMPT } from "./constants";
+import { geminiTextStream, type GeminiTurn } from "../geminiText";
 
 const invoke = new Hono();
 
@@ -35,40 +36,32 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
     return c.json({ error: "Prompt is required" }, 400);
   }
 
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-  // Include previous messages in the chat context
-  const completion = await groq.chat.completions.create({
-    messages: [
-      ...messages,
-      {
-        role: "system",
-        content: SYSTEM_PROMPT,
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-    model: GROQ_MODEL,
-    stream: true,
-  });
+  // Gemini leads. If its stream cannot be opened (no key, quota, outage),
+  // the previous model on Groq answers instead.
+  let chunks: AsyncIterable<string>;
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY missing");
+    chunks = await geminiTextStream({
+      apiKey,
+      system: SYSTEM_PROMPT,
+      messages: [...messages, { role: "user", content: prompt }],
+      signal: AbortSignal.any([AbortSignal.timeout(120_000), c.req.raw.signal]),
+    });
+  } catch (err) {
+    console.warn("[invoke] gemini unavailable, using groq:", err instanceof Error ? err.message : String(err));
+    chunks = await groqStream(prompt, messages);
+  }
 
   return streamSSE(c, async (stream) => {
     try {
-      for await (const chunk of completion) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          // JSON encode to preserve newlines and special characters
-          await stream.writeSSE({
-            data: JSON.stringify(content),
-          });
-        }
+      for await (const content of chunks) {
+        // JSON encode to preserve newlines and special characters
+        await stream.writeSSE({ data: JSON.stringify(content) });
       }
-      await stream.writeSSE({
-        data: "[DONE]",
-      });
+      await stream.writeSSE({ data: "[DONE]" });
     } catch (error) {
+      if (c.req.raw.signal.aborted) return;
       console.error("Streaming error:", error);
       await stream.writeSSE({
         data: JSON.stringify({ error: "Streaming error occurred" }),
@@ -76,5 +69,20 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
     }
   });
 });
+
+async function groqStream(prompt: string, messages: GeminiTurn[]): Promise<AsyncIterable<string>> {
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  const completion = await groq.chat.completions.create({
+    messages: [...messages, { role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }],
+    model: GROQ_MODEL,
+    stream: true,
+  });
+  return (async function* () {
+    for await (const chunk of completion) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) yield content;
+    }
+  })();
+}
 
 export default invoke;
