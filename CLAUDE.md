@@ -1,6 +1,6 @@
 # anthonyl.im
 
-This repo hosts five experiences under one Vite SPA: the **anthonyl.im lab landing page** (`/`), a personal AI chatbot (`/chatbot`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+This repo hosts five experiences under one Vite SPA: a static home page (`/`), the **anthonyl.im lab landing page** (`/lab`), a personal AI chatbot (`/chatbot`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -278,7 +278,10 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 
 | Path | App | Auth |
 |------|-----|------|
-| `/` | anthonyl.im lab landing | Public |
+| `/` | Static home (`frontend/public/home.html`, no scripts; links the apps, privacy, terms) | Public |
+| `/lab` | anthonyl.im lab landing | Public |
+| `/sign-in`, `/sign-up` | Clerk `SignIn` / `SignUp` (hash routing; finishes Google `#/sso-callback` on our origin) | Public |
+| `/privacy`, `/terms` | Static legal pages | Public |
 | `/chatbot` | AI Chatbot | Public |
 | `/breathwork` | BreathFlow home | Public |
 | `/breathwork/session` | BreathFlow session | Public |
@@ -365,7 +368,7 @@ See `frontend/.env.example` and `server/src/config.ts`.
 3. Backend staged on Digital Ocean via SSH into `~/anthonyl.im.next` (shallow clone, `bun install --frozen-lockfile`), system tools checked (yt-dlp, ffmpeg, dev-browser).
 4. Frontend `dist/` uploaded via SCP into the staged tree.
 5. Atomic swap `next → live`, PM2 restart (`--max-memory-restart 700M`), wait for loopback `/health`; auto-rollback to `prev` if it does not come up.
-6. Post-deploy smoke: `/health` JSON + SPA shells on `/`, `/chatbot`, `/breathwork`, `/trips`, `/trips/korea-2026`.
+6. Post-deploy smoke: `/health` JSON + home and legal pages plus SPA shells on `/lab`, `/chatbot`, `/breathwork`, `/trips`, `/trips/korea-2026`.
 
 **Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
 
@@ -503,7 +506,7 @@ Each app's *accent* color is its own (see per-app sections below).
 
 ---
 
-## Design Context: `/` — anthonyl.im Lab Landing
+## Design Context: `/lab` — anthonyl.im Lab Landing
 
 Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/chatbot`, Concierge → `/trips`, BreathFlow → `/breathwork`.
 

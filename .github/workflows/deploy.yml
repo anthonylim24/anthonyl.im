@@ -332,24 +332,38 @@ jobs:
             exit 1
           fi
 
-          PATHS=("/" "/chatbot" "/breathwork" "/trips" "/trips/korea-2026")
-          for path in "${PATHS[@]}"; do
+          # path|text the page must contain. "/", /privacy and /terms are
+          # static pages; the rest are the SPA shell.
+          SHELL='<div id="root">'
+          CHECKS=(
+            "/|<title>anthonyl.im · Anthony Lim</title>"
+            "/privacy|<title>Privacy Policy · anthonyl.im</title>"
+            "/terms|<title>Terms of Service · anthonyl.im</title>"
+            "/lab|$SHELL"
+            "/chatbot|$SHELL"
+            "/breathwork|$SHELL"
+            "/trips|$SHELL"
+            "/trips/korea-2026|$SHELL"
+          )
+          for check in "${CHECKS[@]}"; do
+            path="${check%%|*}"
+            expect="${check#*|}"
             URL="${BASE}${path}"
             OK=0
             for attempt in 1 2 3; do
               echo "[smoke] attempt $attempt — GET $URL"
               if BODY="$(curl -fsSL --max-time 15 "$URL")"; then
-                if echo "$BODY" | grep -q '<div id="root">'; then
-                  echo "[smoke] OK — SPA shell served for $path"
+                if echo "$BODY" | grep -qF "$expect"; then
+                  echo "[smoke] OK — $path"
                   OK=1
                   break
                 fi
-                echo "[smoke] WARN: 200 OK but SPA shell missing for $path; retrying"
+                echo "[smoke] WARN: 200 OK but $path is missing: $expect; retrying"
               fi
               sleep 3
             done
             if [ "$OK" -ne 1 ]; then
-              echo "::error::Post-deploy smoke failed — $URL is not serving the SPA shell"
+              echo "::error::Post-deploy smoke failed — $URL did not serve: $expect"
               exit 1
             fi
           done
