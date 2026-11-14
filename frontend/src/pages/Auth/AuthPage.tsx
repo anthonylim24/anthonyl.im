@@ -8,8 +8,12 @@ import { routeFallback } from '@/styles/chatbot.stylex'
 // pages on our own origin keeps the whole flow off accounts.anthonyl.im,
 // which some networks block.
 const modes = {
-  'sign-in': () => <SignIn routing="hash" signUpUrl="/sign-up" fallbackRedirectUrl="/trips" />,
-  'sign-up': () => <SignUp routing="hash" signInUrl="/sign-in" fallbackRedirectUrl="/trips" />,
+  'sign-in': () => (
+    <SignIn routing="hash" signUpUrl="/sign-up" fallbackRedirectUrl="/trips" signUpFallbackRedirectUrl="/trips" />
+  ),
+  'sign-up': () => (
+    <SignUp routing="hash" signInUrl="/sign-in" fallbackRedirectUrl="/trips" signInFallbackRedirectUrl="/trips" />
+  ),
 }
 
 export type AuthMode = keyof typeof modes
