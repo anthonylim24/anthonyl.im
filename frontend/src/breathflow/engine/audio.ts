@@ -2,8 +2,10 @@ import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 
 /**
  * Soft Web Audio cues — one per session start, phase change, and completion.
- * No kitchen-timer beeps, no per-second ticks. Every call is wrapped so a
- * missing or broken AudioContext degrades to silence.
+ * No kitchen-timer beeps, no per-second ticks. Each note is a small bell: a
+ * sine with a quiet octave partial that dies away first, and a long tail.
+ * Every call is wrapped so a missing or broken AudioContext degrades to
+ * silence.
  */
 
 export type CueKind = 'start' | 'complete' | BreathPhase
@@ -18,7 +20,8 @@ type AudioContextCtor = typeof AudioContext
 
 let sharedContext: AudioContext | null = null
 
-function getAudioContext(): AudioContext | null {
+/** The one AudioContext BreathFlow shares between cues and the soundscape. */
+export function getAudioContext(): AudioContext | null {
   try {
     if (sharedContext) return sharedContext
     const globalScope = globalThis as typeof globalThis & { webkitAudioContext?: AudioContextCtor }
@@ -51,30 +54,36 @@ interface Tone {
   peak?: number
 }
 
+const BELL_PARTIALS = [
+  { ratio: 1, level: 1, length: 1 },
+  { ratio: 2, level: 0.22, length: 0.45 },
+] as const
+
 function cueTones(kind: CueKind): Tone[] {
   switch (kind) {
     case 'start':
-      return [{ freq: [392, 392], duration: 0.5, type: 'sine', peak: 0.5 }]
+      return [{ freq: [392, 392], duration: 1.2, type: 'sine', peak: 0.5 }]
     case 'complete':
-      // Two-note chime.
+      // A rising major triad, let ring.
       return [
-        { freq: [523.25, 523.25], duration: 0.45, type: 'sine', peak: 0.55 },
-        { freq: [659.25, 659.25], duration: 0.6, delay: 0.28, type: 'sine', peak: 0.55 },
+        { freq: [523.25, 523.25], duration: 0.9, type: 'sine', peak: 0.5 },
+        { freq: [659.25, 659.25], duration: 1.0, delay: 0.24, type: 'sine', peak: 0.5 },
+        { freq: [783.99, 783.99], duration: 1.6, delay: 0.48, type: 'sine', peak: 0.5 },
       ]
     case BREATH_PHASES.INHALE:
       // Glide up.
-      return [{ freq: [330, 440], duration: 0.55, type: 'sine', peak: 0.5 }]
+      return [{ freq: [330, 440], duration: 0.9, type: 'sine', peak: 0.5 }]
     case BREATH_PHASES.DEEP_INHALE:
       // Short upward sip.
       return [{ freq: [440, 523.25], duration: 0.22, type: 'sine', peak: 0.45 }]
     case BREATH_PHASES.EXHALE:
       // Glide down.
-      return [{ freq: [440, 294], duration: 0.65, type: 'sine', peak: 0.5 }]
+      return [{ freq: [440, 294], duration: 1.1, type: 'sine', peak: 0.5 }]
     case BREATH_PHASES.HOLD_IN:
     case BREATH_PHASES.HOLD_OUT:
     case BREATH_PHASES.REST:
       // Quiet steady tone.
-      return [{ freq: [349.23, 349.23], duration: 0.4, type: 'sine', peak: 0.3 }]
+      return [{ freq: [349.23, 349.23], duration: 0.7, type: 'sine', peak: 0.3 }]
     default:
       return []
   }
@@ -95,29 +104,31 @@ export function playCue(kind: CueKind, settings: AudioSettings): void {
 
     for (const tone of cueTones(kind)) {
       const startAt = now + (tone.delay ?? 0)
-      const endAt = startAt + tone.duration
-
-      const oscillator = context.createOscillator()
-      oscillator.type = tone.type ?? 'sine'
-      oscillator.frequency.setValueAtTime(tone.freq[0], startAt)
-      if (tone.freq[1] !== tone.freq[0]) {
-        oscillator.frequency.linearRampToValueAtTime(tone.freq[1], endAt)
-      }
-
-      const gain = context.createGain()
       const peak = volume * (tone.peak ?? 0.5)
-      gain.gain.setValueAtTime(0.0001, startAt)
-      gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0001), startAt + 0.04)
-      gain.gain.exponentialRampToValueAtTime(0.0001, endAt)
+      // The octave partial gives the strike its brightness and is gone in under half the note.
+      for (const partial of BELL_PARTIALS) {
+        const endAt = startAt + tone.duration * partial.length
+        const oscillator = context.createOscillator()
+        oscillator.type = tone.type ?? 'sine'
+        oscillator.frequency.setValueAtTime(tone.freq[0] * partial.ratio, startAt)
+        if (tone.freq[1] !== tone.freq[0]) {
+          oscillator.frequency.linearRampToValueAtTime(tone.freq[1] * partial.ratio, endAt)
+        }
 
-      oscillator.connect(gain)
-      gain.connect(context.destination)
-      oscillator.onended = () => {
-        oscillator.disconnect()
-        gain.disconnect()
+        const gain = context.createGain()
+        gain.gain.setValueAtTime(0.0001, startAt)
+        gain.gain.exponentialRampToValueAtTime(Math.max(peak * partial.level, 0.0001), startAt + 0.03)
+        gain.gain.exponentialRampToValueAtTime(0.0001, endAt)
+
+        oscillator.connect(gain)
+        gain.connect(context.destination)
+        oscillator.onended = () => {
+          oscillator.disconnect()
+          gain.disconnect()
+        }
+        oscillator.start(startAt)
+        oscillator.stop(endAt + 0.05)
       }
-      oscillator.start(startAt)
-      oscillator.stop(endAt + 0.05)
     }
   } catch {
     // Silent fallback — audio is an enhancement, never a requirement.

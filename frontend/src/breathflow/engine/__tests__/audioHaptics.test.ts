@@ -53,11 +53,11 @@ describe('audio cues', () => {
     vi.stubGlobal('AudioContext', FakeAudioContext)
 
     playCue('complete', { enabled: true, volume: 0.3 })
-    // Two-note chime = two oscillators.
-    expect(context.createOscillator).toHaveBeenCalledTimes(2)
+    // Three bell notes, each a fundamental and an octave partial.
+    expect(context.createOscillator).toHaveBeenCalledTimes(6)
 
     playCue('inhale', { enabled: true, volume: 0.3 })
-    expect(context.createOscillator).toHaveBeenCalledTimes(3)
+    expect(context.createOscillator).toHaveBeenCalledTimes(8)
   })
 })
 

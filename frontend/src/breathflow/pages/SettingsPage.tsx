@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { motion } from 'motion/react'
+import { LayoutGroup, motion } from 'motion/react'
 import { Lock } from 'lucide-react'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { TECHNIQUE_IDS } from '@/lib/constants'
@@ -15,6 +15,9 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { btn } from '../components/buttonStyles.stylex'
 import { vibrate } from '../engine/haptics'
+import { SOUNDSCAPES, startSoundscape, type Soundscape, type SoundscapeId } from '../engine/soundscape'
+import { speak, voiceAvailable } from '../engine/voice'
+import { InkChip } from '../motion/InkChip'
 import { levelForXP } from '../gamify/levels'
 import { DEFAULT_ORB_THEME_ID, ORB_THEMES, resolveOrbTheme } from '../gamify/orbThemes'
 import { TECHNIQUE_PIGMENTS } from '../pigments'
@@ -82,6 +85,38 @@ function Toggle({
   )
 }
 
+const PREVIEW_SECONDS = 7
+
+/**
+ * Lets a soundscape be heard when it is picked: one slow breath of it, then
+ * silence. Picking another (or leaving the page) cuts the last one short.
+ */
+function useSoundscapePreview() {
+  const playing = useRef<{ soundscape: Soundscape; interval: ReturnType<typeof setInterval> } | null>(null)
+
+  const stop = () => {
+    if (!playing.current) return
+    clearInterval(playing.current.interval)
+    playing.current.soundscape.stop()
+    playing.current = null
+  }
+  useEffect(() => stop, [])
+
+  return (id: SoundscapeId, volume: number) => {
+    stop()
+    if (id === 'off' || volume <= 0) return
+    const soundscape = startSoundscape(id, volume)
+    if (!soundscape) return
+    const startedAt = performance.now()
+    const interval = setInterval(() => {
+      const seconds = (performance.now() - startedAt) / 1000
+      if (seconds >= PREVIEW_SECONDS) stop()
+      else soundscape.setBreath(0.5 - 0.5 * Math.cos((seconds / PREVIEW_SECONDS) * Math.PI * 2))
+    }, 100)
+    playing.current = { soundscape, interval }
+  }
+}
+
 export function SettingsPage() {
   const theme = useSettingsStore((s) => s.theme)
   const setTheme = useSettingsStore((s) => s.setTheme)
@@ -89,6 +124,11 @@ export function SettingsPage() {
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled)
   const soundVolume = useSettingsStore((s) => s.soundVolume)
   const setSoundVolume = useSettingsStore((s) => s.setSoundVolume)
+  const soundscape = useSettingsStore((s) => s.soundscape)
+  const setSoundscape = useSettingsStore((s) => s.setSoundscape)
+  const voiceGuidance = useSettingsStore((s) => s.voiceGuidance)
+  const setVoiceGuidance = useSettingsStore((s) => s.setVoiceGuidance)
+  const previewSoundscape = useSoundscapePreview()
   const hapticsEnabled = useSettingsStore((s) => s.hapticsEnabled)
   const setHapticsEnabled = useSettingsStore((s) => s.setHapticsEnabled)
 
@@ -205,7 +245,7 @@ export function SettingsPage() {
       </Section>
 
       <Section title="Sound">
-        <Toggle label="Guiding tones" description="Soft cues at each phase change" checked={soundEnabled} onChange={setSoundEnabled} />
+        <Toggle label="Sound" description="A soft bell at each phase change" checked={soundEnabled} onChange={setSoundEnabled} />
         <label {...sx(bf.mt4, bf.block)}>
           <span {...sx(bf.volumeLabel)}>
             Volume
@@ -223,6 +263,41 @@ export function SettingsPage() {
             aria-label="Sound volume"
           />
         </label>
+
+        <p {...sx(bf.block, bf.mt5, st.label)}>Soundscape</p>
+        <p {...sx(st.hint)}>
+          {SOUNDSCAPES.find((option) => option.id === soundscape)?.blurb}.
+        </p>
+        <LayoutGroup id="settings-soundscape">
+          <div role="group" aria-label="Soundscape" {...sx(bf.mt3, bf.flexWrapGap2)}>
+            {SOUNDSCAPES.map((option) => (
+              <InkChip
+                key={option.id}
+                active={soundscape === option.id}
+                onClick={() => {
+                  setSoundscape(option.id)
+                  previewSoundscape(option.id, soundEnabled ? soundVolume : 0)
+                }}
+                label={option.name}
+                layoutId="settings-soundscape-ink"
+              />
+            ))}
+          </div>
+        </LayoutGroup>
+
+        {voiceAvailable() && (
+          <div {...sx(bf.mt4)}>
+            <Toggle
+              label="Spoken cues"
+              description="Says each phase aloud in your device's voice"
+              checked={voiceGuidance}
+              onChange={(enabled) => {
+                setVoiceGuidance(enabled)
+                if (enabled) speak('Breathe in', { enabled: soundEnabled, volume: soundVolume })
+              }}
+            />
+          </div>
+        )}
       </Section>
 
       <Section title="Haptics">
