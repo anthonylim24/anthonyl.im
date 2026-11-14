@@ -28,6 +28,7 @@ on:
       - ".github/branch-protection.json"
       - ".github/workflows/pr.yml"
       - ".github/workflows/preview.yml"
+      - ".github/workflows/uptime.yml"
       - ".github/workflows/dependabot-auto-merge.yml"
   workflow_dispatch:
 
@@ -374,3 +375,11 @@ jobs:
             fi
           done
           echo "[smoke] all routes OK"
+
+          # Dependencies (Clerk, Supabase). A warning, not a failure: an outage
+          # at a provider is not a reason to roll this build back.
+          if READY="$(curl -fsS --max-time 15 "$BASE/health/ready" 2>/dev/null)"; then
+            echo "[smoke] /health/ready — $READY"
+          else
+            echo "::warning::/health/ready reports a degraded dependency: $(curl -sS --max-time 15 "$BASE/health/ready" || true)"
+          fi

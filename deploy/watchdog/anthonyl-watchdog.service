@@ -1,0 +1,9 @@
+[Unit]
+Description=Restart anthonyl.im when /health stops answering
+After=network-online.target pm2-root.service
+
+[Service]
+Type=oneshot
+Environment=PM2_HOME=/root/.pm2
+Environment=PATH=/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/local/bin/anthonyl-watchdog.sh

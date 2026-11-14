@@ -356,3 +356,24 @@ and in Map Mode as `priority: 'scheduled'` markers.
 Deploy keeps the previous tree at `~/anthonyl.im.prev` only until the new PM2 process reports online; then `prev` is deleted. If PM2 fails to come online, the workflow moves `prev` back to `~/anthonyl.im` and restarts PM2 automatically.
 
 To roll back a bad *merged* commit: revert on `main`, push, and the workflow re-runs. End-to-end takes a few minutes from `git push`.
+
+## Droplet setup outside the app
+
+`bash deploy/install-droplet.sh` (as root on the droplet, from a checkout; safe to run again) installs:
+
+- **nginx site** (`deploy/nginx/anthonyl.im.conf` → `/etc/nginx/sites-available/anthonyl.im`). Large proxy buffers for Clerk's cookies, a 5 s connect timeout, 300 s read timeout for streams. The previous file is copied to `/root/nginx-anthonyl.im.bak-<time>` and restored if `nginx -t` rejects the new one.
+- **Outage page** (`deploy/nginx/unavailable.html` → `/var/www/anthonyl.im/__unavailable.html`). nginx serves it for 502 / 503 / 504, so a restart shows "Back in a moment" and the page reloads itself once `/health` answers.
+- **Watchdog** (`deploy/watchdog/*` → `anthonyl-watchdog.timer`). Every minute it asks `http://127.0.0.1:3000/health`; three failures in a row run `pm2 restart anthonyl.im`. It stands down while `~/anthonyl.im.next` is fresh (a deploy in progress). Logs: `journalctl -u anthonyl-watchdog`.
+
+The deploy workflow does not run this script; run it by hand after changing those files.
+
+## Monitoring
+
+- `.github/workflows/uptime.yml` probes `/health`, `/health/ready`, `/`, `/trips` and the sign-in API every 15 minutes from GitHub. A failure opens one issue labelled `uptime` (later failures comment on it); the next healthy run closes it.
+- `/health/ready` and `/health/metrics` are described in `CLAUDE.md` ("Observability and self-healing").
+- Browser-side failures appear in the PM2 log as `[client] <kind> …` lines: `grep "\[client\]" ~/.pm2/logs/anthonyl.im-error.log`.
+
+## Database migrations
+
+SQL under `supabase/migrations/` is applied by hand (Supabase SQL editor or MCP `apply_migration`); `supabase/schema.sql` remains the full schema.
+
