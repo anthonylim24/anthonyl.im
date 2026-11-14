@@ -92,6 +92,8 @@ export type LimScene = {
   tweak(set: Tweak): void
   clear(what: 'items' | 'place' | 'all'): void
   world(): LimWorld
+  /** Something is being made (the model is thinking): Lim conjures until told to stop. */
+  conjure(on: boolean): void
   dispose(): void
 }
 
@@ -463,6 +465,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let hugUntil = 0
   let hugSide = 1
   let lastOuch = -9
+  /** Conjuring since this time (0 = not). */
+  let conjuring = 0
+  let nextSpark = 0
+  let nextMutter = 0
+  let mutters = 0
   let nearSince = 0
   let snatched = false
   let pokedUntil = 0
@@ -1194,8 +1201,43 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     sparkle(toy.jelly.center[0], toy.jelly.center[1] + toy.r, toy.jelly.center[2] + 0.3, 4, 0.6)
     later(0.6, () => setAct('worried', 1.2))
   }
+  const MUTTERS = ['hmm…', 'mixing…', 'a pinch of sparkle', 'squish, squish', 'nearly…', 'so close…']
+  /** Waiting on the model: a ring of sparkles gathers overhead while Lim fusses beneath it. */
+  const conjureBeat = () => {
+    if (!conjuring || popped) return
+    const age = t - conjuring
+    lim.attach(headTopRest, tmp)
+    const cx = tmp[0]
+    const cy = Math.min(topY - 0.5, tmp[1] + 0.95)
+    if (t > nextSpark) {
+      nextSpark = t + 0.07
+      // The ring tightens and quickens the longer it takes.
+      const a = t * (4 + Math.min(4, age * 0.4))
+      const r = 0.75 - Math.min(0.35, age * 0.03) + Math.sin(t * 3) * 0.06
+      const s = stars.spawn(CONFETTI[Math.floor(t * 9) % CONFETTI.length], 0.55, 0.07 + Math.random() * 0.05)
+      s.p.set(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.42, 0.4 + Math.sin(a) * 0.3)
+      s.v.set(-Math.sin(a) * 0.6, 0.25, 0)
+      s.spin = 6
+    }
+    if (t > nextMutter) {
+      nextMutter = t + 1.7
+      emote(MUTTERS[mutters++ % MUTTERS.length])
+      // Up on tiptoe for a look, then a little stir.
+      if (mutters % 2) jump(0, 2.6, 0, 0.06)
+      else for (let k = 0; k < 4; k++) later(k * 0.1, () => lim.kick(k % 2 ? -1 : 1, 0, 0))
+      tuft.flick((Math.random() - 0.5) * 5, 2, 0)
+      sound.blip()
+    }
+    // Eyes on the sparkles.
+    wander.x = Math.sin(t * 1.4) * 0.35
+    wander.y = 0.9
+    wander.until = t + 0.3
+    look.at = -10
+    if (!act || act.until < t + 0.2) setAct(mutters % 2 ? 'ooh' : 'typing', 0.6)
+  }
   /** Errands and games in progress (called every frame). */
   const pastimes = () => {
+    conjureBeat()
     if (errand) {
       const near = Math.abs(lim.center[0] - errand.x) < 0.4 && lim.contacts > 0
       if (!toys.includes(errand.toy) || popped) errand = null
@@ -2439,6 +2481,21 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       stage.requestRender()
     },
     world: worldNow,
+    conjure(on) {
+      if (reducedMotion || Boolean(conjuring) === on) return
+      if (on) {
+        conjuring = t || 0.001
+        nextSpark = nextMutter = t + 0.3
+        mutters = 0
+        active(true)
+        return
+      }
+      // Done (or given up): the ring pops.
+      conjuring = 0
+      lim.attach(headTopRest, tmp)
+      sparkle(tmp[0], Math.min(topY - 0.5, tmp[1] + 0.95), 0.5, 10, 1)
+      sound.sparkle()
+    },
     dispose() {
       clearTimeout(cheerTimer)
       host.removeEventListener('pointerdown', onTap)

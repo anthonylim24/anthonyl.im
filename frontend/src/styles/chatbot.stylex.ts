@@ -612,6 +612,16 @@ export const chatbot = stylex.create({
     maxWidth: '680px',
     marginInline: 'auto',
   },
+  // The line Lim shows while it is making something: each new one rises in.
+  making: {
+    display: 'inline-block',
+    fontFamily: DISPLAY,
+    fontWeight: 500,
+    color: 'var(--chat-mid)',
+    animationName: { default: riseIn, [RM]: 'none' },
+    animationDuration: '420ms',
+    animationTimingFunction: EASE,
+  },
   // Lim's toy box: a tray above the composer.
   toyButton: {
     display: 'inline-flex',

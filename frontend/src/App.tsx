@@ -50,6 +50,15 @@ const SUGGESTIONS = [
   { text: "What is he building right now?", Icon: Rocket },
   { text: "What's he like to work with?", Icon: Heart },
 ];
+/** What Lim is up to while the model invents something (it can take a while). */
+const MAKING = [
+  "Rummaging in the toy box…",
+  "Squishing it into shape…",
+  "Adding a pinch of sparkle…",
+  "Picking the nicest colours…",
+  "Blowing on it to dry…",
+  "Nearly there…",
+];
 const CHIP_TINTS = [chatbot.chip1, chatbot.chip2, chatbot.chip3, chatbot.chip4];
 const NIGHT_KEY = "lim-chat-night";
 const KNOWN = {
@@ -120,12 +129,15 @@ function AssistantMessage({
   copied,
   onCopy,
   onRegenerate,
+  waiting,
 }: {
   message: ChatMessage;
   last: boolean;
   copied: boolean;
   onCopy: () => void;
   onRegenerate: () => void;
+  /** A progress line to show instead of the dots while this reply is being made. */
+  waiting?: string;
 }) {
   const { content, status } = message;
   const settled = status !== "streaming";
@@ -139,7 +151,13 @@ function AssistantMessage({
               <MessageContent content={content} isStreaming={status === "streaming"} />
             </Suspense>
           ) : status === "streaming" ? (
-            <ThinkingDots />
+            waiting ? (
+              <span key={waiting} {...sx(chatbot.making)}>
+                {waiting}
+              </span>
+            ) : (
+              <ThinkingDots />
+            )
           ) : (
             <p>I stopped before saying anything.</p>
           )}
@@ -194,6 +212,8 @@ function App() {
   const [keyboardH, setKeyboardH] = useState<number | null>(null);
   const [played, setPlayed] = useState(false);
   const [toyOpen, setToyOpen] = useState(false);
+  // Counts up while Lim's world model is working; 0 when it isn't.
+  const [making, setMaking] = useState(0);
   const [made, setMade] = useState(loadMade);
   // Lim's world as the live scene has it; null until (unless) the 3D scene is up.
   const [world, setWorld] = useState<LimWorld | null>(null);
@@ -232,6 +252,9 @@ function App() {
         return honest(local.ops, local.reply);
       }
       if (!looksLikeWorldRequest(text)) return null;
+      setMaking(1);
+      stage.conjure(true);
+      const tick = window.setInterval(() => setMaking((n) => n + 1), 2200);
       try {
         const answer = await askWorld(text, { items: names, place: now.place?.name ?? "studio" }, signal);
         if (!answer.ops.length || signal.aborted) return null;
@@ -241,6 +264,10 @@ function App() {
         return answer.chat ? null : honest(answer.ops, answer.reply || "Done!");
       } catch {
         return null;
+      } finally {
+        window.clearInterval(tick);
+        setMaking(0);
+        stageRef.current?.conjure(false);
       }
     },
     onDone: (firstReply, local) => {
@@ -263,7 +290,7 @@ function App() {
   const typing = focused && input.trim().length > 0;
   const mood: LimMood =
     status === "thinking" ? "thinking" : status === "streaming" ? "talking" : sad ? "sad" : cheering ? "happy" : typing ? "typing" : "idle";
-  const announce = status === "thinking" ? "Lim is thinking." : status === "streaming" ? "Lim is writing." : notice;
+  const announce = making ? "Lim is making something." : status === "thinking" ? "Lim is thinking." : status === "streaming" ? "Lim is writing." : notice;
 
   useFavicon();
 
@@ -571,6 +598,7 @@ function App() {
                     copied={copiedId === m.id}
                     onCopy={() => copy(m)}
                     onRegenerate={regenerate}
+                    waiting={making && i === messages.length - 1 ? MAKING[(making - 1) % MAKING.length] : undefined}
                   />
                 ),
               )
