@@ -7,7 +7,7 @@ description: Effect-TS v3 methodology for this repo. Use when writing, reviewing
 
 This repo uses **stable Effect v3** on the frontend. Do not install `effect@beta` / v4.
 
-Read this skill before writing network I/O. Patterns here override generic Effect tutorials (no AppLayer, no Schema-decoded trip documents, no platform FetchHttpClient).
+Read this skill before writing network I/O. General standards (state shape, failure, async ownership, tests) are in [`code-quality`](../code-quality/SKILL.md). Patterns here override generic Effect tutorials (no AppLayer, no Schema-decoded trip documents, no platform FetchHttpClient).
 
 Upstream references (adapt, do not copy wholesale):
 
@@ -40,10 +40,11 @@ UI (React 19)  →  Promise wrapper (runPromise)  →  Effect.fn  →  fetchApi 
 Per-route API modules (`Effect.fn` + `runPromise` wrappers — put new I/O here, not ad-hoc `fetch`):
 
 - Trips: `frontend/src/pages/Trips/tripsApi.ts`, `tripChatApi.ts`
-- Korea: `frontend/src/pages/Korea/*Api.ts` (`placesApi`, `koreaChatApi`, `ingestApi`, `entityAboutApi`, `dayPlacesApi`)
+- Instagram import: `frontend/src/pages/Trips/instagram/instagramApi.ts`
+- Legacy Korea helpers Trips still imports: `frontend/src/pages/Korea/koreaChatApi.ts`, `entityAboutApi.ts`, `dayPlacesApi.ts`
 - Chatbot SSE: `frontend/src/lib/apiService.ts`
 
-Keep Zustand for BreathFlow persisted stores. Keep `useCloudSync` on Promise/Supabase. Map Mode WebGL must unmount — do not hide it with React `Activity`.
+Keep Zustand for BreathFlow persisted stores. Keep `useCloudSync` on Promise/Supabase. The photoreal 3D view must unmount when closed — do not hide it with React `Activity`.
 
 ## Write I/O this way
 
@@ -84,8 +85,8 @@ export function getTrip(getToken: () => Promise<string | null>, id: string) {
 Keep per-endpoint parity. Do not "simplify" to one mode.
 
 - `"message-first"` — trips `requestJson` (default)
-- `"error-first"` — ingest; a **local** helper in `ingestApi.ts` calls `readErrorMessage(res, "error-first")`. There is no shared export named `throwOnError`.
-- `"error-only"` — places + ingest retry/reextract
+- `"error-first"` — Instagram import (`instagramApi.ts`)
+- `"error-only"` — available for endpoints that answer `{ error }` only
 - `"message-only"` — Korea chat non-OK
 
 ### Schema

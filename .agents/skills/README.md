@@ -8,6 +8,8 @@ Read the matching skill before writing code. Effect I/O rules win when they conf
 
 | Skill | When | Canonical path |
 |-------|------|----------------|
+| **code-quality** | Any code: state shape, module boundaries, failure, async, performance, tests, review | [`.agents/skills/code-quality/SKILL.md`](./code-quality/SKILL.md) |
+| **design-craft** | Any UI: layout, type, colour, motion, 3D scenes, states, copy, design review | [`.agents/skills/design-craft/SKILL.md`](./design-craft/SKILL.md) |
 | **effect-ts** | Any frontend `/api`, SSE, or third-party HTTP | [`.agents/skills/effect-ts/SKILL.md`](./effect-ts/SKILL.md) (symlinked from `.claude/skills/`) |
 | **stylex** | UI styling, layout, tokens, visual parity, `*.stylex.ts`, `index.css` semantic classes | [`.agents/skills/stylex/SKILL.md`](./stylex/SKILL.md) (symlinked from `.claude/skills/`) |
 | **vercel-react-best-practices** | React 19 render/bundle only. Translate Next.js examples to Vite `React.lazy` + Hono. Effect wins on I/O. Never hide the photoreal 3D view / WebGL with React `Activity`. | [`.agents/skills/vercel-react-best-practices/SKILL.md`](./vercel-react-best-practices/SKILL.md) |
@@ -27,10 +29,5 @@ These vendor skills are present for completeness. Do **not** apply them here:
 - `clerk-chrome-extension-patterns`
 - `clerk-billing`, `clerk-orgs`
 - `clerk-webhooks` — no Clerk webhooks in this repo
-
-## Design skills with caveats
-
-- **design-taste-frontend** — marketing/landing **only**. Do not use for `/` (Lim), `/breathwork` or `/trips`. This repo uses **StyleX**, not Tailwind — follow [`stylex`](./stylex/SKILL.md) for UI styling here.
-- **redesign-existing-projects** — prefer root `PRODUCT.md`. Do not replace Inter/Lucide. This repo uses StyleX — do not assume Tailwind.
 
 Short pointers: [`.agents/memory/effect-ts.md`](../memory/effect-ts.md), [`.agents/memory/stylex.md`](../memory/stylex.md), [`.agents/memory/clerk.md`](../memory/clerk.md).

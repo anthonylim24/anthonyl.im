@@ -48,7 +48,7 @@ motion:
 
 **Creative North Star: "A cartographer's desk"**
 
-This repo hosts **several independent visual worlds** under one Vite SPA. Tokens in this file belong to **Trips** (`/trips`) only. Do not apply them to the landing page, chatbot, BreathFlow, or the Korea Map Mode scene.
+This repo hosts **several independent visual worlds** under one Vite SPA. Tokens in this file belong to **Trips** (`/trips`) only. Do not apply them to the landing page, chatbot, or BreathFlow.
 
 Trips is a map-first planner. Cool chart-paper surfaces, hairline rules, soft layered shadows, serif names set like map labels, coordinates and data in mono, and one live 3D map per page. Two accents: a constant brand accent (signal orange, `--brand*`) for chrome, and the trip's own accent (`--ta*`) for trip identity; everything else is ink and paper.
 
@@ -149,4 +149,4 @@ Spring (`--trips-spring`) on pins and buttons, fly-to camera moves, a drop-in fo
 - Put two maps in one viewport.
 - Tint chrome (focus rings, AI actions, switches, links) with the trip accent, or trip identity with the brand.
 - Add destination-specific routes, or restyle Trips into the Korea dossier.
-- Hide photoreal Map Mode with React `Activity`. Unmount it.
+- Hide the photoreal 3D view with React `Activity`. Unmount it.

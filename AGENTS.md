@@ -6,7 +6,7 @@ This file is the always-loaded agent guide (`CLAUDE.md` imports it). It holds th
 
 | Working on | Read first |
 |------------|-----------|
-| Any UI (look, copy, motion, tokens) | [`PRODUCT.md`](PRODUCT.md), the section for that route. Trips also: [`DESIGN.md`](DESIGN.md) |
+| Any UI (look, copy, motion, tokens) | [`design-craft`](.agents/skills/design-craft/SKILL.md) for the method, then [`PRODUCT.md`](PRODUCT.md), the section for that route. Trips also: [`DESIGN.md`](DESIGN.md) |
 | Trips server or client, Instagram import, concierge, photoreal 3D | [`docs/trips.md`](docs/trips.md) |
 | Lim chat, Lim's world, `server/src/lim/`, `/api/invoke` | [`docs/lim.md`](docs/lim.md) |
 | Environment variables | [`docs/env.md`](docs/env.md) |
@@ -138,12 +138,14 @@ Read the matching skill before writing code. Effect I/O rules win over generic R
 
 | Skill | When |
 |-------|------|
+| [`code-quality`](.agents/skills/code-quality/SKILL.md) | Any code change: state shape, boundaries, failure, async, performance, tests, review. |
+| [`design-craft`](.agents/skills/design-craft/SKILL.md) | Any UI change: layout, type, colour, motion, 3D, states, copy. Then the route's section in `PRODUCT.md`. |
 | [`effect-ts`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
 | [`stylex`](.agents/skills/stylex/SKILL.md) | UI styling, layout, tokens, visual parity. Required for frontend UI. |
 | `vercel-react-best-practices` | React 19 render / bundle. Translate Next.js examples to Vite `React.lazy` + Hono. |
 | `clerk` + `clerk-react-patterns` | Clerk auth (`@clerk/clerk-react` ^5, Core 2). See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
 
-The other vendored Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, billing, orgs, webhooks) are the wrong stack; `design-taste-frontend` is for the landing page only. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+The other vendored Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, billing, orgs, webhooks) are the wrong stack. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 

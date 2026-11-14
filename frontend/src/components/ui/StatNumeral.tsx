@@ -3,7 +3,7 @@
  *
  * Every quantity in the app (counts, durations, streaks, XP, BPM) renders through
  * this component. The brass hairline beneath each numeral is the through-line that
- * makes the design recognizable. See .interface-design/system.md.
+ * makes the design recognizable.
  */
 import type { ReactNode } from 'react'
 import { sx, type ClassValue } from '@/lib/utils'
