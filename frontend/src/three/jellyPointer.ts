@@ -25,9 +25,10 @@ export type JellyPointerOptions = {
   pokeStrength?: number
   /**
    * Furthest the grabbed patch may be pulled from the body's centre, in body
-   * radii. The body trails a fast pointer instead of tearing. Default: no limit.
+   * radii (a number for every body, or a function per body). The body trails
+   * a fast pointer instead of tearing. Default: no limit.
    */
-  maxStretch?: number
+  maxStretch?: number | ((body: Jelly) => number)
   onPoke?: (body: Jelly, point: Vec3) => void
   onGrab?: (body: Jelly) => void
   onRelease?: (body: Jelly) => void
@@ -53,7 +54,8 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
   const pokeStrength = opts.pokeStrength ?? 4
   const pickScale = opts.pickScale ?? 1.08
   const grip = opts.grip ?? 0.28
-  const maxStretch = opts.maxStretch ?? Infinity
+  const maxStretch = (body: Jelly) =>
+    typeof opts.maxStretch === 'function' ? opts.maxStretch(body) : (opts.maxStretch ?? Infinity)
   const pointer = { ndc: new THREE.Vector2(), inside: false }
   const ray = new THREE.Raycaster()
   const sphere = new THREE.Sphere()
@@ -110,7 +112,7 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
       drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0))
       if (ray.ray.intersectPlane(plane, onPlane)) {
         const c = drag.body.center
-        const reach = maxStretch * drag.radius
+        const reach = maxStretch(drag.body) * drag.radius
         const d = Math.hypot(onPlane.x - c[0], onPlane.y - c[1], onPlane.z - c[2])
         if (d > reach) {
           const k = reach / d

@@ -311,7 +311,8 @@ export class Tuft {
       px = bx
       py = by
       pz = bz
-      const rad = radii[i] + (radii[i + 1] - radii[i]) * f
+      // The last two rings close in, so the tip is a rounded nub however straight it stands.
+      const rad = (radii[i] + (radii[i + 1] - radii[i]) * f) * (r === RINGS - 1 ? 0.62 : r === RINGS - 2 ? 0.9 : 1)
       for (let s = 0; s < SIDES; s++) {
         const a = (s / SIDES) * Math.PI * 2
         const cs = Math.cos(a)

@@ -13,7 +13,7 @@
  * feeding).
  */
 import * as THREE from 'three/webgpu'
-import { float, mix, normalView, normalize, smoothstep } from 'three/tsl'
+import { float, mix, normalView, normalize } from 'three/tsl'
 import { createStage } from '../../three/stage'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
 import { skinJelly, skinnedJellyGeometry, syncJellyGeometry } from '../../three/jellyMesh'
@@ -28,6 +28,7 @@ import {
   TOYS,
   addRestNormals,
   bubbleMaterial,
+  dustMaterial,
   col,
   createEyeMaterial,
   createLimUniforms,
@@ -101,7 +102,7 @@ function gumdropRest(detail: number): { positions: Float32Array; index: Uint32Ar
 }
 
 function beanRest(): { positions: Float32Array; index: Uint32Array } {
-  const { positions, index } = icosphere(1, 2)
+  const { positions, index } = icosphere(1, 3)
   for (let i = 0; i < positions.length; i += 3) {
     const x = positions[i]
     positions[i] = x * 0.34
@@ -300,7 +301,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Toys ─────────────────────────────────────────────────────────
   const beanShape = beanRest()
-  const ballShape = icosphere(0.27, 2)
+  const ballShape = icosphere(0.27, 3)
   const toys = TOYS.map(({ kind, hex, shade }) => {
     const shape = kind === 'bean' ? beanShape : ballShape
     const jelly = new Jelly(shape.positions, kind === 'bean'
@@ -333,15 +334,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const confetti = new Pool(new THREE.PlaneGeometry(0.12, 0.07), plain(), 140, {
     gravity: 6.5, drag: 1.6, flutter: 1.4, settle: true, shape: (k) => Math.min(1, (1 - k) * 6),
   })
-  // Dust puffs are little shaded clouds, so they read as volume, not dots.
-  const dustMat = plain(THREE.FrontSide)
-  dustMat.colorNode = mix(
-    mix(col('#F1D2C4'), col('#FFFDF8'), smoothstep(-0.3, 0.6, normalize(normalView).y)),
-    mix(col('#3B3170'), col('#7A6CC4'), smoothstep(-0.3, 0.6, normalize(normalView).y)),
-    u.night,
-  )
-  const dust = new Pool(new THREE.IcosahedronGeometry(1, 2), dustMat, 40, {
-    gravity: -0.6, drag: 3.2, shape: (k) => Math.sin(Math.PI * Math.min(1, k ** 0.6)) ** 0.7,
+  // Dust puffs: soft flat discs that swell as they drift out and thin away.
+  const dust = new Pool(new THREE.PlaneGeometry(2, 2), dustMaterial(u), 40, {
+    gravity: -0.5, drag: 3.2, billboard: true, shape: (k) => (0.6 + 0.8 * k) * Math.min(1, (1 - k) * 3.5),
   })
   const stars = new Pool(starGeometry(4, 0.34), plain(), 40, { gravity: 3, drag: 2.2, billboard: true, shape: popIn })
   const hearts = new Pool(heartGeometry(), plain(), 24, { gravity: -1.1, drag: 1.4, billboard: true, flutter: 1.8, shape: popIn })
@@ -380,14 +375,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Start pose: Lim pops to life where the static mascot stood ───
   lim.translate(0, 0.81, 0)
-  // Toys stand clear of Lim and of each other. A narrow stage has room for
-  // two on the left and one on the right; a wide one seats all four.
+  // Toys stand clear of Lim and of each other: a bean and the gumball on a
+  // narrow stage, all four on a wide one.
   {
     const right = halfW - 0.06 - (window.matchMedia('(min-width: 1024px)').matches ? 104 / unit : 0)
     const roomy = halfW >= 3.1
+    // Lim's skirt reaches 1.42 either side; a narrow stage leaves room for one toy each side.
     const seats: [number, number][] = roomy
-      ? [[-1.72, 0.1], [1.7, 0.35], [Math.min(right - 0.3, 2.3), 0.05], [-2.3, 0.45]]
-      : [[-1.62, 0.05], [Math.min(right - 0.3, 1.62), 0.3], [-9, 0], [-Math.min(halfW - 0.56, 2.1), 0.5]]
+      ? [[-1.75, 0.1], [1.75, 0.3], [Math.min(right - 0.34, 2.45), 0.05], [-2.45, 0.4]]
+      : [[-9, 0], [Math.min(right - 0.34, 1.75), 0.25], [-9, 0], [-Math.min(halfW - 0.5, 1.8), 0.25]]
     toys.forEach((toy, i) => {
       toy.slot = seats[i][0]
       toy.depth = seats[i][1]
@@ -429,7 +425,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let blinkUntil = 0
   let nextFidget = 4
   let nextWobble = 0
-  let wobbleSide = 1
+  let thinkSide = 1
   let nextHomeHop = 0
   let nextSaccade = 0
   let entryScale = reducedMotion ? 1 : 0.72
@@ -448,6 +444,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let inflate = 0
   let full = 0
   let chewUntil = 0
+  let chewSide = 1
   let shake = 0
   let call: { x: number; z: number; until: number } | null = null
   let dance: { t0: number; until: number; step: number; lean: number } | null = null
@@ -527,8 +524,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (reducedMotion) return
     for (let k = 0; k < count; k++) {
       const a = (k / count) * Math.PI * 2 + Math.random() * 0.6
-      const d = dust.spawn('#ffffff', 0.45 + Math.random() * 0.4, 0.09 + Math.random() * 0.1)
-      d.p.set(x + Math.cos(a) * radius, 0.07, z + Math.sin(a) * radius * 0.55 + 0.2)
+      const d = dust.spawn('#ffffff', 0.32 + Math.random() * 0.2, 0.15 + Math.random() * 0.12)
+      d.p.set(x + Math.cos(a) * radius, 0.2, z + Math.sin(a) * radius * 0.55 + 0.2)
       d.v.set(Math.cos(a) * (1.4 + Math.random()) * power, 0.5 + Math.random() * 0.8, Math.sin(a) * power)
     }
   }
@@ -588,7 +585,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.jelly.stiffness = on ? 0.4 : toy.stiffness
     toy.hull.renderOrder = on ? 9 : 0
     toy.mesh.renderOrder = on ? 10 : 0
-    for (const m of [toy.mesh.material, toy.hull.material] as THREE.Material[]) m.depthTest = m.depthWrite = !on
+    // Still writes depth, so the floor (drawn later) doesn't paint over it.
+    for (const m of [toy.mesh.material, toy.hull.material] as THREE.Material[]) m.depthTest = !on
   }
   /** Something happened: reset the nap timer, and wake Lim unless a nap was asked for. */
   const active = (nudge = false) => {
@@ -637,7 +635,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     sound.whoosh()
   }
   const startFlip = () => {
-    const vy = Math.min(wide ? 8.2 : 6.4, Math.sqrt(2 * G * Math.max(0.25, topY - 3.05)))
+    const vy = Math.min(wide ? 8.2 : 6.4, Math.sqrt(2 * G * Math.max(0.2, topY - 3.4)))
     const antic = 0.16
     jump(0, vy, 0, antic)
     flip = { t0: t + antic + 0.07, dur: Math.max(0.4, (2 * vy) / G - 0.16), at: 0 }
@@ -749,8 +747,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     limShadow.mesh.visible = true
     bodies.unshift(lim)
     popped = null
-    entryScale = 0.3
-    entryVel = 7
+    entryScale = 0.5
+    entryVel = 0
     squash.x = 0
     squash.v = 0
     setAct('happy', 1.6)
@@ -774,20 +772,20 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       toy.backAt = t + 6 + Math.random() * 3
       toy.jelly.anchor = null
       full += 1
-      chewUntil = t + 0.72
+      chewUntil = t + 0.76
       setAct('chew', 1.3)
-      squash.v += 2.2
+      squash.v += 1.2
       // Three chews, cheeks out on each, then the swallow.
-      for (let k = 0; k < 3; k++) {
-        later(0.06 + k * 0.18, () => {
-          cheeks.v += 6.5
-          squash.v += 0.7
-          lim.kick(k % 2 ? 0.5 : -0.5, 0, 0)
+      for (let k = 0; k < 4; k++) {
+        later(0.06 + k * 0.16, () => {
+          cheeks.v += 5.5
+          chewSide = k % 2 ? 1 : -1
+          lim.kick(chewSide * 0.45, 0, 0)
           sound.blip()
         })
       }
-      later(0.72, () => {
-        squash.v -= 3
+      later(0.76, () => {
+        squash.v -= 2.4
         sound.gulp()
         // The colour rises from the belly as the bean goes down.
         u.tint.value.set(toy.hex)
@@ -836,7 +834,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // A wide, soft grip and a stretch limit: Lim pulls like taffy and trails a
     // wild pointer instead of creasing where the grabbed patch ends.
     grabRadius: 1.2,
-    maxStretch: 1.2,
+    maxStretch: (body) => (body === lim ? 1.2 : Infinity),
     onPoke(body) {
       active(true)
       const toy = info.get(body)?.toy
@@ -962,12 +960,16 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     cheeks.v += (-260 * cheeks.x - 16 * cheeks.v) * dt
     cheeks.x += cheeks.v * dt
 
+    // Thinking: shift the weight to one side, hold, then the other, with a slow blink on the turn.
     if (mood === 'thinking' && !dance && !flip && t > nextWobble) {
-      wobbleSide = -wobbleSide
+      thinkSide = -thinkSide
       lim.attach(headTopRest, tmp)
-      lim.impulse([tmp[0], tmp[1] - 0.2, tmp[2]], [wobbleSide * 0.9, 0, 0], 1.1)
-      tuft.flick(wobbleSide * 2.6, 0.8, 0)
-      nextWobble = t + 0.42
+      lim.impulse([tmp[0], tmp[1] - 0.2, tmp[2]], [thinkSide * 2.4, 0, 0], 1.3)
+      lim.kick(thinkSide * 0.5, 0.9, 0)
+      squash.v += 1.4
+      tuft.flick(thinkSide * 3.2, 0.8, 0)
+      if (thinkSide > 0) blinkUntil = t + 0.22
+      nextWobble = t + 1.05
     }
 
     // Idle life: little unprompted beats so Lim never stands frozen.
@@ -1082,6 +1084,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         sound.thud(impact / 11)
       }
     }
+    lift = ease(lift, airborne ? 1 : 0, airborne ? 14 : 40, dt)
     wasAirborne = airborne
     lastVy = vbar[1]
 
@@ -1101,7 +1104,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     size.v += (-90 * (size.x - sizeGoal) - 9 * size.v) * dt
     size.x += size.v * dt
     sound.setVoice(1 / Math.max(0.5, size.x) ** 1.4)
-    const breathe = sleep === 'asleep' ? Math.sin(t * 1.8) * 0.045 : Math.sin(t * 1.8) * (mood === 'thinking' ? 0.03 : 0.014)
+    const breathe = sleep === 'asleep' ? Math.sin(t * 1.8) * 0.045 : Math.sin(t * 2.1) * (mood === 'thinking' ? 0.03 : 0.024)
     lim.scale = entryScale * size.x * (1 + breathe) * (mood === 'sad' ? 0.975 : 1)
     info.get(lim)!.r = lim.scale
     lim.squash[0] = 1 + squash.x * 0.55 + Math.max(-0.05, cheeks.x) * 0.5
@@ -1171,6 +1174,12 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         const pen = min - dist
         A.translate(-nx * pen * wa, -ny * pen * wa, -nz * pen * wa)
         B.translate(nx * pen * wb, ny * pen * wb, nz * pen * wb)
+        // Nothing gets pressed through the floor (a sleeping toy has no sim to push it back up).
+        for (const body of [A, B]) {
+          let low = 0
+          for (let i = 1; i < body.x.length; i += 3) if (body.x[i] < low) low = body.x[i]
+          if (low < 0) body.translate(0, -low, 0)
+        }
         A.velocity(tmp)
         B.velocity(tmp2)
         const rel = (tmp2[0] - tmp[0]) * nx + (tmp2[1] - tmp[1]) * ny + (tmp2[2] - tmp[2]) * nz
@@ -1221,7 +1230,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
     // A body wider than the stage (big Lim on a phone) just centres.
     const dx = maxX - minX > X + XR ? -(minX + maxX) / 2 + (XR - X) / 2 : minX < -X ? -X - minX : maxX > XR ? XR - maxX : 0
-    const dy = maxY > topY ? topY - maxY : 0
+    // Lim's ceiling is lower: the tuft needs the headroom.
+    const top = body === lim ? topY - 0.42 : topY
+    const dy = maxY > top ? top - maxY : 0
     // Depth is a shallow lane, measured at the body's middle (a body is deeper than the lane).
     const cz = (minZ + maxZ) / 2
     const dz = cz < -0.6 ? -0.6 - cz : cz > 0.55 ? 0.55 - cz : 0
@@ -1255,8 +1266,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     pointer.release()
     snatched = false
     held = null
-    lim.kick(0, 1.2, 0)
-    squash.v -= 3.4
+    squash.v -= 1.6
     eat(toy)
   }
 
@@ -1315,7 +1325,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     u.mouthO.value = Math.min(1, f.o + (talking ? talkO : 0))
     u.mouthX.value = ease(
       u.mouthX.value,
-      t < chewUntil ? Math.sin(t * 17.5) * 0.045 : mood === 'thinking' && !act ? Math.sin(t * 2.1) * 0.04 : 0,
+      t < chewUntil ? chewSide * 0.07 : mood === 'thinking' && !act ? thinkSide * 0.065 : 0,
       18,
       dt,
     )
@@ -1388,7 +1398,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const sway =
       sleep === 'asleep' ? Math.sin(t * 0.58) * 0.05
       : t < dizzyUntil ? Math.sin(t * 3.1) * 0.16
-      : mood === 'thinking' ? Math.sin(t * 2.6) * 0.17
+      : mood === 'thinking' ? thinkSide * 0.1
       : 0
     lean.roll = ease(lean.roll, -lean.yaw * 0.3 + (dance?.lean ?? 0) + sway, dance ? 14 : 5, dt)
     // Flips and pirouettes are rigid turns of the whole body (so nothing
@@ -1446,7 +1456,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       // An eye turning away from the camera tucks into the body instead of
       // hanging off the silhouette.
       proj.set(...eyeNormals[i]).applyQuaternion(quat)
-      const facing = smooth((proj.y * Math.sin(PITCH) + proj.z * Math.cos(PITCH) - 0.2) / 0.42)
+      const facing = smooth((proj.y * Math.sin(PITCH) + proj.z * Math.cos(PITCH) - 0.32) / 0.45)
       eye.scale.set(EYE_R * sxEye * facing, EYE_R * syEye * facing, EYE_R * 0.72 * facing)
       const e = eyeMats[i].u
       const wink = i === 1 && t < winkUntil ? 0 : 1
@@ -1529,6 +1539,28 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     camera.lookAt(par.x * 0.05, camTargetY, 0)
   }
 
+  // The gumdrop's flat base belongs to the floor: off the ground it rounds out
+  // (and flattens again on contact), so an airborne Lim is a droplet, not a
+  // dome with its bottom sliced off.
+  const limRestAttr = limGeo.attributes.rest.array as Float32Array
+  let lift = 0
+  const down = new THREE.Vector3()
+  const roundBase = () => {
+    if (lift < 0.01) return
+    const out = limGeo.attributes.position.array as Float32Array
+    down.set(0, -1, 0).applyQuaternion(quat.set(...lim.rotation))
+    const amt = lift * 0.3 * lim.scale
+    for (let i = 0; i < out.length; i += 3) {
+      const y = limRestAttr[i + 1]
+      if (y > -0.35) continue
+      const r2 = (limRestAttr[i] * limRestAttr[i] + limRestAttr[i + 2] * limRestAttr[i + 2]) / 1.3
+      const k = amt * Math.min(1, (-0.35 - y) / 0.4) * Math.max(0, 1 - r2)
+      out[i] += down.x * k
+      out[i + 1] = Math.max(0, out[i + 1] + down.y * k)
+      out[i + 2] += down.z * k
+    }
+  }
+
   let first = true
   let anchorKey = ''
   const frame = (dt: number) => {
@@ -1576,7 +1608,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (!popped) {
       // Lim is drawn as a smooth skin over the particles: all of the squash,
       // stretch and tumble, a soft-limited share of the ripples, never a crease.
-      skinJelly(limGeo, lim, 0.15, 0)
+      skinJelly(limGeo, lim, 0.085, 0)
+      roundBase()
       syncJellyGeometry(limGeo)
       u.rot.value.setFromMatrix4(rotM4.makeRotationFromQuaternion(quat.set(...lim.rotation)))
       updateShadow(limShadow, lim, 3.4 * lim.scale, 0.62)
@@ -1711,7 +1744,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       active()
       if (popped) return
       // No headroom for a cartwheel on a small stage: pirouette instead.
-      if (kind === 'flip' && topY > 3.3) startFlip()
+      if (kind === 'flip' && topY > 3.75) startFlip()
       else if (kind === 'spin' || kind === 'flip') {
         jump(0, 3.8, 0)
         later(0.12, () => startSpin(2, 0.72))
@@ -1724,7 +1757,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         emote('party!')
       } else if (kind === 'pop') later(0.3, pop)
       else if (kind === 'jump') {
-        jump(0, Math.min(9.2, Math.sqrt(2 * G * Math.max(0.25, topY - 3))), 0, 0.2)
+        jump(0, Math.min(9.2, Math.sqrt(2 * G * Math.max(0.2, topY - 3.35))), 0, 0.2)
         setAct('whee', 1.5)
         emote('whee!')
       } else if (kind === 'love') {

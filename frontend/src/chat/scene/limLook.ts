@@ -110,7 +110,7 @@ const HAPPY_EYES = { lidTop: 0, lidBot: 0, seam: 0.05, smile: 1 }
 export const FACES = {
   idle: face({}),
   typing: face({ w: 0.11, curve: 1.6, open: 0.03, blush: 0.55, lidTop: 1, tilt: -0.06, brow: 0.9, browL: [-0.14, 0.03], browR: [0.14, 0.03], pupil: 1.08 }),
-  thinking: face({ w: 0.07, curve: 0, open: 0.07, o: 0.6, blush: 0.4, lidTop: 0.78, brow: 1, browL: [-0.22, 0.07], browR: [0.1, -0.01] }),
+  thinking: face({ w: 0.1, curve: 0, open: 0.1, o: 0.6, blush: 0.4, lidTop: 0.78, brow: 1, browL: [-0.22, 0.07], browR: [0.1, -0.01] }),
   talking: face({ w: 0.15, curve: 1.8, open: 0.02, blush: 0.6 }),
   happy: face({ w: 0.19, curve: 2.6, open: 0.1, blush: 0.95, ...HAPPY_EYES }),
   sad: face({ w: 0.12, curve: -2.4, blush: 0.2, lidTop: 0.7, tilt: 0.3, brow: 1, browL: [0.4, 0.01], browR: [-0.4, 0.01], sad: 1, droop: 0.09, pupil: 0.9 }),
@@ -168,7 +168,7 @@ export type LimUniforms = ReturnType<typeof createLimUniforms>
 const L = new THREE.Vector3(-0.45, 0.72, 0.53).normalize()
 // The window highlight sits further up and round the crown than the key
 // itself, clear of the brows and eyes.
-const H = new THREE.Vector3(-0.58, 1.08, 0.3).normalize()
+const H = new THREE.Vector3(-0.52, 1.45, 0.3).normalize()
 const LR = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), H).normalize()
 const LU = new THREE.Vector3().crossVectors(H, LR).normalize()
 export const LIGHT = vec3(L.x, L.y, L.z)
@@ -234,7 +234,7 @@ export function gel(n: V3, spec: V3, o: GelOptions): V3 {
   const hy = dot(r, vec3(LU.x, LU.y, LU.z))
   const facing = smoothstep(0.2, 0.5, dot(r, vec3(H.x, H.y, H.z)))
   if (o.window > 0) {
-    const s = o.window * 0.66
+    const s = o.window * 0.84
     // A softbox with a mullion: the "there's a window in the room" highlight.
     const q = vec2(abs(hx).sub(0.2 * s), abs(hy).sub(0.27 * s))
     const box = length(max(q, 0)).add(min(max(q.x, q.y), 0)).sub(0.1 * s)
@@ -289,7 +289,7 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
   base = mix(base, col(PAL.belly), belly.mul(0.55))
   const s = skin(u, base, rest.y)
   // The highlight keeps off the face: nothing glossy crosses a brow or an eye.
-  const gloss = float(1).sub(front.mul(float(1).sub(smoothstep(a.eyeY + 0.36, a.eyeY + 0.46, rest.y))))
+  const gloss = float(1).sub(front.mul(float(1).sub(smoothstep(a.eyeY + 0.43, a.eyeY + 0.5, rest.y))))
   let c = gel(n.view, n.spec, { ...s, window, gloss })
   // At night the jelly glows a little from inside.
   c = c.add(s.rim.mul(u.night).mul(0.07))
@@ -496,6 +496,15 @@ export function rippleMaterial(u: LimUniforms) {
   mat.colorNode = mix(col('#FFFFFF'), col(PAL.nightRim), u.night)
   mat.opacityNode = band.mul(float(1).sub(k)).mul(0.75)
   return { mat, k }
+}
+
+/** A puff of floor dust: a flat, soft-edged, half-transparent disc. */
+export function dustMaterial(u: LimUniforms) {
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false })
+  const d = length(uv().sub(0.5)).mul(2)
+  mat.colorNode = mix(col('#FFF6EE'), col('#6E60B8'), u.night)
+  mat.opacityNode = float(1).sub(smoothstep(0.45, 1, d)).mul(0.72)
+  return mat
 }
 
 /** The bubble Lim blows from its nose while asleep: a rim, a glint, not much else. */
