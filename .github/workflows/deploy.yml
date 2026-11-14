@@ -82,6 +82,12 @@ jobs:
           if [ -n "${{ vars.VITE_CLERK_PROXY_URL }}" ]; then
             echo "VITE_CLERK_PROXY_URL=${{ vars.VITE_CLERK_PROXY_URL }}" >> frontend/.env
           fi
+          # Public Supabase key for BreathFlow cloud sync. Without it the
+          # client is silently null and sync never runs.
+          if [ -n "${{ vars.VITE_SUPABASE_ANON_KEY }}" ]; then
+            sed -i '/^[[:space:]]*VITE_SUPABASE_ANON_KEY=/d' frontend/.env
+            echo "VITE_SUPABASE_ANON_KEY=${{ vars.VITE_SUPABASE_ANON_KEY }}" >> frontend/.env
+          fi
           (cd frontend && bun run build)
 
           if ! wait "$TESTS_PID"; then
