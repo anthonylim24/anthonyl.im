@@ -1,6 +1,6 @@
 # anthonyl.im
 
-This repo hosts five experiences under one Vite SPA: a static home page (`/`), the **anthonyl.im lab landing page** (`/lab`), a personal AI chatbot (`/chatbot`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+This repo hosts five experiences under one Vite SPA: a personal AI chatbot, Lim, at the root (`/`; `/chatbot` redirects), a static home page (`/home`), the **anthonyl.im lab landing page** (`/lab`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -10,7 +10,7 @@ This repo hosts five experiences under one Vite SPA: a static home page (`/`), t
 anthonyl.im/
 ├── frontend/                    # React 19 + TypeScript SPA (Vite 8)
 │   ├── src/
-│   │   ├── App.tsx              # Chatbot "Lim" at /chatbot (SSE via lib/apiService.ts)
+│   │   ├── App.tsx              # Chatbot "Lim" at / (SSE via lib/apiService.ts)
 │   │   ├── chat/                # Lim: useChat, LimStage (lazy 3D), LimArt, scene/limScene.ts
 │   │   ├── AppRoutes.tsx        # React Router v7 tree — Guarded + lazy
 │   │   ├── main.tsx             # Clerk provider + SW registration
@@ -274,15 +274,16 @@ Two regressions surfaced in May 2026 that the verify gate now catches:
 
 ## Routing
 
-Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Link previews: `appPreviews` in `server/app.ts` (title, description, 1200×630 card `frontend/public/og-<app>.jpg`; bump `OG_VERSION` when a card changes). Keep `index.html`'s bootstrap scripts and `lib/routeMetadata.ts` in sync with it. `/` must stay routed to the SPA shell ahead of `serveStatic` (`server/src/previewMeta.test.ts`). Basename comes from `lib/routerBasename.ts` (PR preview support).
+Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Link previews: `appPreviews` in `server/app.ts` (title, description, 1200×630 card `frontend/public/og-<app>.jpg`; bump `OG_VERSION` when a card changes). Keep `index.html`'s bootstrap scripts and `lib/routeMetadata.ts` in sync with it. `/` must stay routed to the SPA shell (Lim) ahead of `serveStatic` (`server/src/previewMeta.test.ts`). Basename comes from `lib/routerBasename.ts` (PR preview support).
 
 | Path | App | Auth |
 |------|-----|------|
-| `/` | Static home (`frontend/public/home.html`, no scripts; links the apps, privacy, terms) | Public |
+| `/` | AI Chatbot (Lim). The SPA shell's `<noscript>` links privacy and terms | Public |
 | `/lab` | anthonyl.im lab landing | Public |
 | `/sign-in`, `/sign-up` | Clerk `SignIn` / `SignUp` (hash routing; finishes Google `#/sso-callback` on our origin) | Public |
 | `/privacy`, `/terms` | Static legal pages | Public |
-| `/chatbot` | AI Chatbot | Public |
+| `/home` | Static home (`frontend/public/home.html`, no scripts; links the apps, privacy, terms). The homepage URL for Google's OAuth branding review | Public |
+| `/chatbot` | 301 to `/` (server), `Navigate` in the SPA | Public |
 | `/breathwork` | BreathFlow home | Public |
 | `/breathwork/session` | BreathFlow session | Public |
 | `/breathwork/progress` | BreathFlow progress | Public |
@@ -369,7 +370,7 @@ See `frontend/.env.example` and `server/src/config.ts`.
 3. Backend staged on Digital Ocean via SSH into `~/anthonyl.im.next` (shallow clone, `bun install --frozen-lockfile`), system tools checked (yt-dlp, ffmpeg, dev-browser).
 4. Frontend `dist/` uploaded via SCP into the staged tree.
 5. Atomic swap `next → live`, PM2 restart (`--max-memory-restart 700M`), wait for loopback `/health`; auto-rollback to `prev` if it does not come up.
-6. Post-deploy smoke: `/health` JSON + home and legal pages plus SPA shells on `/lab`, `/chatbot`, `/breathwork`, `/trips`, `/trips/korea-2026`.
+6. Post-deploy smoke: `/health` JSON + `/home` and legal pages plus SPA shells on `/`, `/lab`, `/breathwork`, `/trips`, `/trips/korea-2026`.
 
 **Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
 
@@ -509,19 +510,19 @@ Each app's *accent* color is its own (see per-app sections below).
 
 ## Design Context: `/lab` — anthonyl.im Lab Landing
 
-Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/chatbot`, Concierge → `/trips`, BreathFlow → `/breathwork`.
+Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/`, Concierge → `/trips`, BreathFlow → `/breathwork`.
 
 - **Palette:** bone `#EDE8DF` canvas, ink `#0E1024`, one ultramarine accent `#2433E0`. Tokens are `--lim-*` vars on `.landing` in `index.css`. Display type is Archivo (wdth axis), with Fragment Mono for data.
 - **Hero:** WebGPU (WebGL2 fallback) soft-body glass droplet (`scene/heroScene.ts`). It's a three-blocks `MeshTransmissionNodeMaterial` with spring physics (drag, poke, stretch). Normals come from a procedurally hand-painted brush field (`scene/painter.ts`), which also serves as the static still and fallback. TSL post: bloom, scroll-driven ink dissolve, three-blocks `filmHD`. The scene runs only while on screen; reduced motion freezes the clock.
 - **License:** `three-blocks` is PolyForm Noncommercial 1.0.0. The footer carries the Required Notice — keep it. Commercial use needs a three-blocks license.
 - **Chunks:** the hero loads `three-core` + `three-webgpu` only; the photoreal 3D view loads `three-core` + `three`.
 
-## Design Context: `/chatbot` — Lim, the jelly companion
+## Design Context: `/` — Lim, the jelly companion
 
 Code: `frontend/src/App.tsx` (page shell), `frontend/src/chat/` (`useChat.ts` state + persistence, `LimStage.tsx` lazy 3D stage, `LimArt.tsx` SVG Lim, `caret.ts`, `eggs.ts` typed easter eggs, `world/` items and places (spec, catalog, client API), `sound.ts` WebAudio foley, `chat.css` tokens + code theme, `scene/limScene.ts` behaviour, `scene/limLook.ts` palette + expressions + TSL materials, `scene/fx.ts` particle pools + the tuft, `scene/items.ts` item meshes, `scene/env.ts` places and weather), `frontend/src/styles/chatbot.stylex.ts`, `messageContent.stylex.ts`, `components/message-content.tsx`.
 
 ### Users
-Visitors who open `/chatbot` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
+Visitors who open `/` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
 
 ### Brand Personality
 **Playful, Warm, Crafted.** Lim is a Pixar-soft coral gumdrop of jelly who answers for Anthony. The craft shows in how Lim moves; the chat itself stays calm and readable.

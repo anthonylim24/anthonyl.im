@@ -14,7 +14,7 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
   const app = (await import('../app')).default;
   const cases: [string, string, string][] = [
     ['/lab', 'anthonyl.im — Applied intelligence lab', 'og-landing'],
-    ['/chatbot', 'Lim — Ask Anthony Lim&#39;s AI', 'og-chatbot'],
+    ['/', 'Lim — Ask Anthony Lim&#39;s AI', 'og-chatbot'],
     ['/breathwork', 'BreathFlow — Guided breathing with a watercolour cat', 'og-breathwork'],
     ['/breathwork/progress', 'Progress · BreathFlow', 'og-breathwork'],
     ['/trips', 'Trips — plan a trip, pin by pin', 'og-trips'],
@@ -30,13 +30,13 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
   }
 });
 
-test.skipIf(!built)('home and legal pages are plain HTML, and home links the policy', async () => {
+test.skipIf(!built)('home and legal pages are plain HTML, and both homes link the policy', async () => {
   process.env.KLUSTER_API_KEY ||= 'load-test-stub';
   process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
   process.env.IG_WORKER_ENABLED ||= 'false';
   const app = (await import('../app')).default;
   for (const [path, title] of [
-    ['/', 'anthonyl.im · Anthony Lim'],
+    ['/home', 'anthonyl.im · Anthony Lim'],
     ['/privacy', 'Privacy Policy · anthonyl.im'],
     ['/terms', 'Terms of Service · anthonyl.im'],
   ]) {
@@ -47,7 +47,13 @@ test.skipIf(!built)('home and legal pages are plain HTML, and home links the pol
     expect(html).not.toContain('id="root"');
   }
   const home = await (await app.fetch(new Request('http://localhost/'))).text();
+  expect(home).toContain('id="root"');
   expect(home).toContain('href="/privacy"');
+  const staticHome = await (await app.fetch(new Request('http://localhost/home'))).text();
+  expect(staticHome).toContain('href="/privacy"');
+  const old = await app.fetch(new Request('http://localhost/chatbot'));
+  expect(old.status).toBe(301);
+  expect(old.headers.get('location')).toBe('/');
 });
 
 test.skipIf(!built)('a missing hashed asset is a 404, not the SPA shell', async () => {

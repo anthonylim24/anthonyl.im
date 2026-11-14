@@ -338,15 +338,15 @@ jobs:
             exit 1
           fi
 
-          # path|text the page must contain. "/", /privacy and /terms are
-          # static pages; the rest are the SPA shell.
+          # path|text the page must contain. /home, /privacy and /terms are
+          # static pages; the rest are the SPA shell ("/" is Lim).
           SHELL='<div id="root">'
           CHECKS=(
-            "/|<title>anthonyl.im · Anthony Lim</title>"
+            "/|$SHELL"
+            "/home|<title>anthonyl.im · Anthony Lim</title>"
             "/privacy|<title>Privacy Policy · anthonyl.im</title>"
             "/terms|<title>Terms of Service · anthonyl.im</title>"
             "/lab|$SHELL"
-            "/chatbot|$SHELL"
             "/breathwork|$SHELL"
             "/trips|$SHELL"
             "/trips/korea-2026|$SHELL"

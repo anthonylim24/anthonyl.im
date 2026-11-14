@@ -46,7 +46,7 @@ describe('useFavicon', () => {
     setRouteHead('/favicon-breath.svg')
 
     render(
-      <MemoryRouter initialEntries={['/chatbot']}>
+      <MemoryRouter initialEntries={['/']}>
         <FaviconProbe />
       </MemoryRouter>,
     )

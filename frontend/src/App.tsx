@@ -1,8 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   Briefcase,
   Check,
@@ -521,9 +519,6 @@ function App() {
       <Backdrop />
 
       <header {...sx(chatbot.top)}>
-        <Link to="/" {...sx(chatbot.iconButton, chatbot.homeLink)} aria-label="Back to anthonyl.im">
-          <ArrowLeft size={18} aria-hidden="true" />
-        </Link>
         <div {...sx(chatbot.brand)}>
           <LimArt mood={mood} {...sx(chatbot.brandMark)} />
           <div {...sx(chatbot.brandText)}>

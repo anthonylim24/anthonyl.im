@@ -156,7 +156,7 @@ export const PRODUCTS: Product[] = [
     status: 'Live',
     blurb: 'Our conversational model, grounded in a curated record of one engineer’s work. Ask what shipped, why, and how.',
     cta: 'Talk to Lim',
-    href: '/chatbot',
+    href: '/',
     internal: true,
     art: 'chat',
   },
@@ -383,7 +383,7 @@ export const FOOTER: { title: string; links: NavLink[] }[] = [
   {
     title: 'Products',
     links: [
-      { label: 'Lim', href: '/chatbot' },
+      { label: 'Lim', href: '/' },
       { label: 'Concierge', href: '/trips' },
       { label: 'BreathFlow', href: '/breathwork' },
       { label: 'Lim Agents', href: '#agents' },
