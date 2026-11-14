@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -42,12 +42,12 @@ import "./chat/chat.css";
 const MessageContent = lazy(() => import("./components/message-content"));
 
 const SUGGESTIONS = [
-  { text: "What is Anthony's background?", Icon: Sparkles },
-  { text: "What are his technical skills?", Icon: Wrench },
-  { text: "How can I contact him?", Icon: Mail },
-  { text: "What is he building right now?", Icon: Rocket },
-  { text: "What did he build on this site?", Icon: Heart },
-  { text: "Can you help me with a coding question?", Icon: Code },
+  { text: "What is Anthony's background?", short: "Background", Icon: Sparkles },
+  { text: "What are his technical skills?", short: "Skills", Icon: Wrench },
+  { text: "How can I contact him?", short: "Contact", Icon: Mail },
+  { text: "What is he building right now?", short: "Building now", Icon: Rocket },
+  { text: "What did he build on this site?", short: "This site", Icon: Heart },
+  { text: "Can you help me with a coding question?", short: "Coding help", Icon: Code },
 ];
 /** What Lim is up to while the model invents something (it can take a while). */
 const MAKING = [
@@ -68,6 +68,30 @@ const KNOWN = {
   places: new Set(Object.values(PLACES).map((x) => x.spec.name)),
 };
 const THEME = { light: "#FFF6EC", dark: "#1E1833" };
+/** Phones: the share of the shell the visitor gave Lim's stage by dragging the grip. */
+const STAGE_KEY = "lim-stage";
+const STAGE_DEFAULT = { empty: 0.5, chatting: 0.4 };
+const STAGE_BIG = 0.68;
+const clampShare = (f: number) => Math.min(0.85, Math.max(0.15, f));
+// Wide enough for the long placeholder on one line.
+const ROOMY = "(min-width: 480px)";
+const hasMedia = () => typeof window.matchMedia === "function";
+const watchRoomy = (onChange: () => void) => {
+  if (!hasMedia()) return () => {};
+  const mql = window.matchMedia(ROOMY);
+  mql.addEventListener("change", onChange);
+  return () => mql.removeEventListener("change", onChange);
+};
+const isRoomy = () => hasMedia() && window.matchMedia(ROOMY).matches;
+
+const readStage = () => {
+  try {
+    const share = Number(localStorage.getItem(STAGE_KEY));
+    return share > 0 ? clampShare(share) : null;
+  } catch {
+    return null;
+  }
+};
 
 const readNight = () => {
   try {
@@ -170,7 +194,7 @@ function AssistantMessage({
           )}
         </div>
         {settled && status !== "error" && (
-          <div {...sx(chatbot.actions)}>
+          <div {...sx(chatbot.actions, !last && chatbot.actionsEarlier)}>
             {status === "stopped" && <span {...sx(chatbot.tag)}>Stopped</span>}
             {content && (
               <button type="button" onClick={onCopy} {...sx(chatbot.action)} aria-label={copied ? "Copied" : "Copy reply"}>
@@ -194,6 +218,10 @@ function AssistantMessage({
 
 function App() {
   const stageRef = useRef<LimStageHandle>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const stageAreaRef = useRef<HTMLDivElement>(null);
+  // Where a press on the grip began, and whether it has turned into a drag.
+  const grip = useRef<{ from: number; moved: boolean } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stick = useRef(true);
@@ -221,6 +249,10 @@ function App() {
   const [made, setMade] = useState(loadMade);
   // Lim's world as the live scene has it; null until (unless) the 3D scene is up.
   const [world, setWorld] = useState<LimWorld | null>(null);
+  // null: the stage follows the chat (bigger before the first message).
+  const [stageShare, setStageShare] = useState<number | null>(readStage);
+  const [dragging, setDragging] = useState(false);
+  const roomy = useSyncExternalStore(watchRoomy, isRoomy, () => true);
 
   const reducedMotion = useReducedMotion();
   const toyButtonRef = useRef<HTMLButtonElement>(null);
@@ -329,6 +361,15 @@ function App() {
       /* private mode */
     }
   }, [night]);
+
+  useEffect(() => {
+    try {
+      if (stageShare === null) localStorage.removeItem(STAGE_KEY);
+      else localStorage.setItem(STAGE_KEY, stageShare.toFixed(3));
+    } catch {
+      /* private mode */
+    }
+  }, [stageShare]);
 
   // PostHog (deferred — bundle-defer-third-party)
   useEffect(() => {
@@ -513,19 +554,76 @@ function App() {
   const empty = messages.length === 0;
   const canSend = input.trim().length > 0;
 
+  /* ── Stage grip (phones) ── */
+
+  const shownShare = stageShare ?? (empty ? STAGE_DEFAULT.empty : STAGE_DEFAULT.chatting);
+  const toggleStage = () => setStageShare((share) => (share !== null && share >= STAGE_BIG - 0.02 ? null : STAGE_BIG));
+
+  const shareAt = (clientY: number) => {
+    const area = stageAreaRef.current;
+    const root = rootRef.current;
+    if (!area || !root) return null;
+    const top = area.getBoundingClientRect().top;
+    return clampShare((clientY - top) / (root.getBoundingClientRect().bottom - top));
+  };
+
+  const onGripDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    grip.current = { from: e.clientY, moved: false };
+  };
+
+  const onGripMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const press = grip.current;
+    if (!press || (!press.moved && Math.abs(e.clientY - press.from) < 5)) return;
+    press.moved = true;
+    setDragging(true);
+    const share = shareAt(e.clientY);
+    if (share !== null) setStageShare(share);
+  };
+
+  const onGripUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const press = grip.current;
+    grip.current = null;
+    if (!press) return;
+    if (!press.moved && e.type === "pointerup") toggleStage();
+    setDragging(false);
+  };
+
+  const onGripKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = { ArrowUp: -0.05, ArrowDown: 0.05 }[e.key];
+    if (step) setStageShare(clampShare(shownShare + step));
+    else if (e.key === "Home") setStageShare(0.15);
+    else if (e.key === "End") setStageShare(0.85);
+    else if (e.key === "Enter" || e.key === " ") toggleStage();
+    else return;
+    e.preventDefault();
+  };
+
+  const rootStyle = {
+    ...(keyboardH ? { height: keyboardH, minHeight: 0 } : null),
+    ...(stageShare !== null ? { "--lim-stage": `clamp(150px, ${(stageShare * 100).toFixed(1)}%, calc(100% - 230px))` } : null),
+  } as React.CSSProperties;
+
   /* ── Render ── */
 
   return (
     <div
-      {...sx(chatbot.root, focused && chatbot.rootCompact, night ? "chatbot-dark" : "chatbot-shadow")}
-      style={keyboardH ? { height: keyboardH, minHeight: 0 } : undefined}
+      ref={rootRef}
+      {...sx(
+        chatbot.root,
+        empty && chatbot.rootEmpty,
+        focused && chatbot.rootCompact,
+        dragging && chatbot.rootDragging,
+        night ? "chatbot-dark" : "chatbot-shadow",
+      )}
+      style={rootStyle}
     >
       <a href="#chat-main" {...sx(chatbot.skip)}>
         Skip to conversation
       </a>
       <Backdrop />
 
-      <header {...sx(chatbot.top)}>
+      <header {...sx(chatbot.top, focused && chatbot.topTucked)}>
         <div {...sx(chatbot.brand)}>
           <LimArt mood={mood} {...sx(chatbot.brandMark)} />
           <div {...sx(chatbot.brandText)}>
@@ -559,7 +657,7 @@ function App() {
         </button>
       </header>
 
-      <div {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
+      <div ref={stageAreaRef} {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
         <LimStage ref={stageRef} mood={mood} night={night} onWorld={setWorld} onScore={onScore} />
         <p {...sx(chatbot.stageCaption, (focused || !empty || played) && chatbot.stageCaptionHidden)}>
           psst — poke me, fling me, or feed me a bean
@@ -567,6 +665,23 @@ function App() {
       </div>
 
       <main id="chat-main" tabIndex={-1} {...sx(chatbot.panel)}>
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize Lim's stage"
+          aria-valuemin={15}
+          aria-valuemax={85}
+          aria-valuenow={Math.round(shownShare * 100)}
+          tabIndex={0}
+          onPointerDown={onGripDown}
+          onPointerMove={onGripMove}
+          onPointerUp={onGripUp}
+          onPointerCancel={onGripUp}
+          onKeyDown={onGripKey}
+          {...sx(chatbot.grip)}
+        >
+          <span {...sx(chatbot.gripBar)} />
+        </div>
         <div
           ref={logRef}
           onScroll={onScroll}
@@ -587,14 +702,18 @@ function App() {
                   Hi, I'm <span {...sx(chatbot.helloAccent)}>Lim</span>!
                 </h2>
                 <p {...sx(chatbot.intro)}>
-                  Anthony's jelly sidekick. Ask me about his work and projects, or bring me a coding question, a recipe hunt, or anything else. I'll answer as
-                  best I can, with only a little wobbling.
+                  <span {...sx(chatbot.long)}>
+                    Anthony's jelly sidekick. Ask me about his work and projects, or bring me a coding question, a recipe hunt, or anything else. I'll answer
+                    as best I can, with only a little wobbling.
+                  </span>
+                  <span {...sx(chatbot.short)}>Ask me about Anthony's work, or anything else at all.</span>
                 </p>
                 <div {...sx(chatbot.chips)}>
-                  {SUGGESTIONS.map(({ text, Icon }, i) => (
+                  {SUGGESTIONS.map(({ text, short, Icon }, i) => (
                     <button
                       key={text}
                       type="button"
+                      aria-label={text}
                       onClick={() => submit(text)}
                       onPointerEnter={(e) => stageRef.current?.lookAt(...center(e.currentTarget))}
                       onFocus={(e) => stageRef.current?.lookAt(...center(e.currentTarget))}
@@ -604,7 +723,8 @@ function App() {
                       <span {...sx(chatbot.chipIcon)} aria-hidden="true">
                         <Icon size={16} strokeWidth={2.2} />
                       </span>
-                      {text}
+                      <span {...sx(chatbot.long)}>{text}</span>
+                      <span {...sx(chatbot.short)}>{short}</span>
                     </button>
                   ))}
                 </div>
@@ -667,7 +787,7 @@ function App() {
                   followCaret();
                 }}
                 onBlur={() => setFocused(false)}
-                placeholder="Ask about Anthony, or give Lim a toy…"
+                placeholder={roomy ? "Ask about Anthony, or give Lim a toy…" : "Ask about Anthony…"}
                 enterKeyHint="send"
                 {...sx(chatbot.textarea)}
               />
