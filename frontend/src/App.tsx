@@ -58,6 +58,9 @@ const MAKING = [
   "Picking the nicest colours…",
   "Blowing on it to dry…",
   "Nearly there…",
+  "This one's tricky…",
+  "Still squishing…",
+  "Worth the wait, promise…",
 ];
 const CHIP_TINTS = [chatbot.chip1, chatbot.chip2, chatbot.chip3, chatbot.chip4];
 const NIGHT_KEY = "lim-chat-night";
@@ -196,6 +199,7 @@ function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stick = useRef(true);
   const pendingStunt = useRef<Stunt | null>(null);
+  const makingId = useRef(0);
   const cheerTimer = useRef(0);
   const copyTimer = useRef(0);
 
@@ -252,22 +256,29 @@ function App() {
         return honest(local.ops, local.reply);
       }
       if (!looksLikeWorldRequest(text)) return null;
+      const mine = ++makingId.current;
       setMaking(1);
       stage.conjure(true);
       const tick = window.setInterval(() => setMaking((n) => n + 1), 2200);
+      let ok = false;
       try {
         const answer = await askWorld(text, { items: names, place: now.place?.name ?? "studio" }, signal);
         if (!answer.ops.length || signal.aborted) return null;
+        ok = true;
         stage.apply(answer.ops);
         setMade((m) => rememberMade(m, answer.ops, KNOWN));
         // It may have asked a real question too: then the model still answers.
         return answer.chat ? null : honest(answer.ops, answer.reply || "Done!");
       } catch {
-        return null;
+        // It was an order for Lim's world, so say so rather than hand it to the chat (which only knows Anthony).
+        return signal.aborted ? null : "I couldn't make that just now. Try me again, or pick something from the toy box!";
       } finally {
         window.clearInterval(tick);
-        setMaking(0);
-        stageRef.current?.conjure(false);
+        // A newer request may have started (New chat, then another order): leave its show alone.
+        if (makingId.current === mine) {
+          setMaking(0);
+          stageRef.current?.conjure(false, ok);
+        }
       }
     },
     onDone: (firstReply, local) => {
@@ -598,7 +609,7 @@ function App() {
                     copied={copiedId === m.id}
                     onCopy={() => copy(m)}
                     onRegenerate={regenerate}
-                    waiting={making && i === messages.length - 1 ? MAKING[(making - 1) % MAKING.length] : undefined}
+                    waiting={making && i === messages.length - 1 ? MAKING[making <= MAKING.length ? making - 1 : MAKING.length - 3 + (making % 3)] : undefined}
                   />
                 ),
               )

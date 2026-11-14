@@ -93,7 +93,7 @@ export type LimScene = {
   clear(what: 'items' | 'place' | 'all'): void
   world(): LimWorld
   /** Something is being made (the model is thinking): Lim conjures until told to stop. */
-  conjure(on: boolean): void
+  conjure(on: boolean, made?: boolean): void
   dispose(): void
 }
 
@@ -1060,6 +1060,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
     gaze()
     if (action === 'remove') {
+      // Something Lim is wearing comes off; anything else goes back in the box.
+      if (toy.worn) {
+        emote('phew')
+        return unwear(toy)
+      }
       emote('bye!')
       return removeToy(toy, true)
     }
@@ -1221,7 +1226,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
     if (t > nextMutter) {
       nextMutter = t + 1.7
-      emote(MUTTERS[mutters++ % MUTTERS.length])
+      // Past the last line it keeps to the late ones rather than starting over.
+      emote(MUTTERS[mutters < MUTTERS.length ? mutters : MUTTERS.length - 2 + (mutters % 2)])
+      mutters++
       // Up on tiptoe for a look, then a little stir.
       if (mutters % 2) jump(0, 2.6, 0, 0.06)
       else for (let k = 0; k < 4; k++) later(k * 0.1, () => lim.kick(k % 2 ? -1 : 1, 0, 0))
@@ -2401,7 +2408,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     addItem(spec, then) {
       // Room for one more: the oldest thing not being worn makes way.
       const live = toys.filter((toy) => toy.backAt < 0)
-      if (live.length >= MAX_ITEMS) removeToy(live.find((toy) => !toy.worn && toy !== held) ?? live[0], true)
+      // A narrow stage has two seats' worth of floor: fewer things before the oldest makes way.
+      if (live.length >= (reach < 3 ? 4 : MAX_ITEMS)) removeToy(live.find((toy) => !toy.worn && toy !== held) ?? live[0], true)
       // With motion reduced nothing falls: it is simply there, on the floor.
       const toy = addToy(spec, spec.name === 'jelly bean', spec.traits.includes('floaty') ? 1.4 : reducedMotion ? 0 : topY + 0.5)
       active(true)
@@ -2448,14 +2456,20 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     act(action, target) {
       const name = target.trim().toLowerCase()
       const live = toys.filter((toy) => toy.backAt < 0 && toy.eatenAt < 0)
-      const toy =
+      const found =
         !name || name === 'it' || name === 'that'
           ? live[live.length - 1]
           : (live.find((x) => x.spec.name === name) ?? live.find((x) => x.spec.name.includes(name) || name.includes(x.spec.name)))
-      if (!toy) return false
+      if (!found) return false
+      // "Take it off" means the one Lim has on, if there are two alike.
+      const toy = action === 'remove' && !found.worn ? (live.find((x) => x.worn && x.has('hat') === found.has('hat')) ?? found) : found
       if (reducedMotion) {
         // No performance, just the outcome (where there is one).
-        if (action === 'remove') removeToy(toy, false)
+        if (action === 'remove' && toy.worn) {
+          unwear(toy)
+          seat(toy)
+          place(toy.jelly, toy.geo, 1, toy.slot, toy.half[1] + 0.02, toy.depth)
+        } else if (action === 'remove') removeToy(toy, false)
         else if (action === 'wear' && (toy.has('hat') || toy.has('glasses'))) wear(toy)
         else if (action === 'eat' && toy.has('edible')) {
           u.tint.value.set(toy.hex)
@@ -2481,7 +2495,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       stage.requestRender()
     },
     world: worldNow,
-    conjure(on) {
+    conjure(on, made = true) {
       if (reducedMotion || Boolean(conjuring) === on) return
       if (on) {
         conjuring = t || 0.001
@@ -2490,8 +2504,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         active(true)
         return
       }
-      // Done (or given up): the ring pops.
       conjuring = 0
+      if (!made) {
+        // Nothing came of it: the ring fizzles out and Lim deflates a little.
+        setAct('sad', 1.1)
+        squash.v += 3
+        emote('pfft…')
+        return
+      }
+      // Done: the ring pops.
       lim.attach(headTopRest, tmp)
       sparkle(tmp[0], Math.min(topY - 0.5, tmp[1] + 0.95), 0.5, 10, 1)
       sound.sparkle()

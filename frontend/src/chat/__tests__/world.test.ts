@@ -123,60 +123,82 @@ describe('cleaning what the model sends', () => {
 })
 
 describe('reading a message without the model', () => {
+  const op = (text: string, inWorld = [] as Parameters<typeof localIntent>[1], extra?: Parameters<typeof localIntent>[2]) => localIntent(text, inWorld, extra)?.ops[0]
+
   it('handles plain catalog requests locally', () => {
-    expect(localIntent('give Lim a ball')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
-    expect(localIntent('drop a rubber duck please')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'rubber duck' } })
-    expect(localIntent('can he have a teddy bear?')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'teddy' } })
-    expect(localIntent('beach ball')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
-    expect(localIntent('a ball please')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
-    expect(localIntent('take him to the beach')?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'beach' } })
-    expect(localIntent('the beach please')?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'beach' } })
-    expect(localIntent('go home')?.ops[0]).toEqual({ op: 'place', spec: null })
-    expect(localIntent('tidy up')?.ops[0]).toEqual({ op: 'clear', what: 'items' })
-    expect(localIntent('make it snow')?.ops[0]).toMatchObject({ op: 'tweak', set: { weather: 'snow' } })
-    expect(localIntent('low gravity please')?.ops[0]).toEqual({ op: 'tweak', set: { gravity: 0.3 } })
-    expect(localIntent('stop the rain')?.ops[0]).toEqual({ op: 'tweak', set: { weather: 'none' } })
+    expect(op('give Lim a ball')).toMatchObject({ op: 'item', spec: { name: 'ball' } })
+    expect(op('bring him a rubber duck please')).toMatchObject({ op: 'item', spec: { name: 'rubber duck' } })
+    expect(op('can he have a teddy bear?')).toMatchObject({ op: 'item', spec: { name: 'teddy' } })
+    expect(op('Lim deserves a crown')).toMatchObject({ op: 'item', spec: { name: 'crown' } })
+    expect(op('beach ball')).toMatchObject({ op: 'item', spec: { name: 'ball' } })
+    expect(op('a ball please')).toMatchObject({ op: 'item', spec: { name: 'ball' } })
+    expect(op('take him to the beach')).toMatchObject({ op: 'place', spec: { name: 'beach' } })
+    expect(op('go to space')).toMatchObject({ op: 'place', spec: { name: 'space' } })
+    expect(op('the beach please')).toMatchObject({ op: 'place', spec: { name: 'beach' } })
+    expect(op('go home')).toEqual({ op: 'place', spec: null })
+    expect(op('take him home')).toEqual({ op: 'place', spec: null })
+    expect(op('tidy up')).toEqual({ op: 'clear', what: 'items' })
+    expect(op('get rid of all the toys')).toEqual({ op: 'clear', what: 'items' })
+    expect(op('reset the world')).toEqual({ op: 'clear', what: 'all' })
+    expect(op('make it snow')).toMatchObject({ op: 'tweak', set: { weather: 'snow' } })
+    expect(op('low gravity please')).toEqual({ op: 'tweak', set: { gravity: 0.3 } })
+    expect(op('stop the rain')).toEqual({ op: 'tweak', set: { weather: 'none' } })
+    expect(localIntent('give him an apple')?.reply).toBe('An apple, coming up!')
+    expect(localIntent('give him sunglasses please')).toBeNull()
+    expect(localIntent('give him some sunglasses')?.reply).toBe('Some sunglasses, coming up!')
   })
 
   it('acts on what is already there, or brings it and then acts', () => {
     const snail = cleanItem({ name: 'snail', parts: [{ shape: 'bean', color: '#B9E59B' }] })!
-    expect(localIntent('eat the apple', [ITEMS.apple.spec])?.ops[0]).toEqual({ op: 'act', action: 'eat', target: 'apple' })
-    expect(localIntent('kick the snail', [snail])?.ops[0]).toEqual({ op: 'act', action: 'kick', target: 'snail' })
+    expect(op('eat the apple', [ITEMS.apple.spec])).toEqual({ op: 'act', action: 'eat', target: 'apple' })
+    expect(op('kick the snail', [snail])).toEqual({ op: 'act', action: 'kick', target: 'snail' })
     // Known by what the catalog calls it, not only by its display name: no duplicates.
-    expect(localIntent('eat the bean', [ITEMS.bean.spec])?.ops[0]).toEqual({ op: 'act', action: 'eat', target: 'jelly bean' })
-    expect(localIntent('kick the duck', [ITEMS.duck.spec])?.ops[0]).toEqual({ op: 'act', action: 'kick', target: 'rubber duck' })
-    // The reply doesn't promise what the item can't do.
-    expect(localIntent('eat the ball', [ITEMS.ball.spec])?.reply).toMatch(/don't think I can eat/)
-    expect(localIntent('wear a crown')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'crown' }, then: 'wear' })
-    // Not something this item can do: just bring it.
-    expect(localIntent('eat the crown')?.ops[0]).toMatchObject({ op: 'item', then: undefined })
+    expect(op('eat the bean', [ITEMS.bean.spec])).toEqual({ op: 'act', action: 'eat', target: 'jelly bean' })
+    expect(op('make him kick the duck', [ITEMS.duck.spec])).toEqual({ op: 'act', action: 'kick', target: 'rubber duck' })
+    expect(op('wear a crown')).toMatchObject({ op: 'item', spec: { name: 'crown' }, then: 'wear' })
+    expect(op('put a crown on lim')).toMatchObject({ op: 'item', spec: { name: 'crown' }, then: 'wear' })
+    expect(op('put the party hat on him', [ITEMS['party hat'].spec])).toEqual({ op: 'act', action: 'wear', target: 'party hat' })
+    // Taking things off and putting them away never conjures one.
+    expect(op('take off the party hat', [ITEMS['party hat'].spec])).toEqual({ op: 'act', action: 'remove', target: 'party hat' })
+    expect(op('take it off', [ITEMS.ball.spec, ITEMS.crown.spec])).toEqual({ op: 'act', action: 'remove', target: 'crown' })
+    expect(localIntent('take off the party hat')).toEqual({ ops: [], reply: "There's no party hat here." })
+    expect(localIntent('put away the drum')).toEqual({ ops: [], reply: "There's no drum here." })
+    expect(localIntent('take it off', [ITEMS.ball.spec])).toBeNull()
+    // The reply doesn't promise what the item can't do, and nothing is conjured for it.
+    expect(localIntent('eat the ball', [ITEMS.ball.spec])).toEqual({ ops: [], reply: "Hmm, I don't think I can eat a ball." })
+    expect(localIntent('wear the apple')).toEqual({ ops: [], reply: "Hmm, I don't think I can wear an apple." })
   })
 
   it('knows things the model made earlier, so asking again is free', () => {
     const snail = cleanItem({ name: 'snail', parts: [{ shape: 'bean', color: '#B9E59B' }] })!
     const candy = cleanPlace({ name: 'candy land', sky: ['#FFC7E3', '#FFF3C4'] })!
-    const extra = { items: [snail], places: [candy] }
-    expect(localIntent('give him a snail', [], extra)?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'snail' } })
-    expect(localIntent('take lim to candy land', [], extra)?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'candy land' } })
-    // Everyday names the model once used don't turn remarks into requests.
     const coffee = cleanItem({ name: 'coffee', parts: [{ shape: 'cylinder', color: '#C99A6B' }] })!
-    expect(localIntent('Can he get a coffee with me?', [], { items: [coffee], places: [] })).toBeNull()
-    expect(localIntent('can he have a coffee', [], { items: [coffee], places: [] })).toBeNull()
-    expect(localIntent('give him a coffee', [], { items: [coffee], places: [] })?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'coffee' } })
+    const home = cleanPlace({ name: 'home', sky: ['#FFC7E3', '#FFF3C4'] })!
+    const extra = { items: [snail, coffee], places: [candy, home] }
+    expect(op('give him a snail', [], extra)).toMatchObject({ op: 'item', spec: { name: 'snail' } })
+    expect(op('take lim to candy land', [], extra)).toMatchObject({ op: 'place', spec: { name: 'candy land' } })
     expect(localIntent('give him a snail')).toBeNull()
+    // Everyday names the model once used don't turn remarks into requests, and home is still home.
+    expect(localIntent('Can he get a coffee with me?', [], extra)).toBeNull()
+    expect(op('take him home', [], extra)).toEqual({ op: 'place', spec: null })
   })
 
-  it('leaves richer requests to the model', () => {
-    expect(localIntent('take him to a candy land')).toBeNull()
-    expect(localIntent('give lim a golden apple tree')).toBeNull()
-    expect(localIntent('take him to the beach at night with fireworks')).toBeNull()
-    expect(localIntent('make it rain frogs')).toBeNull()
-    for (const m of ['give him a kite', 'can he have a tiny castle', 'take lim to a candy land', 'put a hat on his head', 'make it rain frogs', 'Lim needs a scarf', 'can he have a tiny castle', 'give lim a giant pop-up book', 'take off the party hat', 'go to the moon']) {
+  it('sends inventions to the model, and only those', () => {
+    const invent = [
+      'give him a kite', 'can he have a tiny castle', 'can he have a tiny castle?', 'take lim to a candy land', 'put a scarf on his head',
+      'Lim needs a scarf', 'give lim a giant pop-up book', 'bring her a hot dog stand', 'send him to a neon city', 'make it foggy',
+      'please give lim a robot dog', 'could you give him a snail?', 'can he wear a wizard hat', 'take him to the moon', 'buy him a skateboard',
+    ]
+    for (const m of invent) {
+      expect(localIntent(m), m).toBeNull()
       expect(looksLikeWorldRequest(m), m).toBe(true)
     }
+    // Richer than the catalog noun: still the model's.
+    expect(localIntent('give lim a golden apple tree')).toBeNull()
+    expect(looksLikeWorldRequest('give lim a golden apple tree')).toBe(true)
   })
 
-  it('never intercepts questions, remarks, or anything about Anthony', () => {
+  it('never intercepts questions, remarks, idioms, or anything about Anthony or the chat', () => {
     const chat = [
       "What is Anthony's background?", 'Where has he worked?', 'Has Anthony been to the beach?', 'What are his technical skills?',
       'How can I contact him?', 'Can he play music?', 'Bear with me', 'Sweet!', 'music', 'light', 'party', 'club', 'spring', 'pool',
@@ -188,14 +210,31 @@ describe('reading a message without the model', () => {
       'Put him in touch with me', "It's raining here today", "What's his take on zero gravity?", 'Clear the chat', 'Reset the conversation',
       'Turn on dark mode', 'Remove the last message', 'Can he have a heart to heart with me?', 'Could he have a ball with us?', 'Should he get a star?',
       'Make it a star', 'I want to go to the beach', 'apple', 'Star', 'Heart', 'space', 'ball', 'Give me his number', 'Throw me a bone here',
-      'Bring me up to speed', 'Tell me a joke', 'Send me his resume', 'Make it simpler', 'Go on', 'Take me through his career', 'Can you give me his email?', 'Give me a summary of his work', 'Add more detail please', 'Put simply, who is he?',
+      'Bring me up to speed', 'Tell me a joke', 'Send me his resume', 'Make it simpler', 'Go on', 'Take me through his career',
+      'Can you give me his email?', 'Give me a summary of his work', 'Add more detail please', 'Put simply, who is he?',
       'Clear explanation, thanks', 'Is the ball in his court?', 'thanks!', 'cool', 'That was sweet', 'I love space', 'Show me his projects',
+      // Round 3: chat editing that used to wipe the world.
+      'Remove all the fluff', 'remove everything he said about React', 'get rid of everything after the intro', 'Clean up the formatting',
+      'Clear all', 'Clear everything', 'Remove that', 'Get rid of the jargon', 'Take away the jargon', 'Tidy that up a bit',
+      // Round 3: figures of speech on order verbs.
+      'Give it a try', 'Give him my regards', 'Give him a break', 'Give him a chance', 'Give him a shout', 'Give him a raise', 'Give him some credit',
+      'Get it?', 'Can you get him on the phone?', 'Bring it on', 'Bring him up to speed', 'Give the highlights', 'Can you bring him a contract?',
+      'Can you get it done?', "Let's give him a hand", 'please give him feedback', 'and give him my thanks', 'Can he go to conferences?',
+      'Can he have a go at this?', 'Can he have a say in the design?', 'Can he get this done by Friday?', 'Could he get a visa?',
+      'Can he play with new frameworks?', 'Can he wear many hats?', 'Can he eat gluten?', 'Can he visit?', 'Can he visit Seoul?',
+      'Could he visit in person?', 'Lim needs a break', 'Lim wants a raise', 'I want him to have my number', 'I want him to visit Korea',
+      'I want him to wear a suit', 'I want it to go well', 'Can he have a friend over?', 'Go to the next one', 'Teleport', 'Spawn a new thread',
+      'Drop the act', 'Drop some knowledge', 'Drop the formalities', 'Throw a party', 'Toss a coin', 'Bring the receipts', 'Summon the facts',
+      'Kick it off', 'Kick the tires on his API', 'Eat it', 'Eat the frog first, right?', 'Wear it with pride', 'Hug it out', 'Bounce some ideas',
+      'Bounce it off him', 'Play with the idea', 'Play with the numbers', 'Dance with the devil', 'Sleep on it', 'Nap on it', 'Build it',
+      'Build him up', 'Build it in Rust', 'Make it rain money', 'Make it day one culture', 'Make it hot off the press', 'Make it dark themed',
+      'Make it night and day better', 'Change the scene', 'Turn on the rain sounds', "Let's go home", 'Give him a hand', 'Give him a minute',
+      'Give him a name', 'Give him hell', 'Give it a shot', 'Give him a heart attack', 'Give him a star rating', 'some space please',
+      'go to the beach with him', 'hug the apple and the ball',
     ]
-    for (const m of chat) {
-      expect(localIntent(m), m).toBeNull()
-      expect(looksLikeWorldRequest(m), m).toBe(false)
-    }
-    expect(looksLikeWorldRequest('give ' + 'x'.repeat(300))).toBe(false)
+    const leaked = chat.filter((m) => localIntent(m) !== null || looksLikeWorldRequest(m))
+    expect(leaked).toEqual([])
+    expect(looksLikeWorldRequest('give him ' + 'x '.repeat(100))).toBe(false)
     expect(looksLikeWorldRequest('')).toBe(false)
   })
 })

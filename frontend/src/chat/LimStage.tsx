@@ -19,7 +19,7 @@ export type LimStageHandle = {
   /** Change Lim's world. False when there is no live scene to change. */
   apply(ops: WorldOp[]): boolean
   /** Lim conjures while something is being made. */
-  conjure(on: boolean): void
+  conjure(on: boolean, made?: boolean): void
   /** What is in the world now, or null without a live scene. */
   world(): LimWorld | null
 }
@@ -101,7 +101,7 @@ export function LimStage({
         })
         return true
       },
-      conjure: (on) => sceneRef.current?.conjure(on),
+      conjure: (on, made) => sceneRef.current?.conjure(on, made),
       world: () => sceneRef.current?.world() ?? null,
     }),
     [],
