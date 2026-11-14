@@ -69,7 +69,16 @@ jobs:
           bun test --parallel --bail server/src > server-tests.log 2>&1 &
           TESTS_PID=$!
 
-          echo "${{ secrets.FRONTEND_ENV }}" > frontend/.env
+          # The Clerk publishable key has its own secret so the production
+          # instance can be swapped without rewriting the whole FRONTEND_ENV.
+          printf '%s\n' "${{ secrets.FRONTEND_ENV }}" \
+            | sed '/^[[:space:]]*VITE_CLERK_PUBLISHABLE_KEY=/d' > frontend/.env
+          if [ -n "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" ]; then
+            echo "VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" >> frontend/.env
+          else
+            echo "::error::VITE_CLERK_PUBLISHABLE_KEY secret is missing."
+            exit 1
+          fi
           (cd frontend && bun run build)
 
           if ! wait "$TESTS_PID"; then

@@ -85,7 +85,7 @@ cd frontend && bun run build && bun run test:run
 
 **Disk preflight.** The stage step prints free space on the droplet, clears only re-creatable caches (the previous `~/anthonyl.im.next`, Bun's install cache, day-old temp archives) when under 800 MB, and fails early with a `du` breakdown when under 300 MB. A full disk otherwise shows up as `No space left on device` in the clone or an scp `exit status 1`. It never deletes logs or live data: if the breakdown points at PM2 logs or worker files, clear those on the droplet by hand.
 
-Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`. Droplet runtime secrets live in `~/.env` (copied into the staged tree each deploy). Details: `deploy/README.md`.
+Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBLISHABLE_KEY` (production Clerk key; the deploy drops any copy in `FRONTEND_ENV` and appends this one. Previews keep `FRONTEND_ENV`'s key). Droplet runtime secrets live in `~/.env` (copied into the staged tree each deploy). Details: `deploy/README.md`.
 
 ## Known failure modes (and where they are caught)
 
