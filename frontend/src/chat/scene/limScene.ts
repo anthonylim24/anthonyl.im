@@ -92,8 +92,10 @@ function gumdropRest(detail: number): { positions: Float32Array; index: Uint32Ar
   for (let i = 0; i < positions.length; i += 3) {
     const y = positions[i + 1]
     const widen = 1 + 0.16 * ((1 - y) / 2) ** 1.6
+    // The base flattens through a smooth curve, not a crease: no corner to
+    // show when Lim squashes, puffs up or turns over.
     let ny = y * 0.95
-    if (ny < -0.74) ny = -0.74 + (ny + 0.74) * 0.3
+    if (ny < -0.5) ny = -0.5 - 0.36 * Math.tanh((-0.5 - ny) / 0.36)
     positions[i] *= widen
     positions[i + 1] = ny
     positions[i + 2] *= widen * 0.92
@@ -220,7 +222,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // The tuft: same jelly, one size smaller.
   const tuft = new Tuft(
-    [[0.02, 0.86, 0.04], [0.03, 1.02, 0.04], [0.09, 1.16, 0.04], [0.2, 1.24, 0.04], [0.31, 1.2, 0.04], [0.35, 1.11, 0.04]],
+    [[0.02, 0.86, 0.04], [0.03, 1.03, 0.04], [0.09, 1.18, 0.04], [0.21, 1.27, 0.04], [0.33, 1.27, 0.04], [0.42, 1.21, 0.04]],
     [0.085, 0.08, 0.07, 0.06, 0.048, 0.034],
   )
   const tuftMat = new THREE.MeshBasicNodeMaterial()
@@ -395,7 +397,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // Lim's skirt reaches 1.42 either side; a narrow stage leaves room for one toy each side.
     const seats: [number, number][] = roomy
       ? [[-1.75, 0.1], [1.75, 0.3], [Math.min(reach - 0.6, 2.45), 0.05], [-Math.min(reach - 0.6, 2.45), 0.4]]
-      : [[-9, 0], [Math.min(reach - 0.6, 1.75), 0.25], [-9, 0], [-Math.min(reach - 0.6, 1.75), 0.25]]
+      : [[-9, 0], [Math.min(reach - 0.62, 1.75), 0.25], [-9, 0], [-Math.min(reach - 0.62, 1.75), 0.25]]
     toys.forEach((toy, i) => {
       toy.slot = seats[i][0]
       toy.depth = seats[i][1]
@@ -791,13 +793,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       toy.backAt = t + 6 + Math.random() * 3
       toy.jelly.anchor = null
       full += 1
-      chewUntil = t + 0.95
-      // Eyes half open for the first chews, shut to savour the rest.
-      setAct('munch', 0.42)
-      later(0.42, () => setAct('chew', 1.1))
+      chewUntil = t + 1.1
+      // Eyes open and on the busy cheek while chewing; shut only for the swallow.
+      setAct('munch', 1.1)
+      later(1.1, () => setAct('chew', 0.32))
       // Four chews, cheeks out on each, then the swallow.
-      for (let k = 0; k < 5; k++) {
-        later(0.06 + k * 0.17, () => {
+      for (let k = 0; k < 4; k++) {
+        later(0.06 + k * 0.26, () => {
           cheeks.v += 9
           chewSide = k % 2 ? 1 : -1
           lim.kick(chewSide * 0.18, 0, 0)
@@ -805,7 +807,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           sound.blip()
         })
       }
-      later(0.95, () => {
+      later(1.1, () => {
         // The gulp: a swallow down, and the belly swells where the colour starts.
         squash.v += 2.6
         size.v += 0.9
@@ -817,11 +819,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         tintUntil = t + 9
       })
       later(1.45, () => {
-        happyUntil = t + 1.2
+        setAct('smug', 1.1)
         emote(full >= 3 ? 'so full…' : 'yum!')
         if (full >= 3) later(0.9, () => nod('now'))
       })
-      later(2.7, () => {
+      later(2.8, () => {
         if (sleep !== 'awake' || popped) return
         // A burp, and the embarrassment afterwards.
         squash.v -= 4
@@ -1026,7 +1028,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         wander.y = (Math.random() - 0.3) * 1.2
         wander.until = t + 1.4
       }
-      nextFidget = t + 3.5 + Math.random() * 4
+      nextFidget = t + 2.5 + Math.random() * 3
     }
 
     // Ignored for a while: a yawn, then a nap.
@@ -1240,7 +1242,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const walls = (body: Jelly) => {
     // Bodies meet the stage edges whole: the body is moved back inside and its
     // motion reflected, so nothing is ever sliced flat by an invisible plane.
-    const X = reach - (body === lim ? 0.06 : 0.24)
+    const X = reach - (body === lim ? 0.06 : 0.4)
     const XR = X
     const { x } = body
     let minX = Infinity
@@ -1384,6 +1386,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       // A long way down.
       gx = Math.sin(t * 2.3) * 0.25
       gy = -0.5
+    } else if (t < chewUntil) {
+      gx = chewSide * 0.7
+      gy = -0.35
     } else if (held) {
       ;[gx, gy] = toward(held.jelly.center[0], held.jelly.center[1], 1.1)
     } else if (mood === 'thinking') {
@@ -1503,11 +1508,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const name = faceName()
     const bend =
       sleep === 'asleep' || mood === 'sad' ? 0.62
-      : grabbed || name === 'shock' || name === 'whee' || name === 'worried' || name === 'ooh' ? -0.85
+      : grabbed || name === 'shock' || name === 'whee' || name === 'worried' || name === 'ooh' ? -0.6
       : mood === 'typing' ? -0.3
       : 0
     // Thinking: it curls over and straightens again, like twirling a pencil.
-    tuft.bend = ease(tuft.bend, mood === 'thinking' && !grabbed ? -0.3 + 0.3 * Math.sin(t * 2.6 + 1) : bend, 7, dt)
+    tuft.bend = ease(tuft.bend, mood === 'thinking' && !grabbed ? -0.35 + 0.25 * Math.sin(t * 2.6 + 1) : bend, 7, dt)
 
     const blown = sleep === 'asleep' && !popped ? 0.1 + 0.17 * (0.5 - 0.5 * Math.cos(t * 1.8 - 0.6)) : 0
     bubbleSize = ease(bubbleSize, blown, blown ? 5 : 30, dt)

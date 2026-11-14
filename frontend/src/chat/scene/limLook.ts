@@ -123,8 +123,8 @@ export const FACES = {
   asleep: face({ w: 0.07, curve: 1.4, open: 0.015, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.25, smile: -0.8 }),
   aah: face({ w: 0.27, curve: 0.6, open: 0.36, o: 1, blush: 0.7, lidTop: 1.05, brow: 1, browL: [-0.12, 0.1], browR: [0.12, 0.1], pupil: 1.15 }),
   flying: face({ w: 0.17, curve: 2.4, open: 0.14, blush: 0.85, lidTop: 1.05, pupil: 0.9 }),
-  munch: face({ w: 0.1, curve: 2.6, open: 0, blush: 0.9, lidTop: 0.5, lidBot: 0.85, brow: 1, browL: [-0.1, 0.06], browR: [0.1, 0.06] }),
-  chew: face({ w: 0.1, curve: 2.6, open: 0, blush: 0.95, ...HAPPY_EYES }),
+  munch: face({ w: 0.13, curve: 2.2, open: 0, blush: 0.9, lidTop: 0.95, lidBot: 1, brow: 1, browL: [-0.1, 0.06], browR: [0.1, 0.06] }),
+  chew: face({ w: 0.13, curve: 2.2, open: 0, blush: 0.95, ...HAPPY_EYES }),
   hit: face({ w: 0.11, curve: -1.6, open: 0.02, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.1, smile: -1, brow: 1, browL: [-0.45, -0.02], browR: [0.45, -0.02] }),
   dizzy: face({ w: 0.15, curve: 0, open: 0.03, blush: 0.7, lidTop: 1, dizzy: 1, brow: 1, browL: [0.2, 0.08], browR: [0.2, 0.02] }),
   love: face({ w: 0.17, curve: 2.6, open: 0.12, blush: 1, lidTop: 1.05, heart: 1 }),
@@ -337,11 +337,12 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
   const oY = my.add(u.mouthOpen.mul(0.36))
   const round = length(vec2(mx.div(oRx), oY.div(oRy))).sub(1).mul(min(oRx, oRy))
   const d = mix(lens, round, saturate(u.mouthO.mul(1.25)))
-  const mouth = aaStep(d).mul(front)
+  // The mouth fades before it can reach the outline in a turn.
+  const mouth = aaStep(d).mul(front).mul(smoothstep(0.45, 0.7, n.view.z))
   const tongue = aaStep(my.sub(bot.add(u.mouthOpen.mul(0.5)))).mul(smoothstep(0.035, 0.075, u.mouthOpen))
   const teeth = aaStep(top.sub(0.03).sub(u.mouthOpen.mul(0.16)).sub(my))
     .mul(smoothstep(0.06, 0.1, u.mouthOpen))
-    .mul(float(1).sub(u.mouthO))
+    .mul(float(1).sub(saturate(u.mouthO.mul(2.5))))
   let inside: V3 = mix(col(PAL.mouth), col(PAL.tongue), tongue)
   inside = mix(inside, col('#FFF8F2'), teeth)
   return mix(c, inside, mouth)
