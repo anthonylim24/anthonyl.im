@@ -10,9 +10,10 @@ import { cleanItem, cleanOps, cleanPlace, cleanTweak, type ItemSpec, type PlaceS
 export type WorldAnswer = { ops: WorldOp[]; reply: string; chat: boolean }
 export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
 
-// A real question may be waiting behind this call, so it gets a short budget:
-// past it, the message simply goes to the chat.
-const TIMEOUT_MS = 3_500
+// Only explicit orders about Lim's world get this far (see spec.ts), so the
+// call can take the time a good model needs; past this the message goes to
+// the chat instead.
+const TIMEOUT_MS = 12_000
 
 const askWorldEffect = Effect.fn("LimWorld.ask")(function* (message: string, world: { items: string[]; place: string }, signal?: AbortSignal) {
   const res = yield* fetchApi("/api/lim/world", {

@@ -9,6 +9,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { commonConfig, SYSTEM_PROMPT } from "./constants";
 import { geminiTextStream, type GeminiTurn } from "../geminiText";
+import { limGeminiModel } from "../lim/model";
 
 const invoke = new Hono();
 
@@ -36,7 +37,8 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
     return c.json({ error: "Prompt is required" }, 400);
   }
 
-  // Gemini leads. If its stream cannot be opened (no key, quota, outage),
+  // Gemini leads (Carbon until the December switch, then Hydrogen: see
+  // lim/model.ts). If its stream cannot be opened (no key, quota, outage),
   // the previous model on Groq answers instead.
   let chunks: AsyncIterable<string>;
   try {
@@ -44,6 +46,7 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
     if (!apiKey) throw new Error("GEMINI_API_KEY missing");
     chunks = await geminiTextStream({
       apiKey,
+      model: limGeminiModel(),
       system: SYSTEM_PROMPT,
       messages: [...messages, { role: "user", content: prompt }],
       signal: AbortSignal.any([AbortSignal.timeout(120_000), c.req.raw.signal]),

@@ -3,7 +3,7 @@
  * message and answers with ops for the mascot's toy world (drop an item,
  * change the place, do something, tidy up), inventing an item or place spec
  * when the catalog has nothing that fits. Specs are a few dozen numbers, so
- * the call is cheap and fast; answers are cached.
+ * the call is small; answers are cached, and catalog requests never get here.
  *
  * The catalog ids and enums mirror `frontend/src/chat/world/spec.ts`
  * (`world.test.ts` checks they have not drifted). This side guards size and
@@ -12,6 +12,7 @@
 import Groq from "groq-sdk";
 import { z } from "zod";
 import { geminiText } from "../geminiText";
+import { limGeminiModel } from "./model";
 
 export const ITEM_IDS = [
   "bean", "gumball", "ball", "apple", "donut", "cupcake", "chili", "party hat", "crown", "sunglasses",
@@ -141,22 +142,39 @@ export function readAnswer(text: string): LimWorldAnswer {
 
 export type Complete = (system: string, user: string, signal: AbortSignal) => Promise<string>;
 
-// Groq models, best first. The larger one is fast enough to feel instant and
-// better at building things from parts; the smaller one takes over the moment
-// the larger is rate-limited or down (each has its own quota). No SDK retries:
-// a retry waits out the rate limit, and a toy is not worth a ten-second wait.
-const GROQ_MODELS = (process.env.LIM_WORLD_MODELS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",").map((m) => m.trim()).filter(Boolean);
-const ATTEMPT_MS = 3_000;
+// Gemini leads, on the same model as Lim's chat (lim/model.ts). Groq is only
+// the backup, for when Gemini is missing, over quota or down: two models, each
+// with its own quota, and no SDK retries (a retry waits out the rate limit,
+// and a toy is not worth that wait).
+const GROQ_BACKUPS = (process.env.LIM_WORLD_BACKUP_MODELS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",").map((m) => m.trim()).filter(Boolean);
+const GEMINI_MS = 8_000;
+const BACKUP_MS = 3_000;
 
-/** Groq first (two models), then the app's Gemini model. Throws when none can answer. */
+/** Gemini first, then the Groq backups. Throws when none can answer. */
 export const complete: Complete = async (system, user, signal) => {
-  const groqKey = process.env.GROQ_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
-  if (!groqKey && !geminiKey) throw new Error("no model configured");
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!geminiKey && !groqKey) throw new Error("no model configured");
   let last: unknown = new Error("no model answered");
+  if (geminiKey) {
+    try {
+      return await geminiText({
+        apiKey: geminiKey,
+        model: limGeminiModel(),
+        system,
+        messages: [{ role: "user", content: user }],
+        json: true,
+        maxOutputTokens: 1100,
+        signal: AbortSignal.any([signal, AbortSignal.timeout(GEMINI_MS)]),
+      });
+    } catch (err) {
+      last = err;
+      console.warn("[lim-world] gemini failed:", err instanceof Error ? err.message.slice(0, 160) : String(err));
+    }
+  }
   if (groqKey) {
     const groq = new Groq({ apiKey: groqKey, maxRetries: 0 });
-    for (const model of GROQ_MODELS) {
+    for (const model of GROQ_BACKUPS) {
       if (signal.aborted) break;
       try {
         const res = await groq.chat.completions.create(
@@ -168,7 +186,7 @@ export const complete: Complete = async (system, user, signal) => {
             max_completion_tokens: 1100,
             reasoning_effort: "low",
           } as Parameters<typeof groq.chat.completions.create>[0],
-          { signal: AbortSignal.any([signal, AbortSignal.timeout(ATTEMPT_MS)]) },
+          { signal: AbortSignal.any([signal, AbortSignal.timeout(BACKUP_MS)]) },
         );
         const text = "choices" in res ? res.choices[0]?.message?.content : "";
         if (text) return text;
@@ -178,9 +196,6 @@ export const complete: Complete = async (system, user, signal) => {
         console.warn(`[lim-world] ${model} failed:`, err instanceof Error ? err.message.slice(0, 160) : String(err));
       }
     }
-  }
-  if (geminiKey && !signal.aborted) {
-    return geminiText({ apiKey: geminiKey, system, messages: [{ role: "user", content: user }], json: true, maxOutputTokens: 900, signal });
   }
   throw last;
 };
@@ -197,7 +212,7 @@ const norm = (message: string) => message.trim().toLowerCase().replace(/\s+/g, "
  * answer acts on something already there (then what is there matters too), so
  * "give him a kite" costs one call however the world looks.
  */
-export async function askLimWorld(message: string, world: WorldState, run: Complete = complete, timeoutMs = 7_000, outer?: AbortSignal): Promise<LimWorldAnswer> {
+export async function askLimWorld(message: string, world: WorldState, run: Complete = complete, timeoutMs = 13_000, outer?: AbortSignal): Promise<LimWorldAnswer> {
   const plain = norm(message);
   const exact = JSON.stringify([plain, world.items, world.place]);
   for (const key of [plain, exact]) {
