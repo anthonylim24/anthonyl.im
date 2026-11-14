@@ -81,4 +81,38 @@ describe('Jelly', () => {
     expect(Math.abs(free.rotation[2])).toBeGreaterThan(0.3)
     expect(Math.abs(righting.rotation[2])).toBeLessThan(0.05)
   })
+
+  it('spins about its centroid without drifting', () => {
+    const { positions } = icosphere(1, 2)
+    const j = new Jelly(positions, { damping: 0 })
+    j.spin(0, 0, 3)
+    const mean = j.velocity()
+    expect(Math.hypot(...mean)).toBeLessThan(1e-4)
+    for (let i = 0; i < 30; i++) j.step(1 / 60)
+    expect(Math.hypot(...j.center)).toBeLessThan(1e-3)
+    // Half a second at 3 rad/s: the body has turned, and kept its shape.
+    expect(Math.abs(j.rotation[2])).toBeGreaterThan(0.3)
+    expect(deviation(j)).toBeLessThan(0.05)
+  })
+
+  it('turns rigidly: a rotate keeps the shape and the centroid', () => {
+    const { positions } = icosphere(1, 2)
+    const j = new Jelly(positions)
+    j.rotate(0, 0, 1, Math.PI / 2)
+    expect(deviation(j)).toBeLessThan(1e-5)
+    // The first vertex of the icosphere started in the x-y plane's upper left.
+    const [x0, y0] = [positions[0], positions[1]]
+    expect(j.x[0]).toBeCloseTo(-y0, 5)
+    expect(j.x[1]).toBeCloseTo(x0, 5)
+    j.step(1 / 60)
+    expect(Math.abs(j.rotation[2])).toBeCloseTo(Math.sin(Math.PI / 4), 2)
+  })
+
+  it('never lets a particle stray past maxStray from its goal', () => {
+    const { positions } = icosphere(1, 2)
+    const j = new Jelly(positions, { maxStray: 0.2, stiffness: 0.05 })
+    j.impulse([0, 0, 1], [0, 0, 400], 0.9)
+    j.step(1 / 60)
+    expect(deviation(j)).toBeLessThan(0.45)
+  })
 })

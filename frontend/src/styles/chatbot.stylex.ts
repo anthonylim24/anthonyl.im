@@ -241,11 +241,15 @@ export const chatbot = stylex.create({
     // Desktop: bleed past the root padding so the floor meets the viewport.
     marginBlock: { default: 0, [DESK]: '-18px' },
     marginInlineStart: { default: 0, [DESK]: '-18px' },
+    // Desktop: the floor dissolves before it reaches the chat panel.
+    maskImage: { default: 'none', [DESK]: 'linear-gradient(to right, #000 calc(100% - 72px), transparent)' },
   },
   stageCaption: {
     position: 'absolute',
     left: '50%',
-    bottom: { default: '10px', [DESK]: '26px' },
+    // Phones: up in the sky, clear of Lim and the toys.
+    top: { default: '8px', [DESK]: 'auto' },
+    bottom: { default: 'auto', [DESK]: '26px' },
     transform: 'translateX(-50%)',
     display: 'inline-flex',
     alignItems: 'center',
@@ -715,6 +719,12 @@ const breathe = stylex.keyframes({
   '0%, 100%': { transform: 'translateX(-50%) scale(1, 1)' },
   '50%': { transform: 'translateX(-50%) scale(1.025, 0.975)' },
 })
+const zFloat = stylex.keyframes({
+  '0%': { opacity: 0, transform: 'translate(-50%, 0) scale(0.4) rotate(-14deg)' },
+  '20%': { opacity: 0.9, transform: 'translate(-30%, -14px) scale(0.8) rotate(6deg)' },
+  '60%': { opacity: 0.8, transform: 'translate(-70%, -50px) scale(1.05) rotate(-8deg)' },
+  '100%': { opacity: 0, transform: 'translate(-40%, -92px) scale(1.3) rotate(8deg)' },
+})
 const hop = stylex.keyframes({
   '0%': { transform: 'translateX(-50%) translateY(0) scale(1, 1)' },
   '15%': { transform: 'translateX(-50%) translateY(0) scale(1.14, 0.86)' },
@@ -844,7 +854,8 @@ export const stage = stylex.create({
   hehe: {
     position: 'absolute',
     left: 0,
-    bottom: '6px',
+    // Above the tuft, so the first letter never hides behind it.
+    bottom: 'calc(var(--u, 120px) * 0.36)',
     fontFamily: DISPLAY,
     fontWeight: 700,
     fontStretch: '115%',
@@ -857,6 +868,16 @@ export const stage = stylex.create({
     animationDuration: '1.1s',
     animationTimingFunction: EASE,
     animationFillMode: 'both',
+  },
+  // Alternate sides so back-to-back words don't stack on each other.
+  heheAlt: { marginLeft: 'calc(var(--u, 120px) * 0.4)' },
+  zed: {
+    marginLeft: 'calc(var(--u, 120px) * 0.6)',
+    fontSize: { default: '22px', [DESK]: '32px' },
+    color: 'var(--chat-soft)',
+    animationName: zFloat,
+    animationDuration: '2.3s',
+    animationTimingFunction: 'ease-in-out',
   },
 })
 

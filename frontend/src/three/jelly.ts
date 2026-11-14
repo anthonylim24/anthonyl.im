@@ -26,6 +26,11 @@ export type JellyOptions = {
   floor?: number | null
   /** Tangential velocity kept per 1/60 s while touching the floor. */
   friction?: number
+  /**
+   * Furthest a particle may stray from its goal position, in world units.
+   * Keeps a hard shake or throw from folding the surface over itself.
+   */
+  maxStray?: number
   substeps?: number
 }
 
@@ -36,6 +41,12 @@ export class Jelly {
   /** Live particle positions (x, y, z interleaved). */
   readonly x: Float32Array
   readonly v: Float32Array
+  /**
+   * Where shape matching wants each particle: the rest shape under the body's
+   * best-fit turn and stretch. Always a smooth surface, however rough `x` is
+   * (see `skinJelly` in jellyMesh.ts).
+   */
+  readonly goal: Float32Array
   /** Current centroid. */
   readonly center: Vec3 = [0, 0, 0]
   /** Uniform goal scale. Animate it to inflate / breathe. */
@@ -59,6 +70,7 @@ export class Jelly {
   gravity: Vec3
   floor: number | null
   friction: number
+  maxStray: number
   substeps: number
 
   private readonly q: Float32Array
@@ -70,11 +82,19 @@ export class Jelly {
   /** Blended goal matrix from the last substep (row-major 3×3). */
   private readonly m = [1, 0, 0, 0, 1, 0, 0, 0, 1]
   private readonly pins = new Map<number, { target: Vec3; k: number }>()
+  // Scratch for step(): it runs every frame for every body, so it allocates nothing.
+  private readonly sVbar: Vec3 = [0, 0, 0]
+  private readonly sC: Vec3 = [0, 0, 0]
+  private readonly sApq = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  private readonly sA = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  private readonly sR = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  private readonly sGoal: [number, number, number, number] = [0, 0, 0, 1]
 
   constructor(rest: ArrayLike<number>, opts: JellyOptions = {}) {
     this.count = Math.floor(rest.length / 3)
     this.x = Float32Array.from(rest)
     this.v = new Float32Array(this.count * 3)
+    this.goal = Float32Array.from(rest)
     this.p = new Float32Array(this.count * 3)
     this.q = new Float32Array(this.count * 3)
     this.stiffness = opts.stiffness ?? 0.07
@@ -83,6 +103,7 @@ export class Jelly {
     this.gravity = opts.gravity ?? [0, 0, 0]
     this.floor = opts.floor ?? null
     this.friction = opts.friction ?? 0.6
+    this.maxStray = opts.maxStray ?? Infinity
     this.substeps = opts.substeps ?? 3
 
     const c = centroid(this.x, this.count)
@@ -138,6 +159,11 @@ export class Jelly {
     this.center[0] += dx
     this.center[1] += dy
     this.center[2] += dz
+    for (let i = 0; i < this.count * 3; i += 3) {
+      this.goal[i] += dx
+      this.goal[i + 1] += dy
+      this.goal[i + 2] += dz
+    }
   }
 
   /** Add velocity to particles near `point`, with a smooth falloff over `radius`. */
@@ -162,6 +188,44 @@ export class Jelly {
       this.v[i * 3] += vx
       this.v[i * 3 + 1] += vy
       this.v[i * 3 + 2] += vz
+    }
+  }
+
+  /** Add angular velocity (rad/s, world axes) about the centroid: flips, spins. */
+  spin(wx: number, wy: number, wz: number) {
+    const [cx, cy, cz] = this.center
+    for (let i = 0; i < this.count * 3; i += 3) {
+      const rx = this.x[i] - cx
+      const ry = this.x[i + 1] - cy
+      const rz = this.x[i + 2] - cz
+      this.v[i] += wy * rz - wz * ry
+      this.v[i + 1] += wz * rx - wx * rz
+      this.v[i + 2] += wx * ry - wy * rx
+    }
+  }
+
+  /**
+   * Turn the whole body (positions and velocities) about its centroid by
+   * `angle` radians around a unit axis. A rigid turn: nothing deforms, so a
+   * choreographed flip or pirouette keeps its shape.
+   */
+  rotate(ax: number, ay: number, az: number, angle: number) {
+    const c = Math.cos(angle)
+    const s = Math.sin(angle)
+    const k = 1 - c
+    const [cx, cy, cz] = this.center
+    const turn = (arr: Float32Array, i: number, ox: number, oy: number, oz: number) => {
+      const x = arr[i] - ox
+      const y = arr[i + 1] - oy
+      const z = arr[i + 2] - oz
+      const d = (ax * x + ay * y + az * z) * k
+      arr[i] = ox + x * c + (ay * z - az * y) * s + ax * d
+      arr[i + 1] = oy + y * c + (az * x - ax * z) * s + ay * d
+      arr[i + 2] = oz + z * c + (ax * y - ay * x) * s + az * d
+    }
+    for (let i = 0; i < this.count * 3; i += 3) {
+      turn(this.x, i, cx, cy, cz)
+      turn(this.v, i, 0, 0, 0)
     }
   }
 
@@ -220,15 +284,15 @@ export class Jelly {
     const h = dt / n
     const pull = 1 - Math.pow(1 - Math.min(0.999, this.stiffness), h * 60)
     const rightBy = this.upright > 0 ? 1 - Math.pow(1 - Math.min(0.999, this.upright), h * 60) : 0
-    const goalRot: [number, number, number, number] = [0, 0, 0, 1]
+    const goalRot = this.sGoal
     const keep = Math.exp(-this.damping * h)
     const slide = Math.pow(this.friction, h * 60)
     const { x, v, p, q, count } = this
     const [gx, gy, gz] = this.gravity
-    const vbar: Vec3 = [0, 0, 0]
-    const apq = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    const a = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    const r = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    const vbar = this.sVbar
+    const apq = this.sApq
+    const a = this.sA
+    const r = this.sR
 
     for (let s = 0; s < n; s++) {
       // External forces + anchor spring on the centroid.
@@ -252,7 +316,7 @@ export class Jelly {
       }
 
       // Shape matching: centroid, A_pq, rotation, blended goal.
-      const c = centroid(p, count)
+      const c = centroid(p, count, this.sC)
       apq.fill(0)
       for (let i = 0; i < count * 3; i += 3) {
         const px = p[i] - c[0]
@@ -282,6 +346,7 @@ export class Jelly {
       this.center[1] = c[1]
       this.center[2] = c[2]
 
+      const stray2 = this.maxStray * this.maxStray
       const sx = this.squash[0] * this.scale
       const sy = this.squash[1] * this.scale
       const sz = this.squash[2] * this.scale
@@ -292,9 +357,24 @@ export class Jelly {
         const gx2 = c[0] + sx * (m[0] * qx + m[1] * qy + m[2] * qz)
         const gy2 = c[1] + sy * (m[3] * qx + m[4] * qy + m[5] * qz)
         const gz2 = c[2] + sz * (m[6] * qx + m[7] * qy + m[8] * qz)
+        this.goal[i] = gx2
+        this.goal[i + 1] = gy2
+        this.goal[i + 2] = gz2
         p[i] += (gx2 - p[i]) * pull
         p[i + 1] += (gy2 - p[i + 1]) * pull
         p[i + 2] += (gz2 - p[i + 2]) * pull
+        if (stray2 < Infinity) {
+          const ex = p[i] - gx2
+          const ey = p[i + 1] - gy2
+          const ez = p[i + 2] - gz2
+          const e2 = ex * ex + ey * ey + ez * ez
+          if (e2 > stray2) {
+            const k = Math.sqrt(stray2 / e2)
+            p[i] = gx2 + ex * k
+            p[i + 1] = gy2 + ey * k
+            p[i + 2] = gz2 + ez * k
+          }
+        }
       }
 
       for (const [i, pin] of this.pins) {
@@ -328,14 +408,11 @@ export class Jelly {
       }
       this.contacts = contacts
     }
-    const c = centroid(x, count)
-    this.center[0] = c[0]
-    this.center[1] = c[1]
-    this.center[2] = c[2]
+    centroid(x, count, this.center)
   }
 }
 
-function centroid(x: Float32Array, n: number): Vec3 {
+function centroid(x: Float32Array, n: number, out: Vec3 = [0, 0, 0]): Vec3 {
   let cx = 0
   let cy = 0
   let cz = 0
@@ -344,7 +421,10 @@ function centroid(x: Float32Array, n: number): Vec3 {
     cy += x[i + 1]
     cz += x[i + 2]
   }
-  return [cx / n, cy / n, cz / n]
+  out[0] = cx / n
+  out[1] = cy / n
+  out[2] = cz / n
+  return out
 }
 
 function det3(m: number[]) {
@@ -459,7 +539,7 @@ export function extractRotation(a: number[], q: [number, number, number, number]
  */
 export function icosphere(radius: number, detail: number): { positions: Float32Array; index: Uint32Array } {
   const t = (1 + Math.sqrt(5)) / 2
-  let verts: Vec3[] = [
+  const verts: Vec3[] = [
     [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
     [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t],
     [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],

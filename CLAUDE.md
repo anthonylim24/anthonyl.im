@@ -514,7 +514,7 @@ Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `
 
 ## Design Context: `/chatbot` — Lim, the jelly companion
 
-Code: `frontend/src/App.tsx` (page shell), `frontend/src/chat/` (`useChat.ts` state + persistence, `LimStage.tsx` lazy 3D stage, `LimArt.tsx` SVG Lim, `caret.ts`, `chat.css` tokens + code theme, `scene/limScene.ts` WebGPU/TSL scene), `frontend/src/styles/chatbot.stylex.ts`, `messageContent.stylex.ts`, `components/message-content.tsx`.
+Code: `frontend/src/App.tsx` (page shell), `frontend/src/chat/` (`useChat.ts` state + persistence, `LimStage.tsx` lazy 3D stage, `LimArt.tsx` SVG Lim, `caret.ts`, `eggs.ts` typed easter eggs, `sound.ts` WebAudio foley, `chat.css` tokens + code theme, `scene/limScene.ts` behaviour, `scene/limLook.ts` palette + expressions + TSL materials, `scene/fx.ts` particle pools + the tuft), `frontend/src/styles/chatbot.stylex.ts`, `messageContent.stylex.ts`, `components/message-content.tsx`.
 
 ### Users
 Visitors who open `/chatbot` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
@@ -522,12 +522,14 @@ Visitors who open `/chatbot` (from the landing page or a shared link). Recruiter
 ### Brand Personality
 **Playful, Warm, Crafted.** Lim is a Pixar-soft coral gumdrop of jelly who answers for Anthony. The craft shows in how Lim moves; the chat itself stays calm and readable.
 
-**Emotional goal:** Delight in the first second (Lim pops in, bounces, looks at you), then a reassuring "this person ships" feeling. The mascot is the demo.
+**Emotional goal:** Delight in the first second (Lim pops in, bounces, shakes it off, looks at you), then a reassuring "this person ships" feeling. The mascot is the demo.
 
 ### Aesthetic Direction
 - **Theme:** "Sorbet studio": cream day canvas `#FFF6EC`, night-indigo `#1E1833` (toggle in header, or `S`). Pastel blobs, doodles and confetti are set dressing only.
-- **Mascot:** the toolkit `Jelly` soft body (shape matching, `upright` righting) with toon/wrap shading, rim fresnel, a smoothed rest-normal blend and an ink hull. Face paint (brows, mouth, blush) lives in the body shader; eyes are attached 3D spheres. A polka-dot floor, a scalloped mint rug, contact shadows and three jelly beans to bump.
-- **Behaviours:** idle breathe + fidgets + blinks; typing leans in and eyes follow the caret; send = hop + squash landing; thinking = wobble + thought bubble; streaming = mouth flaps per chunk; done = happy squish + confetti (first reply); error = droop + "Try again"; poke = giggle + blush; drag/fling bounces off the walls and floor.
+- **Mascot:** the toolkit `Jelly` soft body (shape matching, `upright` righting) in a gelatin shader (`gel` in `limLook.ts`): a soft toon ramp, light bleeding through the thin far edge, floor bounce, a small studio-window highlight on the crown (masked off the face paint), a swirl on the back of the head so a turn reads as a turn, a smoothed rest-normal blend and an ink hull. Mouth (lens to "o", teeth, tongue), blush and brows are painted in the body shader. Eyes are painted spheres with real lids (`createEyeMaterial`: iris, catch-lights, top / bottom lids meeting at a seam, hearts, dizzy spirals); a shut eye tucks its ink ring away. A springy tuft (`Tuft` in `fx.ts`) gives every move overlapping action and shows the mood (`bend`: wilts when sad or asleep, stands up when startled). A polka-dot floor, a scalloped mint rug, a coral-tinted contact shadow, jelly beans and a bouncy gumball, each with its own seat clear of Lim (three toys on a narrow stage, four on a wide one). Stage edges move a whole body back inside and reflect it; nothing is clipped flat.
+- **Behaviours:** idle breathe + fidgets + blinks + eye darts; typing leans in, nods per keystroke and eyes follow the caret (ALL CAPS startles Lim); send = crouch, hop, squash landing; thinking = wobble + thought bubble; streaming = a new mouth shape per chunk (and a babble syllable with sound on); done = happy squish + confetti and a pirouette (first reply); error = droop + "Try again"; poke = giggle + blush; a gentle drag stretches Lim like taffy and carries it as a teardrop, held facing you (Lim and the toys are drawn through `skinJelly`: the smooth shape-matched goal plus a soft-limited share of each particle's offset, so a hard shake or impact can never crease or facet the surface); a fling bounces off the walls and floor. Every jump is anticipation, stretch, then squash with soft dust discs sliding out along the floor, a floor ripple, a thump that jolts the toys and a little camera shake (`jump` / the landing block in `brain`). Left alone Lim yawns and naps with a nose bubble (sooner at night); shaken or bounced off the walls Lim gets dizzy (spiral eyes, orbiting stars); tap the floor and Lim hops over. Flips are rigid aerial cartwheels and pirouettes are rigid turns (`Jelly.rotate`), so the face stays readable; a stage with no headroom pirouettes instead of flipping.
+- **Easter eggs:** keep them discoverable, never required. Feed Lim a bean (drag it toward the mouth: Lim tracks it, opens wide, snatches it from your hand, chews three times with puffed cheeks, swallows, and the bean's colour rises from the belly for a while; then a burp. Three in a row is a food coma). Ten quick pokes inflate Lim until it pops into six mini Lims that scamper, regroup and merge. A message that names a trick (`stuntFor` in `eggs.ts`: flip, spin, dance, jump, love, sleep, big, tiny, boo, party, pop, a greeting) gets the trick instead of the send hop, and the question is still answered. The Konami code throws a party. The console says hello.
+- **Sound:** off by default; the header speaker button (or `M`) turns on synthesised foley (`sound.ts`: boings, squeaks, gulp, babble, a dance beat). No audio files. Lim's voice pitch follows its size.
 - **Layout:** desktop stage left, chat panel right; mobile stage on top (compact once chatting, so Lim stays visible while typing).
 - **Accent:** Lim coral `#FF7E6B` (send button, Lim's name, list markers). Plum ink `#2B2140` carries the text.
 - **Type:** Fredoka display (headings, chips, captions), Inter body.
@@ -537,8 +539,11 @@ Visitors who open `/chatbot` (from the landing page or a shared link). Recruiter
 - Theme classes: `chatbot-shadow` (day) / `chatbot-dark` (night), both defined in `frontend/src/chat/chat.css` (`--chat-*` vars), not `index.css`
 - `html:has(.chatbot-*)` paints the canvas so iOS safe areas blend
 - The 3D scene is lazy (`import('./scene/limScene')`); `LimArt` SVG is the first paint and the no-WebGPU/WebGL fallback
-- Reduced motion freezes the jiggle and renders on demand; CSS beats are paused
-- Chat history persists in `localStorage` under `lim-chat-v1`; night mode under `lim-chat-night`
+- Reduced motion freezes the jiggle and renders on demand; CSS beats are paused; stunts and easter eggs become a still smile
+- Settled toys sleep (no sim, no geometry sync) until something touches them; `Jelly.step` allocates nothing
+- Eyes counter-turn toward the camera as the head turns (the iris never slides off round the side) and tuck away when facing backwards
+- A dev build exposes the scene as `window.__lim` (`__lim.stunt('flip')`) and calls `window.__limFrame` after each render, for driving and filming beats
+- Chat history persists in `localStorage` under `lim-chat-v1`; night mode under `lim-chat-night`; sound under `lim-chat-sound`
 - I/O stays `invokeDeepseek` (Effect SSE) in `lib/apiService.ts`; the optional `signal` param powers Stop (Esc)
 
 ---
