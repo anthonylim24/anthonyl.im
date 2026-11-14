@@ -6,7 +6,7 @@ import { sx } from '@/styles/merge'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
 import { usePracticeStore } from '@/stores/practiceStore'
-import { JourneysSection } from '../components/JourneysSection'
+import { JourneyNudge, JourneysSection } from '../components/JourneysSection'
 import { getDailyGoalStatus, type DailyGoalStatus } from '../gamify/dailyGoal'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { btn } from '../components/buttonStyles.stylex'
@@ -198,6 +198,7 @@ export function HomePage() {
 
               <motion.div {...enter(reducedMotion, 0.24)}>
                 <RecommendedBlock ranked={recommendation.top} reducedMotion={reducedMotion} />
+                <JourneyNudge />
               </motion.div>
             </div>
 
