@@ -514,7 +514,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
           updatedAt: nowIso(),
         }
         await deps.store.update(next)
-        return { status: 200 as const, body: { trip: present(next, access), summary: generated.summary } }
+        return { status: 200 as const, body: { trip: present(next, access), summary: generated.summary, incompleteDays: generated.incompleteDays } }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         console.warn("[trips/generate] failed:", message)
@@ -662,6 +662,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       prompt: body.data.prompt,
       dayId: body.data.dayId,
       messages: body.data.messages ?? [],
+      location: body.data.location,
       geocode: deps.geocode,
     })
   })

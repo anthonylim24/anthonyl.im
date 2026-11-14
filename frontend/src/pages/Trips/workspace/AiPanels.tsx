@@ -295,12 +295,19 @@ const KIND_LABEL: Record<SuggestionKind, string> = {
   edit: "Change",
   remove: "Remove",
   reorder: "Reorder",
+  move: "Move",
+  swap_days: "Swap days",
   warning: "Heads up",
   info: "Note",
 }
 
 const actionable = (suggestion: EnhancementSuggestion) =>
-  suggestion.kind === "add" || suggestion.kind === "edit" || suggestion.kind === "remove" || suggestion.kind === "reorder"
+  suggestion.kind === "add" ||
+  suggestion.kind === "edit" ||
+  suggestion.kind === "remove" ||
+  suggestion.kind === "reorder" ||
+  suggestion.kind === "move" ||
+  suggestion.kind === "swap_days"
 
 /** What came back from an AI review: applied additions, optional changes, notes. */
 export function SuggestionsReview({
@@ -375,7 +382,12 @@ export function SuggestionsReview({
                   <span {...sx(a.stack)} style={{ gap: "0.25rem" }}>
                     <span {...sx(a.rowWrap)}>
                       <span {...sx(a.chip, a.chipMono, sg.kind === "remove" ? undefined : a.chipAccent)}>{KIND_LABEL[sg.kind]}</span>
-                      {dayLabel(sg.dayId) && <span {...sx(a.mono, a.muted)}>{dayLabel(sg.dayId)}</span>}
+                      {dayLabel(sg.dayId) && (
+                        <span {...sx(a.mono, a.muted)}>
+                          {dayLabel(sg.dayId)}
+                          {sg.toDayId && sg.toDayId !== sg.dayId && dayLabel(sg.toDayId) ? ` → ${dayLabel(sg.toDayId)}` : ""}
+                        </span>
+                      )}
                     </span>
                     <span {...sx(a.body, a.ink, a.wrap)} style={{ fontWeight: 600 }}>
                       {sg.title}

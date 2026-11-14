@@ -238,6 +238,16 @@ jobs:
             echo "[deploy] ffmpeg: $(command -v ffmpeg >/dev/null && which ffmpeg || echo MISSING)"
             echo "[deploy] dev-browser: $(command -v dev-browser >/dev/null && which dev-browser || echo MISSING)"
 
+            # Keep earlier builds' hashed chunks for two weeks. A tab left
+            # open across a deploy still asks for the old names when it lazy
+            # loads a sheet or the 3D view; without them the import fails.
+            # -n never overwrites the new build, -p keeps each file's age.
+            if [ -d "$LIVE/frontend/dist/assets" ]; then
+              cp -pnR "$LIVE/frontend/dist/assets/." "$NEXT/frontend/dist/assets/" 2>/dev/null || true
+              find "$NEXT/frontend/dist/assets" -type f -mtime +14 -delete || true
+              echo "[deploy] assets after carry-over: $(ls "$NEXT/frontend/dist/assets" | wc -l) files, $(du -sh "$NEXT/frontend/dist/assets" | cut -f1)"
+            fi
+
             # Atomic swap: live → prev, next → live. Downtime is only the
             # PM2 restart window, not a missing directory during clone.
             rm -rf "$PREV"

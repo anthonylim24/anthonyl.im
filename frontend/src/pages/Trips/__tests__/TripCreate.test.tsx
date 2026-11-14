@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import type { CityResult } from "../geocode"
 import type { AtlasMapProps } from "../map/AtlasMap"
 import { makeItem, makeTrip, stubMatchMedia } from "./tripFixtures"
@@ -244,6 +244,41 @@ describe("TripCreate", () => {
     expect(screen.getByTestId("notice")).toHaveTextContent(
       "Your trip is ready, but the AI draft didn’t finish. Use “Draft with AI” to try again. (upstream timeout)",
     )
+  })
+
+  it("does not pull the traveller to the new trip once they have left the page", async () => {
+    let finish!: (value: unknown) => void
+    mockGenerateItinerary.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    function Leave() {
+      const navigate = useNavigate()
+      return (
+        <button type="button" onClick={() => navigate("/elsewhere")}>
+          Leave
+        </button>
+      )
+    }
+    render(
+      <MemoryRouter initialEntries={["/trips/new"]}>
+        <Leave />
+        <Routes>
+          <Route path="/trips/new" element={<TripCreate />} />
+          <Route path="/trips/:tripId" element={<Landing />} />
+          <Route path="/elsewhere" element={<p>Somewhere else</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await pickCity("Lis", /Lisbon/)
+    fireEvent.click(screen.getByRole("button", { name: "Create and draft itinerary" }))
+    await waitFor(() => expect(mockGenerateItinerary).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave" }))
+    expect(screen.getByText("Somewhere else")).toBeInTheDocument()
+    await act(async () => {
+      finish({ trip: makeTrip({ id: "trip-9" }) })
+    })
+
+    expect(screen.getByText("Somewhere else")).toBeInTheDocument()
+    expect(screen.queryByTestId("path")).toBeNull()
   })
 
   it("stays on the form and explains when the trip can't be created", async () => {

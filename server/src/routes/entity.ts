@@ -19,6 +19,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import Groq from "groq-sdk";
+import { geminiText } from "../geminiText";
 
 const entity = new Hono();
 
@@ -168,27 +169,49 @@ const GROQ_MODEL = "openai/gpt-oss-120b";
 const sanitizeField = (s: string) => s.replace(/["\\\n\r]/g, " ").trim();
 
 async function generateDescription(req: EntityAboutRequest): Promise<string | null> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    console.warn("[entity/about] GROQ_API_KEY missing; skipping LLM");
-    return null;
-  }
-  const groq = new Groq({ apiKey });
-
   const userParts: string[] = [`type="${req.type}"`, `name="${sanitizeField(req.name)}"`];
   if (req.city) userParts.push(`city="${sanitizeField(req.city)}"`);
   if (req.context) userParts.push(`context="${sanitizeField(req.context)}"`);
   const userPrompt = userParts.join(", ");
 
-  // gpt-oss-120b is a reasoning model: its internal "thinking" tokens
-  // count against max_tokens. With a tight cap (≤200) the model gets
-  // cut off mid-thought and Groq returns a 400 with json_validate_failed
-  // and empty failed_generation. `reasoning_effort: "low"` tells gpt-oss
-  // to skip the deep chain-of-thought for this simple lookup; the bumped
-  // cap gives whatever's left enough headroom to finish the JSON.
-  //
-  // The SDK type doesn't yet expose `reasoning_effort`, but the Groq API
-  // accepts it for gpt-oss-120b — pass via Record<string, unknown> cast.
+  // Gemini leads; gpt-oss-120b on Groq is the backup when Gemini is
+  // missing, fails, or returns nothing usable.
+  const fromGemini = await describeWithGemini(userPrompt);
+  const desc = fromGemini ? cleanDescription(fromGemini) : null;
+  if (desc) return desc;
+  const fromGroq = await describeWithGroq(userPrompt);
+  return fromGroq ? cleanDescription(fromGroq) : null;
+}
+
+async function describeWithGemini(userPrompt: string): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    return await geminiText({
+      apiKey,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }],
+      json: true,
+      maxOutputTokens: 1024,
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    console.warn("[entity/about] gemini error:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+async function describeWithGroq(userPrompt: string): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    console.warn("[entity/about] GROQ_API_KEY missing; no backup model");
+    return null;
+  }
+  const groq = new Groq({ apiKey });
+  // gpt-oss-120b is a reasoning model: its thinking tokens count against
+  // max_tokens, so a tight cap cuts it off mid-thought (400
+  // json_validate_failed). `reasoning_effort: "low"` plus a roomy cap
+  // avoids that. The SDK type does not expose the field yet.
   const createParams: Record<string, unknown> = {
     model: GROQ_MODEL,
     messages: [
@@ -200,46 +223,45 @@ async function generateDescription(req: EntityAboutRequest): Promise<string | nu
     max_tokens: 1024,
     reasoning_effort: "low",
   }
-
   try {
     const completion = (await groq.chat.completions.create(
       createParams as unknown as Parameters<typeof groq.chat.completions.create>[0] & { stream?: false },
     )) as Awaited<ReturnType<typeof groq.chat.completions.create>>
     if (!("choices" in completion)) return null;
-    const raw = completion.choices[0]?.message?.content ?? "";
-    if (!raw) return null;
-    let parsed: { description?: string | null };
-    try {
-      parsed = JSON.parse(raw) as { description?: string | null };
-    } catch {
-      // Model occasionally emits a stray prefix despite JSON mode.
-      // Try to recover the first JSON object substring.
-      const match = raw.match(/\{[^{}]*"description"[^{}]*\}/);
-      if (!match) return null;
-      try {
-        parsed = JSON.parse(match[0]) as { description?: string | null };
-      } catch {
-        return null;
-      }
-    }
-    let desc = parsed.description?.trim() ?? null;
-    if (!desc) return null;
-    // Defensive cleanup. Strip stray em dashes, collapse whitespace,
-    // cap at 220 chars on a sentence boundary if possible.
-    desc = desc.replace(/—/g, ",").replace(/\s+/g, " ").trim();
-    if (desc.length > 220) {
-      const cut = desc.slice(0, 220);
-      const lastStop = Math.max(cut.lastIndexOf("."), cut.lastIndexOf(";"));
-      desc = (lastStop > 80 ? cut.slice(0, lastStop + 1) : cut).trim();
-    }
-    return desc;
+    return completion.choices[0]?.message?.content || null;
   } catch (err) {
-    // Log just the message so the warnings stay readable; the SDK's
-    // stringified error pollutes logs with stack + headers otherwise.
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn("[entity/about] groq error:", message);
+    console.warn("[entity/about] groq error:", err instanceof Error ? err.message : String(err));
     return null;
   }
+}
+
+/** Parse the model's `{ "description": … }` and tidy it for display. */
+function cleanDescription(raw: string): string | null {
+  let parsed: { description?: string | null };
+  try {
+    parsed = JSON.parse(raw) as { description?: string | null };
+  } catch {
+    // Model occasionally emits a stray prefix despite JSON mode.
+    // Try to recover the first JSON object substring.
+    const match = raw.match(/\{[^{}]*"description"[^{}]*\}/);
+    if (!match) return null;
+    try {
+      parsed = JSON.parse(match[0]) as { description?: string | null };
+    } catch {
+      return null;
+    }
+  }
+  let desc = parsed.description?.trim() ?? null;
+  if (!desc) return null;
+  // Defensive cleanup. Strip stray em dashes, collapse whitespace,
+  // cap at 220 chars on a sentence boundary if possible.
+  desc = desc.replace(/—/g, ",").replace(/\s+/g, " ").trim();
+  if (desc.length > 220) {
+    const cut = desc.slice(0, 220);
+    const lastStop = Math.max(cut.lastIndexOf("."), cut.lastIndexOf(";"));
+    desc = (lastStop > 80 ? cut.slice(0, lastStop + 1) : cut).trim();
+  }
+  return desc;
 }
 
 entity.post("/about", zValidator("json", entityAboutSchema), async (c) => {

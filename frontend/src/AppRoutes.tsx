@@ -1,4 +1,5 @@
-import { lazy, Suspense, type ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
+import { lazyRetry } from './lib/lazyRetry'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Landing } from './pages/Landing/Landing'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
@@ -8,67 +9,67 @@ import { routeFallback } from './styles/chatbot.stylex'
 
 // The chatbot lived at `/` until the lab landing page took the root; it is
 // now `/chatbot` only, so it loads lazily like every other app.
-const App = lazy(() => import('./App'))
+const App = lazyRetry(() => import('./App'))
 // Lazy load the BreathFlow shell and pages for better initial bundle size.
-const BreathworkLayout = lazy(() =>
+const BreathworkLayout = lazyRetry(() =>
   import('./breathflow/pages/BreathflowLayout').then((module) => ({
     default: module.BreathflowLayout,
   })),
 )
-const Home = lazy(() =>
+const Home = lazyRetry(() =>
   import('./breathflow/pages/HomePage').then((module) => ({ default: module.HomePage })),
 )
-const Session = lazy(() =>
+const Session = lazyRetry(() =>
   import('./breathflow/pages/SessionPage').then((module) => ({ default: module.SessionPage })),
 )
-const Progress = lazy(() =>
+const Progress = lazyRetry(() =>
   import('./breathflow/pages/ProgressPage').then((module) => ({ default: module.ProgressPage })),
 )
-const Settings = lazy(() =>
+const Settings = lazyRetry(() =>
   import('./breathflow/pages/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
-const BreathworkNotFound = lazy(() =>
+const BreathworkNotFound = lazyRetry(() =>
   import('./breathflow/pages/NotFoundPage').then((module) => ({
     default: module.NotFoundPage,
   })),
 )
-const KoreaIndexRedirect = lazy(() =>
+const KoreaIndexRedirect = lazyRetry(() =>
   import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaIndexRedirect })),
 )
-const KoreaDayRedirect = lazy(() =>
+const KoreaDayRedirect = lazyRetry(() =>
   import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaDayRedirect })),
 )
-const KoreaPlacesRedirect = lazy(() =>
+const KoreaPlacesRedirect = lazyRetry(() =>
   import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaPlacesRedirect })),
 )
-const KoreaIngestRedirect = lazy(() =>
+const KoreaIngestRedirect = lazyRetry(() =>
   import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaIngestRedirect })),
 )
-const KoreaCatchRedirect = lazy(() =>
+const KoreaCatchRedirect = lazyRetry(() =>
   import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaCatchRedirect })),
 )
-const TripEditRedirect = lazy(() =>
+const TripEditRedirect = lazyRetry(() =>
   import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.TripEditRedirect })),
 )
-const TripsLayout = lazy(() =>
+const TripsLayout = lazyRetry(() =>
   import('./pages/Trips/TripsLayout').then((module) => ({ default: module.TripsLayout })),
 )
-const TripsIndex = lazy(() =>
+const TripsIndex = lazyRetry(() =>
   import('./pages/Trips/TripsIndex').then((module) => ({ default: module.TripsIndex })),
 )
-const TripCreate = lazy(() =>
+const TripCreate = lazyRetry(() =>
   import('./pages/Trips/TripCreate').then((module) => ({ default: module.TripCreate })),
 )
-const TripWorkspace = lazy(() =>
+const TripWorkspace = lazyRetry(() =>
   import('./pages/Trips/TripWorkspace').then((module) => ({ default: module.TripWorkspace })),
 )
-const TripJoin = lazy(() =>
+const TripJoin = lazyRetry(() =>
   import('./pages/Trips/TripJoin').then((module) => ({ default: module.TripJoin })),
 )
-const SiteNotFound = lazy(() =>
+const SiteNotFound = lazyRetry(() =>
   import('./pages/SiteNotFound').then((module) => ({ default: module.SiteNotFound })),
 )
-const TripsNotFound = lazy(() =>
+const TripsNotFound = lazyRetry(() =>
   import('./pages/Trips/TripsNotFound').then((module) => ({ default: module.TripsNotFound })),
 )
 

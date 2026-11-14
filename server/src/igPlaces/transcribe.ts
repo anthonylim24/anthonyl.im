@@ -25,6 +25,16 @@ export const BIAS_PROMPT =
 
 export function createTranscriber(deps: TranscriberDeps): Transcriber {
   return async function transcribe({ filePath, biasPrompt }) {
+    // Gemini listens first; Whisper is the backup when it is missing,
+    // fails, or hears nothing.
+    if (deps.geminiVideoTranscriber) {
+      try {
+        const heard = await deps.geminiVideoTranscriber(filePath);
+        if (heard.trim()) return heard;
+      } catch (err) {
+        console.warn('[ig:transcribe] gemini failed; using whisper:', err instanceof Error ? err.message : String(err));
+      }
+    }
     const baseParams = {
       model: 'whisper-large-v3-turbo',
       response_format: 'verbose_json',
@@ -42,12 +52,6 @@ export function createTranscriber(deps: TranscriberDeps): Transcriber {
       ]);
       return mergeSegments(koRes as VerboseTranscription, autoRes as VerboseTranscription);
     } catch (err) {
-      const status = (err as { status?: number })?.status;
-      if (status === 429 && deps.geminiVideoTranscriber) {
-        // Groq rate-limited. Try Gemini's video understanding (slower but
-        // gets us a transcript without an hour-long retry wait).
-        return deps.geminiVideoTranscriber(filePath);
-      }
       throw err;
     }
   };

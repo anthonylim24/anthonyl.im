@@ -1,3 +1,4 @@
+import { recallComments, tryApify } from './apify';
 import { NonRetryableError, RetryableError } from './types';
 // Re-export so callers don't need to import from types for these.
 export { NonRetryableError, RetryableError };
@@ -16,6 +17,7 @@ export interface IgComment {
 export interface FetchCommentsDeps {
   fetch?: typeof fetch;
   brightDataApiKey: string | undefined;
+  apifyToken?: string | undefined;
 }
 
 export type CommentsFetcher = (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<IgComment[]>;
@@ -36,6 +38,14 @@ interface BrightDataCommentItem {
 export function createCommentsFetcher(deps: FetchCommentsDeps): CommentsFetcher {
   const f = deps.fetch ?? fetch;
   return async function fetchComments(igUrl, opts = {}) {
+    // Comments that came with the post a moment ago cost nothing; a cached
+    // post fetched in an earlier run asks Apify once more.
+    const remembered = recallComments(igUrl);
+    if (remembered?.length) return remembered.slice(0, opts.limit ?? remembered.length);
+    if (deps.apifyToken) {
+      const apify = await tryApify(igUrl, f, deps.apifyToken);
+      if (apify.comments?.length) return apify.comments.slice(0, opts.limit ?? apify.comments.length);
+    }
     if (!deps.brightDataApiKey) {
       // Soft-fail: no key configured → no comments. Caller treats this
       // as "no comments available" rather than an error.

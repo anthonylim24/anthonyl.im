@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { lookupGooglePlacePhoto, lookupPhoto } from "./placePhoto"
@@ -34,12 +34,18 @@ export function ConciergePhotoThumb({
   city,
   lat,
   lng,
+  compact,
+  fallback,
   onOpen,
 }: {
   name: string
   city?: string
   lat?: number
   lng?: number
+  /** Square thumbnail beside the card text instead of a 16:9 banner. */
+  compact?: boolean
+  /** Shown while there is no photo (a category icon). */
+  fallback?: ReactNode
   onOpen: (url: string | null) => void
 }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -67,7 +73,7 @@ export function ConciergePhotoThumb({
       type="button"
       onClick={() => onOpen(showImage ? url : null)}
       aria-label={`View photos of ${name}`}
-      {...sx(c.thumb)}
+      {...sx(c.thumb, compact ? c.thumbCompact : undefined)}
     >
       {showImage ? (
         <img
@@ -79,8 +85,8 @@ export function ConciergePhotoThumb({
           onError={() => setFailed(true)}
         />
       ) : (
-        <span {...sx(c.thumbFallback)} aria-hidden>
-          {name.trim().slice(0, 1) || "·"}
+        <span {...sx(fallback ? c.thumbIcon : c.thumbFallback)} aria-hidden>
+          {fallback ?? (name.trim().slice(0, 1) || "·")}
         </span>
       )}
     </button>

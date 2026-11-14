@@ -235,4 +235,39 @@ describe("ShareDialog", () => {
     expect(screen.queryByRole("button", { name: "Leave this trip" })).toBeNull()
     expect(screen.queryByRole("button", { name: "Copy invite link" })).toBeNull()
   })
+
+  it("owner: locks the role while a link is being made, so the label matches the clipboard", async () => {
+    let mint: (invite: { token: string; role: "editor"; createdAt: string }) => void = () => {}
+    mockCreateInvite.mockReturnValue(new Promise((resolve) => (mint = resolve)))
+    renderShare(makeTrip(), "owner")
+    const copy = await screen.findByRole("button", { name: "Copy invite link" })
+    fireEvent.click(screen.getByRole("radio", { name: "Can edit" }))
+    fireEvent.click(copy)
+
+    await waitFor(() => expect(mockCreateInvite).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole("radio", { name: "Can view" })).toBeDisabled()
+    expect(screen.getByRole("radio", { name: "Can edit" })).toBeDisabled()
+
+    mint({ token: "tok-editor", role: "editor", createdAt: "2026-06-01T00:00:00Z" })
+    expect(await screen.findByRole("button", { name: "Link copied" })).toBeInTheDocument()
+    expect(writeText).toHaveBeenCalledWith(joinUrl("tok-editor"))
+
+    // "Copied" belongs to the edit link only.
+    fireEvent.click(screen.getByRole("radio", { name: "Can view" }))
+    expect(screen.getByRole("button", { name: "Copy invite link" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("radio", { name: "Can edit" }))
+    expect(screen.getByRole("button", { name: "Link copied" })).toBeInTheDocument()
+  })
+
+  it("owner: turning a link off stops saying it was copied", async () => {
+    const trip = makeTrip({ invites: [{ token: "existing-view", role: "viewer", createdAt: "2026-05-01T00:00:00Z" }] })
+    renderShare(trip, "owner")
+    fireEvent.click(await screen.findByRole("button", { name: "Copy invite link" }))
+    expect(await screen.findByRole("button", { name: "Link copied" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Turn off link" }))
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Invite link" })).toBeNull())
+    expect(screen.getByRole("button", { name: "Copy invite link" })).toBeInTheDocument()
+    expect(screen.queryByText("Anyone who opens it and signs in joins this trip.")).toBeNull()
+  })
 })

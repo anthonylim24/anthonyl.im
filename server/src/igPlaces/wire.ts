@@ -263,7 +263,7 @@ export function buildWorld() {
   const groq = new Groq({ apiKey: config.groqApiKey });
 
   const queue = createQueue(supabase);
-  const fetchPost = createFetchPost({ brightDataApiKey: config.brightDataApiKey });
+  const fetchPost = createFetchPost({ brightDataApiKey: config.brightDataApiKey, apifyToken: config.apifyToken });
   // Gemini fallbacks fire when their primary chain is exhausted. Both are
   // optional — if GEMINI_API_KEY is unset, the deps stay undefined and the
   // primary code paths surface their own failures.
@@ -323,7 +323,7 @@ export function buildWorld() {
   });
   const upsertPost = upsertPostFactory(supabase);
   const savePlaces = createSavePlaces(supabase);
-  const fetchComments = createCommentsFetcher({ brightDataApiKey: config.brightDataApiKey });
+  const fetchComments = createCommentsFetcher({ brightDataApiKey: config.brightDataApiKey, apifyToken: config.apifyToken });
 
   const findCachedPost = createCachedPostLookup(supabase);
 

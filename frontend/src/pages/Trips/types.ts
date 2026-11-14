@@ -141,7 +141,7 @@ export interface TripSummary {
   updatedAt: string
 }
 
-export type SuggestionKind = "add" | "edit" | "remove" | "reorder" | "warning" | "info"
+export type SuggestionKind = "add" | "edit" | "remove" | "reorder" | "move" | "swap_days" | "warning" | "info"
 
 export type EnhancementOutcome = "added_places" | "no_adds_needed" | "no_adds_possible"
 
@@ -156,6 +156,8 @@ export interface EnhancementSuggestion {
   proposedItem?: ItineraryItem
   proposedChanges?: Partial<Omit<ItineraryItem, "id">>
   proposedOrder?: string[]
+  /** "move": the day the item goes to. "swap_days": the day traded with `dayId`. */
+  toDayId?: string
 }
 
 export interface EnhancementRun {

@@ -16,6 +16,8 @@ import {
   Sparkles,
   Square,
   Sun,
+  Volume2,
+  VolumeX,
   Wrench,
 } from "lucide-react";
 import { sx } from "./lib/utils";
@@ -29,6 +31,8 @@ import { LimStage, type LimStageHandle } from "./chat/LimStage";
 import { LimArt } from "./chat/LimArt";
 import { caretPoint } from "./chat/caret";
 import type { LimMood } from "./chat/scene/limScene";
+import { konami, stuntFor, type Stunt } from "./chat/eggs";
+import { sound } from "./chat/sound";
 import "./chat/chat.css";
 
 const MessageContent = lazy(() => import("./components/message-content"));
@@ -164,10 +168,12 @@ function App() {
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stick = useRef(true);
+  const pendingStunt = useRef<Stunt | null>(null);
   const cheerTimer = useRef(0);
   const copyTimer = useRef(0);
 
   const [night, setNight] = useState(readNight);
+  const [soundOn, setSoundOn] = useState(() => sound.load());
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const [sad, setSad] = useState(false);
@@ -177,13 +183,17 @@ function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sendBeat, setSendBeat] = useState(0);
   const [keyboardH, setKeyboardH] = useState<number | null>(null);
+  const [played, setPlayed] = useState(false);
 
   const { messages, status, busy, send, stop, regenerate, newChat } = useChat({
     onSend: () => {
       setSad(false);
       setCheering(false);
       setNotice("");
-      stageRef.current?.hop();
+      // A message that names a trick ("do a flip") gets the trick, not the hop.
+      const stunt = pendingStunt.current;
+      pendingStunt.current = null;
+      if (!stunt || !stageRef.current?.stunt(stunt)) stageRef.current?.hop();
     },
     onChunk: () => stageRef.current?.talk(),
     onDone: (firstReply) => {
@@ -238,8 +248,25 @@ function App() {
     [],
   );
 
-  // Lim watches the pointer; Esc stops a reply; S flips the lights.
+  const toggleSound = useCallback(() => {
+    setSoundOn((on) => {
+      sound.setEnabled(!on);
+      return !on;
+    });
+  }, []);
+
+  // A hello for anyone who opens the console.
   useEffect(() => {
+    console.info(
+      "%c( •ᴗ• )  psst. Lim knows tricks.",
+      "font: 600 14px ui-rounded, system-ui; color: #E0526A",
+      "\nAsk for a flip, a spin, a dance or a nap. Feed Lim a jelly bean. Poke ten times at your own risk. ↑↑↓↓←→←→BA.",
+    );
+  }, []);
+
+  // Lim watches the pointer; Esc stops a reply; S flips the lights; M is sound.
+  useEffect(() => {
+    const code = konami();
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === "mouse") stageRef.current?.lookAt(e.clientX, e.clientY);
     };
@@ -252,6 +279,8 @@ function App() {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "s" || e.key === "S") setNight((n) => !n);
+      if (e.key === "m" || e.key === "M") toggleSound();
+      if (code(e.key)) stageRef.current?.stunt("party");
     };
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("keydown", onKey);
@@ -259,7 +288,7 @@ function App() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("keydown", onKey);
     };
-  }, [busy, stop]);
+  }, [busy, stop, toggleSound]);
 
   // On-screen keyboards: size the shell to the visual viewport so the stage
   // (and Lim) stay above the composer instead of scrolling off.
@@ -310,9 +339,13 @@ function App() {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
     followCaret();
+    // Lim nods along with each keystroke, and flinches at SHOUTING.
+    const text = e.target.value.trim();
+    stageRef.current?.react(text.length >= 6 && /[A-Z]/.test(text) && text === text.toUpperCase() ? "shout" : "key");
   };
 
   const submit = (text: string) => {
+    pendingStunt.current = stuntFor(text);
     if (!send(text)) return;
     setInput("");
     stick.current = true;
@@ -349,6 +382,7 @@ function App() {
     void navigator.clipboard?.writeText(m.content).then(() => {
       setCopiedId(m.id);
       setNotice("Copied to clipboard.");
+      stageRef.current?.react("wink");
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopiedId(null), 1600);
     });
@@ -395,12 +429,21 @@ function App() {
         >
           {night ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
         </button>
+        <button
+          type="button"
+          onClick={toggleSound}
+          {...sx(chatbot.iconButton)}
+          aria-label="Lim's sounds"
+          aria-pressed={soundOn}
+        >
+          {soundOn ? <Volume2 size={18} aria-hidden="true" /> : <VolumeX size={18} aria-hidden="true" />}
+        </button>
       </header>
 
-      <div {...sx(chatbot.stageArea)} aria-hidden="true">
+      <div {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
         <LimStage ref={stageRef} mood={mood} night={night} />
-        <p {...sx(chatbot.stageCaption, (focused || !empty) && chatbot.stageCaptionHidden)}>
-          psst — poke me, or fling me around
+        <p {...sx(chatbot.stageCaption, (focused || !empty || played) && chatbot.stageCaptionHidden)}>
+          psst — poke me, fling me, or feed me a bean
         </p>
       </div>
 

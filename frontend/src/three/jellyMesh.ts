@@ -22,6 +22,49 @@ export function jellyGeometry(jelly: Jelly, index: ArrayLike<number>): THREE.Buf
 }
 
 /**
+ * A geometry with its own position buffer, for bodies drawn through
+ * `skinJelly` instead of straight from the particles.
+ */
+export function skinnedJellyGeometry(jelly: Jelly, index: ArrayLike<number>): THREE.BufferGeometry {
+  const geo = jellyGeometry(jelly, index)
+  const pos = new THREE.BufferAttribute(Float32Array.from(jelly.x), 3)
+  pos.setUsage(THREE.DynamicDrawUsage)
+  geo.setAttribute('position', pos)
+  return geo
+}
+
+/**
+ * Draw a body as its smooth goal shape plus a soft-limited share of each
+ * particle's offset from it. The big moves (squash, stretch, lean, tumble)
+ * live in the goal, so they come through whole; the offsets carry the jiggle
+ * and dents, and saturate at `limit` so a hard shake or impact can never
+ * crease, facet or fold the surface. `floor` keeps the skin on the ground: a
+ * skin that dips under it is lifted whole, never sliced flat.
+ * Call before `syncJellyGeometry`.
+ */
+export function skinJelly(geo: THREE.BufferGeometry, jelly: Jelly, limit: number, floor: number | null = null) {
+  const out = (geo.attributes.position as THREE.BufferAttribute).array as Float32Array
+  const { x, goal } = jelly
+  let low = Infinity
+  for (let i = 0; i < x.length; i += 3) {
+    const dx = x[i] - goal[i]
+    const dy = x[i + 1] - goal[i + 1]
+    const dz = x[i + 2] - goal[i + 2]
+    const d = Math.hypot(dx, dy, dz)
+    // tanh-style saturation: linear for small offsets, levelling off at `limit`.
+    const k = d > 1e-6 ? (limit * Math.tanh(d / limit)) / d : 1
+    out[i] = goal[i] + dx * k
+    out[i + 1] = goal[i + 1] + dy * k
+    out[i + 2] = goal[i + 2] + dz * k
+    if (out[i + 1] < low) low = out[i + 1]
+  }
+  if (floor !== null && low < floor) {
+    const up = floor - low
+    for (let i = 1; i < out.length; i += 3) out[i] += up
+  }
+}
+
+/**
  * Per-frame update. Normals and the bounding sphere are computed straight on
  * the typed arrays: three's generic computeVertexNormals goes through
  * Vector3 accessors per corner and was half of every jelly scene's frame.

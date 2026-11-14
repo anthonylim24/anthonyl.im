@@ -143,7 +143,7 @@ export interface Trip {
 
 // ── AI enhancement model ─────────────────────────────────────────────────
 
-export type SuggestionKind = "add" | "edit" | "remove" | "reorder" | "warning" | "info"
+export type SuggestionKind = "add" | "edit" | "remove" | "reorder" | "move" | "swap_days" | "warning" | "info"
 
 /** What the enhancement decided about adding places. Always set on a
  *  complete run so the UI can explain a no-op as well as a successful add. */
@@ -160,6 +160,8 @@ export interface EnhancementSuggestion {
   proposedItem?: ItineraryItem // for "add"
   proposedChanges?: Partial<Omit<ItineraryItem, "id">> // for "edit"
   proposedOrder?: string[] // for "reorder": full item-id order for the day
+  /** "move": the day the item goes to. "swap_days": the day traded with `dayId`. */
+  toDayId?: string
 }
 
 export interface EnhancementRun {
@@ -339,14 +341,38 @@ export const generateRequestSchema = z.object({
   replaceExisting: z.boolean().default(false),
 })
 
+const chatPriorPlaceSchema = z.object({
+  ref: z.string().max(300).optional(),
+  name: z.string().min(1).max(200),
+  address: z.string().max(400).optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  category: z.string().max(40).optional(),
+  placeId: z.string().max(256).optional(),
+  mapsUrl: z.string().max(2000).optional(),
+  dayId: z.string().max(64).optional(),
+  time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+})
+
 export const tripChatRequestSchema = z.object({
   prompt: z.string().min(1, "Prompt is required").max(2000),
   dayId: z.string().max(64).optional(),
+  /** The traveller's position, only when they chose to share it with this
+   *  message. Used for the answer and never stored. */
+  location: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).optional(),
   messages: z
     .array(
       z.object({
         role: z.enum(["user", "assistant"]),
         content: z.string().max(8000),
+        /** Cards shown under that reply, so "the second one" resolves. */
+        places: z.array(chatPriorPlaceSchema).max(8).optional(),
+        proposal: z
+          .object({
+            summary: z.string().max(200),
+            state: z.enum(["pending", "applied", "dismissed", "undone"]).optional(),
+          })
+          .optional(),
       }),
     )
     .max(40)
@@ -429,7 +455,7 @@ export const aiItinerarySchema = z.object({
 })
 
 export const aiSuggestionSchema = z.object({
-  kind: z.enum(["add", "edit", "remove", "reorder", "warning", "info"]),
+  kind: z.enum(["add", "edit", "remove", "reorder", "move", "swap_days", "warning", "info"]),
   dayId: z.string().max(64).optional(),
   itemId: z.string().max(64).optional(),
   title: z.string().min(1).max(300),
@@ -438,6 +464,7 @@ export const aiSuggestionSchema = z.object({
   proposedItem: aiItemSchema.optional(),
   proposedChanges: aiItemSchema.partial().optional(),
   proposedOrder: z.array(z.string().max(64)).max(200).optional(),
+  toDayId: z.string().max(64).optional(),
 })
 
 export const enhancementOutcomeSchema = z.enum(["added_places", "no_adds_needed", "no_adds_possible"])

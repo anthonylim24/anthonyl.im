@@ -10,7 +10,7 @@ import {
   postLabel,
   stopFromPlace,
 } from "../instagram/instagram"
-import type { IgJob, IgPlace } from "../instagram/instagramApi"
+import { normalizeJobs, normalizeSaved, type IgJob, type IgPlace } from "../instagram/instagramApi"
 import { makeItem, makeTrip } from "./tripFixtures"
 
 const place = (overrides: Partial<IgPlace> = {}): IgPlace => ({
@@ -91,6 +91,12 @@ describe("jobProgress", () => {
     expect(stuck.problem).toContain("offline right now")
   })
 
+  it("explains a used-up free allowance and a server with no fetcher", () => {
+    expect(describeProblem("apify monthly credit used up (402)")).toContain("resets next month")
+    expect(describeProblem("no Instagram fetcher is configured (set APIFY_TOKEN)")).toContain("offline right now")
+    expect(describeProblem("apify: post not found (Post does not exist)")).toContain("private or deleted")
+  })
+
   it("never shows a raw server error", () => {
     expect(describeProblem("TypeError: fetch failed at wire.ts:44")).toBe("This post couldn’t be read.")
   })
@@ -144,5 +150,26 @@ describe("postLabel", () => {
     expect(postLabel(job())).toBe("Instagram Reel")
     expect(postLabel(job({ post_preview: { caption: null, owner_username: "3249247288" } }))).toBe("Instagram Reel")
     expect(postLabel(job({ url: "https://www.instagram.com/p/x/" }))).toBe("Instagram post")
+  })
+})
+
+describe("API boundary", () => {
+  it("turns a jobs response that is not a list into no jobs", () => {
+    expect(normalizeJobs({ error: "nope" })).toEqual([])
+    expect(normalizeJobs(null)).toEqual([])
+  })
+
+  it("gives every job a places list and keeps its other fields", () => {
+    const jobs = normalizeJobs([{ id: 1, status: "done", step: "done", extra: true }, null, { id: 2, places: [{ id: 5 }] }])
+    expect(jobs).toHaveLength(2)
+    expect(jobs[0]).toMatchObject({ id: 1, places: [], extra: true })
+    expect(jobs[1]!.places).toEqual([{ id: 5 }])
+    expect(jobProgress(jobs[0]!)).toMatchObject({ phase: "empty" })
+  })
+
+  it("makes a saved page safe to list", () => {
+    expect(normalizeSaved(null)).toEqual({ places: [], total: 0, hasMore: false })
+    expect(normalizeSaved({ places: "x", total: 3 })).toEqual({ places: [], total: 3, hasMore: false })
+    expect(normalizeSaved({ places: [{ id: 1 }], hasMore: true })).toEqual({ places: [{ id: 1 }], total: 1, hasMore: true })
   })
 })

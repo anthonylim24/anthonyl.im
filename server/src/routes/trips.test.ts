@@ -734,9 +734,11 @@ describe("concierge chat", () => {
     let capturedBody: {
       systemInstruction?: { parts: Array<{ text: string }> }
       generationConfig?: { thinkingConfig?: { thinkingLevel?: string } }
-      tools?: unknown
+      tools?: Array<Record<string, unknown>>
+      toolConfig?: unknown
     } | null = null
-    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
       capturedBody = JSON.parse(String(init?.body)) as typeof capturedBody
       return geminiSseResponse(["Hello", " there"])
     }) as unknown as typeof fetch
@@ -757,71 +759,189 @@ describe("concierge chat", () => {
     const sys = capturedBody?.systemInstruction?.parts[0]?.text ?? ""
     expect(sys).toContain("Tokyo Long Weekend")
     expect(sys).toContain("FOCUSED DAY")
-    expect(sys).toContain("Google Search and Google Maps")
+    expect(sys).toContain("propose_changes")
     expect(capturedBody?.generationConfig?.thinkingConfig).toEqual({ thinkingLevel: "low" })
-    expect(capturedBody?.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    // Built-in Search plus our own functions, which Hydrogen only accepts
+    // with server-side tool invocations switched on.
+    expect(capturedBody?.tools?.[0]).toEqual({ googleSearch: {} })
+    const declared = (capturedBody?.tools?.[1] as { functionDeclarations: Array<{ name: string }> }).functionDeclarations
+    expect(declared.map((d) => d.name)).toContain("propose_changes")
+    expect(capturedBody?.toolConfig).toEqual({ includeServerSideToolInvocations: true })
   })
 
-  test("strips the add-places trailer and emits a places event", async () => {
+  test("reports the model that answered in a meta event", async () => {
     process.env.GEMINI_API_KEY = "test-key"
-    globalThis.fetch = (async () =>
-      geminiSseResponse([
-        "Try **Ichiran**.",
-        '\n:::add-places\n[{"name":"Ichiran","address":"Shibuya","lat":35.66,"lng":139.7,"category":"restaurant"}]\n:::',
-      ])) as unknown as typeof fetch
+    globalThis.fetch = (async (url: string) => {
+      if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
+      return geminiRawSse([{ modelVersion: "gemini-4-hydrogen", candidates: [{ content: { parts: [{ text: "Hi." }] } }] }])
+    }) as unknown as typeof fetch
 
     const { app } = makeApp()
     const trip = await createTrip(app)
     const res = await app.request(`/api/trips/${trip.id}/chat`, {
       method: "POST",
       headers: AUTH,
-      body: JSON.stringify({ prompt: "ramen?" }),
+      body: JSON.stringify({ prompt: "hello" }),
     })
     const text = await res.text()
-    expect(text).toContain(`data: ${JSON.stringify("Try **Ichiran**.")}`)
-    expect(text).not.toContain(":::add-places")
-    expect(text).toContain("Ichiran")
-    expect(text).toContain('"places"')
-    expect(text).toContain("data: [DONE]")
+    expect(text).toContain('"meta":{"model":"gemini-4-hydrogen"')
+    expect(text.indexOf('"meta"')).toBeLessThan(text.indexOf('"Hi."'))
   })
 
-  test("drops name-only suggested places that have no address, coords, or Maps url", async () => {
+  test("steps down to functions only when the model rejects Search with functions", async () => {
     process.env.GEMINI_API_KEY = "test-key"
-    globalThis.fetch = (async () =>
-      geminiSseResponse([
-        "Maybe that stall.",
-        '\n:::add-places\n[{"name":"Mystery Stall"}]\n:::',
-      ])) as unknown as typeof fetch
+    const toolSets: unknown[] = []
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
+      const body = JSON.parse(String(init?.body)) as { tools?: unknown[] }
+      toolSets.push(body.tools?.length ?? 0)
+      if (body.tools?.length === 2) return new Response('{"error":{"message":"cannot be combined"}}', { status: 400 })
+      return geminiSseResponse(["Fine."])
+    }) as unknown as typeof fetch
 
     const { app } = makeApp()
     const trip = await createTrip(app)
     const res = await app.request(`/api/trips/${trip.id}/chat`, {
       method: "POST",
       headers: AUTH,
-      body: JSON.stringify({ prompt: "street food?" }),
+      body: JSON.stringify({ prompt: "hello" }),
     })
-    const text = await res.text()
-    expect(text).toContain("Maybe that stall.")
-    expect(text).not.toContain('"places"')
+    expect(await res.text()).toContain(`data: ${JSON.stringify("Fine.")}`)
+    expect(toolSets).toEqual([2, 1])
   })
 
-  test("emits Maps sources from grounding metadata", async () => {
+  test("runs propose_changes, validates it against the trip and emits a proposal", async () => {
     process.env.GEMINI_API_KEY = "test-key"
-    globalThis.fetch = (async () =>
-      geminiRawSse([
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const dayId = (trip.days[0] as { id: string }).id
+    await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          { ...trip.days[0], items: [{ id: "dinner", kind: "place", title: "Sushi Dai", time: "20:30", status: "none", createdBy: "user" }] },
+          ...trip.days.slice(1),
+        ],
+      }),
+    })
+
+    const requests: Array<{ contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }> = []
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
+      requests.push(JSON.parse(String(init?.body)))
+      if (requests.length === 1) {
+        return geminiRawSse([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      thoughtSignature: "sig-1",
+                      functionCall: {
+                        id: "call-1",
+                        name: "propose_changes",
+                        args: {
+                          summary: "Move dinner to 20:00",
+                          changes: [
+                            { op: "set_time", itemId: "dinner", time: "20:00" },
+                            { op: "remove", itemId: "ghost" },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ])
+      }
+      return geminiSseResponse(["Apply moves **Sushi Dai** to 20:00."])
+    }) as unknown as typeof fetch
+
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "Move dinner to 8", dayId }),
+    })
+    const text = await res.text()
+    const proposalLine = text.split("\n").find((line) => line.startsWith('data: {"proposal"')) ?? ""
+    const { proposal } = JSON.parse(proposalLine.slice(5)) as {
+      proposal: { summary: string; changes: Array<Record<string, unknown>> }
+    }
+    expect(proposal.summary).toBe("Move dinner to 20:00")
+    expect(proposal.changes).toEqual([
+      { id: "c1", op: "set_time", dayId, itemId: "dinner", title: "Sushi Dai", from: "20:30", time: "20:00" },
+    ])
+    expect(text).toContain("Apply moves **Sushi Dai** to 20:00.")
+    expect(text.indexOf('data: {"proposal"')).toBeLessThan(text.indexOf("[DONE]"))
+
+    // The second request replays the model's parts untouched (signature
+    // included) and answers the call, with the bad change explained.
+    const second = requests[1]!.contents
+    expect(second[second.length - 2]!.parts[0]!.thoughtSignature).toBe("sig-1")
+    const reply = second[second.length - 1]!.parts[0]!.functionResponse as {
+      id: string
+      response: { shown: number; rejected: string[] }
+    }
+    expect(reply.id).toBe("call-1")
+    expect(reply.response.shown).toBe(1)
+    expect(reply.response.rejected[0]).toContain("no stop with that itemId")
+  })
+
+  test("passes earlier cards back so follow-ups can point at them", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    let contents: Array<{ role: string; parts: Array<{ text?: string }> }> = []
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
+      contents = (JSON.parse(String(init?.body)) as { contents: typeof contents }).contents
+      return geminiSseResponse(["Ok."])
+    }) as unknown as typeof fetch
+
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({
+        prompt: "The second one. Add it to Saturday.",
+        messages: [
+          { role: "user", content: "Wine bars?" },
+          {
+            role: "assistant",
+            content: "**Bloco** or **Black Sheep**.",
+            places: [
+              { ref: "ChIJbloco000", name: "Bloco" },
+              { ref: "ChIJsheep000", name: "Black Sheep", address: "Praça das Flores 62" },
+            ],
+          },
+        ],
+      }),
+    })
+    expect(contents.map((c) => c.role)).toEqual(["user", "model", "user"])
+    expect(contents[1]!.parts[0]!.text).toContain("2. Black Sheep (ref ChIJsheep000), Praça das Flores 62")
+    expect(contents[2]!.parts[0]!.text).toBe("The second one. Add it to Saturday.")
+  })
+
+  test("emits web sources from grounding metadata", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async (url: string) => {
+      if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
+      return geminiRawSse([
         {
           candidates: [
             {
-              content: { parts: [{ text: "Go to Senso-ji." }] },
+              content: { parts: [{ text: "Senso-ji is open daily." }] },
               groundingMetadata: {
-                groundingChunks: [
-                  { maps: { title: "Senso-ji", uri: "https://maps.google.com/?cid=1", placeId: "places/ChIJabcdefgh" } },
-                ],
+                groundingChunks: [{ web: { title: "senso-ji.jp", uri: "https://www.senso-ji.jp/about/" } }],
               },
             },
           ],
         },
-      ])) as unknown as typeof fetch
+      ])
+    }) as unknown as typeof fetch
 
     const { app } = makeApp()
     const trip = await createTrip(app)
@@ -833,7 +953,22 @@ describe("concierge chat", () => {
     const text = await res.text()
     expect(text).toContain("Senso-ji")
     expect(text).toContain('"sources"')
-    expect(text).toContain("maps.google.com")
+    expect(text).toContain("senso-ji.jp")
+  })
+
+  test("says so when the model cannot be reached", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () => new Response("nope", { status: 429 })) as unknown as typeof fetch
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "hello" }),
+    })
+    const text = await res.text()
+    expect(text).toContain('"error":"The concierge is unavailable right now. Please try again."')
+    expect(text).toContain("data: [DONE]")
   })
 })
 

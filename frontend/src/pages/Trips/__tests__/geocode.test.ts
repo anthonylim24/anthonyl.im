@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cityLabel, searchCities, searchPlaces } from "../geocode"
+import { cityLabel, isClutter, searchCities, searchPlaces } from "../geocode"
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -218,5 +218,44 @@ describe("cityLabel", () => {
     expect(cityLabel({ name: "Lisbon", region: "Lisbon District", country: "Portugal" })).toBe("Lisbon, Lisbon District, Portugal")
     expect(cityLabel({ name: "Tokyo", region: undefined, country: "Japan" })).toBe("Tokyo, Japan")
     expect(cityLabel({ name: "Atlantis" })).toBe("Atlantis")
+  })
+})
+
+describe("searchPlaces ranking", () => {
+  const feature = (id: number, name: string, key: string, value: string, lng: number, lat: number) => ({
+    geometry: { coordinates: [lng, lat] },
+    properties: { osm_id: id, osm_type: "N", osm_key: key, osm_value: value, name, city: "Kahuku", country: "United States" },
+  })
+
+  it("drops map furniture that shares a venue's name, and repeats of the same place", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      json({
+        features: [
+          feature(1, "Turtle Bay Resort", "highway", "bus_stop", -157.9981, 21.7049),
+          feature(2, "Turtle Bay Resort", "amenity", "charging_station", -157.9979, 21.705),
+          feature(3, "Turtle Bay Resort", "tourism", "resort", -157.9977, 21.7056),
+          feature(4, "Turtle Bay Resort", "building", "hotel", -157.9976, 21.7055),
+          feature(5, "Turtle Bay Golf", "leisure", "golf_course", -158.0005, 21.7031),
+        ],
+      }),
+    )
+    const places = await searchPlaces("Turtle Bay Resort", { lat: 21.3, lng: -157.85 })
+    expect(places.map((p) => [p.id, p.name, p.category])).toEqual([
+      ["N3", "Turtle Bay Resort", "hotel"],
+      ["N5", "Turtle Bay Golf", "experience"],
+    ])
+  })
+
+  it("still answers when only map furniture matched", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ features: [feature(1, "Kuilima Drive", "highway", "residential", -157.99, 21.7)] }))
+    expect((await searchPlaces("Kuilima Drive", null)).map((p) => p.name)).toEqual(["Kuilima Drive"])
+  })
+
+  it("knows clutter from venues", () => {
+    expect(isClutter("highway", "bus_stop")).toBe(true)
+    expect(isClutter("amenity", "charging_station")).toBe(true)
+    expect(isClutter("amenity", "restaurant")).toBe(false)
+    expect(isClutter("tourism", "hotel")).toBe(false)
+    expect(isClutter(undefined, undefined)).toBe(false)
   })
 })

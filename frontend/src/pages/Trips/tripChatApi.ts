@@ -1,9 +1,12 @@
 import { Effect } from "effect"
 import {
   visibleConciergeText,
+  type ConciergeMeta,
   type ConciergeMove,
   type ConciergePlace,
+  type ConciergeProposal,
   type ConciergeSource,
+  type ConciergeStatus,
 } from "../../lib/conciergeGrounding"
 import { parseConciergeSsePayload } from "../../lib/conciergeSse"
 import { errorIfIncomplete, remapChatFailure } from "../../effect/chatErrors"
@@ -15,9 +18,20 @@ import { streamKoreaChat } from "../Korea/koreaChatApi"
 import { isKoreaSeedTrip, wrapTripChatPrompt } from "./tripChatFallback"
 import type { Trip } from "./types"
 
+/** A card the traveller saw under an earlier reply, sent back so the
+ *  concierge can resolve "the second one". */
+export type TripChatPriorPlace = Pick<
+  ConciergePlace,
+  "ref" | "name" | "address" | "lat" | "lng" | "category" | "placeId" | "mapsUrl" | "dayId" | "time"
+>
+
+export type ProposalState = "pending" | "applied" | "dismissed" | "undone"
+
 export interface TripChatMessage {
   role: "user" | "assistant"
   content: string
+  places?: TripChatPriorPlace[]
+  proposal?: { summary: string; state?: ProposalState }
 }
 
 export interface TripChatResult {
@@ -26,6 +40,32 @@ export interface TripChatResult {
   places?: ConciergePlace[]
   moves?: ConciergeMove[]
   sources?: ConciergeSource[]
+  proposal?: ConciergeProposal
+  followups?: string[]
+  meta?: ConciergeMeta
+}
+
+/** Live events while the reply streams. */
+export interface TripChatHandlers {
+  onText: (content: string) => void
+  /** Real tool activity ("Checking Google Maps"); `done` when the text is complete. */
+  onStatus?: (status: ConciergeStatus) => void
+  onMeta?: (meta: ConciergeMeta) => void
+  onPlaces?: (places: ConciergePlace[]) => void
+  onProposal?: (proposal: ConciergeProposal) => void
+  onSources?: (sources: ConciergeSource[]) => void
+  onFollowups?: (followups: string[]) => void
+}
+
+export interface TripChatRequest {
+  tripId: string
+  prompt: string
+  messages: TripChatMessage[]
+  dayId?: string
+  /** Only when the traveller chose to share it with this message. */
+  location?: { lat: number; lng: number }
+  trip?: Trip
+  signal?: AbortSignal
 }
 
 function isMissingChatRoute(status: number, error: string): boolean {
@@ -54,15 +94,12 @@ function streamKoreaAsTripChat(
 }
 
 const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
-  tripId: string,
-  prompt: string,
-  messages: TripChatMessage[],
-  dayId: string | undefined,
+  request: TripChatRequest,
   getToken: () => Promise<string | null>,
-  onUpdate: (content: string) => void,
-  signal?: AbortSignal,
-  trip?: Trip,
+  handlers: TripChatHandlers,
 ) {
+  const { tripId, prompt, messages, dayId, location, trip, signal } = request
+  const onUpdate = handlers.onText
   const token = yield* readAuthToken(getToken).pipe(Effect.mapError(remapChatFailure))
   const response = yield* fetchApi(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
     method: "POST",
@@ -75,6 +112,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
       prompt,
       messages,
       ...(dayId ? { dayId } : {}),
+      ...(location ? { location } : {}),
     }),
     credentials: "include",
     signal,
@@ -106,22 +144,29 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
     }
 
     if (isMissingChatRoute(response.status, error)) {
+      const plain = messages.map((m) => ({ role: m.role, content: m.content }))
       if ((trip && isKoreaSeedTrip(trip)) || tripId === "korea-2026") {
         return yield* Effect.tryPromise({
-          try: () => streamKoreaAsTripChat(prompt, messages, dayId, onUpdate, signal),
+          try: () => streamKoreaAsTripChat(prompt, plain, dayId, onUpdate, signal),
           catch: remapChatFailure,
         })
       }
       if (trip) {
         return yield* Effect.tryPromise({
           try: () =>
-            streamKoreaAsTripChat(wrapTripChatPrompt(trip, prompt, dayId), messages, undefined, onUpdate, signal),
+            streamKoreaAsTripChat(wrapTripChatPrompt(trip, prompt, dayId), plain, undefined, onUpdate, signal),
           catch: remapChatFailure,
         })
       }
     }
     if (response.status === 401) {
       return yield* Effect.fail(new AuthError({ message: "Please sign in again to use the concierge." }))
+    }
+    if (response.status === 429) {
+      return yield* Effect.fail(new HttpStatusError({
+        status: response.status,
+        message: "The concierge is busy. Give it a moment and try again.",
+      }))
     }
     if (response.status === 502 || response.status === 504) {
       return yield* Effect.fail(new HttpStatusError({
@@ -141,22 +186,50 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
   let places: ConciergePlace[] | undefined
   let moves: ConciergeMove[] | undefined
   let sources: ConciergeSource[] | undefined
+  let proposal: ConciergeProposal | undefined
+  let followups: string[] | undefined
+  let meta: ConciergeMeta | undefined
 
   const { completed } = yield* readSse(response.body, {
     signal,
     onData: (data) => {
       const parsed = parseConciergeSsePayload(data)
-      if (parsed.kind === "text") {
-        content += parsed.text
-        onUpdate(visibleConciergeText(content))
-      } else if (parsed.kind === "error") {
-        streamError = parsed.error
-      } else if (parsed.kind === "places") {
-        places = parsed.places
-      } else if (parsed.kind === "moves") {
-        moves = parsed.moves
-      } else if (parsed.kind === "sources") {
-        sources = parsed.sources
+      switch (parsed.kind) {
+        case "text":
+          content += parsed.text
+          onUpdate(visibleConciergeText(content))
+          break
+        case "error":
+          streamError = parsed.error
+          break
+        case "status":
+          handlers.onStatus?.(parsed.status)
+          break
+        case "meta":
+          meta = parsed.meta
+          handlers.onMeta?.(parsed.meta)
+          break
+        case "places":
+          places = parsed.places
+          handlers.onPlaces?.(parsed.places)
+          break
+        case "moves":
+          moves = parsed.moves
+          break
+        case "proposal":
+          proposal = parsed.proposal
+          handlers.onProposal?.(parsed.proposal)
+          break
+        case "sources":
+          sources = parsed.sources
+          handlers.onSources?.(parsed.sources)
+          break
+        case "followups":
+          followups = parsed.followups
+          handlers.onFollowups?.(parsed.followups)
+          break
+        case "ignore":
+          break
       }
     },
   }).pipe(Effect.mapError(remapChatFailure))
@@ -167,18 +240,16 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
     places,
     moves,
     sources,
+    proposal,
+    followups,
+    meta,
   } satisfies TripChatResult
 })
 
 export function streamTripChat(
-  tripId: string,
-  prompt: string,
-  messages: TripChatMessage[],
-  dayId: string | undefined,
+  request: TripChatRequest,
   getToken: () => Promise<string | null>,
-  onUpdate: (content: string) => void,
-  signal?: AbortSignal,
-  trip?: Trip,
+  handlers: TripChatHandlers,
 ): Promise<TripChatResult> {
-  return runPromise(streamTripChatEffect(tripId, prompt, messages, dayId, getToken, onUpdate, signal, trip))
+  return runPromise(streamTripChatEffect(request, getToken, handlers))
 }

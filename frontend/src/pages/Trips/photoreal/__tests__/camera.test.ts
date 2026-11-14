@@ -149,6 +149,16 @@ describe("overviewBearing", () => {
     expect(Math.abs(overviewBearing(northSouth, true))).toBeLessThan(5 * DEG)
   })
 
+  it("looks north when every stop shares one spot", () => {
+    const stacked: Vec2[] = [
+      { x: 120, z: -40 },
+      { x: 120, z: -40 },
+      { x: 120, z: -40 },
+    ]
+    expect(overviewBearing(stacked, false)).toBe(0)
+    expect(overviewBearing(stacked, true)).toBe(0)
+  })
+
   it("never looks more than a quarter turn away from north", () => {
     for (let i = 0; i < 12; i++) {
       const angle = (i / 12) * Math.PI

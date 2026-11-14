@@ -5,6 +5,7 @@ import {
   dayCount,
   formatClock,
   formatRange,
+  formatTripDate,
   itemIcon,
   parseClock,
   plural,
@@ -194,5 +195,22 @@ describe("small label helpers", () => {
   it("title-cases snake and kebab text", () => {
     expect(titleCase("needs_review")).toBe("Needs Review")
     expect(titleCase("guest-house")).toBe("Guest House")
+  })
+})
+
+describe("formatTripDate", () => {
+  it("formats the day in the trip's time zone", () => {
+    expect(formatTripDate("2026-07-10", "Europe/Lisbon")).toBe("Fri, Jul 10")
+  })
+
+  it("falls back to the calendar day when the time zone is not one", () => {
+    expect(formatTripDate("2026-07-10", "Mars/Olympus_Mons")).toBe("Fri, Jul 10")
+    expect(formatTripDate("2026-07-10", "")).toBe("Fri, Jul 10")
+  })
+
+  it("returns the raw string for a date it cannot read", () => {
+    expect(formatTripDate("soon", "Europe/Lisbon")).toBe("soon")
+    expect(formatTripDate("", "Europe/Lisbon")).toBe("")
+    expect(formatTripDate(undefined as unknown as string, "Europe/Lisbon")).toBe("")
   })
 })

@@ -52,7 +52,7 @@ export function LimArt({
   const look = mood === 'thinking' ? [-4, -5] : mood === 'sad' ? [0, 5] : mood === 'typing' ? [4, 3] : [0, 0]
   const squint = mood === 'happy'
   return (
-    <svg viewBox="26 28 188 178" {...box} aria-hidden="true" focusable="false">
+    <svg viewBox="26 28 188 178" {...box} style={{ overflow: 'visible', ...box.style }} aria-hidden="true" focusable="false">
       <defs>
         <linearGradient id={`${id}b`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#FF8B6E" />
@@ -64,6 +64,9 @@ export function LimArt({
         </radialGradient>
       </defs>
       {shadow && <ellipse cx="120" cy="198" rx="80" ry="7" fill="#5B2D55" opacity="0.2" />}
+      {/* The tuft: drawn behind the body so its root tucks into the head. */}
+      <path d="M121 40 C120 26 126 16 138 14 C147 13 152 19 151 27" fill="none" stroke={INK} strokeWidth="15" strokeLinecap="round" />
+      <path d="M121 40 C120 26 126 16 138 14 C147 13 152 19 151 27" fill="none" stroke="#FF8B6E" strokeWidth="8" strokeLinecap="round" />
       <path
         d="M120 34 C172 34 204 84 206 140 C208 182 176 196 120 196 C64 196 32 182 34 140 C36 84 68 34 120 34 Z"
         fill={`url(#${id}b)`}

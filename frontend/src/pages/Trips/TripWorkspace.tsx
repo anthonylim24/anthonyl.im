@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
@@ -25,6 +25,9 @@ import { deleteTrip, duplicateTrip, generateItinerary } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
 import { makeItem } from "./tripEdits"
+import { OverlayBoundary } from "@/components/OverlayBoundary"
+import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
+import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
@@ -41,10 +44,10 @@ import type { ItineraryItem, Trip, TripDay } from "./types"
 import { a } from "./atlas.stylex"
 import { share, ws as s } from "./workspace.stylex"
 
-const PhotorealOverlay = lazy(() => import("./photoreal/PhotorealOverlay"))
+const PhotorealOverlay = lazyRetry(() => import("./photoreal/PhotorealOverlay"))
 
 const PHOTOREAL_READY = photorealAvailable()
-const InstagramSheet = lazy(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
+const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -72,8 +75,20 @@ function typing(target: EventTarget | null): boolean {
 
 type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip" }
 
+/**
+ * One workspace per trip. Going from one trip to another (Duplicate, browser
+ * Back) starts a fresh one, so nothing from the last trip (a pending AI
+ * answer, a toast, an open dialog) carries over. Changing day does not.
+ */
 export function TripWorkspace() {
-  const editor = useTripEditor()
+  const { tripId } = useParams<{ tripId: string }>()
+  return <Workspace key={tripId} />
+}
+
+function Workspace() {
+  const [drafting, setDrafting] = useState(false)
+  // A draft locks editing like any AI run, so the delete-Undo window waits for it.
+  const editor = useTripEditor({ undoHeld: drafting })
   const { dayId } = useParams<{ dayId?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -85,20 +100,36 @@ export function TripWorkspace() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set())
-  const [drafting, setDrafting] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [photoreal, setPhotoreal] = useState(false)
-  const [editId, setEditId] = useState<string | null>(null)
+  /** An overlay failed to open. `stale`: its code is gone because a newer build is live. */
+  const [overlayProblem, setOverlayProblem] = useState<{ text: string; stale: boolean } | null>(null)
+  /** "Edit stop" from the map; `n` changes on every request so the same stop can be asked for twice. */
+  const [edit, setEdit] = useState<{ id: string; n: number } | null>(null)
+  const requestEdit = (id: string) => setEdit((last) => ({ id, n: (last?.n ?? 0) + 1 }))
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const igAddedRef = useRef<string[]>([])
+  /** Offered after the traveller adds or changes where they sleep. */
+  const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
+  const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
   const [igUndo, setIgUndo] = useState<{ ids: string[]; count: number; key: number } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLElement>(null)
 
   const { trip, editable } = editor
   const locked = editor.editorLocked || drafting
+
+  // Whatever was open for one day (3D view, "Clear day", the day's AI sheet,
+  // an edit request) does not follow the traveller to another day.
+  const [shownDayId, setShownDayId] = useState(dayId)
+  if (shownDayId !== dayId) {
+    setShownDayId(dayId)
+    setPhotoreal(false)
+    setEdit(null)
+    if (dialog === "clear" || (typeof dialog === "object" && dialog !== null && dialog.ai === "day")) setDialog(null)
+  }
   const dayIndex = trip && dayId ? trip.days.findIndex((d) => d.id === dayId) : -1
   const day = trip && dayIndex >= 0 ? trip.days[dayIndex] : undefined
   const basePath = trip ? `/trips/${trip.slug ?? trip.id}` : "/trips"
@@ -235,6 +266,19 @@ export function TripWorkspace() {
     [editor.setDays, editor.flashTouched],
   )
 
+  // An overlay that fails to load or throws takes only itself down: close
+  // it, keep the itinerary, and say what to do.
+  const overlayFailed = (what: string, close: () => void) => (error: Error) => {
+    close()
+    const stale = isChunkLoadError(error)
+    setOverlayProblem({
+      stale,
+      text: stale
+        ? `${what} needs the latest version of the app. Reload to get it; your trip is saved.`
+        : `${what} couldn’t open. Your trip is fine. (${errorText(error)})`,
+    })
+  }
+
   // Closing the import: show what landed (flash + pin drop) and offer Undo.
   const closeInstagram = () => {
     setInstagram(null)
@@ -253,11 +297,29 @@ export function TripWorkspace() {
     requestAnimationFrame(() => document.getElementById(`item-${anchor}`)?.scrollIntoView({ block: "start", behavior: "smooth" }))
   }
 
+  // A new or different hotel changes what a good day looks like. Offer to
+  // rework the plan around it; never do it unasked. Changes made by an AI
+  // run (a draft, an applied review) only update what we compare against.
+  const lodgingKey = trip ? lodgingEntries(trip).map((entry) => entry.key).join("|") : ""
+  const aiBusy = drafting || editor.enhancingTarget !== null
   useEffect(() => {
-    if (!igUndo) return
+    if (!trip) return
+    const entries = lodgingEntries(trip)
+    const known = lodgingRef.current
+    lodgingRef.current = { tripId: trip.id, entries }
+    if (!known || known.tripId !== trip.id || aiBusy || !editable || trip === editor.aiTripRef.current) return
+    const changed = changedLodging(known.entries, entries)
+    const otherStops = trip.days.some((d) => d.items.some((item) => item.kind === "place" && item.id !== changed?.itemId))
+    if (changed && otherStops) setLodgingNudge(changed)
+    else if (lodgingNudge && !entries.some((entry) => entry.key === lodgingNudge.key)) setLodgingNudge(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lodgingKey, trip?.id])
+
+  useEffect(() => {
+    if (!igUndo || locked) return
     const timer = setTimeout(() => setIgUndo(null), 12_000)
     return () => clearTimeout(timer)
-  }, [igUndo])
+  }, [igUndo, locked])
 
   const draft = async (brief: DraftBrief) => {
     if (!trip) return
@@ -265,22 +327,32 @@ export function TripWorkspace() {
     editor.setNotice(null)
     try {
       await editor.flushPendingSave()
-      const { trip: next, summary } = await generateItinerary(editor.readToken, trip.id, {
+      if (!editor.aliveRef.current) return
+      const { trip: next, summary, incompleteDays } = await generateItinerary(editor.readToken, trip.id, {
         ...briefToRequest(brief),
         replaceExisting: hasItems,
       })
+      // Left for another trip while it was drafting: the answer isn't for this page.
+      if (!editor.aliveRef.current) return
       editor.cancelPendingSave()
-      editor.setTrip(next)
+      editor.setAiTrip(next)
       editor.setSaveState("saved")
       const added = next.days.flatMap((d) => d.items.map((i) => i.id))
       editor.flashTouched(new Set(added))
       setFresh(new Set(added))
+      const thin =
+        incompleteDays.length > 0
+          ? ` ${incompleteDays.length === 1 ? `Day ${incompleteDays[0]} needs` : `Days ${incompleteDays.join(", ")} need`} another go: open ${incompleteDays.length === 1 ? "it" : "each"} and use “Ideas for this day”.`
+          : ""
       editor.setNotice(
         added.length > 0
-          ? (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}. Edit anything.`)
+          ? incompleteDays.length > 0
+            ? `Drafted ${plural(added.length, "stop")}, but not every day.${thin}`
+            : (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}. Edit anything.`)
           : "The draft came back empty. Try again with a little more detail.",
       )
     } catch (err) {
+      if (!editor.aliveRef.current) return
       const message = errorText(err)
       editor.setNotice(
         /GEMINI|GROQ|ai_not_configured|503/i.test(message)
@@ -293,8 +365,13 @@ export function TripWorkspace() {
   }
 
   const runAi = (request: AiRequest) => {
+    if (request.type === "day") {
+      if (day) editor.enhanceDay(day.id, request.prompt)
+      return
+    }
+    // A whole-trip run shows its progress and its review on the overview.
+    if (dayId) navigate(basePath)
     if (request.type === "draft") void draft(request.brief)
-    else if (request.type === "day" && day) editor.enhanceDay(day.id, request.prompt)
     else void editor.runEnhance("trip", undefined, request.prompt)
   }
 
@@ -374,7 +451,7 @@ export function TripWorkspace() {
         ]
       : []),
     ...(editable
-      ? [{ label: "Trip details", icon: <Settings2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setDialog("details") }]
+      ? [{ label: "Trip details", icon: <Settings2 size={16} strokeWidth={1.75} aria-hidden />, disabled: locked, onSelect: () => setDialog("details") }]
       : []),
     {
       label: "Duplicate trip",
@@ -383,6 +460,7 @@ export function TripWorkspace() {
         void act("duplicate", async () => {
           await editor.flushPendingSave()
           const copy = await duplicateTrip(editor.readToken, editor.trip ?? trip)
+          if (!editor.aliveRef.current) return
           navigate(`/trips/${copy.slug ?? copy.id}`)
         }),
     },
@@ -425,7 +503,7 @@ export function TripWorkspace() {
                   aria-hidden
                 />
                 {editor.saveState === "error" ? (
-                  <button type="button" {...sx(a.link)} onClick={() => editor.scheduleSave({ ...trip })}>
+                  <button type="button" {...sx(a.link)} disabled={locked} onClick={() => editor.scheduleSave({ ...trip })}>
                     Not saved · Retry
                   </button>
                 ) : editor.saveState === "saved" ? (
@@ -487,7 +565,7 @@ export function TripWorkspace() {
             )}
             <div {...sx(s.headMeta)}>
               {editable ? (
-                <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} style={{ marginLeft: "-0.875rem" }} onClick={() => setDialog("details")}>
+                <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} style={{ marginLeft: "-0.875rem" }} disabled={locked} onClick={() => setDialog("details")}>
                   <CalendarDays size={14} strokeWidth={1.75} aria-hidden />
                   {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
                 </button>
@@ -535,7 +613,7 @@ export function TripWorkspace() {
                     aria-hidden
                   />
                   {editor.saveState === "error" ? (
-                    <button type="button" {...sx(a.link)} onClick={() => editor.scheduleSave({ ...trip })}>
+                    <button type="button" {...sx(a.link)} disabled={locked} onClick={() => editor.scheduleSave({ ...trip })}>
                       Not saved · Retry
                     </button>
                   ) : editor.saveState === "saved" ? (
@@ -597,7 +675,7 @@ export function TripWorkspace() {
             recentIds={editor.recentIds}
             hotId={hotId}
             activeId={activeId}
-            editId={editId}
+            edit={edit}
             near={near}
             onChange={editor.setDays}
             onDelete={editor.deleteItem}
@@ -716,7 +794,7 @@ export function TripWorkspace() {
                       type="button"
                       {...sx(a.btn, a.btnSecondary, a.btnSm)}
                       onClick={() => {
-                        setEditId(active.item.id)
+                        requestEdit(active.item.id)
                         setView("list")
                       }}
                     >
@@ -753,14 +831,36 @@ export function TripWorkspace() {
         </div>
       </div>
 
-      {(editor.notice || editor.deleted || igUndo) && (
+      {(editor.notice || editor.deleted || igUndo || lodgingNudge || overlayProblem) && (
         <div {...sx(s.dock)}>
+          {lodgingNudge && (
+            <div {...sx(s.dockItem)} role="status">
+              <span {...sx(a.grow, a.wrap)}>Staying at {lodgingNudge.name}. Rework the plan around it?</span>
+              <button
+                type="button"
+                {...sx(s.dockBtn)}
+                disabled={locked}
+                onClick={() => {
+                  const name = lodgingNudge.name
+                  setLodgingNudge(null)
+                  navigate(basePath)
+                  void editor.runEnhance("trip", undefined, lodgingBrief(name))
+                }}
+              >
+                Adjust plan
+              </button>
+              <button type="button" {...sx(s.dockBtn)} onClick={() => setLodgingNudge(null)}>
+                Not now
+              </button>
+            </div>
+          )}
           {igUndo && (
             <div {...sx(s.dockItem)} role="status" key={igUndo.key}>
               <span {...sx(a.grow, a.truncate)}>Added {plural(igUndo.count, "place")} from Instagram</span>
               <button
                 type="button"
                 {...sx(s.dockBtn)}
+                disabled={locked}
                 onClick={() => {
                   const ids = igUndo.ids
                   editor.setDays((days) => days.map((d) => ({ ...d, items: d.items.filter((item) => !ids.includes(item.id)) })))
@@ -768,6 +868,19 @@ export function TripWorkspace() {
                 }}
               >
                 Undo
+              </button>
+            </div>
+          )}
+          {overlayProblem && (
+            <div {...sx(s.dockItem)} role="alert">
+              <span {...sx(a.grow, a.wrap)}>{overlayProblem.text}</span>
+              {overlayProblem.stale && (
+                <button type="button" {...sx(s.dockBtn)} onClick={() => window.location.reload()}>
+                  Reload
+                </button>
+              )}
+              <button type="button" {...sx(s.dockBtn)} onClick={() => setOverlayProblem(null)}>
+                Dismiss
               </button>
             </div>
           )}
@@ -782,7 +895,7 @@ export function TripWorkspace() {
           {editor.deleted && (
             <div {...sx(s.dockItem)} role="status" key={editor.deleted.key}>
               <span {...sx(a.grow, a.truncate)}>Removed “{editor.deleted.title || "Untitled"}”</span>
-              <button type="button" {...sx(s.dockBtn)} onClick={editor.undoDelete}>
+              <button type="button" {...sx(s.dockBtn)} disabled={locked} onClick={editor.undoDelete}>
                 Undo
               </button>
             </div>
@@ -806,7 +919,7 @@ export function TripWorkspace() {
       {editable && (
         <DetailsDialog
           trip={trip}
-          open={dialog === "details"}
+          open={dialog === "details" && !locked}
           onClose={() => setDialog(null)}
           onSave={(next: Trip) => {
             editor.scheduleSave(next)
@@ -823,6 +936,7 @@ export function TripWorkspace() {
         onRun={runAi}
       />
       {editable && instagram && (
+        <OverlayBoundary onError={overlayFailed("Instagram import", () => setInstagram(null))}>
         <Suspense fallback={null}>
           <InstagramSheet
             open
@@ -834,6 +948,7 @@ export function TripWorkspace() {
             onAdd={addFromInstagram}
           />
         </Suspense>
+        </OverlayBoundary>
       )}
       <Modal
         open={dialog === "delete"}
@@ -852,8 +967,11 @@ export function TripWorkspace() {
               disabled={busy !== null}
               onClick={() =>
                 void act("delete", async () => {
-                  editor.cancelPendingSave()
+                  // Unsaved edits are dropped only once the trip is really gone;
+                  // a failed delete leaves them to save as usual.
                   await deleteTrip(editor.readToken, trip.id)
+                  editor.cancelPendingSave()
+                  if (!editor.aliveRef.current) return
                   navigate("/trips")
                 })
               }
@@ -894,8 +1012,10 @@ export function TripWorkspace() {
       </Modal>
 
       {photoreal && day && (
+        <OverlayBoundary onError={overlayFailed("The 3D view", () => setPhotoreal(false))}>
         <Suspense fallback={null}>
           <PhotorealOverlay
+            key={day.id}
             trip={trip}
             day={day}
             dayNumber={dayIndex + 1}
@@ -905,13 +1025,14 @@ export function TripWorkspace() {
               editable
                 ? (itemId) => {
                     setPhotoreal(false)
-                    setEditId(itemId)
+                    requestEdit(itemId)
                     setView("list")
                   }
                 : undefined
             }
           />
         </Suspense>
+        </OverlayBoundary>
       )}
     </div>
   )

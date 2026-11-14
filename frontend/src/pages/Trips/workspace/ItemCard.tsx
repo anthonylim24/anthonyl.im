@@ -23,8 +23,8 @@ export interface ItemCardProps {
   locked: boolean
   hot: boolean
   active: boolean
-  /** Open the editor (requested from the map). */
-  expand?: boolean
+  /** Open the editor (requested from the map). Non-zero, and new for each request. */
+  expand?: number
   flash: boolean
   near: LngLat | null
   dayOptions: DayOption[]

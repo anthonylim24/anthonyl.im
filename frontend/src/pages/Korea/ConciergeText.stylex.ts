@@ -1,31 +1,24 @@
 import * as stylex from '@stylexjs/stylex'
-const DARK = ':is(.dark) &'
 
-/** Auto-migrated from Tailwind — ConciergeText */
+// Markdown styles for concierge replies. Colours come from the trip planner's
+// theme tokens, which switch with the theme on their own; the fallbacks keep
+// the text legible wherever those tokens are not defined (it then inherits
+// the surrounding text colour rather than assuming a light page).
 export const conciergeText = stylex.create({
   sdb299471: {
-    "color": "#1c1917",
+    "color": "var(--trips-ink, inherit)",
     "fontWeight": 600,
     "letterSpacing": "-0.025em",
-    [DARK]: {
-      "color": "#f5f5f4",
-    },
   },
   s49bc78d: {
     "fontWeight": 600,
-    "color": "#1c1917",
-    [DARK]: {
-      "color": "#f5f5f4",
-    },
+    "color": "var(--trips-ink, inherit)",
   },
   sb9bd3a30: {
     "fontStyle": "italic",
   },
   sa8c83dfd: {
-    "color": "#78716c",
-    [DARK]: {
-      "color": "#a8a29e",
-    },
+    "color": "var(--trips-ink-tertiary, inherit)",
   },
   saa61e255: {
     "marginLeft": "0.25rem",
@@ -46,43 +39,33 @@ export const conciergeText = stylex.create({
   seec3caed: {
     "borderLeftWidth": "2px",
     "borderLeftStyle": "solid",
-    "borderColor": "#fda4af",
+    "borderColor": "var(--brand-fill, currentColor)",
     "paddingLeft": "0.75rem",
     "fontStyle": "italic",
-    "color": "#57534e",
-    [DARK]: {
-      "borderColor": "#9f1239",
-      "color": "#a8a29e",
-    },
+    "color": "var(--trips-ink-secondary, inherit)",
   },
   sf84eb04d: {
-    "backgroundColor": "rgba(231, 229, 228, 0.7)",
+    "backgroundColor": "var(--trips-sunken, rgba(120, 113, 108, 0.18))",
     "paddingLeft": "0.25rem",
     "paddingRight": "0.25rem",
     "paddingTop": "0.125rem",
     "paddingBottom": "0.125rem",
-    "color": "#292524",
+    "color": "var(--trips-ink, inherit)",
     "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    [DARK]: {
-      "backgroundColor": "rgba(68, 64, 60, 0.7)",
-      "color": "#f5f5f4",
-    },
   },
   s2b72a23f: {
     "marginTop": "0.5rem",
     "marginBottom": "0.5rem",
     "overflowX": "auto",
     "borderRadius": "0.5rem",
-    "backgroundColor": "rgba(231, 229, 228, 0.6)",
+    "backgroundColor": "var(--trips-sunken, rgba(120, 113, 108, 0.18))",
+    "color": "var(--trips-ink, inherit)",
     "paddingLeft": "0.75rem",
     "paddingRight": "0.75rem",
     "paddingTop": "0.5rem",
     "paddingBottom": "0.5rem",
     "fontSize": "13px",
     "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    [DARK]: {
-      "backgroundColor": "rgba(28, 25, 23, 0.8)",
-    },
   },
   s1026c40: {
     "marginTop": "0.5rem",
@@ -95,11 +78,8 @@ export const conciergeText = stylex.create({
   scab74e81: {
     "borderBottomWidth": "1px",
     "borderBottomStyle": "solid",
-    "borderColor": "#e7e5e4",
+    "borderColor": "var(--trips-line-strong, rgba(120, 113, 108, 0.35))",
     "textAlign": "left",
-    [DARK]: {
-      "borderColor": "#44403c",
-    },
   },
   s132c7a2d: {
     "paddingLeft": "0.5rem",
@@ -107,30 +87,21 @@ export const conciergeText = stylex.create({
     "paddingTop": "0.25rem",
     "paddingBottom": "0.25rem",
     "fontWeight": 600,
-    "color": "#292524",
-    [DARK]: {
-      "color": "#e7e5e4",
-    },
+    "color": "var(--trips-ink, inherit)",
   },
   s23406cde: {
     "paddingLeft": "0.5rem",
     "paddingRight": "0.5rem",
     "paddingTop": "0.25rem",
     "paddingBottom": "0.25rem",
-    "color": "#44403c",
-    [DARK]: {
-      "color": "#d6d3d1",
-    },
+    "color": "var(--trips-ink-secondary, inherit)",
   },
   s5c8bd8c9: {
     "marginTop": "0.75rem",
     "marginBottom": "0.75rem",
     "borderTopWidth": "1px",
     "borderTopStyle": "solid",
-    "borderColor": "#e7e5e4",
-    [DARK]: {
-      "borderColor": "#44403c",
-    },
+    "borderColor": "var(--trips-line-strong, rgba(120, 113, 108, 0.35))",
   },
   s95cb8ebe: {
     "marginTop": "0.5rem",
@@ -148,35 +119,27 @@ export const conciergeText = stylex.create({
     "marginTop": "0.5rem",
     "overflowWrap": "anywhere",
     "wordBreak": "break-word",
-    "color": "#57534e",
+    "color": "var(--trips-ink-secondary, inherit)",
     "lineHeight": 1.625,
-    [DARK]: {
-      "color": "#d6d3d1",
-    },
   },
   link: {
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
     textDecorationLine: 'underline',
-    textDecorationColor: 'rgba(244, 63, 94, 0.5)',
+    color: 'var(--brand, inherit)',
+    textDecorationColor: 'color-mix(in srgb, var(--brand, currentColor) 45%, transparent)',
     textUnderlineOffset: '2px',
     textDecorationThickness: '1px',
     transitionProperty: 'color, text-decoration-color',
     transitionDuration: '150ms',
     ':hover': {
-      textDecorationColor: '#f43f5e',
-      color: '#be123c',
-    },
-    [DARK]: {
-      ':hover': {
-        color: '#fda4af',
-      },
+      textDecorationColor: 'var(--brand, currentColor)',
     },
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
       outlineOffset: '2px',
-      outlineColor: 'rgba(244, 63, 94, 0.6)',
+      outlineColor: 'var(--brand-ring, currentColor)',
     },
   },
   taskListItem: {
@@ -190,7 +153,6 @@ export const conciergeText = stylex.create({
     flexShrink: 0,
     borderRadius: '9999px',
     backgroundColor: '#fb7185',
-    [DARK]: { backgroundColor: '#f43f5e' },
   },
   markerNumRose: {
     marginTop: '1px',
@@ -198,7 +160,6 @@ export const conciergeText = stylex.create({
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
     color: '#f43f5e',
-    [DARK]: { color: '#fb7185' },
   },
   markerDotAccent: {
     marginTop: '7px',

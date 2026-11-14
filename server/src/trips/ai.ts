@@ -12,7 +12,9 @@ import {
 import { tripLatLngHint } from "./latLngHint"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
-import { ENHANCEMENT_SYSTEM, GENERATION_SYSTEM } from "./prompts"
+import { ENHANCEMENT_SYSTEM, GENERATION_SYSTEM, OUTLINE_SYSTEM } from "./prompts"
+import { repairTruncatedJson } from "./jsonRepair"
+import { baseByDay, describeBases, isFixed, isLodging } from "./lodging"
 import { analyseDay, describeSignals, insertByTime, shorterRoute, weekday } from "./signals"
 
 export { weekday }
@@ -65,7 +67,9 @@ export const GROQ_DEFAULT_MAX_TOKENS = 2048
 const TRAVELER_REVIEW_ERROR = "The review did not finish. Try again in a moment."
 const TRAVELER_PARSE_ERROR = "The review came back in a form we could not use. Try again."
 
-const GEMINI_MODES = ["search+maps", "maps", "search", "json"] as const
+// Maps and Search grounding cannot share a request on current models
+// (400 "cannot be combined"), so the ladder starts at Maps alone.
+const GEMINI_MODES = ["maps", "search", "json"] as const
 type GeminiMode = (typeof GEMINI_MODES)[number]
 
 function toolsForGeminiMode(mode: GeminiMode): GeminiToolList | undefined {
@@ -152,7 +156,9 @@ export function createGeminiLlm(
     const run = async (mode: GeminiMode): Promise<string> => {
       const generationConfig: Record<string, unknown> = {
         temperature: 0.55,
-        maxOutputTokens: maxTokens ?? 16_384,
+        // Thinking tokens count against this cap: 16k was cutting long
+        // drafts off mid-JSON. The model's own default is the ceiling.
+        maxOutputTokens: maxTokens ?? 65_536,
         thinkingConfig: geminiThinking(effort ?? "low"),
       }
       // Maps/Search grounding cannot be combined with application/json mime
@@ -262,7 +268,9 @@ export function createTripsLlm(args: {
 }): LlmCall | null {
   const gemini = args.geminiApiKey ? createGeminiLlm(args.geminiApiKey) : null
   const groq = args.groqApiKey ? createGroqLlm(args.groqApiKey) : null
-  return pickTripsLlm(gemini, groq)
+  // Gemini leads; Groq is the backup when a Gemini call fails outright (and
+  // the prompt fits Groq's token budget), and the only model without a key.
+  return gemini && groq ? withLlmFallback(gemini, groq) : pickTripsLlm(gemini, groq)
 }
 
 export function createGoogleGeocoder(apiKey: string): Geocoder {
@@ -367,7 +375,19 @@ export function extractModelJson(raw: string): unknown {
     const firstBrace = candidate.indexOf("{")
     const lastBrace = candidate.lastIndexOf("}")
     if (firstBrace < 0 || lastBrace <= firstBrace) throw new Error("no JSON object found in model output")
-    parsed = JSON.parse(candidate.slice(firstBrace, lastBrace + 1)) as unknown
+    try {
+      parsed = JSON.parse(candidate.slice(firstBrace, lastBrace + 1)) as unknown
+    } catch {
+      // Cut off mid-answer (output cap, dropped stream): keep what arrived whole.
+      const repaired = repairTruncatedJson(candidate.slice(firstBrace))
+      if (!repaired) throw new Error("no JSON object found in model output")
+      try {
+        parsed = JSON.parse(repaired) as unknown
+      } catch {
+        throw new Error("no JSON object found in model output")
+      }
+      console.warn("[trips/ai] model output was cut off; recovered the complete part")
+    }
   }
   if (typeof parsed === "string") parsed = JSON.parse(parsed) as unknown
   return parsed
@@ -434,6 +454,9 @@ function coerceCoord(value: unknown): number | unknown {
 export function normalizeAiItem(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return raw
   const item = { ...(raw as Record<string, unknown>) }
+  // Map listings carry marketing suffixes ("Mei Sum | Chinese Dim Sum"): the
+  // stop is called by the venue's name alone.
+  if (typeof item.title === "string" && / \| /.test(item.title)) item.title = item.title.split(" | ")[0]!.trim() || item.title
   if (typeof item.time === "string") item.time = normalizeTime(item.time)
   if (typeof item.endTime === "string") item.endTime = normalizeTime(item.endTime)
   // Models sometimes echo the status token into the prose; it is a field.
@@ -551,13 +574,55 @@ export interface GeneratePreferences {
   transport?: string
 }
 
+/** Trips up to this many days are drafted in one call; longer ones in parts. */
+const SINGLE_CALL_DAYS = 4
+/** Days per part when a long trip is drafted in parts. */
+const CHUNK_DAYS = 3
+const CHUNK_CONCURRENCY = 3
+
+function toTripItems(items: AiDay["items"]): ItineraryItem[] {
+  return items.map((item): ItineraryItem => ({
+    id: newId("it"),
+    kind: item.kind,
+    title: item.title,
+    time: item.time,
+    endTime: item.endTime,
+    notes: item.notes,
+    status: item.status ?? "none",
+    location: item.location
+      ? {
+          ...item.location,
+          source: "ai",
+          confidence: item.location.lat != null && item.location.lng != null ? "medium" : "low",
+        }
+      : undefined,
+    createdBy: "ai",
+  }))
+}
+
+const stopCount = (day: AiDay | undefined) => (day?.items ?? []).filter((item) => item.kind === "place").length
+
+/** Enough stops to be a plan rather than a fragment: fewer earns a retry. */
+const dayLooksDrafted = (day: AiDay | undefined) => stopCount(day) >= 2
+
+/** Keep whichever attempt at a day has more in it. */
+const fuller = (a: AiDay | undefined, b: AiDay | undefined) => (stopCount(b) > stopCount(a) || !a ? (b ?? a) : a)
+
+export interface GeneratedItinerary {
+  summary?: string
+  appearance?: Trip["appearance"]
+  days: TripDay[]
+  /** 1-based numbers of days the draft could not fill (after retries). */
+  incompleteDays: number[]
+}
+
 export async function generateItinerary(args: {
   trip: Trip
   prompt?: string
   preferences?: GeneratePreferences
   llm: LlmCall
   geocode?: Geocoder | null
-}): Promise<{ summary?: string; appearance?: Trip["appearance"]; days: TripDay[] }> {
+}): Promise<GeneratedItinerary> {
   const { trip, preferences, llm, geocode } = args
   const dates = tripDates(trip.startDate, trip.endDate)
   const prefLines = Object.entries(preferences ?? {})
@@ -565,7 +630,30 @@ export async function generateItinerary(args: {
     .map(([k, v]) => `- ${k}: ${v}`)
     .join("\n")
 
-  const user = [
+  // What the traveller has already committed to survives a redraft: the
+  // model plans around it, and it is merged back afterwards.
+  const fixedByDate = new Map<string, ItineraryItem[]>()
+  for (const day of trip.days) {
+    const fixed = day.items.filter(isFixed)
+    if (fixed.length) fixedByDate.set(day.date, fixed)
+  }
+  const fixedLines = dates.flatMap((date, i) =>
+    (fixedByDate.get(date) ?? []).map((item) => {
+      const loc = item.location
+      const at = loc?.lat != null && loc.lng != null ? ` (${loc.lat.toFixed(5)},${loc.lng.toFixed(5)})` : ""
+      return `  Day ${i + 1}: ${item.time ? `${item.time} ` : ""}${JSON.stringify(loc?.name || item.title)}${at}${isLodging(item) ? " [where they sleep]" : item.kind === "reservation" ? " [booking]" : " [booked]"}`
+    }),
+  )
+  const bases = baseByDay(trip)
+  const baseLines = dates.flatMap((date, i) => {
+    const day = trip.days.find((d) => d.date === date)
+    const base = day ? bases.get(day.id) : undefined
+    if (!base) return []
+    const at = base.lat != null && base.lng != null ? ` (${base.lat.toFixed(5)},${base.lng.toFixed(5)})` : ""
+    return [`  Day ${i + 1}: ${JSON.stringify(base.name)}${at}`]
+  })
+
+  const header = [
     `Trip: ${trip.name}`,
     `Destinations: ${trip.destinations.join(", ")}`,
     `Dates: ${trip.startDate} to ${trip.endDate} (${dates.length} days)`,
@@ -573,22 +661,104 @@ export async function generateItinerary(args: {
     `Timezone: ${trip.timezone}`,
     trip.description ? `Context: ${trip.description}` : undefined,
     prefLines ? `Traveler preferences:\n${prefLines}` : undefined,
+    baseLines.length
+      ? `Where they sleep (start mornings near it, end evenings within an easy ride of it, and say how to get back when the last stop is far):\n${baseLines.join("\n")}`
+      : undefined,
+    fixedLines.length
+      ? `Already fixed by the traveller. Do NOT output these (they are kept as they are); plan the rest of each day around their time and place:\n${fixedLines.join("\n")}`
+      : undefined,
     `Instructions: ${args.prompt?.trim() || DEFAULT_ITINERARY_PROMPT}`,
   ]
     .filter(Boolean)
     .join("\n")
+  const latLng = tripLatLngHint(trip) ?? undefined
 
-  const raw = await llm({
-    system: GENERATION_SYSTEM,
-    user,
-    latLng: tripLatLngHint(trip) ?? undefined,
-    effort: "medium",
-  })
-  const parsed = salvageItinerary(raw)
-  const appearance = parsed.appearance
+  let summary: string | undefined
+  let appearance: Trip["appearance"] | undefined
+  let aiDays: Array<AiDay | undefined> = []
 
+  if (dates.length <= SINGLE_CALL_DAYS) {
+    // Short trips: one call, one retry if it comes back thin.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const parsed = salvageItinerary(await llm({ system: GENERATION_SYSTEM, user: header, latLng, effort: "medium" }))
+        summary ??= parsed.summary
+        appearance ??= parsed.appearance
+        aiDays = dates.map((_, i) => fuller(aiDays[i], parsed.days[i]))
+        if (aiDays.every(dayLooksDrafted)) break
+      } catch (err) {
+        if (attempt === 1 && !aiDays.some((day) => day !== undefined)) throw err
+        console.warn(`[trips/ai] draft attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+  } else {
+    // Long trips: agree the shape of every day first, then draft a few days
+    // at a time in parallel. No single answer is long enough to be cut off,
+    // and one bad part costs three days, not the trip.
+    const outline = await draftOutline({ llm, header, dates, latLng })
+    summary = outline.summary
+    appearance = outline.appearance
+    const plan = dates
+      .map((date, i) => {
+        const day = outline.days[i]
+        return `  ${i + 1}. ${weekday(date)} ${date}: ${day?.title ?? "(open)"}${day?.city ? ` · ${day.city}` : ""}${
+          day?.neighborhoods?.length ? ` · ${day.neighborhoods.join(", ")}` : ""
+        }${day?.focus ? ` — ${day.focus}` : ""}`
+      })
+      .join("\n")
+
+    const chunks: number[][] = []
+    for (let i = 0; i < dates.length; i += CHUNK_DAYS) {
+      chunks.push(dates.slice(i, i + CHUNK_DAYS).map((_, k) => i + k))
+    }
+    aiDays = new Array(dates.length).fill(undefined)
+
+    const draftChunk = async (indexes: number[]) => {
+      const first = indexes[0]! + 1
+      const last = indexes[indexes.length - 1]! + 1
+      const user = [
+        header,
+        `The whole trip, day by day. This is settled; follow it:\n${plan}`,
+        `For THIS request draft only day${indexes.length > 1 ? "s" : ""} ${first}${last !== first ? ` to ${last}` : ""}: "days" has exactly ${indexes.length} entr${indexes.length === 1 ? "y" : "ies"}, in that order. The other days are being drafted separately, so stay inside these days' areas and do not use venues that belong to another day's line above.`,
+      ].join("\n\n")
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const parsed = salvageItinerary(await llm({ system: GENERATION_SYSTEM, user, latLng, effort: "medium" }))
+          indexes.forEach((dayIndex, k) => {
+            aiDays[dayIndex] = fuller(aiDays[dayIndex], parsed.days[k])
+          })
+          if (indexes.every((dayIndex) => dayLooksDrafted(aiDays[dayIndex]))) return
+        } catch (err) {
+          console.warn(`[trips/ai] days ${first}-${last} attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
+    }
+    const queue = [...chunks]
+    await Promise.all(
+      Array.from({ length: Math.min(CHUNK_CONCURRENCY, queue.length) }, async () => {
+        for (let next = queue.shift(); next; next = queue.shift()) await draftChunk(next)
+      }),
+    )
+    if (!aiDays.some((day) => stopCount(day) > 0)) throw new Error("the draft came back empty")
+    // A day whose part failed still gets its agreed title and areas.
+    aiDays = aiDays.map((day, i) => day ?? { ...outline.days[i], items: [] })
+  }
+
+  // Parts drafted apart can pick the same venue: the earlier day keeps it.
+  const seen = new Set<string>()
+  for (const fixed of fixedByDate.values()) for (const item of fixed) seen.add(placeKey(item.location?.name || item.title))
+  const incompleteDays: number[] = []
   const days: TripDay[] = dates.map((date, i) => {
-    const aiDay = parsed.days[i]
+    const aiDay = aiDays[i]
+    const fresh = toTripItems(aiDay?.items ?? []).filter((item) => {
+      if (item.kind !== "place") return true
+      const key = placeKey(item.location?.name || item.title)
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    if (!dayLooksDrafted(aiDay)) incompleteDays.push(i + 1)
+    const items = (fixedByDate.get(date) ?? []).reduce((list, item) => insertByTime(list, item), fresh)
     return {
       id: `day-${i + 1}`,
       date,
@@ -597,23 +767,7 @@ export async function generateItinerary(args: {
       city: aiDay?.city,
       notes: aiDay?.notes,
       neighborhoods: aiDay?.neighborhoods,
-      items: (aiDay?.items ?? []).map((item): ItineraryItem => ({
-        id: newId("it"),
-        kind: item.kind,
-        title: item.title,
-        time: item.time,
-        endTime: item.endTime,
-        notes: item.notes,
-        status: item.status ?? "none",
-        location: item.location
-          ? {
-              ...item.location,
-              source: "ai",
-              confidence: item.location.lat != null && item.location.lng != null ? "medium" : "low",
-            }
-          : undefined,
-        createdBy: "ai",
-      })),
+      items,
     }
   })
 
@@ -625,7 +779,48 @@ export async function generateItinerary(args: {
     )
   }
 
-  return { summary: parsed.summary, appearance, days }
+  return { summary, appearance, days, incompleteDays }
+}
+
+const outlineDaySchema = z.object({
+  title: z.string().max(200).optional(),
+  emoji: z.string().max(32).optional(),
+  city: z.string().max(80).optional(),
+  notes: z.string().max(4000).optional(),
+  neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),
+  focus: z.string().max(600).optional(),
+})
+type OutlineDay = z.infer<typeof outlineDaySchema>
+
+/** The shape of every day (theme, areas, anchors) before any venue is chosen. */
+async function draftOutline(args: {
+  llm: LlmCall
+  header: string
+  dates: string[]
+  latLng?: { latitude: number; longitude: number }
+}): Promise<{ summary?: string; appearance?: Trip["appearance"]; days: OutlineDay[] }> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const loose = parseModelJson(
+        await args.llm({ system: OUTLINE_SYSTEM, user: args.header, latLng: args.latLng, effort: "low" }),
+        z.object({
+          summary: z.string().max(2000).optional(),
+          appearance: z.unknown().optional(),
+          days: z.array(z.unknown()).max(60).default([]),
+        }),
+      )
+      const appearance = aiAppearanceSchema.safeParse(loose.appearance)
+      const days = loose.days.map((raw) => {
+        const day = outlineDaySchema.safeParse(raw)
+        return day.success ? day.data : {}
+      })
+      if (days.length > 0) return { summary: loose.summary, appearance: appearance.success ? appearance.data : undefined, days }
+    } catch (err) {
+      console.warn(`[trips/ai] outline attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  // No outline is not fatal: the parts still know the dates and the brief.
+  return { days: [] }
 }
 
 /** Best-effort geocoding for AI places missing coordinates, so every
@@ -734,7 +929,9 @@ export function describeDay(day: TripDay): string {
   return `${head}\n${items || "    (no items)"}\n${describeSignals(analyseDay(day))}`
 }
 
-const placeKey = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
+function placeKey(name: string): string {
+  return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
+}
 
 export async function enhanceTrip(args: {
   trip: Trip
@@ -768,6 +965,7 @@ export async function enhanceTrip(args: {
   }
 
   const legs = computeTravelLegs(days)
+  const lodgingLines = describeBases(trip, days)
   // One line per other day, so a single-day review knows what the rest of
   // the trip already covers and where it is based.
   const elsewhere =
@@ -817,6 +1015,7 @@ export async function enhanceTrip(args: {
     args.prompt?.trim()
       ? `Traveler's focus for this review (prioritize this): ${args.prompt.trim()}`
       : undefined,
+    lodgingLines ? `Where they sleep, and how each day sits against it:\n${lodgingLines}` : undefined,
     scope === "day" ? "The day under review:" : "Itinerary:",
     ...days.map(describeDay),
     elsewhere.length ? `Already on other days of this trip (do not repeat these venues):\n${elsewhere.join("\n")}` : undefined,
@@ -841,6 +1040,7 @@ export async function enhanceTrip(args: {
     run.summary = parsed.summary
     const validDayIds = new Set(days.map((d) => d.id))
     const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
+    const tripDayIds = new Set(trip.days.map((d) => d.id))
     // A single-day review can only be about that day: models often omit the
     // day id (or invent one) when the day is empty, which used to drop every
     // suggested stop.
@@ -864,12 +1064,16 @@ export async function enhanceTrip(args: {
       .filter((s) => s.kind !== "add" || isFresh(s.proposedItem?.location?.name))
       .filter((s) => s.kind !== "add" || (s.dayId && validDayIds.has(s.dayId) && s.proposedItem))
       .filter((s) => !(s.kind === "edit" || s.kind === "remove") || (s.itemId && validItemIds.has(s.itemId)))
+      // Moves and day swaps reach across days, so the target may be any day of the trip.
+      .filter((s) => s.kind !== "move" || (s.itemId && validItemIds.has(s.itemId) && s.toDayId && tripDayIds.has(s.toDayId)))
+      .filter((s) => s.kind !== "swap_days" || (s.dayId && s.toDayId && s.toDayId !== s.dayId && tripDayIds.has(s.dayId) && tripDayIds.has(s.toDayId)))
       .map(
         (s): EnhancementSuggestion => ({
           id: newId("sug"),
           kind: s.kind,
           dayId: s.dayId,
           itemId: s.itemId,
+          toDayId: s.toDayId,
           title: s.title,
           detail: s.detail,
           confidence: s.confidence,
@@ -1084,6 +1288,31 @@ export function applySuggestions(trip: Trip, run: EnhancementRun, suggestionIds:
             ok = true
             break
           }
+        }
+        break
+      }
+      case "move": {
+        const target = days.find((d) => d.id === s.toDayId)
+        const from = days.find((d) => d.items.some((i) => i.id === s.itemId))
+        if (target && from && from.id !== target.id) {
+          const item = from.items.find((i) => i.id === s.itemId)!
+          from.items = from.items.filter((i) => i.id !== s.itemId)
+          const moved = { ...item, ...(s.proposedChanges?.time ? { time: s.proposedChanges.time, endTime: s.proposedChanges.endTime } : {}) }
+          target.items = insertByTime(target.items, moved)
+          ok = true
+        }
+        break
+      }
+      case "swap_days": {
+        // The dates (and their weather) stay put; the plans trade places.
+        const other = days.find((d) => d.id === s.toDayId)
+        if (day && other && day.id !== other.id) {
+          const keep = (d: TripDay) => ({ items: d.items, title: d.title, emoji: d.emoji, city: d.city, notes: d.notes, neighborhoods: d.neighborhoods })
+          const a = keep(day)
+          const b = keep(other)
+          Object.assign(day, b)
+          Object.assign(other, a)
+          ok = true
         }
         break
       }
