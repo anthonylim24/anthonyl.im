@@ -82,7 +82,8 @@ Lives at `~/.env` on the droplet. The workflow copies it to the repo root + fron
 # server runtime — required
 CLERK_SECRET_KEY=sk_live_...
 GROQ_API_KEY=gsk_...
-BRIGHT_DATA_API_KEY=...                # IG post metadata + comments via Bright Data Web Scraper API (replaces the legacy APIFY_TOKEN). Datasets used: gd_lk5ns7kz21pck8jpis (posts) + gd_ltppn085pokosxh13 (comments).
+APIFY_TOKEN=apify_api_...              # IG post fetch via Apify's Instagram scraper (first choice; free plan covers personal use)
+BRIGHT_DATA_API_KEY=...                # optional paid fallback for IG post metadata + comments
 GOOGLE_MAPS_API_KEY=...                # IP-restricted to the droplet IP (NOT referrer-restricted)
 SUPABASE_URL=https://....supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJh...
@@ -100,7 +101,7 @@ AGENT_GITHUB_REPO=anthonylim24/anthonyl.im
 #   3. Groq Whisper 429 fallback (video transcription)
 #   4. Last-resort text extractor when the primary chain yields 0 places
 # Model is set app-wide in `server/src/igPlaces/gemini.ts` → GEMINI_MODEL
-# (currently gemini-3.7-flash for IG extraction, chat, and trips).
+# (gemini-4-hydrogen everywhere, gemini-3.8-flash as the automatic fallback).
 GEMINI_API_KEY=AIza...
 IG_DEV_BEARER=...                       # alt auth path for curl testing
 KLUSTER_API_KEY=...

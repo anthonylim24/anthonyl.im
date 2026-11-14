@@ -16,6 +16,13 @@ import { pickFloorHit, YOU_RAY_FAR, YOU_RAY_HEIGHT, type TerrainHit } from "./te
 
 const DEG = Math.PI / 180
 
+/** The parts of a 3D Tiles tile we read (see the library's `Tile` type). */
+interface TileNode {
+  parent: TileNode | null
+  geometricError: number
+  internal?: { hasRenderableContent?: boolean }
+}
+
 interface TintTarget {
   color?: { setRGB: (r: number, g: number, b: number) => void }
   emissive?: { setRGB: (r: number, g: number, b: number) => void }
@@ -114,9 +121,30 @@ export function createTilesGround(ctx: GroundContext, apiKey: string): Ground {
       for (const mat of Array.isArray(material) ? material : [material]) materials.delete(mat as unknown as TintTarget)
     })
   }
-  const onError = (event: { tile?: unknown; error?: unknown }) => {
+  // A tile Google refuses (it 404s parts of some cities, Seoul among them)
+  // counts as "loaded" to the traversal, which then swaps its parent out for
+  // nothing: a hole in the ground. So when a tile fails, hold the nearest
+  // ancestor that has a model: with no geometric error it is never refined
+  // away, and the missing child is never asked for again. The refusals are
+  // per file and repeatable (the same session loads its neighbours), so
+  // there is no retry; the library's `resetFailedTiles()` also throws on
+  // tiles it has not preprocessed yet.
+  const held = new Set<TileNode>()
+  let failures = 0
+  const onError = (event: { tile?: TileNode | null; error?: unknown }) => {
+    if (event.tile) {
+      failures += 1
+      let node = event.tile.parent
+      while (node && !node.internal?.hasRenderableContent) node = node.parent
+      if (node && !held.has(node)) {
+        held.add(node)
+        node.geometricError = 0
+      }
+      ctx.invalidate()
+      return
+    }
     // A single bad tile is survivable; a refused root tileset is not.
-    if (event.tile || failed) return
+    if (failed) return
     failed = true
     ctx.onFatal(event.error instanceof Error ? event.error.message : "tileset refused")
   }
@@ -143,13 +171,26 @@ export function createTilesGround(ctx: GroundContext, apiKey: string): Ground {
     busy: () => !failed && (tiles.loadProgress < 1 || !tiles.group.children.length),
     hasContent: () => tiles.group.children.length > 0,
     progress: () => (tiles.group.children.length > 0 ? tiles.loadProgress : 0),
+    failures: () => failures,
     floorAt(x, z) {
       origin.set(x, YOU_RAY_HEIGHT, z)
       ray.set(origin, down)
       ray.near = 0
       ray.far = YOU_RAY_FAR
       const hits: TerrainHit[] = []
-      for (const h of ray.intersectObject(tiles.group, true)) {
+      let raw = ray.intersectObject(tiles.group, true)
+      if (raw.length === 0) {
+        // The library's tree raycast only tests tiles it counts as "active",
+        // and some tiles on screen are visible without being that (seen on
+        // real tiles: a strip of Lisbon that drew fine but could not be hit,
+        // leaving a stop at sea level). Ask the visible tiles directly.
+        raw = []
+        for (const tile of tiles.visibleTiles as Set<{ engineData?: { scene?: Object3D } }>) {
+          const scene = tile.engineData?.scene
+          if (scene) ray.intersectObject(scene, true, raw)
+        }
+      }
+      for (const h of raw) {
         if (!h.face) continue
         normal.copy(h.face.normal).transformDirection(h.object.matrixWorld)
         if (normal.lengthSq() < 1e-8) continue
@@ -193,6 +234,7 @@ export function createTilesGround(ctx: GroundContext, apiKey: string): Ground {
       unlisten("needs-render", onNeeds)
       unlisten("needs-update", onNeeds)
       unlisten("tiles-load-end", onNeeds)
+      held.clear()
       tiles.dispose()
       draco.dispose()
       ktx2.dispose()

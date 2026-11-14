@@ -40,6 +40,8 @@ export interface Ground {
   hasContent(): boolean
   /** Share of the tiles the current view wants that have arrived, 0–1. */
   progress(): number
+  /** How many pieces of ground the provider refused (a 404 on a tile). */
+  failures(): number
   /** Floor (or roof) under a spot, probed from the sky. */
   floorAt(x: number, z: number): TerrainHit | null
   /** Is the straight line between two points blocked? */

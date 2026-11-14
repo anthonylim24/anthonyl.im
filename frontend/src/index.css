@@ -1534,7 +1534,8 @@ html.dark .trips .maplibregl-ctrl-attrib-button {
   height: 0.95em;
   margin-left: 0.12em;
   vertical-align: -0.12em;
-  background: var(--ta);
+  /* AI chrome takes the brand accent, never the trip's. */
+  background: var(--brand-fill);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1597,6 +1598,24 @@ html.dark .trips .maplibregl-ctrl-attrib-button {
 
 .photoreal-pin--stack .photoreal-pin__name {
   display: none;
+}
+
+/* A place parked under "To schedule": on the map, not on the route. Small,
+   hollow, unnumbered, so it never competes with the day's stops. */
+.photoreal-pin--parked .atlas-pin__body {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 3.5px solid var(--ta-fill);
+  background: var(--trips-raised);
+  box-shadow: 0 0 0 1.5px var(--trips-raised), 0 4px 10px -3px rgb(0 0 0 / 0.5);
+  font-size: 0;
+}
+
+.photoreal-pin--parked.atlas-pin--active .atlas-pin__body {
+  background: var(--ta-fill);
+  border-color: var(--trips-raised);
+  box-shadow: 0 0 0 3px var(--ta-fill), 0 8px 18px -4px rgb(0 0 0 / 0.5);
 }
 
 .photoreal-pin--veiled {

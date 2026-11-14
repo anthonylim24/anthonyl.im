@@ -7,6 +7,7 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { a } from "../atlas.stylex"
 import { useIsDark } from "../map/AtlasMap"
+import { IgGlyph } from "../instagram/IgGlyph"
 import { centroid, type LngLat } from "../map/geo"
 import { formatClock, formatTripDate, itemIcon, plural, resolveAccent, titleCase } from "../meta"
 import type { Trip, TripDay } from "../types"
@@ -22,6 +23,7 @@ import {
   formatDistance,
   legInto,
   legSummary,
+  parkedStops,
   NEARBY_M,
   stepIndex,
   timeRange,
@@ -81,6 +83,8 @@ function locate(): Promise<LngLat> {
 
 export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, onClose, onEditStop }: PhotorealOverlayProps) {
   const stops = useMemo(() => dayStops(day), [day])
+  // Places parked under "To schedule" (Instagram imports, mostly): on the map, off the route.
+  const parked = useMemo(() => parkedStops(day), [day])
   const wide = useWide()
   const dark = useIsDark()
   const reducedMotion = useReducedMotion()
@@ -89,8 +93,11 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   const title = day.title || city || trip.name
   const eyebrow = [`Day ${dayNumber}`, formatTripDate(day.date, trip.timezone).replace(",", ""), day.title && city ? city : ""].filter(Boolean).join(" · ")
 
-  const [status, setStatus] = useState<"loading" | "ready" | "failed">(stops.length ? "loading" : "failed")
-  const [selectedId, setSelectedId] = useState<string | null>(() => (stops.some((s) => s.id === initialStopId) ? initialStopId! : null))
+  const [status, setStatus] = useState<"loading" | "ready" | "failed">(stops.length + parked.length ? "loading" : "failed")
+  const [failReason, setFailReason] = useState("")
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    [...stops, ...parked].some((s) => s.id === initialStopId) ? initialStopId! : null,
+  )
   const [playing, setPlaying] = useState(false)
   const [tilted, setTilted] = useState(true)
   const [credit, setCredit] = useState("")
@@ -111,14 +118,15 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   playingRef.current = playing
   const plateRef = useRef<HTMLElement>(null)
   const dockRef = useRef<HTMLDivElement>(null)
-  const listRef = useRef<HTMLOListElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<PhotorealScene | null>(null)
 
   const selectedIndex = selectedId ? stops.findIndex((s) => s.id === selectedId) : -1
-  const selected = selectedIndex >= 0 ? stops[selectedIndex]! : null
+  const selected = selectedIndex >= 0 ? stops[selectedIndex]! : ((selectedId && parked.find((s) => s.id === selectedId)) || null)
   const sceneStops = useMemo<SceneStop[]>(
-    () => stops.map((s) => ({ id: s.id, label: s.label, title: s.title, lat: s.lat, lng: s.lng, time: s.item.time })),
-    [stops],
+    () =>
+      [...stops, ...parked].map((s) => ({ id: s.id, label: s.label, title: s.title, lat: s.lat, lng: s.lng, time: s.item.time, parked: s.parked })),
+    [stops, parked],
   )
   const latest = useRef({ sceneStops, selectedId, wide })
   latest.current = { sceneStops, selectedId, wide }
@@ -161,7 +169,8 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     const dock = dockRef.current?.getBoundingClientRect()
     return {
       top: plate && root ? plate.bottom - root.top + 8 : 84,
-      right: 12,
+      // Keep pins out from under the control stack in the corner.
+      right: 56,
       bottom: dock && root ? root.bottom - dock.top + 4 : 240,
       left: 12,
     }
@@ -197,7 +206,10 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
           const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - openedAt))
           revealTimer = window.setTimeout(() => setStatus((s) => (s === "failed" ? s : "ready")), wait)
         },
-        onError: () => setStatus("failed"),
+        onError: (reason) => {
+          setFailReason(reason)
+          setStatus("failed")
+        },
         onYaw: (bearing) => {
           needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
         },
@@ -243,8 +255,8 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     sceneRef.current?.setTheme()
   }, [dark, accent])
   useEffect(() => {
-    if (selectedId && !stops.some((s) => s.id === selectedId)) setSelectedId(null)
-  }, [selectedId, stops])
+    if (selectedId && ![...stops, ...parked].some((s) => s.id === selectedId)) setSelectedId(null)
+  }, [parked, selectedId, stops])
 
   useEffect(() => {
     const apply = () => sceneRef.current?.setInsets(measure())
@@ -484,7 +496,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         )}
 
         {failed ? (
-          <Failure eyebrow={eyebrow} stops={stops} onClose={onClose} closeRef={closeRef} />
+          <Failure eyebrow={eyebrow} stops={[...stops, ...parked]} unavailable={failReason === "unavailable"} onClose={onClose} closeRef={closeRef} />
         ) : wide ? (
           <aside {...sx(p.panel)} aria-label="Stops">
             <header {...sx(p.head)}>
@@ -522,7 +534,8 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                 />
               </div>
             )}
-            <ol ref={listRef} {...sx(p.list)}>
+            <div ref={listRef} {...sx(p.list)}>
+            <ol {...sx(p.rows)}>
               {stops.map((stop, index) => {
                 const leg = legInto(stops, index)
                 const on = stop.id === selectedId
@@ -552,12 +565,46 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                         <span {...sx(a.srOnly)}>Stop {stop.label}: </span>
                         {stop.title}
                       </span>
-                      {stop.item.time && <span {...sx(p.rowTime)}>{formatClock(stop.item.time)}</span>}
+                      <span {...sx(p.rowEnd)}>
+                        {stop.instagram && <IgMark />}
+                        {stop.item.time && <span {...sx(p.rowTime)}>{formatClock(stop.item.time)}</span>}
+                      </span>
                     </button>
                   </li>
                 )
               })}
             </ol>
+            {parked.length > 0 && (
+              <>
+                <h3 {...sx(a.eyebrow, p.groupHead)}>To schedule</h3>
+                <ul {...sx(p.rows)}>
+                  {parked.map((stop) => {
+                    const on = stop.id === selectedId
+                    return (
+                      <li key={stop.id} data-stop={stop.id} {...sx(p.item)}>
+                        <button
+                          type="button"
+                          {...sx(p.row, on && p.rowOn)}
+                          aria-current={on ? "true" : undefined}
+                          onClick={() => pick(stop.id)}
+                          onPointerEnter={() => sceneRef.current?.setHot(stop.id)}
+                          onPointerLeave={() => sceneRef.current?.setHot(null)}
+                          onFocus={() => sceneRef.current?.setHot(stop.id)}
+                          onBlur={() => sceneRef.current?.setHot(null)}
+                        >
+                          <span {...sx(p.badgeSlot)} aria-hidden>
+                            <span {...sx(p.hollow, on && p.hollowOn)} />
+                          </span>
+                          <span {...sx(p.rowName)}>{stop.title}</span>
+                          <span {...sx(p.rowEnd)}>{stop.instagram && <IgMark />}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
+            </div>
             <p {...sx(p.hint)} aria-hidden>
               <span {...sx(p.hintItem)}>
                 <kbd {...sx(p.key)}>←</kbd>
@@ -591,7 +638,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                   {credit && <p {...sx(p.credit)}>{credit}</p>}
                 </div>
               )}
-              {stops.length > 1 && (
+              {stops.length + parked.length > 1 && (
                 <div {...sx(p.railPlate)}>
                 <ol {...sx(p.rail)} aria-label="Stops">
                   {stops.map((stop) => (
@@ -608,12 +655,30 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                       </button>
                     </li>
                   ))}
+                  {parked.length > 0 && <li {...sx(p.railRule)} role="separator" aria-label="To schedule" />}
+                  {parked.map((stop) => (
+                    <li key={stop.id}>
+                      <button
+                        type="button"
+                        {...sx(p.railBtn)}
+                        aria-label={`To schedule: ${stop.title}`}
+                        aria-current={stop.id === selectedId ? "true" : undefined}
+                        onClick={() => pick(stop.id)}
+                        ref={stop.id === selectedId ? (el) => el?.scrollIntoView({ block: "nearest", inline: "center" }) : undefined}
+                      >
+                        <span {...sx(p.railGlyph, stop.id === selectedId && p.railGlyphOn)}>
+                          {stop.instagram ? <IgGlyph size={15} /> : <span {...sx(p.hollow)} />}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
                 </ol>
                 {/* In the overview the chips are bare numbers; say where the day begins. */}
-                {!selected && (
+                {!selected && stops[0] && (
                   <p {...sx(p.railCaption)}>
-                    {stops[0]!.item.time ? `${formatClock(stops[0]!.item.time)} · ` : "Starts at "}
-                    {stops[0]!.title}
+                    {stops[0].item.time ? `Starts ${formatClock(stops[0].item.time)} · ` : "Starts at "}
+                    {stops[0].title}
+                    {parked.length > 0 ? ` · ${parked.length} to schedule` : ""}
                   </p>
                 )}
                 </div>
@@ -649,9 +714,11 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                         Play tour
                       </button>
                     )}
-                    <button type="button" {...sx(a.btn, canTour ? a.btnSecondary : a.btnPrimary, p.action)} onClick={() => pick(stops[0]!.id)}>
-                      Start at stop 1
-                    </button>
+                    {stops[0] && (
+                      <button type="button" {...sx(a.btn, canTour ? a.btnSecondary : a.btnPrimary, p.action)} onClick={() => pick(stops[0]!.id)}>
+                        Start at stop 1
+                      </button>
+                    )}
                   </div>
                 </section>
               )}
@@ -684,6 +751,27 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   )
 }
 
+/** A tiny Instagram mark for a row: this place came from a saved post. */
+function IgMark() {
+  return (
+    <span {...sx(p.igMark)} title="From Instagram">
+      <IgGlyph size={13} />
+      <span {...sx(a.srOnly)}>From Instagram</span>
+    </span>
+  )
+}
+
+function IgLink({ href }: { href: string }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" {...sx(p.igLink)}>
+      <IgGlyph size={14} />
+      <span>
+        From Instagram <span {...sx(p.igLinkGo)}>· Open the post</span>
+      </span>
+    </a>
+  )
+}
+
 interface CardProps {
   stop: Stop
   stops: readonly Stop[]
@@ -697,7 +785,7 @@ interface CardProps {
 
 function useCardFacts(stop: Stop, stops: readonly Stop[]) {
   const { item } = stop
-  const leg = legInto(stops, stop.index)
+  const leg = stop.parked ? null : legInto(stops, stop.index)
   const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
   const kind = item.location?.category ? titleCase(item.location.category) : item.kind === "reservation" && item.reservation ? titleCase(item.reservation.type) : ""
   const maps = externalMapsLink({ name: stop.title, address: item.location?.address, lat: stop.lat, lng: stop.lng })
@@ -716,7 +804,7 @@ function Progress({ playing, stopId, onEnd }: { playing: boolean; stopId: string
 function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, onTourEnd }: CardProps) {
   const { leg, Icon, kind, maps, when, count } = useCardFacts(stop, stops)
   return (
-    <article {...sx(p.card)} aria-label={`Stop ${stop.label}: ${stop.title}`}>
+    <article {...sx(p.card)} aria-label={stop.parked ? `To schedule: ${stop.title}` : `Stop ${stop.label}: ${stop.title}`}>
       {photo.status !== "none" && (
         <div {...sx(p.photo)}>
           {photo.status === "ready" ? <img src={photo.url} alt="" {...sx(p.photoImg)} /> : <span {...sx(a.skeleton, p.photoSkeleton)} />}
@@ -724,12 +812,16 @@ function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, o
       )}
       <div {...sx(p.cardBody)}>
         <div {...sx(p.cardTop)}>
-          <span {...sx(p.badge, p.badgeOn)} aria-hidden>
-            {stop.label}
-          </span>
-          <p {...sx(a.eyebrow, p.cardEyebrow)}>
-            Stop {stop.index + 1} of {count}
-          </p>
+          {stop.parked ? (
+            <span {...sx(p.badgeSlot)} aria-hidden>
+              <span {...sx(p.hollow, p.hollowOn)} />
+            </span>
+          ) : (
+            <span {...sx(p.badge, p.badgeOn)} aria-hidden>
+              {stop.label}
+            </span>
+          )}
+          <p {...sx(a.eyebrow, p.cardEyebrow)}>{stop.parked ? "To schedule" : `Stop ${stop.index + 1} of ${count}`}</p>
         </div>
         <h3 data-stop-title tabIndex={-1} {...sx(a.display, p.cardTitle, a.wrap)}>
           {stop.title}
@@ -764,6 +856,7 @@ function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, o
           </p>
         )}
         {stop.item.notes && <p {...sx(p.note)}>{stop.item.notes}</p>}
+        {stop.instagram && <IgLink href={stop.instagram} />}
       </div>
       <div {...sx(p.actions)}>
         {maps && (
@@ -778,16 +871,18 @@ function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, o
             Edit stop
           </button>
         )}
-        <span {...sx(p.stepper)}>
-          <button type="button" {...sx(a.iconBtn)} aria-label="Previous stop" title="Previous stop (←)" disabled={stop.index === 0} onClick={() => onStep(-1)}>
-            <ChevronLeft size={20} strokeWidth={1.75} aria-hidden />
-          </button>
-          <button type="button" {...sx(a.iconBtn)} aria-label="Next stop" title="Next stop (→)" disabled={stop.index === count - 1} onClick={() => onStep(1)}>
-            <ChevronRight size={20} strokeWidth={1.75} aria-hidden />
-          </button>
-        </span>
+        {!stop.parked && (
+          <span {...sx(p.stepper)}>
+            <button type="button" {...sx(a.iconBtn)} aria-label="Previous stop" title="Previous stop (←)" disabled={stop.index === 0} onClick={() => onStep(-1)}>
+              <ChevronLeft size={20} strokeWidth={1.75} aria-hidden />
+            </button>
+            <button type="button" {...sx(a.iconBtn)} aria-label="Next stop" title="Next stop (→)" disabled={stop.index === count - 1} onClick={() => onStep(1)}>
+              <ChevronRight size={20} strokeWidth={1.75} aria-hidden />
+            </button>
+          </span>
+        )}
       </div>
-      <Progress playing={playing} stopId={stop.id} onEnd={onTourEnd} />
+      {!stop.parked && <Progress playing={playing} stopId={stop.id} onEnd={onTourEnd} />}
     </article>
   )
 }
@@ -851,7 +946,7 @@ function PhoneSheet({
       <div {...sx(p.sheetBody)}>
         <div {...sx(p.sheetText)}>
           <p {...sx(a.eyebrow, p.cardEyebrow)}>
-            Stop {stop.index + 1} of {count}
+            {stop.parked ? "To schedule" : `Stop ${stop.index + 1} of ${count}`}
             {kind ? ` · ${kind}` : ""}
           </p>
           <h3 data-stop-title tabIndex={-1} {...sx(a.display, p.sheetTitle, p.cardTitle)}>
@@ -894,8 +989,10 @@ function PhoneSheet({
         )}
         {maps &&
           (canTour ? (
-            <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} title="Directions" {...sx(a.iconBtn)} onClick={onDirections}>
+            <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} title="Directions" {...sx(a.btn, a.btnGhost, p.compactAction)} onClick={onDirections}>
               <ExternalLink size={17} strokeWidth={1.75} aria-hidden />
+              {/* The label joins the glyph wherever the row has room for it. */}
+              <span {...sx(p.roomyLabel, stop.parked && p.roomyAlways)}>Directions</span>
             </a>
           ) : (
             <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnPrimary, p.action)} onClick={onDirections}>
@@ -908,16 +1005,23 @@ function PhoneSheet({
             <Pencil size={17} strokeWidth={1.75} aria-hidden />
           </button>
         )}
-        <span {...sx(p.stepper)}>
-          <button type="button" {...sx(a.iconBtn)} aria-label="Previous stop" disabled={stop.index === 0} onClick={() => onStep(-1)}>
-            <ChevronLeft size={20} strokeWidth={1.75} aria-hidden />
-          </button>
-          <button type="button" {...sx(a.iconBtn)} aria-label="Next stop" disabled={stop.index === count - 1} onClick={() => onStep(1)}>
-            <ChevronRight size={20} strokeWidth={1.75} aria-hidden />
-          </button>
-        </span>
+        {stop.instagram && (
+          <a href={stop.instagram} target="_blank" rel="noreferrer" aria-label="From Instagram: open the post" title="Open the Instagram post" {...sx(a.iconBtn)}>
+            <IgGlyph size={17} />
+          </a>
+        )}
+        {!stop.parked && (
+          <span {...sx(p.stepper)}>
+            <button type="button" {...sx(a.iconBtn)} aria-label="Previous stop" disabled={stop.index === 0} onClick={() => onStep(-1)}>
+              <ChevronLeft size={20} strokeWidth={1.75} aria-hidden />
+            </button>
+            <button type="button" {...sx(a.iconBtn)} aria-label="Next stop" disabled={stop.index === count - 1} onClick={() => onStep(1)}>
+              <ChevronRight size={20} strokeWidth={1.75} aria-hidden />
+            </button>
+          </span>
+        )}
       </div>
-      <Progress playing={playing} stopId={stop.id} onEnd={onTourEnd} />
+      {!stop.parked && <Progress playing={playing} stopId={stop.id} onEnd={onTourEnd} />}
     </section>
   )
 }
@@ -925,11 +1029,14 @@ function PhoneSheet({
 function Failure({
   eyebrow,
   stops,
+  unavailable,
   onClose,
   closeRef,
 }: {
   eyebrow: string
   stops: readonly Stop[]
+  /** Google has no 3D imagery for this place, as opposed to the view failing to start. */
+  unavailable: boolean
   onClose: () => void
   closeRef: React.RefObject<HTMLButtonElement | null>
 }) {
@@ -939,7 +1046,15 @@ function Failure({
         <div {...sx(p.failHead)}>
           <p {...sx(a.eyebrow)}>{eyebrow}</p>
           <h2 id="photoreal-fail-title" {...sx(a.display, p.failTitle)}>
-            The 3D view <em {...sx(a.italic)}>couldn’t load</em>
+            {unavailable ? (
+              <>
+                3D imagery <em {...sx(a.italic)}>isn’t available</em> here yet
+              </>
+            ) : (
+              <>
+                The 3D view <em {...sx(a.italic)}>couldn’t load</em>
+              </>
+            )}
           </h2>
           <p {...sx(a.body)}>
             {stops.length
@@ -953,9 +1068,15 @@ function Failure({
               const maps = externalMapsLink({ name: stop.title, address: stop.item.location?.address, lat: stop.lat, lng: stop.lng })
               return (
                 <li key={stop.id} {...sx(p.failRow)}>
-                  <span {...sx(p.badge)} aria-hidden>
-                    {stop.label}
-                  </span>
+                  {stop.parked ? (
+                    <span {...sx(p.badgeSlot)} aria-hidden>
+                      <span {...sx(p.hollow)} />
+                    </span>
+                  ) : (
+                    <span {...sx(p.badge)} aria-hidden>
+                      {stop.label}
+                    </span>
+                  )}
                   <span {...sx(p.failText)}>
                     <span {...sx(p.failName)}>{stop.title}</span>
                     {stop.item.time && <span {...sx(p.rowTime)}>{timeRange(stop.item)}</span>}

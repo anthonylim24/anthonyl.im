@@ -2,30 +2,40 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { ArrowUp, Maximize2, MessageCircle, Minimize2, Sparkles, X } from "lucide-react"
 import {
-  conciergePlaceKey,
-  type ConciergeMove,
-  type ConciergePlace,
-  type ConciergeSource,
-} from "../../lib/conciergeGrounding"
+  ArrowUp,
+  ArrowUpRight,
+  CalendarCheck,
+  CalendarPlus,
+  Compass,
+  LocateFixed,
+  Maximize2,
+  MessageCircle,
+  Minimize2,
+  Route,
+  SquarePen,
+  Sun,
+  Ticket,
+  Utensils,
+  X,
+  type LucideIcon,
+} from "lucide-react"
+import { conciergePlaceKey, type ConciergePlace, type ConciergeStatus } from "../../lib/conciergeGrounding"
 import { lastMessageIdByRole } from "../../lib/transcriptAnchor"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTranscriptAnchor } from "@/hooks/useTranscriptAnchor"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
-import { ConciergeSources } from "../Korea/ConciergeSources"
-import { ConciergeStreamStatus, ConciergeText } from "../Korea/ConciergeText"
-import { conciergeText } from "../Korea/ConciergeText.stylex"
-import { ConciergeMoveCards } from "./ConciergeMoveCards"
+import { AssistantMessage } from "./ConciergeMessage"
 import { ConciergePhotoViewer } from "./ConciergePhoto"
-import { ConciergePlaceCards } from "./ConciergePlaceCards"
-import { findMentionedStops, resolveMoves, stopToConciergePlace, type ResolvedMove } from "./conciergeMoves"
-import { conciergeSuggestions } from "./conciergeSuggestions"
-import { addItem, dayHasPlaceNamed, itemFromConciergePlace, moveItemToDay, removeItem, updateItem } from "./tripEdits"
+import type { AddedPlace } from "./ConciergePlaceCards"
+import { applyProposal, dayShort, insertByTime, restoreSnapshot, snapshotDays, type DaySnapshot } from "./conciergeProposal"
+import { clearConversation, loadConversation, saveConversation, type ChatMessage } from "./conciergeStore"
+import { conciergeSuggestions, type Starter, type StarterKind } from "./conciergeSuggestions"
+import { dayHasPlaceNamed, itemFromConciergePlace, removeItem } from "./tripEdits"
 import { getTrip, updateTrip } from "./tripsApi"
 import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
-import { resolveAccent } from "./meta"
+import { resolveAccent, tripTiming } from "./meta"
 import type { Trip, TripAccess } from "./types"
 import { a } from "./atlas.stylex"
 import { c } from "./chat.stylex"
@@ -37,6 +47,17 @@ const EASE = [0.16, 1, 0.3, 1] as const
 const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
 
 const FAB_SPRING = { type: "spring", stiffness: 400, damping: 28 } as const
+
+const STARTER_ICON: Record<StarterKind, LucideIcon> = {
+  today: Sun,
+  near: LocateFixed,
+  plan: CalendarPlus,
+  meal: Utensils,
+  gap: CalendarCheck,
+  booking: Ticket,
+  route: Route,
+  idea: Compass,
+}
 
 type ViewTransitionDocument = Document & {
   startViewTransition?: (update: () => void) => { finished: Promise<void> }
@@ -54,20 +75,6 @@ function runTripsViewTransition(update: () => void): void {
     return
   }
   void doc.startViewTransition(update).finished.catch(() => undefined)
-}
-
-interface ChatMessage {
-  id: string
-  role: "user" | "assistant"
-  content: string
-  places?: ConciergePlace[]
-  moves?: ConciergeMove[]
-  sources?: ConciergeSource[]
-  addedKeys?: string[]
-  removedKeys?: string[]
-  appliedMoveKeys?: string[]
-  dismissedMoveKeys?: string[]
-  error?: string
 }
 
 interface PhotoView {
@@ -110,6 +117,57 @@ export function useTripChatRoute(): { tripId?: string; dayId?: string } {
   }, [pathname])
 }
 
+/** Earlier turns as the server wants them: text plus the cards and change
+ *  cards the traveller saw, so "the second one" can be resolved. */
+export function toHistory(messages: ChatMessage[]): TripChatMessage[] {
+  return messages
+    .filter((m) => m.content.trim() || m.proposal)
+    .map((m) => {
+      const turn: TripChatMessage = { role: m.role, content: m.content }
+      if (m.places?.length) {
+        turn.places = m.places.slice(0, 8).map((p) => ({
+          ...(p.ref ? { ref: p.ref } : {}),
+          name: p.name,
+          ...(p.address ? { address: p.address } : {}),
+          ...(p.lat != null ? { lat: p.lat } : {}),
+          ...(p.lng != null ? { lng: p.lng } : {}),
+          ...(p.category ? { category: p.category } : {}),
+          ...(p.placeId ? { placeId: p.placeId } : {}),
+          ...(p.mapsUrl ? { mapsUrl: p.mapsUrl } : {}),
+          ...(p.dayId ? { dayId: p.dayId } : {}),
+          ...(p.time ? { time: p.time } : {}),
+        }))
+      }
+      if (m.proposal) turn.proposal = { summary: m.proposal.summary, state: m.proposalState ?? "pending" }
+      return turn
+    })
+}
+
+/** One fix, on demand. Resolves null when the browser says no or takes too long. */
+function readPosition(timeoutMs = 8000): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      resolve(null)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, maximumAge: 120_000, timeout: timeoutMs },
+    )
+  })
+}
+
+/** Markdown reply → a sentence a screen reader can say once. */
+function spoken(text: string): string {
+  return text
+    .replace(/[*_`#>]+/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 700)
+}
+
 export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
   const navigate = useNavigate()
@@ -121,25 +179,37 @@ export function TripChat() {
   const [trip, setTrip] = useState<Trip | null>(null)
   const [access, setAccess] = useState<TripAccess>("view")
   const [addingKey, setAddingKey] = useState<string | null>(null)
-  const [busyMoveKey, setBusyMoveKey] = useState<string | null>(null)
-  const [movingItemId, setMovingItemId] = useState<string | null>(null)
+  const [busyProposal, setBusyProposal] = useState<string | null>(null)
+  const [skipped, setSkipped] = useState<Record<string, Record<string, string>>>({})
+  const [undoable, setUndoable] = useState<Set<string>>(() => new Set())
   const [photo, setPhoto] = useState<PhotoView | null>(null)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
-  const [streaming, setStreaming] = useState(false)
-  const [kbInset, setKbInset] = useState(0)
+  /** `working`: the reply is being written. `finishing`: the text is done and
+   *  only the follow-up prompts are still on their way. */
+  const [phase, setPhase] = useState<"idle" | "working" | "finishing">("idle")
+  const [status, setStatus] = useState<ConciergeStatus | null>(null)
+  const [shareLocation, setShareLocation] = useState(false)
+  const [locationNote, setLocationNote] = useState<string | null>(null)
+  const [announce, setAnnounce] = useState("")
+  const [viewport, setViewport] = useState<{ inset: number; height: number }>({ inset: 0, height: 0 })
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const inFlightRef = useRef(false)
+  const runRef = useRef(0)
+  const messagesRef = useRef<ChatMessage[]>([])
+  const snapshots = useRef(new Map<string, DaySnapshot>())
   const titleId = useId()
   const lastUserId = lastMessageIdByRole(messages, "user")
-  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, streaming, open)
+  const working = phase === "working"
+  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, phase, open)
+
+  messagesRef.current = messages
 
   useEffect(() => {
     if (!tripId) {
@@ -173,24 +243,33 @@ export function TripChat() {
     }, []),
   )
 
+  // The conversation belongs to the trip: restore it, and keep it saved.
+  const loadedFor = useRef<string | undefined>(undefined)
   useEffect(() => {
-    setMessages([])
+    abortRef.current?.abort()
+    runRef.current += 1
+    setPhase("idle")
+    setStatus(null)
     setInput("")
+    setSkipped({})
+    setUndoable(new Set())
+    snapshots.current.clear()
+    loadedFor.current = tripId
+    setMessages(tripId ? loadConversation(tripId) : [])
   }, [tripId])
 
-  const suggestions = useMemo(
-    () => (trip ? conciergeSuggestions(trip, dayId) : []),
-    [trip, dayId],
-  )
+  useEffect(() => {
+    if (!tripId || loadedFor.current !== tripId || phase === "working") return
+    saveConversation(tripId, messages)
+  }, [tripId, messages, phase])
+
+  const starters = useMemo(() => (trip ? conciergeSuggestions(trip, dayId) : []), [trip, dayId])
 
   const focusedDay = dayId && trip ? trip.days.find((d) => d.id === dayId) : undefined
-  const subtitle = focusedDay
-    ? focusedDay.title?.trim()
-      ? `Knows ${focusedDay.title}`
-      : "Knows today's plan"
-    : trip
-      ? trip.destinations.slice(0, 2).join(" · ") || trip.name
-      : "Ask about this trip"
+  const place = trip?.destinations[0] ?? trip?.name
+  const eyebrow = trip
+    ? [focusedDay ? `Viewing ${dayShort(focusedDay)}` : tripTiming(trip).label, focusedDay ? null : place].filter(Boolean).join(" · ")
+    : "Ask about this trip"
 
   const handleClose = useCallback(() => {
     abortRef.current?.abort()
@@ -236,7 +315,7 @@ export function TripChat() {
       const root = dialogRef.current
       if (!root) return
       const focusable = root.querySelectorAll<HTMLElement>(
-        'button, [href], textarea, input, select, [tabindex]:not([tabindex="-1"])',
+        'button:not(:disabled), [href], textarea, input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
       )
       if (focusable.length === 0) return
       const first = focusable[0]
@@ -265,12 +344,14 @@ export function TripChat() {
     }
   }, [open, expanded, isDesktop])
 
+  // Keep the composer above the on-screen keyboard, and the sheet inside
+  // what is left of the screen.
   useEffect(() => {
     const vv = window.visualViewport
     if (!open || !vv) return
     const update = () => {
       const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      setKbInset(inset > 120 ? inset : 0)
+      setViewport(inset > 120 ? { inset, height: vv.height } : { inset: 0, height: 0 })
     }
     update()
     vv.addEventListener("resize", update)
@@ -278,100 +359,190 @@ export function TripChat() {
     return () => {
       vv.removeEventListener("resize", update)
       vv.removeEventListener("scroll", update)
-      setKbInset(0)
+      setViewport({ inset: 0, height: 0 })
     }
   }, [open])
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const send = useCallback(
-    async (text: string) => {
-      const prompt = text.trim()
-      if (!prompt || !tripId || inFlightRef.current) return
-      inFlightRef.current = true
+  const patchMessage = useCallback((id: string, patch: (m: ChatMessage) => ChatMessage) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? patch(m) : m)))
+  }, [])
 
-      const history: TripChatMessage[] = messages.map((m) => ({ role: m.role, content: m.content }))
-      const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
-      const assistantId = newId()
-
-      const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
-      setInput("")
-
+  /** Stream a reply into `assistantId`, given the turns before the prompt. */
+  const run = useCallback(
+    async (prompt: string, history: ChatMessage[], assistantId: string, withLocation: boolean) => {
+      if (!tripId) return
+      abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
+      const runId = ++runRef.current
+      const live = () => runRef.current === runId
 
-      const setAssistant = (content: string) =>
-        setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
+      setPhase("working")
+      setStatus(null)
+      setAnnounce("Concierge is working on it.")
 
-      setMessages((prev) => [...prev, ...pending])
-      setStreaming(true)
-      void (async () => {
-        let activeTrip = trip
-        if (!activeTrip) {
-          try {
-            const loaded = await getTrip(readToken, tripId)
-            activeTrip = loaded.trip
+      let location: { lat: number; lng: number } | undefined
+      if (withLocation) {
+        setStatus({ kind: "places", label: "Finding where you are" })
+        const fix = await readPosition()
+        if (!live()) return
+        if (fix) location = fix
+        else setLocationNote("Couldn't get your location, so this answer goes by your plan.")
+        setStatus(null)
+      }
+
+      let activeTrip = trip
+      if (!activeTrip) {
+        try {
+          const loaded = await getTrip(readToken, tripId)
+          activeTrip = loaded.trip
+          if (live()) {
             setTrip(activeTrip)
             setAccess(loaded.access)
-          } catch {
-            activeTrip = null
           }
+        } catch {
+          activeTrip = null
         }
+      }
+      const canonicalId = activeTrip?.id ?? tripId
+      const focusedDayId = dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
 
-        const canonicalId = activeTrip?.id ?? tripId
-        const focusedDayId =
-          dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
-
-        try {
-          const { content, error, places, moves, sources } = await streamTripChat(
-            canonicalId,
+      try {
+        const result = await streamTripChat(
+          {
+            tripId: canonicalId,
             prompt,
-            history,
-            focusedDayId,
-            readToken,
-            setAssistant,
-            controller.signal,
-            activeTrip ?? undefined,
-          )
-          if (error) {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, content, error } : m)),
-            )
-          } else if (!content.trim() && !places?.length && !moves?.length) {
-            setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
-          }
-          if (places?.length || moves?.length || sources?.length) {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, places, moves, sources } : m)),
-            )
-          }
-        } catch (err) {
-          if ((err as Error).name !== "AbortError") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, error: (err as Error).message || "Something went wrong. Please try again." }
-                  : m,
-              ),
-            )
-          }
-        } finally {
-          setStreaming(false)
-          inFlightRef.current = false
+            messages: toHistory(history),
+            dayId: focusedDayId,
+            location,
+            trip: activeTrip ?? undefined,
+            signal: controller.signal,
+          },
+          readToken,
+          {
+            onText: (content) => {
+              if (live()) patchMessage(assistantId, (m) => ({ ...m, content }))
+            },
+            onStatus: (next) => {
+              if (!live()) return
+              setStatus(next)
+              if (next.kind === "done") setPhase("finishing")
+              else if (next.label) setAnnounce(next.label)
+            },
+            onPlaces: (places) => {
+              if (live()) patchMessage(assistantId, (m) => ({ ...m, places }))
+            },
+            onProposal: (proposal) => {
+              if (live()) patchMessage(assistantId, (m) => ({ ...m, proposal, proposalState: "pending" }))
+            },
+            onSources: (sources) => {
+              if (live()) patchMessage(assistantId, (m) => ({ ...m, sources }))
+            },
+            onFollowups: (followups) => {
+              if (live()) patchMessage(assistantId, (m) => ({ ...m, followups }))
+            },
+          },
+        )
+        if (!live()) return
+        const empty = !result.content.trim() && !result.places?.length && !result.proposal
+        patchMessage(assistantId, (m) => ({
+          ...m,
+          content: empty && !result.error ? "I couldn't put an answer together just now." : result.content || m.content,
+          places: result.places ?? m.places,
+          proposal: result.proposal ?? m.proposal,
+          proposalState: result.proposal ? (m.proposalState ?? "pending") : m.proposalState,
+          sources: result.sources ?? m.sources,
+          followups: result.followups ?? m.followups,
+          error: result.error ?? (empty ? "Nothing came back." : undefined),
+        }))
+        setAnnounce(result.error ? `The concierge hit a problem: ${result.error}` : `Concierge: ${spoken(result.content)}`)
+      } catch (err) {
+        if (!live()) return
+        if (controller.signal.aborted || (err as Error).name === "AbortError") {
+          patchMessage(assistantId, (m) => ({ ...m, stopped: true }))
+          setAnnounce("Stopped.")
+        } else {
+          const message = (err as Error).message || "Something went wrong. Please try again."
+          patchMessage(assistantId, (m) => ({ ...m, error: message }))
+          setAnnounce(`The concierge hit a problem: ${message}`)
+        }
+      } finally {
+        if (live()) {
+          setPhase("idle")
+          setStatus(null)
           abortRef.current = null
         }
-      })()
+      }
     },
-    [messages, tripId, dayId, trip, readToken],
+    [tripId, dayId, trip, readToken, patchMessage],
   )
+
+  const send = useCallback(
+    (text: string, opts: { location?: boolean } = {}) => {
+      const prompt = text.trim()
+      if (!prompt || !tripId || phase === "working") return
+      const withLocation = opts.location ?? shareLocation
+      const history = messagesRef.current
+      const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt, ...(withLocation ? { sharedLocation: true } : {}) }
+      const assistant: ChatMessage = { id: newId(), role: "assistant", content: "" }
+      setMessages([...history, userMsg, assistant])
+      setInput("")
+      setShareLocation(false)
+      setLocationNote(null)
+      void run(prompt, history, assistant.id, withLocation)
+    },
+    [tripId, phase, shareLocation, run],
+  )
+
+  /** Ask again for a reply that failed or was stopped. */
+  const retry = useCallback(
+    (assistantId: string) => {
+      const all = messagesRef.current
+      const at = all.findIndex((m) => m.id === assistantId)
+      const question = at > 0 ? all[at - 1] : undefined
+      if (!question || question.role !== "user" || phase === "working") return
+      const history = all.slice(0, at - 1)
+      const fresh: ChatMessage = { id: assistantId, role: "assistant", content: "" }
+      setMessages([...history, question, fresh, ...all.slice(at + 1)])
+      void run(question.content, history, assistantId, Boolean(question.sharedLocation))
+    },
+    [phase, run],
+  )
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
+
+  const newChat = useCallback(() => {
+    abortRef.current?.abort()
+    runRef.current += 1
+    setPhase("idle")
+    setStatus(null)
+    setMessages([])
+    setSkipped({})
+    setUndoable(new Set())
+    snapshots.current.clear()
+    setLocationNote(null)
+    if (tripId) clearConversation(tripId)
+    setAnnounce("Started a new chat.")
+    inputRef.current?.focus()
+  }, [tripId])
 
   const canEdit = access === "edit" || access === "owner"
 
-  const persistTripDays = useCallback(
-    async (mutate: (fresh: Trip) => Trip["days"]) => {
+  /** Read the trip fresh, change its days, save, and tell the page. */
+  const saveDays = useCallback(
+    async (mutate: (fresh: Trip) => Trip["days"] | null) => {
       if (!tripId) throw new Error("No trip is open.")
       const { trip: fresh } = await getTrip(readToken, tripId)
-      const next = await updateTrip(readToken, fresh.id, { days: mutate(fresh) })
+      const days = mutate(fresh)
+      if (!days) {
+        setTrip(fresh)
+        return fresh
+      }
+      const next = await updateTrip(readToken, fresh.id, { days })
       setTrip(next)
       emitTripChanged(next)
       return next
@@ -380,158 +551,146 @@ export function TripChat() {
   )
 
   const addPlace = useCallback(
-    async (place: ConciergePlace, targetDayId: string) => {
-      if (!tripId || !canEdit) return
-      const key = conciergePlaceKey(place)
+    async (messageId: string, target: ConciergePlace, targetDayId: string) => {
+      if (!canEdit) return
+      const key = conciergePlaceKey(target)
       setAddingKey(key)
       try {
-        const { trip: fresh } = await getTrip(readToken, tripId)
-        const day = fresh.days.find((d) => d.id === targetDayId)
-        if (!day) throw new Error("That day is no longer on the trip.")
-        if (dayHasPlaceNamed(day, place.name)) {
-          setTrip(fresh)
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.places?.some((p) => conciergePlaceKey(p) === key)
-                ? { ...m, addedKeys: [...new Set([...(m.addedKeys ?? []), key])] }
-                : m,
-            ),
-          )
-          return
-        }
-        const next = await updateTrip(readToken, fresh.id, {
-          days: addItem(fresh.days, targetDayId, itemFromConciergePlace(place)),
+        let added: AddedPlace | null = null
+        await saveDays((fresh) => {
+          const day = fresh.days.find((d) => d.id === targetDayId)
+          if (!day) throw new Error("That day is no longer on the trip.")
+          const time = target.time && target.dayId === targetDayId ? target.time : undefined
+          const existing = day.items.find((i) => dayHasPlaceNamed({ ...day, items: [i] }, target.name))
+          if (existing) {
+            added = { dayId: day.id, itemId: existing.id, time: existing.time }
+            return null
+          }
+          const item = { ...itemFromConciergePlace(target), ...(time ? { time } : {}) }
+          added = { dayId: day.id, itemId: item.id, time }
+          return fresh.days.map((d) => (d.id === day.id ? { ...d, items: insertByTime(d.items, item) } : d))
         })
-        setTrip(next)
-        emitTripChanged(next)
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.places?.some((p) => conciergePlaceKey(p) === key)
-              ? { ...m, addedKeys: [...new Set([...(m.addedKeys ?? []), key])] }
-              : m,
-          ),
-        )
+        if (added) {
+          const record: AddedPlace = added
+          patchMessage(messageId, (m) => ({ ...m, added: { ...m.added, [key]: record } }))
+          setAnnounce(`Added ${target.name} to the itinerary.`)
+        }
       } catch (err) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.places?.some((p) => conciergePlaceKey(p) === key)
-              ? { ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not add that place."}` }
-              : m,
-          ),
-        )
+        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not add that place." }))
       } finally {
         setAddingKey(null)
       }
     },
-    [tripId, canEdit, readToken],
+    [canEdit, saveDays, patchMessage],
   )
 
-  const patchMessage = useCallback((match: (m: ChatMessage) => boolean, patch: (m: ChatMessage) => ChatMessage) => {
-    setMessages((prev) => prev.map((m) => (match(m) ? patch(m) : m)))
-  }, [])
-
-  const removePlace = useCallback(
-    async (place: ConciergePlace) => {
-      if (!tripId || !canEdit || !place.itemId || !place.dayId) return
-      const itemId = place.itemId
+  const undoAdd = useCallback(
+    async (messageId: string, target: ConciergePlace) => {
+      const key = conciergePlaceKey(target)
+      const record = messagesRef.current.find((m) => m.id === messageId)?.added?.[key]
+      if (!record || !canEdit) return
+      setAddingKey(key)
       try {
-        await persistTripDays((fresh) => removeItem(fresh.days, place.dayId!, itemId))
-        patchMessage(
-          (m) => Boolean(m.places?.some((p) => p.itemId === itemId) || m.moves?.some((mv) => mv.name === place.name)),
-          (m) => ({ ...m, removedKeys: [...new Set([...(m.removedKeys ?? []), itemId])] }),
-        )
-      } catch (err) {
-        patchMessage(
-          (m) => Boolean(m.places?.some((p) => p.itemId === itemId)),
-          (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not remove that place."}` }),
-        )
-      }
-    },
-    [tripId, canEdit, persistTripDays, patchMessage],
-  )
-
-  const movePlace = useCallback(
-    async (place: ConciergePlace, toDayId: string) => {
-      if (!tripId || !canEdit || !place.itemId || !place.dayId || place.dayId === toDayId) return
-      setMovingItemId(place.itemId)
-      try {
-        await persistTripDays((fresh) => moveItemToDay(fresh.days, place.dayId!, place.itemId!, toDayId))
-      } catch (err) {
-        patchMessage(
-          (m) => Boolean(m.places?.some((p) => p.itemId === place.itemId)),
-          (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not move that place."}` }),
-        )
-      } finally {
-        setMovingItemId(null)
-      }
-    },
-    [tripId, canEdit, persistTripDays, patchMessage],
-  )
-
-  const applyMove = useCallback(
-    async (messageId: string, resolved: ResolvedMove) => {
-      if (!tripId || !canEdit) return
-      setBusyMoveKey(resolved.key)
-      try {
-        await persistTripDays((fresh) => {
-          if (resolved.move.type === "remove") {
-            return removeItem(fresh.days, resolved.stop.day.id, resolved.stop.item.id)
-          }
-          if (resolved.move.type === "move" && resolved.toDay) {
-            return moveItemToDay(fresh.days, resolved.stop.day.id, resolved.stop.item.id, resolved.toDay.id)
-          }
-          if (resolved.move.type === "set_time" && resolved.move.time) {
-            return updateItem(fresh.days, resolved.stop.day.id, resolved.stop.item.id, { time: resolved.move.time })
-          }
-          return fresh.days
+        await saveDays((fresh) => removeItem(fresh.days, record.dayId, record.itemId))
+        patchMessage(messageId, (m) => {
+          const { [key]: _removed, ...rest } = m.added ?? {}
+          return { ...m, added: rest }
         })
-        patchMessage(
-          (m) => m.id === messageId,
-          (m) => ({
-            ...m,
-            appliedMoveKeys: [...new Set([...(m.appliedMoveKeys ?? []), resolved.key])],
-            removedKeys:
-              resolved.move.type === "remove"
-                ? [...new Set([...(m.removedKeys ?? []), resolved.stop.item.id])]
-                : m.removedKeys,
-          }),
-        )
+        setAnnounce(`Removed ${target.name} again.`)
       } catch (err) {
-        patchMessage(
-          (m) => m.id === messageId,
-          (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not update the itinerary."}` }),
-        )
+        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not undo that." }))
       } finally {
-        setBusyMoveKey(null)
+        setAddingKey(null)
       }
     },
-    [tripId, canEdit, persistTripDays, patchMessage],
+    [canEdit, saveDays, patchMessage],
   )
 
-  const openPhotos = useCallback(
-    (place: ConciergePlace) => {
-      setPhoto({
-        name: place.name,
-        city: trip?.days.find((d) => d.id === place.dayId)?.city ?? trip?.destinations[0],
-        lat: place.lat,
-        lng: place.lng,
-      })
+  const applyChanges = useCallback(
+    async (messageId: string, selected: Set<string>) => {
+      const message = messagesRef.current.find((m) => m.id === messageId)
+      if (!message?.proposal || !canEdit) return
+      const proposal = message.proposal
+      setBusyProposal(messageId)
+      try {
+        let outcome: ReturnType<typeof applyProposal> | null = null
+        let before: Trip["days"] = []
+        await saveDays((fresh) => {
+          before = fresh.days
+          outcome = applyProposal(fresh.days, proposal, selected)
+          return outcome.applied.length ? outcome.days : null
+        })
+        const result = outcome as ReturnType<typeof applyProposal> | null
+        if (!result) return
+        setSkipped((prev) => ({ ...prev, [messageId]: Object.fromEntries(result.skipped.map((s) => [s.id, s.reason])) }))
+        if (result.applied.length === 0) {
+          setAnnounce("Nothing could be applied: the itinerary has changed since.")
+          return
+        }
+        snapshots.current.set(messageId, snapshotDays(before, result.touched))
+        setUndoable((prev) => new Set(prev).add(messageId))
+        patchMessage(messageId, (m) => ({ ...m, proposalState: "applied", appliedIds: result.applied, error: undefined }))
+        setAnnounce(`Applied: ${proposal.summary}. Undo is available.`)
+      } catch (err) {
+        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not update the itinerary." }))
+      } finally {
+        setBusyProposal(null)
+      }
     },
-    [trip],
+    [canEdit, saveDays, patchMessage],
   )
 
-  const openMap = useCallback(
-    (place: ConciergePlace) => {
+  const undoChanges = useCallback(
+    async (messageId: string) => {
+      const snapshot = snapshots.current.get(messageId)
+      if (!snapshot || !canEdit) return
+      setBusyProposal(messageId)
+      try {
+        await saveDays((fresh) => restoreSnapshot(fresh.days, snapshot))
+        snapshots.current.delete(messageId)
+        setUndoable((prev) => {
+          const next = new Set(prev)
+          next.delete(messageId)
+          return next
+        })
+        patchMessage(messageId, (m) => ({ ...m, proposalState: "undone", appliedIds: undefined }))
+        setAnnounce("Undone. The itinerary is back as it was.")
+      } catch (err) {
+        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not undo that." }))
+      } finally {
+        setBusyProposal(null)
+      }
+    },
+    [canEdit, saveDays, patchMessage],
+  )
+
+  const goToDay = useCallback(
+    (targetDay: string, itemId?: string) => {
       if (!tripId) return
-      const targetDay = place.dayId && trip?.days.some((d) => d.id === place.dayId) ? place.dayId : dayId
-      if (!targetDay) return
-      const params = new URLSearchParams({ map: "1" })
-      if (place.itemId) params.set("focus", place.itemId)
-      navigate(`/trips/${encodeURIComponent(tripId)}/day/${encodeURIComponent(targetDay)}?${params}`)
+      const params = new URLSearchParams()
+      if (itemId) {
+        params.set("map", "1")
+        params.set("focus", itemId)
+      }
+      const query = params.toString()
+      navigate(`/trips/${encodeURIComponent(tripId)}/day/${encodeURIComponent(targetDay)}${query ? `?${query}` : ""}`)
       setExpanded(false)
       if (!isDesktop) setOpen(false)
     },
-    [tripId, trip, dayId, navigate, isDesktop],
+    [tripId, navigate, isDesktop],
+  )
+
+  const openPhotos = useCallback(
+    (target: ConciergePlace, url: string | null) => {
+      setPhoto({
+        name: target.name,
+        city: trip?.days.find((d) => d.id === target.dayId)?.city ?? trip?.destinations[0],
+        lat: target.lat,
+        lng: target.lng,
+        url,
+      })
+    },
+    [trip],
   )
 
   const autoGrow = useCallback(() => {
@@ -554,10 +713,10 @@ export function TripChat() {
     ? sx("trip-chat-panel", "trip-chat-panel-expanded", c.panel)
     : sx("trip-chat-panel", c.panel, c.panelDocked)
   const panelStyle: CSSProperties = {
-    ...(kbInset > 0 && !expanded ? { bottom: kbInset } : {}),
-    ...(expanded
-      ? { ["--trip-chat-kb" as string]: kbInset > 0 ? `${kbInset}px` : "0px" }
+    ...(viewport.inset > 0 && !expanded
+      ? { bottom: viewport.inset, maxHeight: Math.max(240, viewport.height - 8) }
       : {}),
+    ...(expanded ? { ["--trip-chat-kb" as string]: viewport.inset > 0 ? `${viewport.inset}px` : "0px" } : {}),
   }
 
   const panelMotion =
@@ -598,189 +757,202 @@ export function TripChat() {
       {typeof document !== "undefined" &&
         createPortal(
           <div {...sx("trips", "trip-chat-portal")} data-trip-accent={accent}>
-      <AnimatePresence>
-        {open && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: EASE }}
-              onClick={handleClose}
-              {...sx(c.scrim, expanded ? undefined : c.scrimDocked)}
-              aria-hidden
-            />
-
-            <motion.div
-              {...panelMotion}
-              ref={dialogRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby={titleId}
-              data-expanded={expanded ? "true" : "false"}
-              {...panelSx}
-              style={{
-                ...panelStyle,
-                // Name only while open. On close, open flips first so the
-                // exiting panel does not share the name with the restored FAB.
-                viewTransitionName: open && !reduce ? "trips-concierge" : "none",
-              }}
-            >
-              <header {...sx(c.header)}>
-                <div {...sx(c.headerBody)}>
-                  <p {...sx(a.eyebrow, a.truncate)}>{subtitle}</p>
-                  {/* Reads "Concierge"; the dialog is still named "Trip Concierge". */}
-                  <h2 id={titleId} {...sx(c.title)}>
-                    <span {...sx(a.srOnly)}>Trip </span>Concierge
-                  </h2>
-                </div>
-                <div {...sx(c.headerActions)}>
-                  <button
-                    type="button"
-                    onClick={toggleExpanded}
-                    aria-label={expanded ? "Shrink chat" : "Expand chat"}
-                    aria-pressed={expanded}
-                    title={expanded ? "Shrink chat" : "Expand chat"}
-                    {...sx(a.iconBtn)}
-                  >
-                    {expanded ? (
-                      <Minimize2 {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
-                    ) : (
-                      <Maximize2 {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
-                    )}
-                  </button>
-                  <button
-                    type="button"
+            <AnimatePresence>
+              {open && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18, ease: EASE }}
                     onClick={handleClose}
-                    aria-label="Close chat"
-                    {...sx(a.iconBtn)}
-                  >
-                    <X {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
-                  </button>
-                </div>
-              </header>
-
-              <div
-                ref={scrollRef}
-                {...sx(c.scroll)}
-                style={{ WebkitOverflowScrolling: "touch" }}
-              >
-                {messages.length === 0 ? (
-                  <div {...sx(c.empty)}>
-                    <span {...sx(c.emptyIcon)}>
-                      <Sparkles {...sx(c.icon22)} strokeWidth={1.5} aria-hidden />
-                    </span>
-                    <p {...sx(c.emptyCopy)}>
-                      {trip
-                        ? `Your concierge for ${trip.name}. Ask about the plan, or a place to add.`
-                        : "Your concierge for this itinerary. Ask about the plan, reservations, or where to eat."}
-                    </p>
-                  </div>
-                ) : (
-                  messages.map((m) =>
-                    m.role === "user" ? (
-                      <div
-                        key={m.id}
-                        ref={m.id === lastUserId ? anchorRef : undefined}
-                        data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
-                        {...sx(c.userRow)}
-                      >
-                        <div {...sx(c.userBubble)}>
-                          {m.content}
-                        </div>
-                      </div>
-                    ) : (
-                      <AssistantBubble
-                        key={m.id}
-                        message={m}
-                        trip={trip}
-                        dayId={dayId}
-                        streaming={streaming && m.id === lastAssistantId}
-                        reduce={!!reduce}
-                        addingKey={addingKey}
-                        movingItemId={movingItemId}
-                        busyMoveKey={busyMoveKey}
-                        canEdit={canEdit}
-                        onAdd={(place, targetDayId) => void addPlace(place, targetDayId)}
-                        onRemove={(place) => void removePlace(place)}
-                        onMove={(place, toDayId) => void movePlace(place, toDayId)}
-                        onPhotos={openPhotos}
-                        onMap={openMap}
-                        onConfirmMove={(resolved) => void applyMove(m.id, resolved)}
-                        onDismissMove={(key) =>
-                          setMessages((prev) =>
-                            prev.map((msg) =>
-                              msg.id === m.id
-                                ? { ...msg, dismissedMoveKeys: [...new Set([...(msg.dismissedMoveKeys ?? []), key])] }
-                                : msg,
-                            ),
-                          )
-                        }
-                      />
-                    ),
-                  )
-                )}
-                {messages.length > 0 ? (
-                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden {...sx(c.spacer)} />
-                ) : null}
-              </div>
-
-              <div {...sx(c.footer)}>
-              {messages.length === 0 && suggestions.length > 0 && (
-                <div {...sx(c.suggestions)}>
-                  {suggestions.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => void send(s)}
-                      {...sx(a.pill, c.suggestion)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void send(input)
-                }}
-                {...sx(c.form)}
-              >
-                <div {...sx(c.composer)}>
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => {
-                      setInput(e.target.value)
-                      autoGrow()
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault()
-                        void send(input)
-                      }
-                    }}
-                    rows={1}
-                    placeholder="Ask about this trip…"
-                    {...sx("trips-composer-input", c.input, expanded ? c.inputExpanded : c.inputDocked)}
+                    {...sx(c.scrim, expanded ? undefined : c.scrimDocked)}
+                    aria-hidden
                   />
-                  <button
-                    type="submit"
-                    disabled={!input.trim() || streaming}
-                    aria-label="Send message"
-                    {...sx(c.send)}
+
+                  <motion.div
+                    {...panelMotion}
+                    ref={dialogRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby={titleId}
+                    data-expanded={expanded ? "true" : "false"}
+                    {...panelSx}
+                    style={{
+                      ...panelStyle,
+                      // Name only while open. On close, open flips first so the
+                      // exiting panel does not share the name with the restored FAB.
+                      viewTransitionName: open && !reduce ? "trips-concierge" : "none",
+                    }}
                   >
-                    <ArrowUp {...sx(c.icon18)} strokeWidth={2} aria-hidden />
-                  </button>
-                </div>
-              </form>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                    <header {...sx(c.header)}>
+                      <div {...sx(c.headerBody)}>
+                        <p {...sx(a.eyebrow, a.truncate)}>{eyebrow}</p>
+                        {/* Reads "Concierge"; the dialog is still named "Trip Concierge". */}
+                        <h2 id={titleId} {...sx(c.title)}>
+                          <span {...sx(a.srOnly)}>Trip </span>Concierge
+                        </h2>
+                      </div>
+                      <div {...sx(c.headerActions)}>
+                        {messages.length > 0 ? (
+                          <button type="button" onClick={newChat} aria-label="New chat" title="New chat" {...sx(a.iconBtn)}>
+                            <SquarePen {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={toggleExpanded}
+                          aria-label={expanded ? "Shrink chat" : "Expand chat"}
+                          aria-pressed={expanded}
+                          title={expanded ? "Shrink chat" : "Expand chat"}
+                          {...sx(a.iconBtn)}
+                        >
+                          {expanded ? (
+                            <Minimize2 {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
+                          ) : (
+                            <Maximize2 {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
+                          )}
+                        </button>
+                        <button type="button" onClick={handleClose} aria-label="Close chat" {...sx(a.iconBtn)}>
+                          <X {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
+                        </button>
+                      </div>
+                    </header>
+
+                    <div ref={scrollRef} {...sx(c.scroll)} style={{ WebkitOverflowScrolling: "touch" }}>
+                      {messages.length === 0 ? (
+                        <EmptyState
+                          place={place}
+                          starters={starters}
+                          reduce={!!reduce}
+                          onPick={(starter) => send(starter.prompt, { location: Boolean(starter.location) })}
+                        />
+                      ) : (
+                        messages.map((m) =>
+                          m.role === "user" ? (
+                            <div
+                              key={m.id}
+                              ref={m.id === lastUserId ? anchorRef : undefined}
+                              data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
+                              {...sx(c.userRow)}
+                            >
+                              <div {...sx(c.userCol)}>
+                                <div {...sx(c.userBubble)}>{m.content}</div>
+                                {m.sharedLocation ? (
+                                  <p {...sx(c.userMeta)}>
+                                    <LocateFixed {...sx(c.icon12)} strokeWidth={1.75} aria-hidden />
+                                    Sent with your location
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : (
+                            <AssistantMessage
+                              key={m.id}
+                              message={m}
+                              trip={trip}
+                              dayId={dayId}
+                              streaming={phase !== "idle" && m.id === lastAssistantId}
+                              status={m.id === lastAssistantId ? status : null}
+                              latest={m.id === lastAssistantId}
+                              reduce={!!reduce}
+                              canEdit={canEdit}
+                              addingKey={addingKey}
+                              proposalBusy={busyProposal === m.id}
+                              canUndoProposal={undoable.has(m.id)}
+                              skipped={skipped[m.id]}
+                              onAdd={(target, targetDayId) => void addPlace(m.id, target, targetDayId)}
+                              onUndoAdd={(target) => void undoAdd(m.id, target)}
+                              onShow={(added) => goToDay(added.dayId, added.itemId)}
+                              onPhotos={openPhotos}
+                              onApply={(selected) => void applyChanges(m.id, selected)}
+                              onDismiss={() => patchMessage(m.id, (msg) => ({ ...msg, proposalState: "dismissed" }))}
+                              onUndo={() => void undoChanges(m.id)}
+                              onViewDay={(() => {
+                                const first = m.proposal?.changes[0]
+                                if (!first) return undefined
+                                const target = first.op === "move" ? first.toDayId : first.dayId
+                                return target === dayId ? undefined : () => goToDay(target)
+                              })()}
+                              onRetry={() => retry(m.id)}
+                              onFollowup={(text) => send(text)}
+                            />
+                          ),
+                        )
+                      )}
+                      {messages.length > 0 ? (
+                        <div ref={spacerRef} data-transcript-spacer="" aria-hidden {...sx(c.spacer)} />
+                      ) : null}
+                    </div>
+
+                    {/* Spoken once per event; the streamed text itself stays quiet. */}
+                    <p role="status" aria-live="polite" {...sx(a.srOnly)}>
+                      {announce}
+                    </p>
+
+                    <div {...sx(c.footer)}>
+                      {shareLocation || locationNote ? (
+                        <p {...sx(c.composerNote, shareLocation ? c.composerNoteOn : undefined)}>
+                          <LocateFixed {...sx(c.icon12)} strokeWidth={1.75} aria-hidden />
+                          {shareLocation ? "Your location goes with the next message only. It is not saved." : locationNote}
+                        </p>
+                      ) : null}
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault()
+                          send(input)
+                        }}
+                        {...sx(c.form)}
+                      >
+                        <div {...sx(c.composer)}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShareLocation((on) => !on)
+                              setLocationNote(null)
+                              inputRef.current?.focus()
+                            }}
+                            aria-pressed={shareLocation}
+                            aria-label="Share my location with the next message"
+                            title={shareLocation ? "Location will be sent with the next message" : "Use my location for the next message"}
+                            {...sx(c.tool, shareLocation ? c.toolOn : undefined)}
+                          >
+                            <LocateFixed {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
+                          </button>
+                          <textarea
+                            ref={inputRef}
+                            value={input}
+                            onChange={(e) => {
+                              setInput(e.target.value)
+                              autoGrow()
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                                e.preventDefault()
+                                send(input)
+                              }
+                            }}
+                            rows={1}
+                            aria-label="Message the concierge"
+                            placeholder={shareLocation ? "What's near me…" : "Ask about this trip…"}
+                            {...sx("trips-composer-input", c.input, expanded ? c.inputExpanded : c.inputDocked)}
+                          />
+                          {working ? (
+                            <button type="button" onClick={stop} aria-label="Stop the reply" title="Stop" {...sx(c.send)}>
+                              <span {...sx(c.stopGlyph)} aria-hidden />
+                            </button>
+                          ) : (
+                            <button type="submit" disabled={!input.trim()} aria-label="Send message" {...sx(c.send)}>
+                              <ArrowUp {...sx(c.icon18)} strokeWidth={2} aria-hidden />
+                            </button>
+                          )}
+                        </div>
+                      </form>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>,
           document.body,
         )}
@@ -798,139 +970,47 @@ export function TripChat() {
   )
 }
 
-function AssistantBubble({
-  message: m,
-  trip,
-  dayId,
-  streaming,
+function EmptyState({
+  place,
+  starters,
   reduce,
-  addingKey,
-  movingItemId,
-  busyMoveKey,
-  canEdit,
-  onAdd,
-  onRemove,
-  onMove,
-  onPhotos,
-  onMap,
-  onConfirmMove,
-  onDismissMove,
+  onPick,
 }: {
-  message: ChatMessage
-  trip: Trip | null
-  dayId?: string
-  streaming: boolean
+  place?: string
+  starters: Starter[]
   reduce: boolean
-  addingKey: string | null
-  movingItemId: string | null
-  busyMoveKey: string | null
-  canEdit: boolean
-  onAdd: (place: ConciergePlace, dayId: string) => void
-  onRemove: (place: ConciergePlace) => void
-  onMove: (place: ConciergePlace, toDayId: string) => void
-  onPhotos: (place: ConciergePlace) => void
-  onMap: (place: ConciergePlace) => void
-  onConfirmMove: (move: ResolvedMove) => void
-  onDismissMove: (key: string) => void
+  onPick: (starter: Starter) => void
 }) {
-  const mentioned = useMemo(() => {
-    if (!trip || !m.content) return []
-    const exclude = (m.places ?? []).map((p) => p.name)
-    return findMentionedStops(m.content, trip, exclude).map(stopToConciergePlace)
-  }, [trip, m.content, m.places])
-  const resolvedMoves = useMemo(
-    () => (trip && m.moves?.length ? resolveMoves(trip, m.moves) : []),
-    [trip, m.moves],
-  )
-
   return (
-    <div {...sx(c.assistantRow)}>
-      <div {...sx(c.assistant)}>
-        {m.content ? (
-          <div>
-            <ConciergeText
-              text={m.content}
-              bulletStyle={conciergeText.markerDotAccent}
-              numberStyle={conciergeText.markerNumAccent}
-            />
-            {streaming ? <span {...sx("trip-chat-caret")} aria-hidden /> : null}
-          </div>
-        ) : streaming ? (
-          <div>
-            <p {...sx(c.pending)}>Looking this up…</p>
-            <TypingDots reduce={reduce} />
-          </div>
-        ) : m.error || m.places?.length || m.moves?.length || m.sources?.length ? null : (
-          <TypingDots reduce={reduce} />
-        )}
-        {m.places && trip ? (
-          <ConciergePlaceCards
-            places={m.places}
-            days={trip.days}
-            defaultDayId={dayId}
-            city={trip.destinations[0]}
-            addedKeys={new Set(m.addedKeys)}
-            addingKey={addingKey}
-            movingItemId={movingItemId}
-            canEdit={canEdit}
-            variant="suggest"
-            onAdd={onAdd}
-            onPhotos={onPhotos}
-          />
-        ) : null}
-        {mentioned.length > 0 && trip ? (
-          <ConciergePlaceCards
-            places={mentioned}
-            days={trip.days}
-            defaultDayId={dayId}
-            city={trip.destinations[0]}
-            addedKeys={new Set()}
-            removedKeys={new Set(m.removedKeys)}
-            addingKey={null}
-            movingItemId={movingItemId}
-            canEdit={canEdit}
-            variant="itinerary"
-            onRemove={onRemove}
-            onMove={onMove}
-            onPhotos={onPhotos}
-            onMap={onMap}
-          />
-        ) : null}
-        {resolvedMoves.length > 0 ? (
-          <ConciergeMoveCards
-            moves={resolvedMoves}
-            appliedKeys={new Set(m.appliedMoveKeys)}
-            dismissedKeys={new Set(m.dismissedMoveKeys)}
-            busyKey={busyMoveKey}
-            canEdit={canEdit}
-            onConfirm={onConfirmMove}
-            onDismiss={onDismissMove}
-          />
-        ) : null}
-        {m.sources ? (
-          <ConciergeSources sources={m.sources} linkStyle={c.sourceLink} />
-        ) : null}
-        <ConciergeStreamStatus error={m.error} />
-      </div>
-    </div>
-  )
-}
-
-function TypingDots({ reduce }: { reduce: boolean }) {
-  return (
-    <div {...sx(c.typingRow)} aria-label="Concierge is typing">
-      {[0, 1, 2].map((i) =>
-        reduce ? (
-          <span key={i} {...sx(c.typingDot)} />
-        ) : (
-          <motion.span
-            key={i}
-            {...sx(c.typingDot)}
-            animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
-            transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
-          />
-        ),
-      )}
+    <div {...sx(c.empty)}>
+      <h3 {...sx(c.emptyTitle)}>
+        Ask about <em {...sx(c.emptyEm)}>{place ?? "this trip"}</em>.
+      </h3>
+      <p {...sx(c.emptyCopy)}>
+        I know your plan, check live hours and routes, and line up changes for you to apply.
+      </p>
+      {starters.length > 0 ? (
+        <ul {...sx(c.starters)} aria-label="Suggested questions">
+          {starters.map((starter, i) => {
+            const Icon = STARTER_ICON[starter.kind]
+            return (
+              <motion.li
+                key={starter.prompt}
+                {...sx(c.starterItem)}
+                initial={reduce ? false : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: EASE, delay: reduce ? 0 : 0.06 + i * 0.045 }}
+              >
+                <button type="button" onClick={() => onPick(starter)} {...sx(c.starter)}>
+                  <Icon {...sx(c.starterIcon)} strokeWidth={1.75} aria-hidden />
+                  <span {...sx(c.starterLabel)}>{starter.label}</span>
+                  <ArrowUpRight {...sx(c.starterGo)} strokeWidth={1.75} aria-hidden />
+                </button>
+              </motion.li>
+            )
+          })}
+        </ul>
+      ) : null}
     </div>
   )
 }

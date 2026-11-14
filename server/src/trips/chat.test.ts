@@ -1,5 +1,16 @@
 import { describe, expect, it } from "bun:test"
-import { buildTripChatContext, buildTripChatSystemInstruction, tripLatLngHint, tripPhase } from "./chat"
+import {
+  buildChatHistory,
+  buildTripChatContext,
+  buildTripChatSystemInstruction,
+  cleanFollowups,
+  placesMentioned,
+  planPosition,
+  resetForecastCache,
+  tripForecast,
+  tripLatLngHint,
+  tripPhase,
+} from "./chat"
 import type { Trip } from "./types"
 
 function makeTrip(): Trip {
@@ -109,10 +120,129 @@ describe("buildTripChatSystemInstruction", () => {
     expect(sys).toContain("concierge for one private trip")
     expect(sys).toContain("Tokyo Long Weekend")
     expect(sys).toContain("FOCUSED DAY")
-    expect(sys).toContain("Google Search and Google Maps")
-    expect(sys).toContain(":::add-places")
-    expect(sys).toContain(":::trip-moves")
-    expect(sys).not.toContain("Answer ONLY from the itinerary data")
+    expect(sys).toContain("find_places")
+    expect(sys).toContain("propose_changes")
+    // The fenced-JSON trailers are gone: changes are real function calls.
+    expect(sys).not.toContain(":::")
+    // Stops carry their ids so a change can name its target exactly.
+    expect(sys).toContain("Sushi Saito itemId=b")
+    expect(sys).not.toContain("needs_review)")
+  })
+
+  it("drops the tools the server cannot run and explains a shared position", () => {
+    const sys = buildTripChatSystemInstruction(makeTrip(), undefined, new Date("2026-07-10T03:00:00Z"), {
+      tools: { places: false, directions: false, search: true },
+      location: { lat: 35.7149, lng: 139.7968 },
+    })
+    expect(sys).not.toContain("- find_places:")
+    expect(sys).not.toContain("- get_directions:")
+    expect(sys).toContain("Place lookup is not available")
+    expect(sys).toContain("shared their position with this message")
+    expect(sys).toContain("Senso-ji (Day 1, itemId=a)")
+  })
+
+  it("gives live forecast lines and the walk between consecutive stops", () => {
+    const trip = makeTrip()
+    trip.days[0]!.items.push({
+      id: "c",
+      kind: "place",
+      title: "Kappabashi",
+      status: "needs_review",
+      createdBy: "user",
+      location: { name: "Kappabashi", source: "user", lat: 35.7143, lng: 139.7889 },
+    })
+    const ctx = buildTripChatContext(trip, undefined, new Date("2026-07-09T03:00:00Z"), [
+      { date: "2026-07-10", highC: 31.4, lowC: 24.2, precipitationChance: 70 },
+    ])
+    expect(ctx).toContain("Forecast (Open-Meteo, fetched now): 24–31°C, 70% chance of rain")
+    expect(ctx).toMatch(/↳ to Kappabashi: \d+ m, about \d+ min walk/)
+    expect(ctx).toContain("not confirmed yet")
+    expect(ctx).toContain("· tomorrow ·")
+  })
+})
+
+describe("planPosition", () => {
+  const day = {
+    id: "d",
+    date: "2026-07-10",
+    items: [
+      { id: "a", kind: "place" as const, title: "Museum", time: "10:00", endTime: "12:00", status: "none" as const, createdBy: "user" as const },
+      { id: "b", kind: "place" as const, title: "Lunch", time: "13:00", status: "none" as const, createdBy: "user" as const },
+    ],
+  }
+
+  it("says where the plan puts the traveller at a given minute", () => {
+    expect(planPosition(day, "09:00").line).toContain("first up is Museum at 10:00")
+    expect(planPosition(day, "11:00")).toMatchObject({ current: { id: "a" }, next: { id: "b" } })
+    expect(planPosition(day, "12:30").line).toContain("done with Museum (ended 12:00); next is Lunch at 13:00")
+    expect(planPosition(day, "15:00").line).toContain("at Lunch (from 13:00), the last timed stop")
+    expect(planPosition({ ...day, items: [] }, "15:00").current).toBeNull()
+  })
+})
+
+describe("buildChatHistory", () => {
+  it("appends the cards and change cards the traveller saw to the model turn", () => {
+    const history = buildChatHistory([
+      { role: "assistant", content: "orphan greeting" },
+      { role: "user", content: "wine bars?" },
+      {
+        role: "assistant",
+        content: "Bloco.",
+        places: [{ ref: "p1", name: "Bloco", address: "R. Nova da Trindade 11" }],
+        proposal: { summary: "Add Bloco to Saturday", state: "applied" },
+      },
+      { role: "assistant", content: "" },
+      { role: "user", content: "and after?" },
+    ])
+    expect(history.map((h) => h.role)).toEqual(["user", "model", "user"])
+    expect(history[1]!.parts[0]!.text).toContain("1. Bloco (ref p1), R. Nova da Trindade 11")
+    expect(history[1]!.parts[0]!.text).toContain('"Add Bloco to Saturday": the traveller applied it')
+  })
+})
+
+describe("placesMentioned", () => {
+  const places = [
+    { ref: "a", name: "Maré de Alfama (Seafood & Portuguese cuisine)" },
+    { ref: "b", name: "Bloco" },
+    { ref: "c", name: "Never Named" },
+  ]
+
+  it("keeps only the places the reply names, in the order it names them", () => {
+    const hit = placesMentioned("Start at **Bloco**, then lunch at Mare de Alfama.", places)
+    expect(hit.map((p) => p.ref)).toEqual(["b", "a"])
+    expect(placesMentioned("Blocos are everywhere.", places)).toEqual([])
+  })
+})
+
+describe("cleanFollowups", () => {
+  it("drops repeats, long lines and things the concierge cannot do", () => {
+    expect(
+      cleanFollowups(
+        ["How do we get to Bloco?", "Can you book a table at Bloco?", "wine bars?", "How do we get to Bloco?", 3, "x ".repeat(40)],
+        "Wine bars?",
+      ),
+    ).toEqual(["How do we get to Bloco?"])
+    expect(cleanFollowups("nope", "q")).toEqual([])
+  })
+})
+
+describe("tripForecast", () => {
+  it("never holds the reply up, and serves the result once it has landed", async () => {
+    resetForecastCache()
+    const trip = makeTrip()
+    let calls = 0
+    const slow = async () => {
+      calls += 1
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      return [{ date: "2026-07-10", highC: 30, lowC: 22, precipitationChance: 10 }]
+    }
+    expect(await tripForecast(trip, "2026-07-09", slow, 5)).toEqual([])
+    await new Promise((resolve) => setTimeout(resolve, 90))
+    expect(await tripForecast(trip, "2026-07-09", slow, 5)).toHaveLength(1)
+    expect(calls).toBe(1)
+    // Outside the forecast window there is nothing to ask for.
+    expect(await tripForecast(trip, "2026-01-01", slow, 5)).toEqual([])
+    expect(calls).toBe(1)
   })
 })
 

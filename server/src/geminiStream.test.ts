@@ -4,6 +4,7 @@ import {
   extractGeminiTextFromBody,
   mergeGeminiGrounding,
   parseGeminiStreamLine,
+  readGeminiAgentRound,
   relayGeminiChatBody,
   textFromGeminiParts,
 } from "./geminiStream"
@@ -182,5 +183,76 @@ describe("relayGeminiChatBody", () => {
     })
     expect(deltas.join("")).toBe("안녕")
     expect(result.sawText).toBe(true)
+  })
+})
+
+describe("readGeminiAgentRound", () => {
+  const body = (chunks: unknown[], split = false) => {
+    const text = chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("")
+    const bytes = new TextEncoder().encode(text)
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        // Optionally cut mid-line (and mid-character) like a real socket.
+        if (split) {
+          controller.enqueue(bytes.slice(0, 37))
+          controller.enqueue(bytes.slice(37))
+        } else controller.enqueue(bytes)
+        controller.close()
+      },
+    })
+  }
+
+  test("separates text, our function calls and server-side tool activity", async () => {
+    const seen: string[] = []
+    const round = await readGeminiAgentRound(
+      body(
+        [
+          {
+            modelVersion: "gemini-4-hydrogen",
+            candidates: [{ content: { parts: [{ thoughtSignature: "s1", toolCall: { toolType: "GOOGLE_SEARCH_WEB", args: { queries: ["metro strike"] } } }] } }],
+          },
+          { candidates: [{ content: { parts: [{ toolResponse: { toolType: "GOOGLE_SEARCH_WEB" } }, { text: "hidden", thought: true }, { text: "Olá, " }] } }] },
+          {
+            candidates: [
+              {
+                content: { parts: [{ text: "Lisboa." }, { functionCall: { name: "find_places", args: { query: "café" }, id: "c1" }, thoughtSignature: "s2" }] },
+                finishReason: "STOP",
+                groundingMetadata: { groundingChunks: [{ web: { uri: "https://example.com/a", title: "example.com" } }] },
+              },
+            ],
+            usageMetadata: { totalTokenCount: 12 },
+          },
+        ],
+        true,
+      ),
+      {
+        onText: (delta) => void seen.push(`text:${delta}`),
+        onServerTool: (call) => void seen.push(`tool:${call.toolType}:${call.queries.join("|")}`),
+        onModelVersion: (model) => void seen.push(`model:${model}`),
+      },
+    )
+    expect(seen).toEqual(["model:gemini-4-hydrogen", "tool:GOOGLE_SEARCH_WEB:metro strike", "text:Olá, ", "text:Lisboa."])
+    expect(round.text).toBe("Olá, Lisboa.")
+    expect(round.functionCalls).toEqual([{ name: "find_places", args: { query: "café" }, id: "c1" }])
+    expect(round.finishReason).toBe("STOP")
+    expect(round.modelVersion).toBe("gemini-4-hydrogen")
+    expect(round.grounding?.chunks[0]?.uri).toBe("https://example.com/a")
+    // Parts are kept verbatim, signatures included, for the follow-up request.
+    expect(round.parts).toHaveLength(6)
+    expect(round.parts[0]!.thoughtSignature).toBe("s1")
+    expect(round.parts[5]!.thoughtSignature).toBe("s2")
+  })
+
+  test("reports a blocked prompt and survives junk lines", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {not json\n\ndata: {"promptFeedback":{"blockReason":"SAFETY"}}\n\ndata: [DONE]\n'))
+        controller.close()
+      },
+    })
+    const round = await readGeminiAgentRound(stream)
+    expect(round.blockReason).toBe("SAFETY")
+    expect(round.text).toBe("")
+    expect(round.functionCalls).toEqual([])
   })
 })

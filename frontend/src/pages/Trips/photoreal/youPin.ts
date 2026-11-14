@@ -214,7 +214,7 @@ export class YouPin {
     this.alphaMap = createPuddleAlpha()
 
     this.pinMat = new MeshPhysicalMaterial({
-      color: pale,
+      color: opts.transmission ? pale : ACCENT.clone().lerp(new Color(0xffffff), 0.12),
       roughness: 0.045,
       metalness: 0.02,
       ior: 1.333,
@@ -223,7 +223,7 @@ export class YouPin {
       attenuationDistance: 3.6,
       transmission: opts.transmission ? 0.96 : 0,
       transparent: true,
-      opacity: opts.transmission ? 1 : 0.88,
+      opacity: opts.transmission ? 1 : 0.94,
       clearcoat: 1,
       clearcoatRoughness: 0.05,
       iridescence: 0.22,
@@ -233,7 +233,7 @@ export class YouPin {
       specularIntensity: 1,
       specularColor: new Color(0xffffff),
       emissive: ACCENT.clone(),
-      emissiveIntensity: 0.06,
+      emissiveIntensity: opts.transmission ? 0.06 : 0.18,
       fog: false,
       dispersion: 1.35,
     })
@@ -330,7 +330,7 @@ export class YouPin {
 
   /** Night (or the dark theme) lifts the glow so the droplet doesn't sink into the scene. */
   setDim(dim: boolean) {
-    this.pinMat.emissiveIntensity = dim ? 0.2 : 0.06
+    this.pinMat.emissiveIntensity = (dim ? 0.2 : 0.06) + (this.pinMat.transmission > 0 ? 0 : 0.12)
     this.haloBaseOpacity = dim ? 0.62 : 0.4
     this.puddleMat.envMapIntensity = dim ? 1.15 : 1.7
   }
