@@ -238,7 +238,7 @@ export class Tuft {
         const w = i / (n - 1)
         const k = 950 - 560 * w
         const c = 17 - 8 * w
-        const reach = 0.1 + 0.36 * w
+        const reach = 0.08 + 0.24 * w
         for (let s = 1; s <= steps; s++) {
           const f = s / steps
           const gx = this.last[j] + (target[0] - this.last[j]) * f
@@ -273,46 +273,71 @@ export class Tuft {
   private skin() {
     const { x, n, pos, nrm, radii } = this
     const at = (i: number, a: number) => x[Math.min(n - 1, Math.max(0, i)) * 3 + a]
+    // The last CAP rings and the tip vertex form a hemisphere on the end of the tube.
+    const CAP = 2
+    const BODY = RINGS - CAP
     let px = 0
     let py = 0
     let pz = 1
+    const c: Vec3 = [0, 0, 0]
+    const tan: Vec3 = [0, 0, 0]
+    let nx = 1
+    let ny = 0
+    let nz = 0
+    let bx = 0
+    let by = 0
+    let bz = 1
+    let tx = 0
+    let ty = 1
+    let tz = 0
+    let rad = radii[0]
     for (let r = 0; r < RINGS; r++) {
-      const u = (r / (RINGS - 1)) * (n - 1)
-      const i = Math.min(n - 2, Math.floor(u))
-      const f = u - i
-      const f2 = f * f
-      const f3 = f2 * f
-      const c: Vec3 = [0, 0, 0]
-      const tan: Vec3 = [0, 0, 0]
-      // Catmull-Rom through the chain.
-      for (let a = 0; a < 3; a++) {
-        const p0 = at(i - 1, a)
-        const p1 = at(i, a)
-        const p2 = at(i + 1, a)
-        const p3 = at(i + 2, a)
-        c[a] = 0.5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f2 + (3 * p1 - p0 - 3 * p2 + p3) * f3)
-        tan[a] = 0.5 * (p2 - p0 + 2 * (2 * p0 - 5 * p1 + 4 * p2 - p3) * f + 3 * (3 * p1 - p0 - 3 * p2 + p3) * f2)
+      let ringRad = rad
+      let fwd = 0
+      let lean = 0
+      if (r < BODY) {
+        const u = (r / (BODY - 1)) * (n - 1)
+        const i = Math.min(n - 2, Math.floor(u))
+        const f = u - i
+        const f2 = f * f
+        const f3 = f2 * f
+        // Catmull-Rom through the chain.
+        for (let a = 0; a < 3; a++) {
+          const p0 = at(i - 1, a)
+          const p1 = at(i, a)
+          const p2 = at(i + 1, a)
+          const p3 = at(i + 2, a)
+          c[a] = 0.5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f2 + (3 * p1 - p0 - 3 * p2 + p3) * f3)
+          tan[a] = 0.5 * (p2 - p0 + 2 * (2 * p0 - 5 * p1 + 4 * p2 - p3) * f + 3 * (3 * p1 - p0 - 3 * p2 + p3) * f2)
+        }
+        const tl = Math.hypot(tan[0], tan[1], tan[2]) || 1
+        tx = tan[0] / tl
+        ty = tan[1] / tl
+        tz = tan[2] / tl
+        // Carry the previous ring's frame along the curve so it never twists.
+        nx = py * tz - pz * ty
+        ny = pz * tx - px * tz
+        nz = px * ty - py * tx
+        const nl = Math.hypot(nx, ny, nz) || 1
+        nx /= nl
+        ny /= nl
+        nz /= nl
+        bx = ty * nz - tz * ny
+        by = tz * nx - tx * nz
+        bz = tx * ny - ty * nx
+        px = bx
+        py = by
+        pz = bz
+        rad = radii[i] + (radii[i + 1] - radii[i]) * f
+        ringRad = rad
+      } else {
+        // Cap ring: a smaller circle further along the tangent, normals tipping forward.
+        const th = ((r - BODY + 1) / (CAP + 1)) * (Math.PI / 2)
+        ringRad = rad * Math.cos(th)
+        fwd = rad * Math.sin(th)
+        lean = Math.sin(th)
       }
-      const tl = Math.hypot(tan[0], tan[1], tan[2]) || 1
-      const tx = tan[0] / tl
-      const ty = tan[1] / tl
-      const tz = tan[2] / tl
-      // Carry the previous ring's frame along the curve so it never twists.
-      let nx = py * tz - pz * ty
-      let ny = pz * tx - px * tz
-      let nz = px * ty - py * tx
-      const nl = Math.hypot(nx, ny, nz) || 1
-      nx /= nl
-      ny /= nl
-      nz /= nl
-      const bx = ty * nz - tz * ny
-      const by = tz * nx - tx * nz
-      const bz = tx * ny - ty * nx
-      px = bx
-      py = by
-      pz = bz
-      // The last two rings close in, so the tip is a rounded nub however straight it stands.
-      const rad = (radii[i] + (radii[i + 1] - radii[i]) * f) * (r === RINGS - 1 ? 0.62 : r === RINGS - 2 ? 0.9 : 1)
+      const side = Math.sqrt(1 - lean * lean)
       for (let s = 0; s < SIDES; s++) {
         const a = (s / SIDES) * Math.PI * 2
         const cs = Math.cos(a)
@@ -321,23 +346,21 @@ export class Tuft {
         const oy = ny * cs + by * sn
         const oz = nz * cs + bz * sn
         const j = (r * SIDES + s) * 3
-        pos[j] = c[0] + ox * rad
-        pos[j + 1] = c[1] + oy * rad
-        pos[j + 2] = c[2] + oz * rad
-        nrm[j] = ox
-        nrm[j + 1] = oy
-        nrm[j + 2] = oz
-      }
-      if (r === RINGS - 1) {
-        const j = RINGS * SIDES * 3
-        pos[j] = c[0] + tx * rad * 0.9
-        pos[j + 1] = c[1] + ty * rad * 0.9
-        pos[j + 2] = c[2] + tz * rad * 0.9
-        nrm[j] = tx
-        nrm[j + 1] = ty
-        nrm[j + 2] = tz
+        pos[j] = c[0] + tx * fwd + ox * ringRad
+        pos[j + 1] = c[1] + ty * fwd + oy * ringRad
+        pos[j + 2] = c[2] + tz * fwd + oz * ringRad
+        nrm[j] = ox * side + tx * lean
+        nrm[j + 1] = oy * side + ty * lean
+        nrm[j + 2] = oz * side + tz * lean
       }
     }
+    const j = RINGS * SIDES * 3
+    pos[j] = c[0] + tx * rad
+    pos[j + 1] = c[1] + ty * rad
+    pos[j + 2] = c[2] + tz * rad
+    nrm[j] = tx
+    nrm[j + 1] = ty
+    nrm[j + 2] = tz
     this.geo.attributes.position.needsUpdate = true
     this.geo.attributes.normal.needsUpdate = true
   }

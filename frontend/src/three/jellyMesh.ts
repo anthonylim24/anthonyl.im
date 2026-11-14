@@ -38,12 +38,14 @@ export function skinnedJellyGeometry(jelly: Jelly, index: ArrayLike<number>): TH
  * particle's offset from it. The big moves (squash, stretch, lean, tumble)
  * live in the goal, so they come through whole; the offsets carry the jiggle
  * and dents, and saturate at `limit` so a hard shake or impact can never
- * crease, facet or fold the surface. `floor` keeps the skin on the ground.
+ * crease, facet or fold the surface. `floor` keeps the skin on the ground: a
+ * skin that dips under it is lifted whole, never sliced flat.
  * Call before `syncJellyGeometry`.
  */
 export function skinJelly(geo: THREE.BufferGeometry, jelly: Jelly, limit: number, floor: number | null = null) {
   const out = (geo.attributes.position as THREE.BufferAttribute).array as Float32Array
   const { x, goal } = jelly
+  let low = Infinity
   for (let i = 0; i < x.length; i += 3) {
     const dx = x[i] - goal[i]
     const dy = x[i + 1] - goal[i + 1]
@@ -52,9 +54,13 @@ export function skinJelly(geo: THREE.BufferGeometry, jelly: Jelly, limit: number
     // tanh-style saturation: linear for small offsets, levelling off at `limit`.
     const k = d > 1e-6 ? (limit * Math.tanh(d / limit)) / d : 1
     out[i] = goal[i] + dx * k
-    const y = goal[i + 1] + dy * k
-    out[i + 1] = floor !== null && y < floor ? floor : y
+    out[i + 1] = goal[i + 1] + dy * k
     out[i + 2] = goal[i + 2] + dz * k
+    if (out[i + 1] < low) low = out[i + 1]
+  }
+  if (floor !== null && low < floor) {
+    const up = floor - low
+    for (let i = 1; i < out.length; i += 3) out[i] += up
   }
 }
 

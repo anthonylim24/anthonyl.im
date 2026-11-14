@@ -122,7 +122,7 @@ export const FACES = {
   yawn: face({ w: 0.1, curve: 0, open: 0.2, o: 1, blush: 0.5, lidTop: 0.04, lidBot: 0.2, seam: -0.1, brow: 1, browL: [0.12, 0.08], browR: [-0.12, 0.08] }),
   asleep: face({ w: 0.07, curve: 1.4, open: 0.015, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.25, smile: -0.8 }),
   aah: face({ w: 0.27, curve: 0.6, open: 0.36, o: 1, blush: 0.7, lidTop: 1.05, brow: 1, browL: [-0.12, 0.1], browR: [0.12, 0.1], pupil: 1.15 }),
-  chew: face({ w: 0.1, curve: 1.6, open: 0, blush: 0.95, ...HAPPY_EYES }),
+  chew: face({ w: 0.19, curve: 1.2, open: 0, blush: 0.95, ...HAPPY_EYES }),
   hit: face({ w: 0.11, curve: -1.6, open: 0.02, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.1, smile: -1, brow: 1, browL: [-0.45, -0.02], browR: [0.45, -0.02] }),
   dizzy: face({ w: 0.15, curve: 0, open: 0.03, blush: 0.7, lidTop: 1, dizzy: 1, brow: 1, browL: [0.2, 0.08], browR: [0.2, 0.02] }),
   love: face({ w: 0.17, curve: 2.6, open: 0.12, blush: 1, lidTop: 1.05, heart: 1 }),
@@ -261,7 +261,7 @@ export const inkOf = (u: LimUniforms): V3 => mix(col(PAL.ink), col(PAL.nightInk)
 
 /** Lim's skin tones under the current tint, mood and time of day. */
 function skin(u: LimUniforms, base: V3, height: F) {
-  const filled = float(1).sub(smoothstep(u.tintLevel.sub(0.3), u.tintLevel, height))
+  const filled = float(1).sub(smoothstep(u.tintLevel.sub(0.5), u.tintLevel, height))
   const tinted = mix(base, u.tint as unknown as V3, u.tintAmt.mul(filled))
   const b = mix(tinted, col('#D9939B'), u.sad.mul(0.4)).mul(mix(float(1), float(0.84), u.night))
   const shade = mix(mix(col(PAL.shade), (u.tint as unknown as V3).mul(0.62), u.tintAmt), col('#9A3A7C'), u.night)
@@ -293,6 +293,14 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
   let c = gel(n.view, n.spec, { ...s, window, gloss })
   // At night the jelly glows a little from inside.
   c = c.add(s.rim.mul(u.night).mul(0.07))
+
+  // The back of the head isn't blank: a small swirl, like the knot on a balloon.
+  const back = smoothstep(0.3, 0.55, rn.z.negate())
+  const sw = vec2(p.x, p.y.sub(0.05))
+  const swR = length(sw)
+  const swirl = aaStep(abs(swR.sub(atan(sw.y, sw.x).add(3.1416).mul(0.022).add(0.05))).sub(0.016), 0.012)
+    .mul(float(1).sub(smoothstep(0.2, 0.24, swR)))
+  c = mix(c, s.shade, swirl.mul(back).mul(0.55))
 
   const cheekY = a.eyeY - 0.29
   const cheekX = a.eyeX + 0.24
@@ -498,12 +506,12 @@ export function rippleMaterial(u: LimUniforms) {
   return { mat, k }
 }
 
-/** A puff of floor dust: a flat, soft-edged, half-transparent disc. */
+/** A puff of floor dust: a soft-edged, mostly transparent disc lying on the floor. */
 export function dustMaterial(u: LimUniforms) {
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false })
   const d = length(uv().sub(0.5)).mul(2)
-  mat.colorNode = mix(col('#FFF6EE'), col('#6E60B8'), u.night)
-  mat.opacityNode = float(1).sub(smoothstep(0.45, 1, d)).mul(0.72)
+  mat.colorNode = mix(col('#F6DCCB'), col('#6E60B8'), u.night)
+  mat.opacityNode = float(1).sub(smoothstep(0.3, 1, d)).mul(0.42)
   return mat
 }
 

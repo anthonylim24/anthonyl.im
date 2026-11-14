@@ -20,17 +20,34 @@ describe('skinJelly', () => {
     // A wild, uneven shove: the particles scatter, the skin must not.
     for (let i = 0; i < jelly.count; i++) jelly.v[i * 3] = i % 2 ? 90 : -90
     jelly.step(1 / 60)
-    skinJelly(geo, jelly, 0.15, -0.5)
+    skinJelly(geo, jelly, 0.15)
     const out = geo.attributes.position.array as Float32Array
     let worst = 0
-    let lowest = Infinity
+    let rough = 0
     for (let i = 0; i < out.length; i += 3) {
-      const onFloor = out[i + 1] === -0.5
-      const d = Math.hypot(out[i] - jelly.goal[i], onFloor ? 0 : out[i + 1] - jelly.goal[i + 1], out[i + 2] - jelly.goal[i + 2])
-      worst = Math.max(worst, d)
-      lowest = Math.min(lowest, out[i + 1])
+      worst = Math.max(worst, Math.hypot(out[i] - jelly.goal[i], out[i + 1] - jelly.goal[i + 1], out[i + 2] - jelly.goal[i + 2]))
+      rough = Math.max(rough, Math.hypot(jelly.x[i] - jelly.goal[i], jelly.x[i + 1] - jelly.goal[i + 1], jelly.x[i + 2] - jelly.goal[i + 2]))
     }
+    expect(rough).toBeGreaterThan(0.3)
     expect(worst).toBeLessThanOrEqual(0.15 + 1e-6)
-    expect(lowest).toBeGreaterThanOrEqual(-0.5)
+  })
+
+  it('lifts a skin that dips under the floor whole, without flattening it', () => {
+    const { positions, index } = icosphere(1, 2)
+    const jelly = new Jelly(positions)
+    const free = skinnedJellyGeometry(jelly, index)
+    const grounded = skinnedJellyGeometry(jelly, index)
+    skinJelly(free, jelly, 0.15)
+    skinJelly(grounded, jelly, 0.15, -0.4)
+    const a = free.attributes.position.array as Float32Array
+    const b = grounded.attributes.position.array as Float32Array
+    let low = Infinity
+    for (let i = 0; i < b.length; i += 3) {
+      low = Math.min(low, b[i + 1])
+      // Same shape, moved straight up by 0.6 (the sphere's base was at -1).
+      expect(b[i]).toBeCloseTo(a[i], 5)
+      expect(b[i + 1] - a[i + 1]).toBeCloseTo(0.6, 5)
+    }
+    expect(low).toBeCloseTo(-0.4, 5)
   })
 })
