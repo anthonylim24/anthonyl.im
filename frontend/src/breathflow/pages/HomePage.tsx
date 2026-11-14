@@ -211,8 +211,8 @@ export function HomePage() {
               />
               {!reducedMotion && (
                 <p aria-hidden="true" {...sx(home.hint)}>
-                  <span {...sx(home.hintFine)}>Poke the cat, or drag it.</span>
-                  <span {...sx(home.hintTouch)}>Tap or drag the cat.</span>
+                  <span {...sx(home.hintFine)}>Poke the cat, or drag it. Toss the yarn.</span>
+                  <span {...sx(home.hintTouch)}>Tap or drag the cat. Toss the yarn.</span>
                   <span {...sx(wc.italic, home.hintPigment)}>{pigment.name}</span>
                 </p>
               )}
