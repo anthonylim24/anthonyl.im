@@ -143,13 +143,16 @@ export function toHistory(messages: ChatMessage[]): TripChatMessage[] {
     })
 }
 
-/** One fix, on demand. Resolves null when the browser says no or takes too long. */
-function readPosition(timeoutMs = 8000): Promise<{ lat: number; lng: number } | null> {
+/** One fix, on demand. Resolves null when the browser says no, takes too
+ *  long, or `signal` aborts first (an unanswered permission prompt never
+ *  calls back, so the abort is the only way out of it). */
+function readPosition(signal: AbortSignal, timeoutMs = 8000): Promise<{ lat: number; lng: number } | null> {
   return new Promise((resolve) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
+    if (signal.aborted || typeof navigator === "undefined" || !navigator.geolocation) {
       resolve(null)
       return
     }
+    signal.addEventListener("abort", () => resolve(null), { once: true })
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => resolve(null),
@@ -157,6 +160,25 @@ function readPosition(timeoutMs = 8000): Promise<{ lat: number; lng: number } | 
     )
   })
 }
+
+function abortError(): Error {
+  return Object.assign(new Error("Aborted"), { name: "AbortError" })
+}
+
+/** The one itinerary write in flight: a place card (`id` = card key) or a
+ *  change card (`id` = message id). Every write control waits for it. */
+interface Mutation {
+  kind: "place" | "proposal"
+  messageId: string
+  id: string
+}
+
+/** `working`: the reply is being written. `finishing`: the text is done and
+ *  only the follow-up prompts are still on their way. `target` is the reply
+ *  being written, which a retry can make an earlier one. */
+type RunState = { phase: "idle" } | { phase: "working" | "finishing"; target: string }
+
+const IDLE: RunState = { phase: "idle" }
 
 /** Markdown reply → a sentence a screen reader can say once. */
 function spoken(text: string): string {
@@ -176,10 +198,15 @@ export function TripChat() {
   const authReady = useAuthReady()
   const reduce = useReducedMotion()
   const isDesktop = useMinWidth(768)
-  const [trip, setTrip] = useState<Trip | null>(null)
-  const [access, setAccess] = useState<TripAccess>("view")
-  const [addingKey, setAddingKey] = useState<string | null>(null)
-  const [busyProposal, setBusyProposal] = useState<string | null>(null)
+  // The trip is kept with the route id it was loaded for, so one trip's
+  // document is never shown, sent or written under another's route.
+  const [loaded, setLoaded] = useState<{ forId: string; trip: Trip; access: TripAccess } | null>(null)
+  const current = loaded && loaded.forId === tripId ? loaded : null
+  const trip = current?.trip ?? null
+  const access: TripAccess = current?.access ?? "view"
+  const [mutation, setMutation] = useState<Mutation | null>(null)
+  /** An Add / Apply / Undo that failed. Not the reply's own `error`, and not saved. */
+  const [actionError, setActionError] = useState<{ messageId: string; text: string } | null>(null)
   const [skipped, setSkipped] = useState<Record<string, Record<string, string>>>({})
   const [undoable, setUndoable] = useState<Set<string>>(() => new Set())
   const [photo, setPhoto] = useState<PhotoView | null>(null)
@@ -187,9 +214,8 @@ export function TripChat() {
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
-  /** `working`: the reply is being written. `finishing`: the text is done and
-   *  only the follow-up prompts are still on their way. */
-  const [phase, setPhase] = useState<"idle" | "working" | "finishing">("idle")
+  const [runState, setRunState] = useState<RunState>(IDLE)
+  const phase = runState.phase
   const [status, setStatus] = useState<ConciergeStatus | null>(null)
   const [shareLocation, setShareLocation] = useState(false)
   const [locationNote, setLocationNote] = useState<string | null>(null)
@@ -203,6 +229,9 @@ export function TripChat() {
   const abortRef = useRef<AbortController | null>(null)
   const runRef = useRef(0)
   const messagesRef = useRef<ChatMessage[]>([])
+  const tripIdRef = useRef(tripId)
+  /** Itinerary writes run one after another, each reading the document the last one left. */
+  const writeChain = useRef<Promise<unknown>>(Promise.resolve())
   const snapshots = useRef(new Map<string, DaySnapshot>())
   const titleId = useId()
   const lastUserId = lastMessageIdByRole(messages, "user")
@@ -210,26 +239,27 @@ export function TripChat() {
   const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, phase, open)
 
   messagesRef.current = messages
+  tripIdRef.current = tripId
+
+  /** Keep `next` as the document for route `forId`, unless the route has moved on. */
+  const putTrip = useCallback((forId: string, next: Trip, nextAccess?: TripAccess) => {
+    if (tripIdRef.current !== forId) return
+    setLoaded((prev) => ({
+      forId,
+      trip: next,
+      access: nextAccess ?? (prev?.forId === forId ? prev.access : "view"),
+    }))
+  }, [])
 
   useEffect(() => {
-    if (!tripId) {
-      setTrip(null)
-      setAccess("view")
-      return
-    }
+    if (!tripId) return
     let cancelled = false
     void getTrip(readToken, tripId)
       .then(({ trip: next, access: nextAccess }) => {
-        if (!cancelled) {
-          setTrip(next)
-          setAccess(nextAccess)
-        }
+        if (!cancelled) putTrip(tripId, next, nextAccess)
       })
       .catch(() => {
-        if (!cancelled) {
-          setTrip(null)
-          setAccess("view")
-        }
+        if (!cancelled) setLoaded((prev) => (prev?.forId === tripId ? null : prev))
       })
     return () => {
       cancelled = true
@@ -238,9 +268,12 @@ export function TripChat() {
 
   useTripChanged(
     tripId,
-    useCallback((next) => {
-      setTrip(next)
-    }, []),
+    useCallback(
+      (next) => {
+        if (tripId) putTrip(tripId, next)
+      },
+      [tripId, putTrip],
+    ),
   )
 
   // The conversation belongs to the trip: restore it, and keep it saved.
@@ -248,9 +281,11 @@ export function TripChat() {
   useEffect(() => {
     abortRef.current?.abort()
     runRef.current += 1
-    setPhase("idle")
+    setRunState(IDLE)
     setStatus(null)
     setInput("")
+    setMutation(null)
+    setActionError(null)
     setSkipped({})
     setUndoable(new Set())
     snapshots.current.clear()
@@ -379,37 +414,39 @@ export function TripChat() {
       const runId = ++runRef.current
       const live = () => runRef.current === runId
 
-      setPhase("working")
+      setRunState({ phase: "working", target: assistantId })
       setStatus(null)
       setAnnounce("Concierge is working on it.")
-
-      let location: { lat: number; lng: number } | undefined
-      if (withLocation) {
-        setStatus({ kind: "places", label: "Finding where you are" })
-        const fix = await readPosition()
-        if (!live()) return
-        if (fix) location = fix
-        else setLocationNote("Couldn't get your location, so this answer goes by your plan.")
-        setStatus(null)
-      }
-
-      let activeTrip = trip
-      if (!activeTrip) {
-        try {
-          const loaded = await getTrip(readToken, tripId)
-          activeTrip = loaded.trip
-          if (live()) {
-            setTrip(activeTrip)
-            setAccess(loaded.access)
-          }
-        } catch {
-          activeTrip = null
-        }
-      }
-      const canonicalId = activeTrip?.id ?? tripId
-      const focusedDayId = dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
+      // Once the words are all here, a close is not a stop.
+      let textDone = false
 
       try {
+        let location: { lat: number; lng: number } | undefined
+        if (withLocation) {
+          setStatus({ kind: "places", label: "Finding where you are" })
+          const fix = await readPosition(controller.signal)
+          if (!live()) return
+          if (controller.signal.aborted) throw abortError()
+          if (fix) location = fix
+          else setLocationNote("Couldn't get your location, so this answer goes by your plan.")
+          setStatus(null)
+        }
+
+        let activeTrip = trip
+        if (!activeTrip) {
+          activeTrip = await getTrip(readToken, tripId).then(
+            (fetched) => {
+              if (live()) putTrip(tripId, fetched.trip, fetched.access)
+              return fetched.trip
+            },
+            () => null,
+          )
+          if (!live()) return
+          if (controller.signal.aborted) throw abortError()
+        }
+        const canonicalId = activeTrip?.id ?? tripId
+        const focusedDayId = dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
+
         const result = await streamTripChat(
           {
             tripId: canonicalId,
@@ -428,8 +465,10 @@ export function TripChat() {
             onStatus: (next) => {
               if (!live()) return
               setStatus(next)
-              if (next.kind === "done") setPhase("finishing")
-              else if (next.label) setAnnounce(next.label)
+              if (next.kind === "done") {
+                textDone = true
+                setRunState({ phase: "finishing", target: assistantId })
+              } else if (next.label) setAnnounce(next.label)
             },
             onPlaces: (places) => {
               if (live()) patchMessage(assistantId, (m) => ({ ...m, places }))
@@ -461,8 +500,10 @@ export function TripChat() {
       } catch (err) {
         if (!live()) return
         if (controller.signal.aborted || (err as Error).name === "AbortError") {
-          patchMessage(assistantId, (m) => ({ ...m, stopped: true }))
-          setAnnounce("Stopped.")
+          if (!textDone) {
+            patchMessage(assistantId, (m) => ({ ...m, stopped: true }))
+            setAnnounce("Stopped.")
+          }
         } else {
           const message = (err as Error).message || "Something went wrong. Please try again."
           patchMessage(assistantId, (m) => ({ ...m, error: message }))
@@ -470,13 +511,13 @@ export function TripChat() {
         }
       } finally {
         if (live()) {
-          setPhase("idle")
+          setRunState(IDLE)
           setStatus(null)
           abortRef.current = null
         }
       }
     },
-    [tripId, dayId, trip, readToken, patchMessage],
+    [tripId, dayId, trip, readToken, patchMessage, putTrip],
   )
 
   const send = useCallback(
@@ -505,6 +546,7 @@ export function TripChat() {
       if (!question || question.role !== "user" || phase === "working") return
       const history = all.slice(0, at - 1)
       const fresh: ChatMessage = { id: assistantId, role: "assistant", content: "" }
+      setActionError((prev) => (prev?.messageId === assistantId ? null : prev))
       setMessages([...history, question, fresh, ...all.slice(at + 1)])
       void run(question.content, history, assistantId, Boolean(question.sharedLocation))
     },
@@ -518,8 +560,9 @@ export function TripChat() {
   const newChat = useCallback(() => {
     abortRef.current?.abort()
     runRef.current += 1
-    setPhase("idle")
+    setRunState(IDLE)
     setStatus(null)
+    setActionError(null)
     setMessages([])
     setSkipped({})
     setUndoable(new Set())
@@ -532,30 +575,54 @@ export function TripChat() {
 
   const canEdit = access === "edit" || access === "owner"
 
-  /** Read the trip fresh, change its days, save, and tell the page. */
+  /** Read the trip fresh, change its days, save, and tell the page. Writes
+   *  queue: each one starts after the last settled, so it reads that result. */
   const saveDays = useCallback(
-    async (mutate: (fresh: Trip) => Trip["days"] | null) => {
-      if (!tripId) throw new Error("No trip is open.")
-      const { trip: fresh } = await getTrip(readToken, tripId)
-      const days = mutate(fresh)
-      if (!days) {
-        setTrip(fresh)
-        return fresh
-      }
-      const next = await updateTrip(readToken, fresh.id, { days })
-      setTrip(next)
-      emitTripChanged(next)
-      return next
+    (change: (fresh: Trip) => Trip["days"] | null): Promise<Trip> => {
+      const forId = tripId
+      const job = writeChain.current.then(async () => {
+        if (!forId) throw new Error("No trip is open.")
+        const { trip: fresh } = await getTrip(readToken, forId)
+        const days = change(fresh)
+        if (!days) {
+          putTrip(forId, fresh)
+          return fresh
+        }
+        const next = await updateTrip(readToken, fresh.id, { days })
+        putTrip(forId, next)
+        emitTripChanged(next)
+        return next
+      })
+      writeChain.current = job.catch(() => undefined)
+      return job
     },
-    [tripId, readToken],
+    [tripId, readToken, putTrip],
+  )
+
+  /** One itinerary write at a time: mark it, run it, report a failure on its
+   *  reply. Nothing is reported once the route has moved to another trip. */
+  const runWrite = useCallback(
+    async (mark: Mutation, fallback: string, work: (stale: () => boolean) => Promise<void>) => {
+      const forId = tripId
+      const stale = () => tripIdRef.current !== forId
+      setMutation(mark)
+      try {
+        await work(stale)
+        if (!stale()) setActionError(null)
+      } catch (err) {
+        if (!stale()) setActionError({ messageId: mark.messageId, text: (err as Error).message || fallback })
+      } finally {
+        setMutation((now) => (now === mark ? null : now))
+      }
+    },
+    [tripId],
   )
 
   const addPlace = useCallback(
-    async (messageId: string, target: ConciergePlace, targetDayId: string) => {
+    (messageId: string, target: ConciergePlace, targetDayId: string) => {
       if (!canEdit) return
       const key = conciergePlaceKey(target)
-      setAddingKey(key)
-      try {
+      return runWrite({ kind: "place", messageId, id: key }, "Could not add that place.", async (stale) => {
         let added: AddedPlace | null = null
         await saveDays((fresh) => {
           const day = fresh.days.find((d) => d.id === targetDayId)
@@ -570,49 +637,40 @@ export function TripChat() {
           added = { dayId: day.id, itemId: item.id, time }
           return fresh.days.map((d) => (d.id === day.id ? { ...d, items: insertByTime(d.items, item) } : d))
         })
-        if (added) {
+        if (added && !stale()) {
           const record: AddedPlace = added
           patchMessage(messageId, (m) => ({ ...m, added: { ...m.added, [key]: record } }))
           setAnnounce(`Added ${target.name} to the itinerary.`)
         }
-      } catch (err) {
-        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not add that place." }))
-      } finally {
-        setAddingKey(null)
-      }
+      })
     },
-    [canEdit, saveDays, patchMessage],
+    [canEdit, saveDays, patchMessage, runWrite],
   )
 
   const undoAdd = useCallback(
-    async (messageId: string, target: ConciergePlace) => {
+    (messageId: string, target: ConciergePlace) => {
       const key = conciergePlaceKey(target)
       const record = messagesRef.current.find((m) => m.id === messageId)?.added?.[key]
       if (!record || !canEdit) return
-      setAddingKey(key)
-      try {
+      return runWrite({ kind: "place", messageId, id: key }, "Could not undo that.", async (stale) => {
         await saveDays((fresh) => removeItem(fresh.days, record.dayId, record.itemId))
+        if (stale()) return
         patchMessage(messageId, (m) => {
           const { [key]: _removed, ...rest } = m.added ?? {}
           return { ...m, added: rest }
         })
         setAnnounce(`Removed ${target.name} again.`)
-      } catch (err) {
-        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not undo that." }))
-      } finally {
-        setAddingKey(null)
-      }
+      })
     },
-    [canEdit, saveDays, patchMessage],
+    [canEdit, saveDays, patchMessage, runWrite],
   )
 
   const applyChanges = useCallback(
-    async (messageId: string, selected: Set<string>) => {
+    (messageId: string, selected: Set<string>) => {
       const message = messagesRef.current.find((m) => m.id === messageId)
       if (!message?.proposal || !canEdit) return
       const proposal = message.proposal
-      setBusyProposal(messageId)
-      try {
+      return runWrite({ kind: "proposal", messageId, id: messageId }, "Could not update the itinerary.", async (stale) => {
         let outcome: ReturnType<typeof applyProposal> | null = null
         let before: Trip["days"] = []
         await saveDays((fresh) => {
@@ -621,7 +679,7 @@ export function TripChat() {
           return outcome.applied.length ? outcome.days : null
         })
         const result = outcome as ReturnType<typeof applyProposal> | null
-        if (!result) return
+        if (!result || stale()) return
         setSkipped((prev) => ({ ...prev, [messageId]: Object.fromEntries(result.skipped.map((s) => [s.id, s.reason])) }))
         if (result.applied.length === 0) {
           setAnnounce("Nothing could be applied: the itinerary has changed since.")
@@ -629,24 +687,20 @@ export function TripChat() {
         }
         snapshots.current.set(messageId, snapshotDays(before, result.touched))
         setUndoable((prev) => new Set(prev).add(messageId))
-        patchMessage(messageId, (m) => ({ ...m, proposalState: "applied", appliedIds: result.applied, error: undefined }))
+        patchMessage(messageId, (m) => ({ ...m, proposalState: "applied", appliedIds: result.applied }))
         setAnnounce(`Applied: ${proposal.summary}. Undo is available.`)
-      } catch (err) {
-        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not update the itinerary." }))
-      } finally {
-        setBusyProposal(null)
-      }
+      })
     },
-    [canEdit, saveDays, patchMessage],
+    [canEdit, saveDays, patchMessage, runWrite],
   )
 
   const undoChanges = useCallback(
-    async (messageId: string) => {
+    (messageId: string) => {
       const snapshot = snapshots.current.get(messageId)
       if (!snapshot || !canEdit) return
-      setBusyProposal(messageId)
-      try {
+      return runWrite({ kind: "proposal", messageId, id: messageId }, "Could not undo that.", async (stale) => {
         await saveDays((fresh) => restoreSnapshot(fresh.days, snapshot))
+        if (stale()) return
         snapshots.current.delete(messageId)
         setUndoable((prev) => {
           const next = new Set(prev)
@@ -655,13 +709,9 @@ export function TripChat() {
         })
         patchMessage(messageId, (m) => ({ ...m, proposalState: "undone", appliedIds: undefined }))
         setAnnounce("Undone. The itinerary is back as it was.")
-      } catch (err) {
-        patchMessage(messageId, (m) => ({ ...m, error: (err as Error).message || "Could not undo that." }))
-      } finally {
-        setBusyProposal(null)
-      }
+      })
     },
-    [canEdit, saveDays, patchMessage],
+    [canEdit, saveDays, patchMessage, runWrite],
   )
 
   const goToDay = useCallback(
@@ -852,13 +902,16 @@ export function TripChat() {
                               message={m}
                               trip={trip}
                               dayId={dayId}
-                              streaming={phase !== "idle" && m.id === lastAssistantId}
-                              status={m.id === lastAssistantId ? status : null}
+                              streaming={runState.phase !== "idle" && m.id === runState.target}
+                              status={runState.phase !== "idle" && m.id === runState.target ? status : null}
                               latest={m.id === lastAssistantId}
                               reduce={!!reduce}
                               canEdit={canEdit}
-                              addingKey={addingKey}
-                              proposalBusy={busyProposal === m.id}
+                              writing={mutation !== null}
+                              addingKey={mutation?.kind === "place" && mutation.messageId === m.id ? mutation.id : null}
+                              proposalBusy={mutation?.kind === "proposal" && mutation.id === m.id}
+                              actionError={actionError?.messageId === m.id ? actionError.text : null}
+                              onDismissActionError={() => setActionError(null)}
                               canUndoProposal={undoable.has(m.id)}
                               skipped={skipped[m.id]}
                               onAdd={(target, targetDayId) => void addPlace(m.id, target, targetDayId)}

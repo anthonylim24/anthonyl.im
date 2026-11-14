@@ -363,4 +363,70 @@ describe("TripsIndex", () => {
     fireEvent.keyDown(document.body, { key: "n" })
     expect(await screen.findByTestId("path")).toHaveTextContent("/trips/new")
   })
+
+  it("keeps the list on screen when a background refresh fails", async () => {
+    mockListTrips.mockResolvedValueOnce([done, later, soon, live]).mockRejectedValueOnce(new Error("HTTP 500"))
+    mockGetTrip.mockRejectedValue(new Error("HTTP 500"))
+    renderIndex()
+    fireEvent.click(await screen.findByRole("button", { name: "Options for Oslo Winter" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Share…" }))
+    const dialog = await screen.findByRole("dialog", { name: "Share this trip" })
+
+    // Closing Share refreshes the list; that refresh fails.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(mockListTrips).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(cardTitles()).toContain("Oslo Winter")
+    expect(screen.queryByRole("heading", { name: "Couldn’t load your trips" })).toBeNull()
+  })
+
+  it("shows loading again while a retry is on its way", async () => {
+    let finish: (trips: TripSummary[]) => void = () => {}
+    mockListTrips.mockRejectedValueOnce(new Error("HTTP 500")).mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+    renderIndex()
+    fireEvent.click(within(await screen.findByRole("alert")).getByRole("button", { name: "Try again" }))
+
+    expect(screen.getByRole("status", { name: "Loading trips" })).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).toBeNull()
+    finish([live])
+    expect(await screen.findByRole("heading", { level: 4, name: "Seoul Now" })).toBeInTheDocument()
+  })
+
+  it("a duplicate in flight does not lock another trip's delete confirmation", async () => {
+    let loadTrip: (value: unknown) => void = () => {}
+    mockGetTrip.mockReturnValue(new Promise((resolve) => (loadTrip = resolve)))
+    mockDuplicateTrip.mockResolvedValue({ id: "seoul-copy" })
+    renderIndex()
+    fireEvent.click(await screen.findByRole("button", { name: "Options for Seoul Now" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }))
+    await waitFor(() => expect(mockGetTrip).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole("button", { name: "Options for Oslo Winter" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete trip…" }))
+    const dialog = await screen.findByRole("dialog", { name: "Delete “Oslo Winter”?" })
+    expect(within(dialog).getByRole("button", { name: "Delete trip" })).toBeEnabled()
+    expect(within(dialog).getByRole("button", { name: "Keep trip" })).toBeEnabled()
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete trip" }))
+    await waitFor(() => expect(mockDeleteTrip).toHaveBeenCalledTimes(1))
+    expect(mockDeleteTrip.mock.calls[0]![1]).toBe("oslo")
+    loadTrip({ trip: { id: "seoul", name: "Seoul Now" }, access: "owner" })
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/seoul-copy")
+  })
+
+  it("does not navigate to a copy that finishes after the index has gone", async () => {
+    let finishCopy: (value: { id: string }) => void = () => {}
+    mockGetTrip.mockResolvedValue({ trip: { id: "oslo", name: "Oslo Winter" }, access: "owner" })
+    mockDuplicateTrip.mockReturnValue(new Promise((resolve) => (finishCopy = resolve)))
+    renderIndex()
+    fireEvent.click(await screen.findByRole("button", { name: "Options for Oslo Winter" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }))
+    await waitFor(() => expect(mockDuplicateTrip).toHaveBeenCalledTimes(1))
+
+    fireEvent.keyDown(document.body, { key: "n" })
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/new")
+    finishCopy({ id: "oslo-copy" })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.getByTestId("path")).toHaveTextContent("/trips/new")
+  })
 })

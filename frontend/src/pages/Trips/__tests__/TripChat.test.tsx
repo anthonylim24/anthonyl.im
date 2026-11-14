@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
+import { Link, MemoryRouter } from "react-router-dom"
 import type { Trip } from "../types"
 
 const { mockGetToken } = vi.hoisted(() => ({
@@ -114,11 +114,12 @@ describe("TripChat expand", () => {
     expect(dialog.className).not.toMatch(/md:h-\[calc\(100dvh/)
     expect(screen.getByRole("button", { name: "Shrink chat" })).toHaveAttribute("aria-pressed", "true")
     const composer = within(dialog).getByPlaceholderText("Ask about this trip…")
-    expect(composer).toBeVisible()
+    // Visibility comes from real CSS, which can land a tick after the click under load.
+    await waitFor(() => expect(composer).toBeVisible())
 
     fireEvent.click(screen.getByRole("button", { name: "Shrink chat" }))
     expect(dialog).toHaveAttribute("data-expanded", "false")
-    expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toBeVisible()
+    await waitFor(() => expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toBeVisible())
   })
 
   it("pins an expanded desktop panel with inset styles", async () => {
@@ -491,5 +492,155 @@ describe("TripChat conversation", () => {
     await waitFor(() => expect(mockStreamTripChat).toHaveBeenCalledTimes(2))
     expect((mockStreamTripChat.mock.calls[1]![0] as Request).location).toBeUndefined()
     expect(getCurrentPosition).toHaveBeenCalledTimes(1)
+  })
+
+  const AFURI = { ...ICHIRAN, ref: "ChIJafuri", name: "Afuri", time: "13:30" }
+
+  it("holds every other add while one write is in flight, and keeps both places", async () => {
+    mockStreamTripChat.mockResolvedValue({ content: "Two ideas.", places: [ICHIRAN, AFURI] })
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    mockUpdateTrip.mockImplementationOnce(async (_token: unknown, _id: unknown, patch: { days: Trip["days"] }) => {
+      await gate
+      stored = { ...stored, days: patch.days }
+      return stored
+    })
+    renderChat("/trips/tokyo/day/day-1")
+    const dialog = await ask("ramen?")
+    const cards = await within(dialog).findByRole("list", { name: "Suggested places" })
+    fireEvent.click(within(cards).getByRole("button", { name: "Add Ichiran to Fri 10 Jul · 12:30" }))
+    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(1))
+
+    const second = within(cards).getByRole("button", { name: "Add Afuri to Fri 10 Jul · 13:30" })
+    expect(second).toBeDisabled()
+    release()
+    await waitFor(() => expect(second).toBeEnabled())
+    fireEvent.click(second)
+    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(2))
+    expect(stored.days[0]!.items.map((i) => i.title)).toEqual(["Senso-ji", "Ichiran", "Afuri", "Sushi Dai"])
+    expect(await within(cards).findByText("Added to Fri 10 Jul · 13:30")).toBeTruthy()
+    expect(within(cards).getByText("Added to Fri 10 Jul · 12:30")).toBeTruthy()
+  })
+
+  it("reports a failed add without offering to regenerate the reply, and can be dismissed", async () => {
+    mockUpdateTrip.mockRejectedValueOnce(new Error("HTTP 409"))
+    renderChat("/trips/tokyo/day/day-1")
+    const dialog = await ask("ramen?")
+    const cards = await within(dialog).findByRole("list", { name: "Suggested places" })
+    fireEvent.click(within(cards).getByRole("button", { name: "Add Ichiran to Fri 10 Jul · 12:30" }))
+
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert.textContent).toContain("HTTP 409")
+    expect(within(alert).queryByRole("button", { name: "Try again" })).toBeNull()
+    // The reply is intact and the failure is not saved with it.
+    expect(within(dialog).getByRole("list", { name: "Suggested places" })).toBeTruthy()
+    expect(localStorage.getItem("trips-concierge-v1:tokyo")).not.toContain("HTTP 409")
+
+    fireEvent.click(within(alert).getByRole("button", { name: "Dismiss" }))
+    expect(within(dialog).queryByRole("alert")).toBeNull()
+    expect(mockStreamTripChat).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears a failed action's message when the next one works", async () => {
+    mockUpdateTrip.mockRejectedValueOnce(new Error("HTTP 409"))
+    renderChat("/trips/tokyo/day/day-1")
+    const dialog = await ask("ramen?")
+    const cards = await within(dialog).findByRole("list", { name: "Suggested places" })
+    const add = within(cards).getByRole("button", { name: "Add Ichiran to Fri 10 Jul · 12:30" })
+    fireEvent.click(add)
+    await within(dialog).findByRole("alert")
+    fireEvent.click(add)
+    expect(await within(cards).findByText("Added to Fri 10 Jul · 12:30")).toBeTruthy()
+    expect(within(dialog).queryByRole("alert")).toBeNull()
+  })
+
+  it("stops while the location prompt is still unanswered", async () => {
+    // A permission prompt left open never calls back.
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: vi.fn() } })
+    renderChat()
+    const dialog = await openChat()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Share my location with the next message" }))
+    const box = within(dialog).getByRole("textbox", { name: "Message the concierge" })
+    fireEvent.change(box, { target: { value: "coffee near me" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Stop the reply" }))
+    expect(await within(dialog).findByText("Stopped.", { selector: "[data-concierge-reply] p" })).toBeTruthy()
+    expect(within(dialog).getByRole("button", { name: "Send message" })).toBeTruthy()
+    expect(mockStreamTripChat).not.toHaveBeenCalled()
+  })
+
+  it("does not call a finished reply stopped when the panel closes during the follow-ups", async () => {
+    mockStreamTripChat.mockImplementation(
+      (request: Request, _token: unknown, handlers: Handlers) =>
+        new Promise((_resolve, reject) => {
+          handlers.onText("All of it.")
+          handlers.onStatus?.({ kind: "done" })
+          request.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))
+        }),
+    )
+    renderChat()
+    const dialog = await ask("ramen?")
+    expect(await within(dialog).findByText("All of it.")).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close chat" }))
+
+    await waitFor(() => expect(localStorage.getItem("trips-concierge-v1:tokyo")).toContain("All of it."))
+    expect(localStorage.getItem("trips-concierge-v1:tokyo")).not.toContain("stopped")
+    const again = await openChat()
+    expect(within(again).getByText("All of it.")).toBeTruthy()
+    expect(within(again).queryByText("Stopped.")).toBeNull()
+  })
+
+  it("shows a retried earlier reply working, not the newest one", async () => {
+    mockStreamTripChat.mockRejectedValueOnce(new Error("The concierge did not respond in time."))
+    renderChat()
+    const dialog = await ask("first?")
+    await within(dialog).findByRole("alert")
+    const box = within(dialog).getByRole("textbox", { name: "Message the concierge" })
+    fireEvent.change(box, { target: { value: "second?" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+    await within(dialog).findByRole("list", { name: "Suggested places" })
+
+    mockStreamTripChat.mockImplementation((_request: Request, _token: unknown, handlers: Handlers) => {
+      handlers.onStatus?.({ kind: "places", label: "Checking Google Maps" })
+      return new Promise(() => {})
+    })
+    fireEvent.click(within(within(dialog).getByRole("alert")).getByRole("button", { name: "Try again" }))
+    await waitFor(() => expect(dialog.querySelector("[data-concierge-status]")).not.toBeNull())
+    const replies = dialog.querySelectorAll("[data-concierge-reply]")
+    expect(replies).toHaveLength(2)
+    expect(replies[0]!.querySelector("[data-concierge-status]")).not.toBeNull()
+    expect(replies[1]!.querySelector("[data-concierge-status]")).toBeNull()
+  })
+
+  it("never sends one trip's question under the trip it just left", async () => {
+    const kyoto = makeTrip({ id: "kyoto", name: "Kyoto Autumn", destinations: ["Kyoto"] })
+    let loadKyoto: (value: { trip: Trip; access: "owner" }) => void = () => {}
+    mockGetTrip.mockImplementation((_token: unknown, id: string) =>
+      id === "kyoto" ? new Promise((resolve) => (loadKyoto = resolve)) : Promise.resolve({ trip: stored, access: "owner" }),
+    )
+    render(
+      <MemoryRouter initialEntries={["/trips/tokyo"]}>
+        <Link to="/trips/kyoto">Open the copy</Link>
+        <TripChat />
+      </MemoryRouter>,
+    )
+    const dialog = await openChat()
+    await within(dialog).findByText("Tokyo", { selector: "em" })
+    fireEvent.click(screen.getByRole("link", { name: "Open the copy" }))
+    // Tokyo's document is not shown as Kyoto's while Kyoto loads.
+    expect(within(dialog).queryByText("Tokyo", { selector: "em" })).toBeNull()
+
+    const box = within(dialog).getByRole("textbox", { name: "Message the concierge" })
+    fireEvent.change(box, { target: { value: "temples?" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+    await waitFor(() => expect(mockGetTrip.mock.calls.filter((call) => call[1] === "kyoto").length).toBeGreaterThan(1))
+    expect(mockStreamTripChat).not.toHaveBeenCalled()
+
+    loadKyoto({ trip: kyoto, access: "owner" })
+    await waitFor(() => expect(mockStreamTripChat).toHaveBeenCalledTimes(1))
+    const request = mockStreamTripChat.mock.calls[0]![0] as Request & { tripId: string; trip?: Trip }
+    expect(request.tripId).toBe("kyoto")
+    expect(request.trip?.id).toBe("kyoto")
   })
 })

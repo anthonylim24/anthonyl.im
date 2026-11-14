@@ -30,8 +30,8 @@ export interface DayPanelProps {
   recentIds: ReadonlySet<string>
   hotId: string | null
   activeId: string | null
-  /** Stop whose editor should open (from the map's "Edit stop"). */
-  editId: string | null
+  /** Stop whose editor should open (from the map's "Edit stop"); `n` is new for each request. */
+  edit: { id: string; n: number } | null
   near: LngLat | null
   onChange: (fn: (days: TripDay[]) => TripDay[]) => void
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
@@ -101,7 +101,7 @@ export function DayPanel({
   recentIds,
   hotId,
   activeId,
-  editId,
+  edit,
   near,
   onChange,
   onDelete,
@@ -326,7 +326,7 @@ export function DayPanel({
                 locked={locked}
                 hot={hotId === item.id}
                 active={activeId === item.id}
-                expand={editId === item.id}
+                expand={edit?.id === item.id ? edit.n : 0}
                 flash={recentIds.has(item.id)}
                 near={near}
                 dayOptions={dayOptions}

@@ -228,3 +228,11 @@ describe("places parked under To schedule", () => {
     expect(splitDay({ items: day.items.slice(0, 2) }).parked).toEqual([])
   })
 })
+
+describe("splitDay with odd documents", () => {
+  it("does not throw on a section that has no title", () => {
+    const untitled = { id: "s", kind: "section", status: "none", createdBy: "user" } as unknown as ItineraryItem
+    const items = [item("a", "A", { lat: 1, lng: 1 }), untitled, item("b", "B", { lat: 2, lng: 2 })]
+    expect(splitDay({ items })).toEqual({ planned: items, parked: [] })
+  })
+})

@@ -27,6 +27,7 @@ export function ConciergeProposalCard({
   appliedIds,
   skipped,
   busy,
+  disabled = false,
   canEdit,
   canUndo,
   onApply,
@@ -42,6 +43,8 @@ export function ConciergeProposalCard({
   /** Why a change could not be applied, by change id. */
   skipped?: Record<string, string>
   busy: boolean
+  /** Another itinerary write is in flight: Apply and Undo wait for it. */
+  disabled?: boolean
   canEdit: boolean
   /** Undo needs the snapshot taken at Apply, which lives for this session. */
   canUndo: boolean
@@ -61,6 +64,7 @@ export function ConciergeProposalCard({
   )
   const selected = proposal.changes.filter((change) => !off.has(change.id))
   const pending = state === "pending" || state === "undone"
+  const locked = busy || disabled
   const plural = proposal.changes.length === 1 ? "change" : "changes"
 
   return (
@@ -136,7 +140,7 @@ export function ConciergeProposalCard({
           <>
             <button
               type="button"
-              disabled={busy || selected.length === 0}
+              disabled={locked || selected.length === 0}
               aria-busy={busy}
               onClick={() => onApply(new Set(selected.map((change) => change.id)))}
               {...sx(a.btn, a.btnSm, a.btnPrimary, c.action)}
@@ -165,7 +169,7 @@ export function ConciergeProposalCard({
               </button>
             ) : null}
             {canUndo ? (
-              <button type="button" disabled={busy} aria-busy={busy} onClick={onUndo} {...sx(a.btn, a.btnSm, a.btnSecondary, c.action)}>
+              <button type="button" disabled={locked} aria-busy={busy} onClick={onUndo} {...sx(a.btn, a.btnSm, a.btnSecondary, c.action)}>
                 <Undo2 {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
                 {busy ? "Undoing…" : "Undo"}
               </button>
@@ -174,7 +178,7 @@ export function ConciergeProposalCard({
         ) : (
           <>
             <p {...sx(c.proposalNote)}>Nothing was changed.</p>
-            <button type="button" disabled={busy} onClick={() => onApply(new Set(selected.map((change) => change.id)))} {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}>
+            <button type="button" disabled={locked} onClick={() => onApply(new Set(selected.map((change) => change.id)))} {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}>
               Apply anyway
             </button>
           </>

@@ -83,7 +83,7 @@ export function isLocated(item: ItineraryItem): item is ItineraryItem & { locati
  */
 export const TO_SCHEDULE = "To schedule"
 
-export const isToSchedule = (item: ItineraryItem) => item.kind === "section" && item.title.trim() === TO_SCHEDULE
+export const isToSchedule = (item: ItineraryItem) => item.kind === "section" && (item.title ?? "").trim() === TO_SCHEDULE
 
 /** The day's plan proper, and the places parked under "To schedule". */
 export function splitDay(day: Pick<TripDay, "items">): { planned: ItineraryItem[]; parked: ItineraryItem[] } {

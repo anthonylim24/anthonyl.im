@@ -49,7 +49,8 @@ export function ShareDialog({
   const [load, setLoad] = useState<Load>({ status: "loading" })
   const [role, setRole] = useState<CollaboratorRole>("viewer")
   const [busy, setBusy] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  /** The role whose link is on the clipboard, so the label never speaks for another role. */
+  const [copied, setCopied] = useState<CollaboratorRole | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -57,7 +58,7 @@ export function ShareDialog({
     let cancelled = false
     setLoad({ status: "loading" })
     setError(null)
-    setCopied(false)
+    setCopied(null)
     getTrip(getToken, tripId).then(
       ({ trip, access }) => !cancelled && setLoad({ status: "ready", trip, access }),
       (err: unknown) => !cancelled && setLoad({ status: "error", message: err instanceof Error ? err.message : String(err) }),
@@ -69,13 +70,14 @@ export function ShareDialog({
 
   useEffect(() => {
     if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 2200)
+    const timer = setTimeout(() => setCopied(null), 2200)
     return () => clearTimeout(timer)
   }, [copied])
 
   const trip = load.status === "ready" ? load.trip : null
   const owner = load.status === "ready" && load.access === "owner"
   const invite = trip?.invites?.find((i) => i.role === role)
+  const linkCopied = copied === role
 
   const run = async (key: string, work: () => Promise<void>) => {
     setBusy(key)
@@ -100,7 +102,7 @@ export function ShareDialog({
       if (!invite) setTrip({ ...trip, invites: [...(trip.invites ?? []), active] })
       try {
         await navigator.clipboard.writeText(inviteUrl(active.token))
-        setCopied(true)
+        setCopied(active.role)
       } catch {
         // No clipboard permission: the link is shown above, ready to select.
         setError("Your browser blocked copying. Select the link above and copy it yourself.")
@@ -111,6 +113,7 @@ export function ShareDialog({
     run("reset", async () => {
       if (!trip || !invite) return
       await revokeInvite(getToken, trip.id, invite.token)
+      setCopied(null)
       setTrip({ ...trip, invites: (trip.invites ?? []).filter((i) => i.token !== invite.token) })
     })
 
@@ -166,11 +169,9 @@ export function ShareDialog({
                     type="button"
                     role="radio"
                     aria-checked={role === r}
+                    disabled={busy !== null}
                     {...sx(s.segmentBtn, role === r && s.segmentOn)}
-                    onClick={() => {
-                      setRole(r)
-                      setCopied(false)
-                    }}
+                    onClick={() => setRole(r)}
                   >
                     {ROLE_COPY[r].label}
                   </button>
@@ -188,8 +189,8 @@ export function ShareDialog({
               )}
               <div {...sx(a.rowWrap)}>
                 <button type="button" {...sx(a.btn, a.btnPrimary, a.grow)} disabled={busy !== null} onClick={() => void copyLink()}>
-                  {busy === "copy" ? <Spinner /> : copied ? <Check size={16} aria-hidden /> : <Copy size={16} strokeWidth={1.75} aria-hidden />}
-                  {copied ? "Link copied" : "Copy invite link"}
+                  {busy === "copy" ? <Spinner /> : linkCopied ? <Check size={16} aria-hidden /> : <Copy size={16} strokeWidth={1.75} aria-hidden />}
+                  {linkCopied ? "Link copied" : "Copy invite link"}
                 </button>
                 {invite && (
                   <button type="button" {...sx(a.btn, a.btnGhost)} disabled={busy !== null} onClick={() => void resetLink()}>
@@ -198,7 +199,7 @@ export function ShareDialog({
                 )}
               </div>
               <p {...sx(a.small)} role="status" aria-live="polite">
-                {copied ? "Anyone who opens it and signs in joins this trip." : ""}
+                {linkCopied ? "Anyone who opens it and signs in joins this trip." : ""}
               </p>
             </section>
           )}
