@@ -103,7 +103,7 @@ const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
   }
   if (pathname.startsWith("/korea") || pathname.startsWith("/trips/korea-2026")) return appPreviews.korea;
   if (pathname.startsWith("/trips")) return appPreviews.trips;
-  if (pathname === "/" || pathname === "") return appPreviews.landing;
+  if (pathname === "/lab") return appPreviews.landing;
   return appPreviews.chatbot;
 };
 
@@ -389,12 +389,11 @@ const spaShell = async (c: Context) => {
   c.header("Expires", "0");
   return c.html(withMeta);
 };
-// Registered ahead of serveStatic, which would otherwise answer "/" with the
-// raw dist/index.html (no landing metadata, no no-cache headers).
-app.get("/", spaShell);
 // Plain HTML, readable without JavaScript, because Google's OAuth branding
-// review fetches these URLs and does not run the SPA.
+// review fetches these URLs and does not run the SPA. Registered ahead of
+// serveStatic, which would otherwise answer "/" with the raw index.html.
 const staticPages: Record<string, string> = {
+  "/": "home.html",
   "/privacy": "privacy.html",
   "/terms": "terms.html",
 };
