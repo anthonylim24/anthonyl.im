@@ -425,7 +425,8 @@ export const c = stylex.create({
     color: "var(--trips-ink)",
     outline: "none",
     overflowWrap: "anywhere",
-    "::placeholder": { color: "var(--trips-ink-faint)" },
+    // Tertiary ink, not faint: the prompt has to be readable in both themes.
+    "::placeholder": { color: "var(--trips-ink-tertiary)" },
     "@media (min-width: 640px)": { fontSize: "0.9375rem" },
   },
   // Location toggle and the stop button share the composer row.
