@@ -18,6 +18,7 @@ import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPla
 import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
 import { createAgentSessionRouter } from "./src/routes/agentSession";
 import { parseAgentOnBehalfOf, parseAllowedRedirectHosts } from "./src/agentTasks";
+import { CLERK_PROXY_PATH, createClerkProxy } from "./src/clerkProxy";
 import { join, resolve } from "path";
 import { BUN_IDLE_TIMEOUT_SEC } from "./src/httpIdleTimeout";
 
@@ -302,6 +303,13 @@ app.route(
     githubRepo: config.agentGithubRepo,
   }),
 );
+
+if (config.clerkSecretKey) {
+  app.all(`${CLERK_PROXY_PATH}/*`, createClerkProxy({
+    secretKey: config.clerkSecretKey,
+    proxyUrl: config.clerkProxyUrl,
+  }));
+}
 
 // Remote PR previews — published by .github/workflows/preview.yml into
 // $PREVIEW_ROOT/<pr>/ (default ~/previews). Mounted before static/SPA so a

@@ -79,6 +79,9 @@ jobs:
             echo "::error::VITE_CLERK_PUBLISHABLE_KEY secret is missing."
             exit 1
           fi
+          if [ -n "${{ vars.VITE_CLERK_PROXY_URL }}" ]; then
+            echo "VITE_CLERK_PROXY_URL=${{ vars.VITE_CLERK_PROXY_URL }}" >> frontend/.env
+          fi
           (cd frontend && bun run build)
 
           if ! wait "$TESTS_PID"; then

@@ -82,6 +82,7 @@ export const config = {
   kakaoRestApiKey: process.env.KAKAO_REST_API_KEY,
 
   clerkSecretKey: process.env.CLERK_SECRET_KEY,
+  clerkProxyUrl: process.env.CLERK_PROXY_URL ?? "https://anthonyl.im/__clerk",
   clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY,
   // Clerk Agent Tasks (PR-preview screenshots / agent login). Unset →
   // POST /api/agent/session returns 404. Never bake a frontend bypass.
