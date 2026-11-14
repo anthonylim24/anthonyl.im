@@ -161,6 +161,9 @@ export const ig = stylex.create({
 
   // A post being read, then its places.
   post: {
+    // A scroller child with overflow hidden has no automatic min-height, so
+    // without this the cards squash to fit the list instead of scrolling.
+    flexShrink: 0,
     borderRadius: "var(--trips-radius)",
     backgroundColor: "var(--trips-raised)",
     boxShadow: "var(--trips-shadow-1), inset 0 0 0 1px var(--trips-line)",
@@ -355,7 +358,7 @@ export const ig = stylex.create({
     color: "var(--trips-ink-tertiary)",
     ":focus-within": { boxShadow: "0 0 0 1.5px var(--brand-fill), 0 0 0 5px var(--brand-soft)" },
   },
-  skeletonRow: { height: "4.25rem", borderRadius: "var(--trips-radius)" },
+  skeletonRow: { height: "4.25rem", flexShrink: 0, borderRadius: "var(--trips-radius)" },
 
   foot: {
     display: "flex",
