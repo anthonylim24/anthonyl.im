@@ -295,7 +295,7 @@ describe('process', () => {
     expect(extract).toHaveBeenCalledTimes(1);
   });
 
-  test('skipVideo=false: gpt-oss-120b runs as before; geminiPrimaryExtract NOT called', async () => {
+  test('skipVideo=false: Gemini leads here too; the gpt-oss-120b vote is not needed when it finds places', async () => {
     const geminiPrimaryExtract = mock(async () => [voted]);
     const extract = mock(async () => [voted]);
     const proc = createProcessor({
@@ -312,7 +312,7 @@ describe('process', () => {
       log: mock(async () => undefined),
     });
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd', skipVideo: false } as any);
-    expect(geminiPrimaryExtract).not.toHaveBeenCalled();
-    expect(extract).toHaveBeenCalledTimes(1);
+    expect(geminiPrimaryExtract).toHaveBeenCalledTimes(1);
+    expect(extract).not.toHaveBeenCalled();
   });
 });

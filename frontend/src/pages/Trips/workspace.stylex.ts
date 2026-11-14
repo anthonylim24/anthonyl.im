@@ -262,9 +262,10 @@ export const ws = stylex.create({
     scrollbarWidth: "none",
     scrollSnapType: "x proximity",
     scrollPaddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
-    maskImage: "linear-gradient(to right, #000 calc(100% - 2.5rem), transparent)",
-    backgroundColor: "color-mix(in srgb, var(--trips-canvas) 88%, transparent)",
-    backdropFilter: "blur(12px)",
+    // Near-opaque, and no edge mask: a mask fades the bar's own background
+    // too, which let cards scrolling underneath show through its right edge.
+    backgroundColor: "color-mix(in srgb, var(--trips-canvas) 96%, transparent)",
+    backdropFilter: "blur(14px)",
     borderBottomWidth: "1px",
     borderBottomStyle: "solid",
     borderBottomColor: "var(--trips-line)",

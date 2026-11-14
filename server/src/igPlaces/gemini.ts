@@ -103,7 +103,7 @@ export const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrog
 /** Previous app model. Used automatically when the primary model is not
  *  available to this API key (404, or a 400 that names the model), so a
  *  staged rollout or a regional gap degrades instead of breaking AI. */
-export const GEMINI_FALLBACK_MODEL = 'gemini-3.7-flash'
+export const GEMINI_FALLBACK_MODEL = 'gemini-3.8-flash'
 
 let primaryModelUnavailable = false
 
