@@ -43,7 +43,13 @@ verify_frontend_typescript
 
 cd "$ROOT_DIR"
 echo "[codex-check] running server tests (includes appLoad module-load smoke)"
-bun test --bail server/src
+# --parallel (Bun 1.4+) runs test files across worker processes; older Bun
+# in a stale cloud image runs them in one process, just slower.
+parallel_flag=()
+if bun test --help 2>&1 | grep -q -- '--parallel'; then
+  parallel_flag=(--parallel)
+fi
+bun test ${parallel_flag[@]+"${parallel_flag[@]}"} --bail server/src
 
 cd "$ROOT_DIR/frontend"
 echo "[codex-check] running frontend typecheck (tsc -b --noEmit)"

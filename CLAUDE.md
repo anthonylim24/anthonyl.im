@@ -45,7 +45,7 @@ anthonyl.im/
 │   │   ├── robots.txt           # Allow / ; Disallow /preview/
 │   │   ├── site.webmanifest     # BreathFlow (start_url /breathwork)
 │   │   └── korea.webmanifest    # Installable PWA (start_url /trips/korea-2026)
-│   ├── vite.config.ts           # advancedChunks: three, tiles3d, effect, markdown, …
+│   ├── vite.config.ts           # codeSplitting: three, tiles3d, effect, markdown, …
 │   └── index.html               # Per-route OG / favicon / manifest swap
 ├── server/
 │   ├── app.ts                   # Hono: static, SPA fallback, OG tags, preview mount
@@ -156,7 +156,7 @@ bun run dev
 cd frontend && bun run build
 
 # Run server tests (mocked, no external deps)
-bun test --bail server/src
+bun test --parallel --bail server/src
 
 # Run frontend unit tests
 cd frontend && bun run test:run
@@ -214,7 +214,7 @@ merge to main ─► .github/workflows/deploy.yml ─► test → build → stag
                                               → smoke (/health + SPA shells)
 ```
 
-Shared install/cache lives in `.github/actions/setup-ci`. Lockfiles are text `bun.lock` (Dependabot `package-ecosystem: bun`). Never reintroduce binary `bun.lockb`.
+Shared install/cache lives in `.github/actions/setup-ci`. Bun is pinned by `.bun-version` for CI and the droplet (the deploy installs that version when the droplet differs); bump it there. Docs-only merges (`*.md`, `docs/`, agent config) skip the deploy, and PRs that touch neither `frontend/` nor `server/` skip the preview. Dependabot minor/patch PRs auto-merge once `pr-gate` is green; majors wait for a human. Lockfiles are text `bun.lock` (Dependabot `package-ecosystem: bun`). Never reintroduce binary `bun.lockb`.
 
 **Branch protection on `main` requires the `pr-gate` aggregate check.** This is enforced for admins too (`enforce_admins: true` in `.github/branch-protection.json`), so a red gate genuinely blocks merge — `gh pr merge --admin` will refuse. `pr-gate` starts immediately (it must not use `needs:`) so merge UIs wait instead of racing GitHub's required-check registration. To inspect or re-apply the protection:
 
@@ -235,7 +235,7 @@ The canonical **local/cloud** gate — `.codex/check.sh` / `.claude/cloud/verify
 ```bash
 # 1. Server tests (mocked, no env needed beyond stubs)
 KLUSTER_API_KEY=ci-stub KLUSTER_API_BASE_URL=https://example.invalid IG_WORKER_ENABLED=false \
-  bun test --bail server/src
+  bun test --parallel --bail server/src
 
 # 2. Frontend typecheck
 cd frontend && bun run typecheck
@@ -259,6 +259,8 @@ Recent recurrence: PR #396 added `busyness*` fields to `ExtractedPlace` but didn
 
 ### Playwright vs. vitest separation
 
+Vitest runs in the `vmThreads` pool (one happy-dom per worker, about half the wall time). Tests that need platform objects in the same realm as the code under test (`instanceof DOMException`, abort signals) go in the `realmSensitive` list in `frontend/vitest.config.ts`, which runs them in `forks`.
+
 `frontend/e2e/` is owned by Playwright. `frontend/vitest.config.ts` excludes `e2e/**` so vitest doesn't try to import `@playwright/test` and fail. **Do not remove that exclude** — leaving it in keeps `bun run test:run` green even on a fresh checkout without Playwright installed.
 
 ### Cloud-sandbox failure modes (Codex / Claude Code)
@@ -266,7 +268,7 @@ Recent recurrence: PR #396 added `busyness*` fields to `ExtractedPlace` but didn
 Two regressions surfaced in May 2026 that the verify gate now catches:
 
 1. **TS resolution drift.** A cloud agent ran `bun run build` in `frontend/` before `frontend/node_modules` was installed; `tsc -b` resolved to root's TypeScript 5.x and rejected `ignoreDeprecations: "6.0"` plus missed `vite` / `@vitejs/plugin-react`. `.codex/check.sh` now runs a `verify_frontend_typescript` pre-flight that fails fast with an actionable message before `bun run typecheck`. Always run `bash .codex/setup.sh` (or `.claude/cloud/setup.sh`) before any build — it installs in **both** root AND `frontend/`.
-2. **Missing-export PM2 crash.** A merged PR imported `GEMINI_BASE` from a module that didn't export it. Every server test mocked the IG dependency chain so the broken import was never evaluated. `server/src/appLoad.test.ts` is a module-load smoke test that imports `server/app.ts` and forces Bun to evaluate the full route/worker graph — the gate runs it via `bun test --bail server/src`. Do not delete it.
+2. **Missing-export PM2 crash.** A merged PR imported `GEMINI_BASE` from a module that didn't export it. Every server test mocked the IG dependency chain so the broken import was never evaluated. `server/src/appLoad.test.ts` is a module-load smoke test that imports `server/app.ts` and forces Bun to evaluate the full route/worker graph — the gate runs it via `bun test --parallel --bail server/src`. Do not delete it.
 
 ---
 
@@ -358,11 +360,11 @@ See `frontend/.env.example` and `server/src/config.ts`.
 **Trigger:** Push to `main` → GitHub Actions.
 
 **Pipeline:**
-1. Server tests run as gate (`bun test --bail server/src`) — all external calls are mocked.
+1. Server tests run as gate (`bun test --parallel --bail server/src`) — all external calls are mocked — in parallel with step 2.
 2. Frontend builds on CI (`bun run build` in `frontend/`) with secrets injected as `.env`.
 3. Backend staged on Digital Ocean via SSH into `~/anthonyl.im.next` (shallow clone, `bun install --frozen-lockfile`), system tools checked (yt-dlp, ffmpeg, dev-browser).
 4. Frontend `dist/` uploaded via SCP into the staged tree.
-5. Atomic swap `next → live`, PM2 restart; auto-rollback to `prev` if PM2 is not online.
+5. Atomic swap `next → live`, PM2 restart (`--max-memory-restart 700M`), wait for loopback `/health`; auto-rollback to `prev` if it does not come up.
 6. Post-deploy smoke: `/health` JSON + SPA shells on `/`, `/chatbot`, `/breathwork`, `/trips`, `/trips/korea-2026`.
 
 **Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
@@ -375,7 +377,7 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 ## Bundle Splitting Strategy
 
-`vite.config.ts` uses `advancedChunks` (Rolldown) to keep initial load fast:
+`vite.config.ts` uses `codeSplitting` (Rolldown; formerly `advancedChunks`) to keep initial load fast:
 
 | Chunk | Contents | Why |
 |-------|----------|-----|

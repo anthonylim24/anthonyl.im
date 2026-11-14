@@ -1,8 +1,8 @@
 name: Setup CI
 description: >
-  Bun + dependency caches shared by PR and deploy workflows.
-  Caches ~/.bun/install/cache and (optionally) node_modules trees so
-  parallel PR jobs don't each pay a cold ~80s root install.
+  Bun (pinned by .bun-version) + dependency caches shared by the PR, preview
+  and deploy workflows. Restores linked node_modules trees keyed on the exact
+  lockfile; the package tarball cache is only fetched when a tree misses.
 
 inputs:
   install-root:
@@ -24,6 +24,8 @@ runs:
       id: bun
       continue-on-error: true
       uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: .bun-version
 
     - name: Wait before Bun retry
       if: steps.bun.outcome == 'failure'
@@ -35,6 +37,8 @@ runs:
       if: steps.bun.outcome == 'failure'
       continue-on-error: true
       uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: .bun-version
 
     - name: Wait before Bun last attempt
       if: steps.bun.outcome == 'failure' && steps.bun-retry.outcome == 'failure'
@@ -44,35 +48,40 @@ runs:
     - name: Set up Bun (last attempt)
       if: steps.bun.outcome == 'failure' && steps.bun-retry.outcome == 'failure'
       uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: .bun-version
 
-    # Package tarball cache — cheap, always restore.
+    # Linked node_modules trees, keyed on the exact lockfile and Bun version.
+    # No restore-keys: a stale tree makes `bun install` relink most of it
+    # anyway, and an exact hit is what makes setup take a few seconds.
+    - name: Cache root node_modules
+      id: nm-root
+      if: inputs.install-root == 'true'
+      uses: actions/cache@v6
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-nm-root-${{ hashFiles('.bun-version', 'bun.lock') }}
+
+    - name: Cache frontend node_modules
+      id: nm-fe
+      if: inputs.install-frontend == 'true'
+      uses: actions/cache@v6
+      with:
+        path: frontend/node_modules
+        key: ${{ runner.os }}-nm-fe-${{ hashFiles('.bun-version', 'frontend/bun.lock') }}
+
+    # Package tarball cache. Only worth the restore when a tree above missed
+    # (a lockfile change), so the common path skips it entirely.
     - name: Cache Bun install cache
-      uses: actions/cache@v5
+      if: >-
+        (inputs.install-root == 'true' && steps.nm-root.outputs.cache-hit != 'true') ||
+        (inputs.install-frontend == 'true' && steps.nm-fe.outputs.cache-hit != 'true')
+      uses: actions/cache@v6
       with:
         path: ~/.bun/install/cache
         key: ${{ runner.os }}-bun-pkg-${{ hashFiles('bun.lock', 'frontend/bun.lock') }}
         restore-keys: |
           ${{ runner.os }}-bun-pkg-
-
-    # Linked node_modules trees — biggest wall-clock win on repeat runs.
-    # Keyed per tree so a frontend-only lock change doesn't invalidate root.
-    - name: Cache root node_modules
-      if: inputs.install-root == 'true'
-      uses: actions/cache@v5
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-nm-root-${{ hashFiles('bun.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-nm-root-
-
-    - name: Cache frontend node_modules
-      if: inputs.install-frontend == 'true'
-      uses: actions/cache@v5
-      with:
-        path: frontend/node_modules
-        key: ${{ runner.os }}-nm-fe-${{ hashFiles('frontend/bun.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-nm-fe-
 
     - name: Install root deps
       if: inputs.install-root == 'true'

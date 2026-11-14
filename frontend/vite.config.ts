@@ -30,7 +30,7 @@ export default defineConfig({
   })(),
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   build: {
@@ -47,12 +47,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
-        // Rolldown's advancedChunks is the modern replacement for
+        // Rolldown's codeSplitting (formerly advancedChunks) replaces
         // manualChunks. Groups force a split even when a chunk has a
         // single importer (rolldown otherwise merges single-importer
         // chunks back into their parent). Higher priority wins when
         // multiple groups match the same module.
-        advancedChunks: {
+        codeSplitting: {
           groups: [
             // three.core is shared; the WebGL build (photoreal 3D view) and the
             // WebGPU/TSL build + three-blocks (landing hero) never load together.

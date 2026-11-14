@@ -53,7 +53,7 @@ stack. Not part of every loop.
    must report `Version 7.0.x` with `x >= 2` (`~7.0.2`, i.e. `>=7.0.2 <7.1.0`)
    so `tsc -b` matches the build's expectations. The `typescript` package
    stays on 6.0.x for `typescript-eslint` until that stack supports TS 7.1.
-3. **Server tests** (`bun test --bail server/src`) — includes
+3. **Server tests** (`bun test --parallel --bail server/src`) — includes
    `appLoad.test.ts`, a module-load smoke test that imports `server/app.ts`
    and evaluates the full route/worker dependency graph. This catches
    missing/renamed-export regressions that every other test mocks past

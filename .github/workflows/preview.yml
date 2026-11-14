@@ -17,6 +17,19 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review, closed]
+    # A preview is the PR's frontend plus its API source. PRs that touch
+    # neither (docs, CI, agent config) skip the build and the droplet upload.
+    paths:
+      - "frontend/**"
+      - "server/**"
+      - "index.ts"
+      - "package.json"
+      - "bun.lock"
+      - ".bun-version"
+      - "deploy/publish-preview.sh"
+      - "scripts/wait-for-preview.ts"
+      - ".github/actions/setup-ci/**"
+      - ".github/workflows/preview.yml"
 
 concurrency:
   group: preview-pr-${{ github.event.pull_request.number }}

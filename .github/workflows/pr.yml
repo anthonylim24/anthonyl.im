@@ -8,8 +8,9 @@ name: PR Checks
 #
 # Design choices:
 #   - Parallel jobs for independent signals (server / frontend / cloud).
-#   - Shared composite setup (.github/actions/setup-ci) caches Bun packages
-#     AND node_modules so 5 jobs don't each pay a cold install.
+#   - Shared composite setup (.github/actions/setup-ci) pins Bun from
+#     .bun-version and restores node_modules by exact lockfile hash, so the
+#     jobs don't each pay a cold install.
 #   - Concurrency cancels stale runs on the same PR.
 #   - Frozen lockfiles everywhere — Dependabot must land a matching
 #     bun.lock (text format; see dependabot.yml package-ecosystem: bun).
@@ -57,7 +58,7 @@ jobs:
         with:
           install-root: "true"
       - name: Server tests (mocked, includes appLoad smoke)
-        run: bun test --bail server/src
+        run: bun test --parallel --bail server/src
 
   # ─── 2. Frontend typecheck ──────────────────────────────────────────
   pr-frontend-typecheck:
@@ -192,7 +193,7 @@ jobs:
           while (( SECONDS < deadline )); do
             if ! json="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100")"; then
               echo "WARN: failed to list jobs for run ${RUN_ID}; retrying"
-              sleep 8
+              sleep 3
               continue
             fi
 
@@ -230,7 +231,7 @@ jobs:
             fi
 
             echo "Waiting on: ${pending[*]}"
-            sleep 8
+            sleep 3
           done
 
           echo "::error::Timed out waiting for sibling PR jobs to complete."
