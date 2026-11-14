@@ -22,6 +22,8 @@ import { playCue } from '../engine/audio'
 import { phaseHaptic, vibrate } from '../engine/haptics'
 import type { EngineEvent } from '../engine/sessionEngine'
 import { useSessionEngine } from '../engine/useSessionEngine'
+import { useSoundscape } from '../engine/useSoundscape'
+import { phasePhrase, speak, stopSpeaking } from '../engine/voice'
 import { levelForXP } from '../gamify/levels'
 import { buildSessionInsight, type SessionInsight } from '../gamify/insights'
 import { resolveOrbTheme } from '../gamify/orbThemes'
@@ -121,10 +123,14 @@ export function SessionPage() {
       const settings = useSettingsStore.getState()
       const audio = { enabled: settings.soundEnabled, volume: settings.soundVolume }
       const haptics = settings.hapticsEnabled
+      const voice = { enabled: settings.soundEnabled && settings.voiceGuidance, volume: settings.soundVolume }
+      const firstPhase = protocol.phases[0].phase
+      const firstSeconds = getPhaseSecondsForRound(protocol, firstPhase, 0, customDurations)
 
       switch (event.type) {
         case 'start':
           playCue('start', audio)
+          speak(phasePhrase(firstPhase, firstSeconds), voice)
           vibrate('success', haptics)
           setAnnouncement(
             `${protocol.name} started. Round 1 of ${rounds}. ${PHASE_LABELS[protocol.phases[0].phase]} for ${formatPhaseSeconds(getPhaseSecondsForRound(protocol, protocol.phases[0].phase, 0, customDurations))}.`,
@@ -132,6 +138,7 @@ export function SessionPage() {
           break
         case 'restart':
           playCue('start', audio)
+          speak(phasePhrase(firstPhase, firstSeconds), voice)
           vibrate('light', haptics)
           setAnnouncement(`Restarted. Round 1 of ${rounds}.`)
           break
@@ -140,12 +147,14 @@ export function SessionPage() {
           vibrate(phaseHaptic(event.phase), haptics)
           const cue = getCoachingCue(protocol.id, event.phase)
           const seconds = getPhaseSecondsForRound(protocol, event.phase, event.roundIndex, customDurations)
+          speak(phasePhrase(event.phase, seconds), voice)
           setAnnouncement(
             `Round ${event.roundIndex + 1} of ${rounds}. ${PHASE_LABELS[event.phase]} for ${formatPhaseSeconds(seconds)}. ${cue}`,
           )
           break
         }
         case 'pause':
+          stopSpeaking()
           vibrate('light', haptics)
           setAnnouncement('Paused.')
           break
@@ -154,6 +163,7 @@ export function SessionPage() {
           setAnnouncement('Resumed.')
           break
         case 'stop':
+          stopSpeaking()
           vibrate('error', haptics)
           setAnnouncement('Ended before the first round finished. Nothing was saved.')
           break
@@ -161,6 +171,7 @@ export function SessionPage() {
           if (completedRef.current) break
           completedRef.current = true
           playCue('complete', audio)
+          speak(event.roundsCompleted < rounds ? 'Session ended' : 'Session complete', voice)
 
           const result = completeSession({
             techniqueId: protocol.id,
@@ -201,6 +212,8 @@ export function SessionPage() {
     setMoodAfter(undefined)
     setSummary(null)
     setLeadIn(LEAD_IN_SECONDS)
+    const settings = useSettingsStore.getState()
+    speak('Get ready', { enabled: settings.soundEnabled && settings.voiceGuidance, volume: settings.soundVolume })
     setAnnouncement(`Get ready. ${protocol.name} starts in ${LEAD_IN_SECONDS} seconds. ${LEAD_IN_CUE}`)
   }
 
@@ -311,6 +324,7 @@ export function SessionPage() {
           leadIn={leadIn}
           onCancelLeadIn={() => {
             setLeadIn(null)
+            stopSpeaking()
             setAnnouncement('Cancelled.')
           }}
           advanced={advanced}
@@ -763,6 +777,8 @@ function ActiveSession({
     status: engine.status,
   })
   const read = preparing ? readRest : engineRead
+  // The ambience fades in through the lead-in and rests while paused.
+  useSoundscape(preparing || running, read)
   const tick = preparing ? `ready:${leadIn}` : `${engine.phaseIndex}:${engine.secondsLeftInPhase}:${engine.status}`
   const progress = preparing || totalSeconds <= 0 ? 0 : Math.min(1, engine.elapsedSeconds / totalSeconds)
   const secondsLeft = Math.max(0, totalSeconds - engine.elapsedSeconds)

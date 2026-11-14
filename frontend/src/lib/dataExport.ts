@@ -1,3 +1,4 @@
+import { isSoundscapeId } from '@/breathflow/engine/soundscape'
 import {
   BREATHFLOW_STORAGE_KEYS,
   BREATH_PHASES,
@@ -169,10 +170,13 @@ function validateSettingsState(state: Record<string, unknown>, key: BreathFlowSt
   if (state.theme !== undefined && state.theme !== 'light' && state.theme !== 'dark') {
     throw new Error(`Import value for ${key} has invalid theme.`)
   }
-  for (const field of ['soundEnabled', 'hapticsEnabled'] as const) {
+  for (const field of ['soundEnabled', 'hapticsEnabled', 'voiceGuidance'] as const) {
     if (state[field] !== undefined && typeof state[field] !== 'boolean') {
       throw new Error(`Import value for ${key} has invalid ${field}.`)
     }
+  }
+  if (state.soundscape !== undefined && !isSoundscapeId(state.soundscape)) {
+    throw new Error(`Import value for ${key} has invalid soundscape.`)
   }
   if (
     state.soundVolume !== undefined &&

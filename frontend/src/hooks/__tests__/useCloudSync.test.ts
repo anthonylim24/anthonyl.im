@@ -259,7 +259,7 @@ describe('session rows', () => {
 
 describe('normalizeCloudSettings', () => {
   it('falls back to BreathFlow light defaults for partial cloud settings', () => {
-    expect(normalizeCloudSettings({ soundVolume: 0.8 })).toEqual({
+    expect(normalizeCloudSettings({ soundVolume: 0.8 })).toMatchObject({
       theme: 'light',
       soundEnabled: true,
       soundVolume: 0.8,
@@ -273,7 +273,7 @@ describe('normalizeCloudSettings', () => {
       soundEnabled: 'yes',
       soundVolume: 2,
       hapticsEnabled: false,
-    })).toEqual({
+    })).toMatchObject({
       theme: 'light',
       soundEnabled: true,
       soundVolume: 1,

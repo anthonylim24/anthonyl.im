@@ -5,6 +5,8 @@ import { useHistoryStore, type CompletedSession, type PersonalBest } from '@/sto
 import { useGamificationStore } from '@/stores/gamificationStore'
 import {
   DEFAULT_SETTINGS_STATE,
+  migratePersistedSettingsState,
+  pickPersistedSettings,
   useSettingsStore,
   type PersistedSettingsState,
 } from '@/stores/settingsStore'
@@ -73,31 +75,15 @@ export function mergeSessionHistory(
   )
 }
 
+/** Cloud settings are untrusted: every field is checked, and anything missing takes its default. */
 export function normalizeCloudSettings(settings: Record<string, unknown>): PersistedSettingsState {
-  const theme = settings.theme === 'dark' || settings.theme === 'light'
-    ? settings.theme
-    : DEFAULT_SETTINGS_STATE.theme
-  const soundVolume = typeof settings.soundVolume === 'number' && Number.isFinite(settings.soundVolume)
-    ? Math.max(0, Math.min(1, settings.soundVolume))
-    : DEFAULT_SETTINGS_STATE.soundVolume
-
-  return {
-    theme,
-    soundEnabled: typeof settings.soundEnabled === 'boolean'
-      ? settings.soundEnabled
-      : DEFAULT_SETTINGS_STATE.soundEnabled,
-    soundVolume,
-    hapticsEnabled: typeof settings.hapticsEnabled === 'boolean'
-      ? settings.hapticsEnabled
-      : DEFAULT_SETTINGS_STATE.hapticsEnabled,
-  }
+  return migratePersistedSettingsState(settings)
 }
 
 export function hasNonDefaultSettings(settings: PersistedSettingsState): boolean {
-  return settings.theme !== DEFAULT_SETTINGS_STATE.theme ||
-    settings.soundEnabled !== DEFAULT_SETTINGS_STATE.soundEnabled ||
-    settings.soundVolume !== DEFAULT_SETTINGS_STATE.soundVolume ||
-    settings.hapticsEnabled !== DEFAULT_SETTINGS_STATE.hapticsEnabled
+  const stored = pickPersistedSettings(settings)
+  return (Object.keys(stored) as (keyof PersistedSettingsState)[])
+    .some((key) => stored[key] !== DEFAULT_SETTINGS_STATE[key])
 }
 
 // ─── Cloud sync hook ──────────────────────────────────────────────
@@ -189,12 +175,7 @@ export function useCloudSync() {
           personal_bests: localHistory.personalBests as CloudUserState['personal_bests'],
           vo2_max_manual: localHistory.vo2MaxManual,
           vo2_max_history: localHistory.vo2MaxHistory,
-          settings: {
-            theme: localSettings.theme,
-            soundEnabled: localSettings.soundEnabled,
-            soundVolume: localSettings.soundVolume,
-            hapticsEnabled: localSettings.hapticsEnabled,
-          },
+          settings: pickPersistedSettings(localSettings),
         }
 
         const cloudStateData: CloudUserState = cloudState ?? {
@@ -288,12 +269,7 @@ export function useCloudSync() {
         personal_bests: history.personalBests,
         vo2_max_manual: history.vo2MaxManual,
         vo2_max_history: history.vo2MaxHistory,
-        settings: {
-          theme: settings.theme,
-          soundEnabled: settings.soundEnabled,
-          soundVolume: settings.soundVolume,
-          hapticsEnabled: settings.hapticsEnabled,
-        },
+        settings: pickPersistedSettings(settings),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
       assertNoSupabaseError(stateError)
