@@ -8,45 +8,36 @@ Six surfaces share one Vite SPA: Lim the chatbot (`/`), a static home page (`/ho
 
 ---
 
-## Shared Design Principles (apply to every route)
+## House style (every route)
 
-1. **Craft over convention.** Prefer custom, considered solutions over generic component-library defaults. Spacing, typography weight contrast, surface hierarchy, and motion should feel intentionally designed, not assembled.
-2. **Motion with purpose.** Every animation should serve comprehension (orient, reveal, guide) or affect (calm, anticipation, delight). Decorative-only motion is rejected. Spring physics over linear tweens; respect `prefers-reduced-motion` everywhere.
-3. **Depth through restraint.** No more than one vivid moment per viewport. Use neutral mass to make accents punch. Avoid glassmorphism stacking, gradient text on headings, and generic SaaS gradients.
-4. **Typography as the design language.** Cormorant Garamond for display moments, Inter for body. Weight + size + tracking carry the hierarchy — let the type breathe.
-5. **One accent, many neutrals.** Each app gets a single signature accent; the rest of the palette stays disciplined.
+How to design here, step by step, is the [`design-craft`](.agents/skills/design-craft/SKILL.md) skill. The short version:
 
-## Shared Accessibility Standards
+1. **One living thing, and quiet around it.** Each surface has one centrepiece that responds (Lim, the droplet, the cat, the map) and chrome that stays out of its way. Never two vivid moments in one viewport.
+2. **Worlds do not mix.** Each app owns its material, type pair, single accent and motion character. Nothing is shared between them except the standards below.
+3. **Type carries the hierarchy.** One display face with character, one text face that disappears; contrast in big steps of size, weight and tracking.
+4. **One accent, many tinted neutrals.** The accent means one thing. Dark mode is designed, not inverted.
+5. **Motion is physics with a reason.** Springs for anything touched; every animation orients, reveals or confirms. Decorative-only motion is cut.
+6. **Every state is designed:** empty, loading, error, long content, phone, dark, reduced motion.
 
-- **Target:** WCAG AA (4.5:1 contrast, keyboard navigation, screen-reader support)
-- **Reduced motion:** All transforms / pulses / orbital rotations must honor `prefers-reduced-motion`
-- **Touch targets:** Minimum 44 × 44 px for all interactive elements
-- **Focus indicators:** Visible focus rings on every interactive element (route-specific accent color)
-- **ARIA:** Live regions, proper roles, and explicit labels on every dynamic surface (breathing orb, 3D stop pins, status banners)
-- **i18n:** No layouts that break on long Korean / hangul strings; copy uses `break-words` + `overflow-wrap:anywhere` defensively
+### Standards
 
----
+- **Contrast:** WCAG AA. 4.5:1 for text, 3:1 for control edges and focus rings, in both themes.
+- **Reduced motion:** every transform, pulse and camera move honours `prefers-reduced-motion`, keeping the information and dropping the travel.
+- **Touch targets:** at least 44 × 44 px.
+- **Focus:** a visible ring on every interactive element, in the route's accent.
+- **ARIA:** live regions, proper roles and explicit labels on every dynamic surface (the breathing cat, 3D stop pins, status banners).
+- **Long strings:** no layout breaks on long Korean / hangul text; user strings use `overflow-wrap: anywhere`.
 
-## Shared Tokens
+### The worlds at a glance
 
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| Canvas | `#F5F2ED` | `#171613` | Page background |
-| Surface | `#FFFEFA` | `hsl(40 6% 11%)` | Cards, panels |
-| Ink Primary | `#1C1917` | `#E7E3DE` | Body text |
-| Ink Secondary | `#78716C` | `#A8A29E` | Secondary text |
-| Ink Tertiary | `#A8A29E` | `#78716C` | Hint / muted text |
-| Destructive | `#EF4444` | `#EF4444` | Errors, delete |
-| Border | `rgba(28,25,23,0.08)` | `rgba(255,252,245,0.06)` | Subtle edges |
-| Body font | Inter (BreathFlow: Geist) | | Shared-site body; BreathFlow uses Geist |
-| Display font | Cormorant Garamond (BreathFlow: Fraunces) | | Shared-site display; BreathFlow uses Fraunces |
-| Border radius | `0.5rem` (default) / `1rem`+ in Korea orb cards | | Standard rounding |
-| Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | | Motion default |
-| Decel easing | `cubic-bezier(0.33, 0, 0, 1)` | | Smooth stops |
+| Route | Material | Display / text | Accent | Motion |
+|-------|----------|----------------|--------|--------|
+| `/` Lim | Sorbet studio: cream `#FFF6EC`, night indigo `#1E1833` | Fredoka / Inter | Coral `#FF7E6B` | Squash, stretch and bounce |
+| `/lab` | Bone card `#EDE8DF`, ink `#0E1024` | Archivo / Fragment Mono | Ultramarine `#2433E0` | Taut springs, ink dissolve |
+| `/breathwork` | Cotton paper `#F7F1E6`, ink-blue `#15161C` at night | Fraunces / Geist | The technique's pigment | Wet paint spreading at the pace of a breath |
+| `/trips` | Chart paper `#f1f0eb`, `#0b0d10` at night | Instrument Serif / Inter, Fragment Mono for data | Signal orange for chrome, the trip's own accent for identity | Camera flights, springy pins |
 
-Each app's *accent* color is its own (see the per-app sections).
-
----
+The `:root` defaults in `frontend/src/index.css` (Inter, warm canvas `#F5F2ED`, Cormorant Garamond) dress only the legal pages and the unrouted legacy Korea pages. Do not reach for them in a live app.
 
 ---
 

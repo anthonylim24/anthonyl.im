@@ -7,13 +7,13 @@ description: StyleX styling methodology for this repo. Use when writing, reviewi
 
 The frontend uses **StyleX 0.19** (`@stylexjs/stylex`, `@stylexjs/unplugin`). Tailwind is **gone** — do not add Tailwind utilities, `@tailwind` directives, or `tailwind.config.*`.
 
-Read this skill before editing UI styling. Design tokens and route personalities still live in [`PRODUCT.md`](../../../PRODUCT.md) and [`DESIGN.md`](../../../DESIGN.md).
+Read this skill before editing UI styling. What to design is the [`design-craft`](../design-craft/SKILL.md) skill; each route's tokens and personality are in [`PRODUCT.md`](../../../PRODUCT.md) and [`DESIGN.md`](../../../DESIGN.md). This skill is how the styles get written.
 
 ## When to apply
 
 - New/changed components under `frontend/src/**`
 - Visual parity fixes vs production or vs `main`
-- shadcn/ui (`frontend/src/components/ui/*`) or route shells (`breathflow/`, `pages/Korea/`, `pages/Trips/`)
+- shadcn/ui (`frontend/src/components/ui/*`) or route shells (`chat/`, `breathflow/`, `pages/Landing/`, `pages/Trips/`)
 - `index.css` token / animation / semantic-class changes
 
 ## Architecture
@@ -31,13 +31,14 @@ Component  →  {...sx(stylexStyles, 'semantic-class', layout.srOnly)}  →  DOM
 | Plain CSS-var maps (not StyleX vars) | `frontend/src/styles/tokens.ts` |
 | Global tokens + semantic classes | `frontend/src/index.css` |
 | Vite plugin + CSS layers | `frontend/vite.config.ts` — `useCSSLayers: { before: ['reset','base'], after: ['utilities'], prefix: 'stylex' }` |
-| Route StyleX modules | `*.stylex.ts` next to pages (e.g. `atlas.stylex.ts`, `breathflow.stylex.ts`, `Places.stylex.ts`) |
+| Route StyleX modules | `*.stylex.ts` next to pages (e.g. `atlas.stylex.ts`, `breathflow.stylex.ts`, `landing.stylex.ts`) |
 
 Per-route UI vocabulary:
 
 - Trips: `frontend/src/pages/Trips/atlas.stylex.ts` exports the primitives `a` (`a.display`, `a.eyebrow`, `a.btn` + `a.btnPrimary`, `a.field`, `a.chip`, `a.pill`, `a.menu`, `a.dialog`, …). Page modules: `index.stylex.ts` (`shell`, `idx`, `cover`, `create`), `workspace.stylex.ts` (`share`, `ws`), `map/map.stylex.ts`, `chat.stylex.ts`
-- BreathFlow: `frontend/src/breathflow/styles/breathflow.stylex.ts`
-- Chatbot: `frontend/src/styles/chatbot.stylex.ts`, `layout.stylex.ts`
+- BreathFlow: `frontend/src/breathflow/styles/*.stylex.ts` (+ `watercolor.css`)
+- Lim: `frontend/src/styles/chatbot.stylex.ts`, `messageContent.stylex.ts` (tokens in `frontend/src/chat/chat.css`)
+- Lab landing: `frontend/src/pages/Landing/landing.stylex.ts`
 
 ## Write styles this way
 
@@ -60,7 +61,7 @@ import { ws } from './workspace.stylex'
 | Pass semantic classes from `index.css` when a rule lives there (`trips-title-input`, `trips-day-title-input`, `trip-tap-44`, `group`, `peer`, animation utilities) | Assume StyleX styles replace semantic classes — **a title input without `'trips-title-input'` is pinned to 16px on phones** |
 | `layout.srOnly` or `styles.srOnly` for visually hidden labels | Leave labels unstyled (empty StyleX rules render visible text) |
 | `borderWidth: '1px'` + `borderStyle: 'solid'` when setting `borderColor` | `borderColor` alone — Preflight sets `border: 0 solid` and invisible borders lose |
-| Keep route tokens in `index.css` (`--trips-*`, chatbot/breathflow/korea blocks) | `stylex.defineVars()` for shared tokens or import token maps into `stylex.create()` — Babel rejects cross-file / plain-object token imports |
+| Keep route tokens in CSS (`--trips-*`, `--lim-*`, `--bf-*` in `index.css`; `--chat-*` in `chat/chat.css`) | `stylex.defineVars()` for shared tokens or import token maps into `stylex.create()` — Babel rejects cross-file / plain-object token imports |
 | Child-combinator layouts as **unlayered or `@layer utilities` classes** in `index.css` | `> * + *` or `:hover` on parent in StyleX when you need sibling spacing |
 | `:is(.group:hover) &` in StyleX + `'group'` marker on ancestor | Tailwind `group-hover:*` strings |
 | Honor `prefers-reduced-motion` in CSS **and** Motion props | Decorative-only animation |
@@ -68,11 +69,11 @@ import { ws } from './workspace.stylex'
 ### CSS layer contract
 
 1. **`@layer reset`** — Preflight equivalent (`frontend/src/index.css`). Must stay layered so StyleX can override `border: 0 solid`.
-2. **`@layer base`** — Route token blocks (`.trips`, `.breathflow`, `.chatbot-*`, `.korea`).
+2. **`@layer base`** — Route token blocks (`.trips`, `.breathflow`, `.landing`).
 3. **StyleX** — `@layer stylex.*` via the Vite plugin.
-4. **Unlayered / `@layer utilities`** — Animations (`animate-spin`, `animate-in`, …), Map Mode `.map-*` labels, leaves overlay visibility classes, sibling-divider utilities.
+4. **Unlayered / `@layer utilities`** — Animations (`animate-spin`, `animate-in`, …), `.atlas-pin*` / `.photoreal-pin*` (DOM created outside React), sibling-divider utilities.
 
-**Unlayered CSS beats layered StyleX** for the same property. If a StyleX opacity/color loses to global CSS, move the rule to an explicit unlayered class (see chatbot leaves overlay: `.leaves-overlay-visible` / `.leaves-overlay-hidden`).
+**Unlayered CSS beats layered StyleX** for the same property. If a StyleX opacity/color loses to global CSS, move the rule to an explicit unlayered class.
 
 ### shadcn/ui
 
@@ -108,9 +109,9 @@ Screenshots (desktop + phone, light + dark): `cd frontend && node scripts/captur
 ## Common parity traps (already hit on this migration)
 
 1. Trips control with no focus ring → the global outline is off inside `.trips`; add a `--brand-ring` ring
-2. Missing `sr-only` on Places search label → extra visible label shifts layout
+2. A visually hidden label without `layout.srOnly` → extra visible text shifts layout
 3. `borderColor` without width/style → chips/checkboxes lose borders after Preflight
-4. Map Mode HTML still using Tailwind class strings → use `.map-*` classes in `index.css`
+4. DOM built outside React (map pins) styled with ad-hoc class strings → use the semantic classes in `index.css`
 5. Dialog/content using invalid Tailwind animation class names → use semantic classes from `index.css`
 6. Unlayered global rule overriding layered StyleX (opacity) → promote to explicit visibility classes
 
@@ -118,4 +119,4 @@ Screenshots (desktop + phone, light + dark): `cd frontend && node scripts/captur
 
 - Reinstall Tailwind or `tailwind-merge` for new UI
 - `Schema.decode` trip documents while styling (unrelated but often paired — still forbidden)
-- Hide Map Mode / WebGL with React `Activity` — must unmount
+- Hide the photoreal 3D view / WebGL with React `Activity` — must unmount
