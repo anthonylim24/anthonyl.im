@@ -18,6 +18,7 @@ import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPla
 import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
 import { createAgentSessionRouter } from "./src/routes/agentSession";
 import { parseAgentOnBehalfOf, parseAllowedRedirectHosts } from "./src/agentTasks";
+import { CLERK_PROXY_PATH, createClerkProxy } from "./src/clerkProxy";
 import { join, resolve } from "path";
 import { BUN_IDLE_TIMEOUT_SEC } from "./src/httpIdleTimeout";
 
@@ -102,7 +103,7 @@ const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
   }
   if (pathname.startsWith("/korea") || pathname.startsWith("/trips/korea-2026")) return appPreviews.korea;
   if (pathname.startsWith("/trips")) return appPreviews.trips;
-  if (pathname === "/" || pathname === "") return appPreviews.landing;
+  if (pathname === "/lab") return appPreviews.landing;
   return appPreviews.chatbot;
 };
 
@@ -303,6 +304,13 @@ app.route(
   }),
 );
 
+if (config.clerkSecretKey) {
+  app.all(`${CLERK_PROXY_PATH}/*`, createClerkProxy({
+    secretKey: config.clerkSecretKey,
+    proxyUrl: config.clerkProxyUrl,
+  }));
+}
+
 // Remote PR previews — published by .github/workflows/preview.yml into
 // $PREVIEW_ROOT/<pr>/ (default ~/previews). Mounted before static/SPA so a
 // missing preview returns 404 rather than the production index.html.
@@ -381,9 +389,20 @@ const spaShell = async (c: Context) => {
   c.header("Expires", "0");
   return c.html(withMeta);
 };
-// Registered ahead of serveStatic, which would otherwise answer "/" with the
-// raw dist/index.html (no landing metadata, no no-cache headers).
-app.get("/", spaShell);
+// Plain HTML, readable without JavaScript, because Google's OAuth branding
+// review fetches these URLs and does not run the SPA. Registered ahead of
+// serveStatic, which would otherwise answer "/" with the raw index.html.
+const staticPages: Record<string, string> = {
+  "/": "home.html",
+  "/privacy": "privacy.html",
+  "/terms": "terms.html",
+};
+for (const [path, file] of Object.entries(staticPages)) {
+  app.get(path, async (c) => {
+    c.header("Cache-Control", "no-cache");
+    return c.html(await Bun.file(join(distPath, file)).text());
+  });
+}
 app.use("*", serveStatic({ root: distPath }));
 
 // Legacy Korea dossier URLs fold into the seeded trip.

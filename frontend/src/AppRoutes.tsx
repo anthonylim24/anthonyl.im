@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from 'react'
+import { Suspense, useEffect, type ReactNode } from 'react'
 import { lazyRetry } from './lib/lazyRetry'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Landing } from './pages/Landing/Landing'
@@ -10,6 +10,9 @@ import { routeFallback } from './styles/chatbot.stylex'
 // The chatbot lived at `/` until the lab landing page took the root; it is
 // now `/chatbot` only, so it loads lazily like every other app.
 const App = lazyRetry(() => import('./App'))
+const AuthPage = lazyRetry(() =>
+  import('./pages/Auth/AuthPage').then((module) => ({ default: module.AuthPage })),
+)
 // Lazy load the BreathFlow shell and pages for better initial bundle size.
 const BreathworkLayout = lazyRetry(() =>
   import('./breathflow/pages/BreathflowLayout').then((module) => ({
@@ -72,6 +75,15 @@ const SiteNotFound = lazyRetry(() =>
 const TripsNotFound = lazyRetry(() =>
   import('./pages/Trips/TripsNotFound').then((module) => ({ default: module.TripsNotFound })),
 )
+
+// "/" is a static page the server sends (public/home.html). An in-app link to
+// it reloads the document so the browser gets that page, not an empty route.
+function ServerPage() {
+  useEffect(() => {
+    window.location.reload()
+  }, [])
+  return null
+}
 
 // Route-aware skeletons so a lazy chunk that's still streaming (or hung on a
 // stale SW transition) shows recognizable parchment instead of a blank canvas
@@ -138,8 +150,9 @@ export function AppRoutes() {
   return (
     <BrowserRouter basename={routerBasename()}>
       <Routes>
+        <Route path="/" element={<ServerPage />} />
         <Route
-          path="/"
+          path="/lab"
           element={
             <Guarded app="chatbot" fallback={<ChatbotFallback />}>
               <Landing />
@@ -228,6 +241,23 @@ export function AppRoutes() {
           <Route path=":tripId/places" element={<TripEditRedirect />} />
           <Route path="*" element={<TripsNotFound />} />
         </Route>
+
+        <Route
+          path="/sign-in"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <AuthPage mode="sign-in" />
+            </Guarded>
+          }
+        />
+        <Route
+          path="/sign-up"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <AuthPage mode="sign-up" />
+            </Guarded>
+          }
+        />
 
         <Route
           path="*"

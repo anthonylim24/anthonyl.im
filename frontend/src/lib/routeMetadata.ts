@@ -30,7 +30,7 @@ export function breathflowTitle(pathname: string) {
 
 export function getRouteMetadata(pathname: string) {
   const appPath = pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, "") || "/"
-  if (appPath === "/") return LANDING_ROUTE_METADATA
+  if (appPath === "/lab") return LANDING_ROUTE_METADATA
   return appPath.startsWith("/breathwork")
     ? BREATHFLOW_ROUTE_METADATA
     : DEFAULT_ROUTE_METADATA

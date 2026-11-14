@@ -1,6 +1,6 @@
 # anthonyl.im
 
-This repo hosts five experiences under one Vite SPA: the **anthonyl.im lab landing page** (`/`), a personal AI chatbot (`/chatbot`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+This repo hosts five experiences under one Vite SPA: a static home page (`/`), the **anthonyl.im lab landing page** (`/lab`), a personal AI chatbot (`/chatbot`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -278,7 +278,10 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 
 | Path | App | Auth |
 |------|-----|------|
-| `/` | anthonyl.im lab landing | Public |
+| `/` | Static home (`frontend/public/home.html`, no scripts; links the apps, privacy, terms) | Public |
+| `/lab` | anthonyl.im lab landing | Public |
+| `/sign-in`, `/sign-up` | Clerk `SignIn` / `SignUp` (hash routing; finishes Google `#/sso-callback` on our origin) | Public |
+| `/privacy`, `/terms` | Static legal pages | Public |
 | `/chatbot` | AI Chatbot | Public |
 | `/breathwork` | BreathFlow home | Public |
 | `/breathwork/session` | BreathFlow session | Public |
@@ -325,7 +328,7 @@ Always required at server boot (`config.ts` throws):
 - `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL` — homepage chatbot LLM (Deepseek via Kluster)
 
 Required for Clerk-gated **production** (`/trips`, `/trips/korea-2026`, IG ingest). Without it, JWT verification fails and `/api/trips` (and other gated routes) return 401:
-- `CLERK_SECRET_KEY` — Clerk JWT verification (`server/src/middleware/clerkAuth.ts`)
+- `CLERK_SECRET_KEY` — Clerk JWT verification (`server/src/middleware/clerkAuth.ts`). Also mounts the Clerk Frontend API proxy at `/__clerk/*` (`server/src/clerkProxy.ts`), which forwards to Clerk with `CLERK_PROXY_URL` (default `https://anthonyl.im/__clerk`). The browser uses it only when the build sets `VITE_CLERK_PROXY_URL` (GitHub Actions variable), and the production instance's domain must have the same proxy URL set in Clerk. Google sign-in finishes at `/sign-in#/sso-callback`: the sign-in modal takes that base from the instance's display config, not from `ClerkProvider`'s `signInUrl`, so the production instance's `paths.sign_in` / `paths.sign_up` must stay `/sign-in` / `/sign-up` (otherwise Clerk falls back to the `accounts.` Account Portal, which some networks block)
 
 Required when the IG worker is enabled (warns if missing):
 - `APIFY_TOKEN` — Instagram post fetch (Apify's Instagram scraper; free plan is enough for personal use). `BRIGHT_DATA_API_KEY` is an optional paid fallback; yt-dlp is the last resort
@@ -366,7 +369,7 @@ See `frontend/.env.example` and `server/src/config.ts`.
 3. Backend staged on Digital Ocean via SSH into `~/anthonyl.im.next` (shallow clone, `bun install --frozen-lockfile`), system tools checked (yt-dlp, ffmpeg, dev-browser).
 4. Frontend `dist/` uploaded via SCP into the staged tree.
 5. Atomic swap `next → live`, PM2 restart (`--max-memory-restart 700M`), wait for loopback `/health`; auto-rollback to `prev` if it does not come up.
-6. Post-deploy smoke: `/health` JSON + SPA shells on `/`, `/chatbot`, `/breathwork`, `/trips`, `/trips/korea-2026`.
+6. Post-deploy smoke: `/health` JSON + home and legal pages plus SPA shells on `/lab`, `/chatbot`, `/breathwork`, `/trips`, `/trips/korea-2026`.
 
 **Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
 
@@ -504,7 +507,7 @@ Each app's *accent* color is its own (see per-app sections below).
 
 ---
 
-## Design Context: `/` — anthonyl.im Lab Landing
+## Design Context: `/lab` — anthonyl.im Lab Landing
 
 Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/chatbot`, Concierge → `/trips`, BreathFlow → `/breathwork`.
 

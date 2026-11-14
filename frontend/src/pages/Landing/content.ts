@@ -5,7 +5,7 @@
  * on this site and link to their live routes.
  */
 
-export type NavLink = { label: string; href: string }
+export type NavLink = { label: string; href: string; document?: true }
 
 export const NAV: NavLink[] = [
   { label: 'Research', href: '#research' },
@@ -406,6 +406,13 @@ export const FOOTER: { title: string; links: NavLink[] }[] = [
       { label: 'Careers', href: '#careers' },
       { label: 'Customers', href: '#customers' },
       { label: 'Source on GitHub', href: 'https://github.com/anthonylim24/anthonyl.im' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Privacy Policy', href: '/privacy', document: true },
+      { label: 'Terms of Service', href: '/terms', document: true },
     ],
   },
 ]
