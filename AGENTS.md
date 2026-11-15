@@ -43,7 +43,7 @@ anthonyl.im/
 │   │   │   ├── motion/ platform/ safety/ session/ recommend/
 │   │   ├── pages/
 │   │   │   ├── Landing/         # `/lab` landing: content, StyleX, WebGPU hero scene
-│   │   │   ├── Korea/           # Legacy Korea pages (unrouted) + concierge / theme helpers Trips imports
+│   │   │   ├── Korea/           # Concierge client, markdown and theme helpers Trips imports (no pages)
 │   │   │   └── Trips/           # "The atlas": map-first trip planner + concierge
 │   │   │       ├── TripsLayout, TripsIndex, TripCreate, TripWorkspace, TripJoin, TripChat
 │   │   │       ├── workspace/   # OverviewPanel, DayPanel, ItemCard, AddStop, AiPanels, DetailsDialog
@@ -52,8 +52,8 @@ anthonyl.im/
 │   │   │       ├── photoreal/   # "Fly the day": PhotorealOverlay, scene (Google 3D Tiles), camera / sun / stops maths
 │   │   │       └── atlas/index/workspace/chat .stylex.ts, meta.ts, geocode.ts, useTripEditor.ts
 │   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
-│   │   ├── styles/              # merge.ts (sx), common.stylex.ts, tokens.ts, route *.stylex.ts
-│   │   ├── components/          # Shared: ui/*, CloudSync, RouteErrorBoundary
+│   │   ├── styles/              # merge.ts (sx), common.stylex.ts, route *.stylex.ts
+│   │   ├── components/          # Shared: layout/CloudSync, RouteErrorBoundary, OverlayBoundary, message-content
 │   │   ├── three/               # Shared WebGPU toolkit: createStage, Jelly soft body, jellyMesh, bindJellyPointer
 │   │   ├── hooks/               # useReducedMotion, useLatestCallback, useCloudSync
 │   │   ├── lib/                 # apiBase, apiService, safeAuth, clerk, concierge*, externalMaps
@@ -147,7 +147,7 @@ Read the matching skill before writing code. Effect I/O rules win over generic R
 | `vercel-react-best-practices` | React 19 render / bundle. Translate Next.js examples to Vite `React.lazy` + Hono. |
 | `clerk` + `clerk-react-patterns` | Clerk auth (`@clerk/clerk-react` ^5, Core 2). See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
 
-The other vendored Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, billing, orgs, webhooks) are the wrong stack. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+The wrong-stack Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, billing, orgs, webhooks) are deliberately not vendored. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -259,7 +259,7 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/trips/:tripId/places` | Redirect to `/trips/:tripId` (hash + query kept) | Clerk-gated |
 | `/trips/*` | `TripsNotFound` | Clerk-gated |
 
-Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, the photoreal 3D view (day "…" menu, "Fly the day in 3D"). Instagram import is a sheet, not a route (`instagram/InstagramSheet.tsx`): opened from the trip menu, the overview's "From Instagram" button, by pasting a post link into a day's composer, or by `?instagram=<link>` / `?ingest=1` (the PWA share target sends shared links to `/trips?url=…`, which forwards to the current or next trip). `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
+Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, the photoreal 3D view (day "…" menu, "Fly the day in 3D"). Instagram import is a sheet, not a route (`instagram/InstagramSheet.tsx`): opened from the trip menu, the overview's "From Instagram" button, by pasting a post link into a day's composer, or by `?instagram=<link>` / `?ingest=1` (the PWA share target sends shared links to `/trips?url=…`, which forwards to the current or next trip). `pages/Korea/koreaChatApi.ts` is the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
 
 ---
 
@@ -321,7 +321,7 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 - React 19 + Vite 8 + React Router v7 (`react-router-dom` SPA, not SSR)
 - TypeScript: frontend lint `~6.0`; frontend/root **build** `~7.0` via `typescript7`
-- StyleX 0.19 + semantic classes in `index.css` + shadcn/ui (Radix primitives)
+- StyleX 0.19 + semantic classes in `index.css` + Radix primitives (dialog, tabs)
 - Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide
 - Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5), Supabase, PostHog

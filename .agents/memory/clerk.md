@@ -7,7 +7,7 @@ Relevant skills only: `clerk`, `clerk-react-patterns`, `clerk-testing`, `clerk-c
 Auth code:
 
 - Frontend: `frontend/src/lib/clerk.ts`, `clerkProvider.tsx`, `safeAuth.ts` (`useGetToken`, `useAuthReady`)
-- Gate: `TripsAuthGate` (`KoreaAuthGate` is legacy, unrouted)
+- Gate: `TripsAuthGate`
 - Server JWT: `server/src/middleware/clerkAuth.ts`
 
 Preview screenshots (Clerk-gated `/trips` and `/trips/korea-2026`): `bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026`. The helper applies the session in Chrome — do not paste Agent Task URLs. See [`docs/pr-previews.md`](../../docs/pr-previews.md).

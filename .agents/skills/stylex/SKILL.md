@@ -13,7 +13,7 @@ Read this skill before editing UI styling. What to design is the [`design-craft`
 
 - New/changed components under `frontend/src/**`
 - Visual parity fixes vs production or vs `main`
-- shadcn/ui (`frontend/src/components/ui/*`) or route shells (`chat/`, `breathflow/`, `pages/Landing/`, `pages/Trips/`)
+- Route shells (`chat/`, `breathflow/`, `pages/Landing/`, `pages/Trips/`)
 - `index.css` token / animation / semantic-class changes
 
 ## Architecture
@@ -28,7 +28,6 @@ Component  →  {...sx(stylexStyles, 'semantic-class', layout.srOnly)}  →  DOM
 |-------|----------|
 | Merge helper | `frontend/src/styles/merge.ts` — `sx(...)` merges StyleX props + optional semantic class strings |
 | Shared layout primitives | `frontend/src/styles/common.stylex.ts` — `layout.srOnly`, focus rings, etc. |
-| Plain CSS-var maps (not StyleX vars) | `frontend/src/styles/tokens.ts` |
 | Global tokens + semantic classes | `frontend/src/index.css` |
 | Vite plugin + CSS layers | `frontend/vite.config.ts` — `useCSSLayers: { before: ['reset','base'], after: ['utilities'], prefix: 'stylex' }` |
 | Route StyleX modules | `*.stylex.ts` next to pages (e.g. `atlas.stylex.ts`, `breathflow.stylex.ts`, `landing.stylex.ts`) |
@@ -75,9 +74,9 @@ import { ws } from './workspace.stylex'
 
 **Unlayered CSS beats layered StyleX** for the same property. If a StyleX opacity/color loses to global CSS, move the rule to an explicit unlayered class.
 
-### shadcn/ui
+### Radix primitives
 
-Radix primitives in `frontend/src/components/ui/*` compose StyleX + semantic animation classes from `index.css` (`animate-in`, `fade-in-0`, `zoom-in-95`, …). Do not reintroduce Tailwind `data-[state=open]:animate-in` arbitrary variants.
+Radix is used directly, with no shadcn wrapper layer: `@radix-ui/react-dialog` in `pages/Trips/components/kit.tsx` (`Modal`) and `instagram/InstagramSheet.tsx`, `@radix-ui/react-tabs` in `pages/Landing/parts.tsx`. Style them with StyleX on the primitive parts. Do not reintroduce Tailwind `data-[state=open]:animate-in` arbitrary variants.
 
 ## Trips-specific
 
