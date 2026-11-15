@@ -1,23 +1,15 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
-import { OpenAI } from "openai";
 import Groq from "groq-sdk";
-import { config } from "../config";
-import { InvokeRequest } from "../types";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { commonConfig, SYSTEM_PROMPT } from "./constants";
+import { SYSTEM_PROMPT } from "./constants";
 import { geminiTextStream, type GeminiTurn } from "../geminiText";
 import { routeLimModel } from "../lim/jev";
 import { worldPrompt } from "../lim/world";
 
 const invoke = new Hono();
-
-const openai = new OpenAI({
-  apiKey: config.deepseekApiKey,
-  baseURL: config.deepseekApiBaseUrl,
-});
 
 const GROQ_MODEL = "openai/gpt-oss-120b";
 
@@ -44,58 +36,78 @@ const invokeSchema = z.object({
 invoke.post("/", zValidator("json", invokeSchema), async (c) => {
   const { prompt, messages = [], world } = c.req.valid("json");
   const system = world ? SYSTEM_PROMPT + worldPrompt(world) : SYSTEM_PROMPT;
-
-  if (!prompt) {
-    return c.json({ error: "Prompt is required" }, 400);
-  }
-
-  // Jev (lim/jev.ts) picks the Gemini model: Hydrogen for questions about
-  // Anthony (or anything else), Carbon for playing with the jelly. If the
-  // Gemini stream cannot be opened (no key, quota, outage), the previous
-  // model on Groq answers instead.
-  let chunks: AsyncIterable<string>;
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY missing");
-    const { model, route, via, pJelly } = await routeLimModel({ prompt, messages, world, signal: c.req.raw.signal });
-    console.info(`[invoke] ${model} (route=${route ?? "-"} via=${via}${pJelly === undefined ? "" : ` pJelly=${pJelly.toFixed(2)}`})`);
-    chunks = await geminiTextStream({
-      apiKey,
-      model,
-      system,
-      messages: [...messages, { role: "user", content: prompt }],
-      signal: AbortSignal.any([AbortSignal.timeout(120_000), c.req.raw.signal]),
-    });
-  } catch (err) {
-    console.warn("[invoke] gemini unavailable, using groq:", err instanceof Error ? err.message : String(err));
-    chunks = await groqStream(prompt, messages, system);
-  }
+  const signal = c.req.raw.signal;
 
   return streamSSE(c, async (stream) => {
     try {
+      const chunks = await openLimStream({ prompt, messages, world, system, signal });
       for await (const content of chunks) {
         // JSON encode to preserve newlines and special characters
         await stream.writeSSE({ data: JSON.stringify(content) });
       }
       await stream.writeSSE({ data: "[DONE]" });
     } catch (error) {
-      if (c.req.raw.signal.aborted) return;
-      console.error("Streaming error:", error);
+      // The visitor left: nobody is listening, and nothing failed.
+      if (signal.aborted) return;
+      console.error("[invoke] stream failed:", error instanceof Error ? error.message : String(error));
       await stream.writeSSE({
-        data: JSON.stringify({ error: "Streaming error occurred" }),
+        data: JSON.stringify({ error: "Lim can't answer right now. Please try again in a moment." }),
       });
     }
   });
 });
 
-async function groqStream(prompt: string, messages: GeminiTurn[], system: string): Promise<AsyncIterable<string>> {
+type LimRequest = {
+  prompt: string;
+  messages: GeminiTurn[];
+  world: z.infer<typeof invokeSchema>["world"];
+  system: string;
+  signal: AbortSignal;
+};
+
+/**
+ * Jev (lim/jev.ts) picks the Gemini model: Hydrogen for questions about
+ * Anthony (or anything else), Carbon for playing with the jelly. If the
+ * Gemini stream cannot be opened (no key, quota, outage), the previous model
+ * on Groq answers instead — unless the visitor already left, when opening a
+ * second paid stream would only bill for nobody.
+ */
+async function openLimStream({ prompt, messages, world, system, signal }: LimRequest): Promise<AsyncIterable<string>> {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY missing");
+    const { model, route, via, pJelly } = await routeLimModel({ prompt, messages, world, signal });
+    console.info(`[invoke] ${model} (route=${route ?? "-"} via=${via}${pJelly === undefined ? "" : ` pJelly=${pJelly.toFixed(2)}`})`);
+    return await geminiTextStream({
+      apiKey,
+      model,
+      system,
+      messages: [...messages, { role: "user", content: prompt }],
+      signal: AbortSignal.any([AbortSignal.timeout(120_000), signal]),
+    });
+  } catch (err) {
+    if (signal.aborted) throw err;
+    console.warn("[invoke] gemini unavailable, using groq:", err instanceof Error ? err.message : String(err));
+    return groqStream(prompt, messages, system, signal);
+  }
+}
+
+async function groqStream(
+  prompt: string,
+  messages: GeminiTurn[],
+  system: string,
+  signal: AbortSignal,
+): Promise<AsyncIterable<string>> {
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  const completion = await groq.chat.completions.create({
-    messages: [{ role: "system", content: system }, ...messages, { role: "user", content: prompt }],
-    max_completion_tokens: 2500,
-    model: GROQ_MODEL,
-    stream: true,
-  });
+  const completion = await groq.chat.completions.create(
+    {
+      messages: [{ role: "system", content: system }, ...messages, { role: "user", content: prompt }],
+      max_completion_tokens: 2500,
+      model: GROQ_MODEL,
+      stream: true,
+    },
+    { signal: AbortSignal.any([AbortSignal.timeout(120_000), signal]) },
+  );
   return (async function* () {
     for await (const chunk of completion) {
       const content = chunk.choices[0]?.delta?.content || "";

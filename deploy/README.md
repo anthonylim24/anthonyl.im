@@ -18,7 +18,7 @@ git push → GitHub Actions (.github/workflows/deploy.yml)
               │  └─ apt/curl ↓ yt-dlp + ffmpeg + dev-browser (idempotent, non-fatal)
               ├─ scp frontend/dist → ~/anthonyl.im.next/frontend/dist
               ├─ atomic swap next → live (prev kept for rollback)
-              ├─ pm2 restart (--update-env)
+              ├─ pm2 start (NODE_ENV=production, --update-env)
               └─ smoke: /health + SPA shells
 ```
 
@@ -51,7 +51,7 @@ Set these under **repo → Settings → Secrets and variables → Actions**:
 | `SSH_HOST` | droplet's public IP or `anthonyl.im` |
 | `SSH_USERNAME` | linux user the bun process runs as (e.g. `root`) |
 | `SSH_KEY` | passphrase-free private SSH key authorized on the droplet |
-| `FRONTEND_ENV` | the entire body of what Vite expects in `frontend/.env`. **All build-time `VITE_*` vars live here**, one per line. The workflow `echo "${{ secrets.FRONTEND_ENV }}" > .env` writes this verbatim. |
+| `FRONTEND_ENV` | the entire body of what Vite expects in `frontend/.env`. **All build-time `VITE_*` vars live here**, one per line. The workflow passes it to the build step as an environment variable and writes it to `frontend/.env` verbatim (`printf '%s\n' "$FRONTEND_ENV"`), so `$`, quotes and backticks in values are kept literally. |
 
 ### What `FRONTEND_ENV` must include
 

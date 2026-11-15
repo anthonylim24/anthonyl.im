@@ -1,8 +1,8 @@
-import { isValidElement, useRef, useState } from "react";
+import { isValidElement, memo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, ImageIcon } from "lucide-react";
 import { sx } from "@/lib/utils";
 import { messageContent } from "@/styles/messageContent.stylex";
 import { chatbot } from "@/styles/chatbot.stylex";
@@ -96,12 +96,28 @@ const markdownComponents = {
   th: ({ children }: { children?: React.ReactNode }) => <th {...sx(messageContent.th)}>{children}</th>,
   td: ({ children }: { children?: React.ReactNode }) => <td {...sx(messageContent.td)}>{children}</td>,
   hr: () => <hr {...sx(messageContent.hr)} />,
-  img: ({ src, alt }: { src?: string; alt?: string }) => (
-    <img src={src} alt={alt} loading="lazy" decoding="async" {...sx(messageContent.img)} />
-  ),
+  // The model writes this text, and a prompt can steer it: an <img> would make
+  // the visitor's browser fetch any host the model names, with whatever it put
+  // in the query string, without a click. So an image is only ever a link.
+  img: ({ src, alt }: { src?: string | Blob; alt?: string }) => {
+    const label = alt?.trim() || "image";
+    const href = typeof src === "string" && /^https?:\/\//i.test(src) ? src : null;
+    return href ? (
+      <a href={href} target="_blank" rel="noopener noreferrer nofollow" {...sx(messageContent.link, messageContent.imageLink)}>
+        <ImageIcon size={14} aria-hidden="true" />
+        {label}
+      </a>
+    ) : (
+      <span>{label}</span>
+    );
+  },
 };
 
-const MessageContent = ({ content, isStreaming = false }: MessageContentProps) => {
+/**
+ * One reply as markdown. Memoised: while a reply streams, only that reply's
+ * markdown is parsed again, not the whole conversation's.
+ */
+const MessageContent = memo(function MessageContent({ content, isStreaming = false }: MessageContentProps) {
   const thinkMatch = content.match(THINK_REGEX);
   const thinkContent = thinkMatch ? thinkMatch[1] : "";
   const mainContent = thinkMatch ? thinkMatch[2] : content;
@@ -121,6 +137,6 @@ const MessageContent = ({ content, isStreaming = false }: MessageContentProps) =
       </div>
     </div>
   );
-};
+});
 
 export default MessageContent;

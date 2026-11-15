@@ -7,6 +7,9 @@ import { routeError } from '@/styles/chatbot.stylex'
 interface Props {
   /** Which app this boundary protects — drives accent color + copy. */
   app: 'chatbot' | 'breathwork' | 'korea' | 'trips'
+  /** A caught error is cleared when this changes (the router's location key),
+   *  so navigating away from a crashed route renders the new route. */
+  resetKey?: unknown
   children: ReactNode
 }
 
@@ -67,7 +70,11 @@ export class RouteErrorBoundary extends Component<Props, State> {
     if (isChunkLoadError(error)) reloadForNewBuild()
   }
 
-  componentDidUpdate(_prev: Props, prevState: State) {
+  componentDidUpdate(prev: Props, prevState: State) {
+    if (this.state.error && prevState.error && prev.resetKey !== this.props.resetKey) {
+      this.setState({ error: null })
+      return
+    }
     // Focus the reload button right after the fallback mounts so screen-reader
     // users land on the recovery action instead of being dropped at document
     // start with no announcement of what changed.

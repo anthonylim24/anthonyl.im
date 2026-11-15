@@ -22,15 +22,23 @@ const MAX_AUTO_RELOADS = 2
 
 /** Reload to retry sign-in, at most twice a tab and once a minute: if a
  *  reload does not fix it, more of them only get in the visitor's way. */
-function reloadToRecover(): boolean {
+export function reloadToRecover(): boolean {
+  let done: number
   try {
-    const done = Number(sessionStorage.getItem(RELOAD_COUNT_KEY) ?? 0)
-    if (done >= MAX_AUTO_RELOADS) return false
-    sessionStorage.setItem(RELOAD_COUNT_KEY, String(done + 1))
+    done = Number(sessionStorage.getItem(RELOAD_COUNT_KEY) ?? 0)
   } catch {
     return false
   }
-  return reloadOnce(RELOAD_KEY)
+  if (done >= MAX_AUTO_RELOADS) return false
+  // Spend the budget only on a reload that happens: `reloadOnce` declines
+  // inside its one-minute window, and that attempt must not count.
+  if (!reloadOnce(RELOAD_KEY)) return false
+  try {
+    sessionStorage.setItem(RELOAD_COUNT_KEY, String(done + 1))
+  } catch {
+    /* reloadOnce just wrote to the same storage; nothing left to do */
+  }
+  return true
 }
 
 const reachable = (request: Effect.Effect<Response, Error>) =>

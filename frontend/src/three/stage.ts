@@ -35,6 +35,12 @@ export type Stage = {
   onResize(fn: (w: number, h: number) => void): void
   /** Frames keep falling behind at the lowest pixel ratio (fires once). */
   onStruggle(fn: () => void): void
+  /**
+   * The GPU took the context away (WebGPU device lost, or `webglcontextlost`
+   * on the WebGL2 fallback): nothing will draw again. Fires once, never for
+   * our own `dispose()`. The scene should dispose and show its still.
+   */
+  onLost(fn: (reason: string) => void): void
   /** Re-home the canvas's sizing/visibility on another element; null pauses the loop. */
   setHost(host: HTMLElement | null): void
   dispose(): void
@@ -51,6 +57,23 @@ export async function createStage({ canvas, host: initialHost, reducedMotion, ma
   const size = { w: 1, h: 1 }
   const resizers: ((w: number, h: number) => void)[] = []
   const strugglers: (() => void)[] = []
+  const losers: ((reason: string) => void)[] = []
+  let disposed = false
+  let lost = false
+  const loseContext = (reason: string) => {
+    if (disposed || lost) return
+    lost = true
+    renderer.setAnimationLoop(null)
+    for (const fn of losers.splice(0)) fn(reason)
+  }
+  // WebGPU: `device.lost` settles once, also when we destroy it in dispose (hence the guard).
+  const device = (renderer.backend as { device?: { lost?: Promise<{ reason?: string; message?: string }> } }).device
+  void device?.lost?.then((info) => loseContext(`webgpu: ${info.reason ?? 'unknown'} ${info.message ?? ''}`.trim()))
+  const onContextLost = (e: Event) => {
+    e.preventDefault()
+    loseContext('webgl: context lost')
+  }
+  canvas.addEventListener('webglcontextlost', onContextLost)
   const resize = () => {
     if (!host) return
     size.w = Math.max(1, host.clientWidth)
@@ -141,6 +164,9 @@ export async function createStage({ canvas, host: initialHost, reducedMotion, ma
     onStruggle(fn) {
       strugglers.push(fn)
     },
+    onLost(fn) {
+      losers.push(fn)
+    },
     setHost(next) {
       if (next === host) return
       io.disconnect()
@@ -155,6 +181,8 @@ export async function createStage({ canvas, host: initialHost, reducedMotion, ma
       sync()
     },
     dispose() {
+      disposed = true
+      canvas.removeEventListener('webglcontextlost', onContextLost)
       frame = null
       renderer.setAnimationLoop(null)
       io.disconnect()

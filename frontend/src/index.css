@@ -326,26 +326,6 @@ input[type="reset"] {
   animation: col-fade-in 560ms cubic-bezier(0.33, 0, 0, 1) forwards;
 }
 
-/* Korea scroll-reveal — shared IntersectionObserver animation (see scrollReveal.ts) */
-.korea-scroll-reveal {
-  opacity: 0;
-  transform: translateY(1rem) scale(0.985);
-  transition:
-    opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.korea-scroll-reveal[data-revealed='true'] {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .korea-scroll-reveal {
-    transition: none;
-    opacity: 1;
-    transform: none;
-  }
-}
-
 /* Landing (`/`) — anthonyl.im lab. Pigment on bone: ultramarine is the only
    accent; ink carries the dark sections. Vars only — StyleX owns properties. */
 .landing {
@@ -408,11 +388,6 @@ html:has(.landing) { scroll-padding-top: 76px; background-color: #EDE8DF; }
   0%, 100% { opacity: 1; } 50% { opacity: 0; }
 }
 .animate-cursor-blink { animation: cursor-blink 1s ease-in-out infinite; }
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
-}
-.animate-pulse { animation: pulse 2s ease-in-out infinite; }
 
 .cv-card {
   content-visibility: auto;
@@ -649,102 +624,13 @@ body {
   background-color: inherit;
 }
 
-/* Radix dialog enter/exit animations (formerly tailwindcss-animate) */
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fade-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@keyframes zoom-in-95 {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-
-@keyframes zoom-out-95 {
-  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  to { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
-}
-
-@keyframes slide-in-from-left-half {
-  from { transform: translate(calc(-50% - 0.5rem), -50%); }
-  to { transform: translate(-50%, -50%); }
-}
-
-@keyframes slide-in-from-top-48 {
-  from { transform: translate(-50%, calc(-50% - 0.75rem)); }
-  to { transform: translate(-50%, -50%); }
-}
-
-@keyframes slide-out-to-left-half {
-  from { transform: translate(-50%, -50%); }
-  to { transform: translate(calc(-50% - 0.5rem), -50%); }
-}
-
-@keyframes slide-out-to-top-48 {
-  from { transform: translate(-50%, -50%); }
-  to { transform: translate(-50%, calc(-50% - 0.75rem)); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.animate-in { animation-duration: 150ms; animation-fill-mode: both; }
-.animate-out { animation-duration: 150ms; animation-fill-mode: both; }
-.fade-in-0 { animation-name: fade-in; }
-.fade-out-0 { animation-name: fade-out; }
-.zoom-in-95 { animation-name: zoom-in-95; }
-.zoom-out-95 { animation-name: zoom-out-95; }
-.slide-in-from-left-1\/2 { animation-name: slide-in-from-left-half; }
-.slide-in-from-top-\[48\%\] { animation-name: slide-in-from-top-48; }
-.slide-out-to-left-1\/2 { animation-name: slide-out-to-left-half; }
-.slide-out-to-top-\[48\%\] { animation-name: slide-out-to-top-48; }
-.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-.animate-spin { animation: spin 1s linear infinite; }
-
-@keyframes ping {
-  75%, 100% { transform: scale(2); opacity: 0; }
-}
-.animate-ping {
-  animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
 .animate-ig-sweep { animation: ig-sweep 1.6s linear infinite; }
-.animate-timeline-breath { animation: timeline-breath 3s ease-in-out infinite; }
-.animate-timeline-rim { animation: timeline-rim 3s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-spin,
-  .animate-ping,
-  .animate-ig-sweep,
-  .animate-timeline-breath,
-  .animate-timeline-rim {
+  .animate-ig-sweep {
     animation: none;
   }
 }
-
-[data-state="open"].animate-in { animation-name: fade-in; }
-[data-state="closed"].animate-out { animation-name: fade-out; }
-[data-state="open"].fade-in-0 { animation-name: fade-in; }
-[data-state="closed"].fade-out-0 { animation-name: fade-out; }
-[data-state="open"].zoom-in-95 { animation-name: zoom-in-95; }
-[data-state="closed"].zoom-out-95 { animation-name: zoom-out-95; }
-[data-state="open"].slide-in-from-left-1\/2 { animation-name: slide-in-from-left-half; }
-[data-state="open"].slide-in-from-top-\[48\%\] { animation-name: slide-in-from-top-48; }
-[data-state="closed"].slide-out-to-left-1\/2 { animation-name: slide-out-to-left-half; }
-[data-state="closed"].slide-out-to-top-\[48\%\] { animation-name: slide-out-to-top-48; }
-
-.duration-200 { animation-duration: 200ms; }
 
 @media (min-width: 640px) {
   .sm\:rounded-lg { border-radius: 0.5rem; }
@@ -939,74 +825,6 @@ body {
   .ig-place-emerge-ring {
     animation: none !important;
   }
-}
-
-/* ---------- Korea route — overdrive moments ---------- */
-
-/* Day numeral mark — stroke draws in, then the fill fades up. */
-@keyframes korea-stroke-in {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes korea-stroke-fill {
-  to {
-    fill-opacity: 1;
-  }
-}
-
-/* Timeline active item — amber rim breathing and glow breathing.
-   Both run as a slow 3s cycle so the eye lands on the upcoming
-   reservation without ever being shouted at. */
-@keyframes timeline-rim {
-  0%, 100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 0.95;
-  }
-}
-
-@keyframes timeline-breath {
-  0%, 100% {
-    opacity: 0.45;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.1);
-  }
-}
-
-/* Korea scroll-reveal — initial state until data-revealed=true (see scrollReveal.ts). */
-.korea-scroll-reveal {
-  opacity: 0;
-  transform: translateY(1rem) scale(0.985);
-  transition:
-    opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.korea-scroll-reveal[data-revealed='true'] {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .korea-scroll-reveal {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-}
-
-/* Korea list stacks — hairline between siblings (StyleX cannot express > * + *). */
-.korea-hairline-stack > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
-  border-color: rgba(28, 25, 23, 0.08);
-}
-.dark .korea-hairline-stack > * + * {
-  border-color: rgba(255, 252, 245, 0.06);
 }
 
 /* Same unlayered `* { border-color }` problem as the landing: hand Trips back

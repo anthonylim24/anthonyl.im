@@ -1,15 +1,19 @@
-import { Suspense, type ReactNode } from 'react'
+import { Suspense, useEffect, useRef, type ReactNode } from 'react'
 import { lazyRetry } from './lib/lazyRetry'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { Landing } from './pages/Landing/Landing'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { routerBasename } from './lib/routerBasename'
+import { notifyRouteChange } from './lib/serviceWorker'
 import { sx } from './lib/utils'
 import { routeFallback } from './styles/chatbot.stylex'
 
-// The chatbot lived at `/` until the lab landing page took the root; it is
-// now `/` only, so it loads lazily like every other app.
+// Every route is lazy: the entry holds only the router, the boundaries and
+// the fallbacks, so no app's code or vendor groups load with another app.
+// `scripts/check-entry-preloads.mjs` fails the build if that slips.
 const App = lazyRetry(() => import('./App'))
+const Landing = lazyRetry(() =>
+  import('./pages/Landing/Landing').then((module) => ({ default: module.Landing })),
+)
 const AuthPage = lazyRetry(() =>
   import('./pages/Auth/AuthPage').then((module) => ({ default: module.AuthPage })),
 )
@@ -121,7 +125,7 @@ function TripsShellFallback() {
 // Putting Suspense INSIDE the boundary is load-bearing: if Suspense sits above
 // the boundary, a rejected dynamic import bubbles past the boundary to the
 // outer Suspense — which has no error story — and the user sees a blank page.
-function Guarded({
+export function Guarded({
   app,
   fallback,
   children,
@@ -130,16 +134,35 @@ function Guarded({
   fallback: ReactNode
   children: ReactNode
 }) {
+  // Every route renders its boundary at the same place in the tree, so React
+  // would keep one boundary (and its caught error) across navigations.
+  // `resetKey` clears the error when the location changes: Back from a crashed
+  // route shows the route you went back to.
+  const { key } = useLocation()
   return (
-    <RouteErrorBoundary app={app}>
+    <RouteErrorBoundary app={app} resetKey={key}>
       <Suspense fallback={fallback}>{children}</Suspense>
     </RouteErrorBoundary>
   )
 }
 
+// A route change is a page change already, so a waiting app update reloads
+// into the new route then (lib/serviceWorker.ts) instead of interrupting one.
+function RouteChangeSignal() {
+  const { pathname } = useLocation()
+  const previous = useRef(pathname)
+  useEffect(() => {
+    if (pathname === previous.current) return
+    previous.current = pathname
+    notifyRouteChange()
+  }, [pathname])
+  return null
+}
+
 export function AppRoutes() {
   return (
     <BrowserRouter basename={routerBasename()}>
+      <RouteChangeSignal />
       <Routes>
         <Route
           path="/"

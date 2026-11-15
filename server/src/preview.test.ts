@@ -8,6 +8,7 @@ import {
   createPreviewRouter,
   getPreviewRoot,
   isPreviewPrId,
+  isPrivatePreviewPath,
   parsePreviewPath,
   previewApiUpstreamPath,
   previewBasePath,
@@ -128,6 +129,20 @@ describe("stampPreviewHtml", () => {
     expect(stamped).not.toContain("javascript:");
     expect(stamped).toContain("https://github.com/anthonylim24/anthonyl.im/pull/1");
   });
+
+  test("inserts $-patterns in the metadata literally", () => {
+    const html = "<html><head><title>x</title></head><body>tail</body></html>";
+    const stamped = stampPreviewHtml(html, {
+      v: 1,
+      pr: 1,
+      sha: "$&$`$'",
+      builtAt: "2026-01-01T00:00:00.000Z",
+      base: "/preview/pr/1/",
+    });
+    expect(stamped).toContain("$&amp;$`$&#39;");
+    expect(stamped.match(/<\/head>/g)?.length).toBe(1);
+    expect(stamped.match(/<\/body>/g)?.length).toBe(1);
+  });
 });
 
 describe("createPreviewRouter", () => {
@@ -232,6 +247,51 @@ describe("createPreviewRouter", () => {
     expect(meta.pr).toBe(42);
     expect(meta.sha).toBe("deadbeefcafebabe");
     expect(meta.base).toBe(previewBasePath(42));
+  });
+
+  test("never serves the sidecar's files or dotfiles", async () => {
+    const { app, root } = await seededApp();
+    const prDir = join(root, "42");
+    await mkdir(join(prDir, "api-src", "server"), { recursive: true });
+    await writeFile(join(prDir, "api.log"), "SECRET_LOG");
+    await writeFile(join(prDir, "api.pid"), "123");
+    await writeFile(join(prDir, "api.json"), JSON.stringify({ port: 4123 }));
+    await writeFile(join(prDir, "api-src", "server", "app.ts"), "SECRET_SRC");
+    await writeFile(join(prDir, ".env"), "SECRET_ENV");
+    await mkdir(join(prDir, ".git"), { recursive: true });
+    await writeFile(join(prDir, ".git", "config"), "SECRET_GIT");
+
+    for (const path of [
+      "api.log",
+      "api.pid",
+      "api.json",
+      "API.LOG",
+      "api-src/server/app.ts",
+      "api-src/",
+      ".env",
+      ".git/config",
+      "assets/../api.log",
+      "assets/%2e%2e/api.log",
+      "%61pi.log",
+    ]) {
+      const res = await app.request(`https://anthonyl.im/preview/pr/42/${path}`);
+      const body = await res.text();
+      expect(`${path} ${res.status}`).toBe(`${path} 404`);
+      expect(body).not.toContain("SECRET");
+      expect(body).not.toContain('id="root"');
+    }
+    // The published build is still served.
+    expect((await app.request("https://anthonyl.im/preview/pr/42/preview.json")).status).toBe(200);
+    expect((await app.request("https://anthonyl.im/preview/pr/42/assets/app.js")).status).toBe(200);
+  });
+
+  test("isPrivatePreviewPath", () => {
+    expect(isPrivatePreviewPath("api.log")).toBe(true);
+    expect(isPrivatePreviewPath("api-src/package.json")).toBe(true);
+    expect(isPrivatePreviewPath("assets/.hidden")).toBe(true);
+    expect(isPrivatePreviewPath("assets/api.log")).toBe(false);
+    expect(isPrivatePreviewPath("index.html")).toBe(false);
+    expect(isPrivatePreviewPath("preview.json")).toBe(false);
   });
 
   test("proxies /preview/pr/:n/api/* to the loopback preview API", async () => {
