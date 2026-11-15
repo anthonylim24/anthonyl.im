@@ -7,7 +7,7 @@
 import Groq from 'groq-sdk';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { PostPayload, EnrichedPlace } from '../types';
+import type { PostPayload } from '../types';
 import { createBundleBuilder } from '../buildBundle';
 import { createExtractor } from '../extractPlaces';
 import { createGeocoder, realGoogleLookup, realKakaoLookup } from '../geocode';
@@ -44,7 +44,7 @@ async function main() {
 
   const buildBundle = createBundleBuilder({
     transcribe: noopTranscribe, ocr: noopOcr,
-    downloadVideo: noopDownload, extractFrames: noopFrames,
+    downloadVideo: noopDownload, downloadImage: noopDownload, extractFrames: noopFrames,
   });
   const extract = createExtractor({ groq });
   const geocode = createGeocoder({
@@ -57,7 +57,7 @@ async function main() {
   for (const f of fixtures) {
     const bundle   = await buildBundle(f.input);
     const voted    = await extract(bundle);
-    const enriched: EnrichedPlace[] = await Promise.all(voted.map(v => geocode(v, f.input.locationTag)));
+    const enriched = await Promise.all(voted.map(v => geocode(v, f.input.locationTag)));
     const s = scoreFixture(enriched, f.expected);
     rows.push({ name: f.name, ext_p: s.extPrecision, ext_r: s.extRecall, cat: s.catAccuracy, geo: s.geoAccuracy });
   }

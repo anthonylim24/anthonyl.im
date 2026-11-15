@@ -7,6 +7,9 @@ export interface SupabaseConfig {
 export interface SelectOptions {
   select?: string;
   eq?: Record<string, string | number | boolean>;
+  /** Raw PostgREST filters, column → `op.value`, for anything beyond
+   *  equality, e.g. `{ 'doc->invites': 'cs.[{"token":"abc"}]' }`. */
+  filters?: Record<string, string>;
   order?: string;
   limit?: number;
 }
@@ -66,6 +69,9 @@ export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
       const parts: string[] = [];
       const eq = eqParams(opts.eq);
       if (eq) parts.push(eq);
+      for (const [k, v] of Object.entries(opts.filters ?? {})) {
+        parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+      }
       if (opts.select) parts.push(`select=${opts.select}`);
       if (opts.order) parts.push(`order=${encodeURIComponent(opts.order)}`);
       if (opts.limit) parts.push(`limit=${opts.limit}`);

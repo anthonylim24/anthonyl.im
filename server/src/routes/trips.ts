@@ -25,12 +25,18 @@ import {
   generateRequestSchema,
   joinTripSchema,
   tripChatRequestSchema,
+  finishRun,
+  isLiveRun,
   newId,
   nowIso,
   emptyDays,
+  RESERVED_SLUGS,
+  settleStaleRun,
   slugify,
   updateTripSchema,
-  type EnhancementRun,
+  type CompleteEnhancementRun,
+  type FailedEnhancementRun,
+  type RunningEnhancementRun,
   type Trip,
   type TripAccess,
   type TripInvite,
@@ -51,6 +57,8 @@ export interface TripsRouterDeps {
   fetchWeather?: WeatherFetcher
   /** How long /generate waits before switching to a heartbeat body (tests shorten it). */
   generateGraceMs?: number
+  /** Gap between keep-alive bytes on a slow /generate body (tests shorten it). */
+  generateHeartbeatMs?: number
 }
 
 const MAX_SUMMARY_POINTS = 48
@@ -123,62 +131,112 @@ function asPlaceCategory(category: string | undefined): PlaceCategory {
 
 const PERSIST_RETRIES = 3
 
-function applyCompletedEnhancement(trip: Trip, run: EnhancementRun): { trip: Trip; run: EnhancementRun } {
+/** A new `updatedAt` strictly after `prev`, so two saves in the same
+ *  millisecond still read as different versions to a compare-and-set. */
+function nextUpdatedAt(prev: string): string {
+  const now = Date.now()
+  const prevMs = Date.parse(prev)
+  return new Date(Number.isFinite(prevMs) && now <= prevMs ? prevMs + 1 : now).toISOString()
+}
+
+/** The only way the server rewrites a stored trip: re-read it, apply
+ *  `change` to that fresh copy, and compare-and-set on `updatedAt`, so a
+ *  concurrent save is merged into instead of overwritten. `change` returns
+ *  the trip untouched when there is nothing to do. Null when the trip is gone. */
+async function mutateTrip(store: TripStore, tripId: string, change: (trip: Trip) => Trip): Promise<Trip | null> {
+  for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
+    const fresh = await store.get(tripId)
+    if (!fresh) return null
+    const changed = change(fresh)
+    if (changed === fresh) return fresh
+    const next = { ...changed, updatedAt: nextUpdatedAt(fresh.updatedAt) }
+    if (await store.updateIfUnchanged(next, fresh.updatedAt)) return next
+  }
+  throw new Error("Trip kept changing while saving")
+}
+
+/** Serialises async work per key inside this process (the server runs as
+ *  one process), for read-check-write sequences the store cannot make
+ *  atomic on its own. */
+function createKeyedLock() {
+  const tails = new Map<string, Promise<unknown>>()
+  return async function withLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+    const run = (tails.get(key) ?? Promise.resolve()).then(work)
+    const tail = run.catch(() => {})
+    tails.set(key, tail)
+    try {
+      return await run
+    } finally {
+      if (tails.get(key) === tail) tails.delete(key)
+    }
+  }
+}
+
+function applyCompletedEnhancement(
+  trip: Trip,
+  run: CompleteEnhancementRun,
+): { trip: Trip; run: CompleteEnhancementRun } {
   let next = trip
-  let nextRun = run
   if (run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
     next = {
       ...next,
       days: next.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
-      updatedAt: nowIso(),
     }
   }
-  const appliedAdds = autoApplyAddSuggestions(next, nextRun)
+  const appliedAdds = autoApplyAddSuggestions(next, run)
   return { trip: appliedAdds.trip, run: appliedAdds.run }
 }
 
 /** Finish an enhancement off the request thread: apply weather + add
- *  suggestions, then persist. Re-reads the trip and CAS-writes so a
- *  concurrent PATCH is remeshed instead of overwritten. */
+ *  suggestions onto the fresh trip, then persist the run. */
 async function persistEnhancementRun(args: {
   store: TripStore
   tripId: string
-  snapshot: Trip
-  pending: EnhancementRun
-  work: Promise<EnhancementRun>
+  pending: RunningEnhancementRun
+  work: Promise<CompleteEnhancementRun | FailedEnhancementRun>
 }): Promise<void> {
   try {
-    const run = await args.work
-    run.id = args.pending.id
-    run.createdAt = args.pending.createdAt
+    const finished = await args.work
+    const run = { ...finished, id: args.pending.id, createdAt: args.pending.createdAt }
     if (run.status !== "complete") {
       await args.store.saveRun(run)
       return
     }
-    for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
-      const fresh = await args.store.get(args.tripId)
-      if (!fresh) throw new Error("Trip was deleted before enhancement completion")
-      const seenUpdatedAt = fresh.updatedAt
+    let finalRun = run
+    const written = await mutateTrip(args.store, args.tripId, (fresh) => {
       const applied = applyCompletedEnhancement(fresh, run)
-      if (applied.trip === fresh) {
-        await args.store.saveRun(applied.run)
-        return
-      }
-      if (await args.store.updateIfUnchanged(applied.trip, seenUpdatedAt)) {
-        await args.store.saveRun(applied.run)
-        return
-      }
-    }
-    throw new Error("Trip changed while applying enhancement")
+      finalRun = applied.run
+      return applied.trip
+    })
+    if (!written) throw new Error("Trip was deleted before enhancement completion")
+    await args.store.saveRun(finalRun)
   } catch (err) {
-    const failed: EnhancementRun = {
-      ...args.pending,
-      status: "error",
-      outcome: "no_adds_possible",
-      outcomeReason: "The AI review failed before it could add places.",
-      error: err instanceof Error ? err.message : String(err),
-    }
-    await args.store.saveRun(failed)
+    await args.store.saveRun(
+      finishRun(args.pending, { status: "error", error: err instanceof Error ? err.message : String(err) }),
+    )
+  }
+}
+
+/** One-time display-data upgrade for a Korea trip seeded before the dossier
+ *  theming existed: backfill appearance + per-day neighborhoods / weather /
+ *  callouts from the canonical seed, preserving the traveller's edits. */
+function upgradeKoreaSeed(existing: Trip): Trip {
+  if (existing.appearance && existing.slug) return existing
+  const seed = buildKoreaTrip()
+  return {
+    ...existing,
+    slug: existing.slug ?? seed.slug,
+    appearance: existing.appearance ?? seed.appearance,
+    days: existing.days.map((d) => {
+      const seedDay = seed.days.find((s) => s.id === d.id)
+      if (!seedDay) return d
+      return {
+        ...d,
+        neighborhoods: d.neighborhoods ?? seedDay.neighborhoods,
+        weather: d.weather ?? seedDay.weather,
+        callouts: d.callouts ?? seedDay.callouts,
+      }
+    }),
   }
 }
 
@@ -188,31 +246,8 @@ async function ensureSeeded(store: TripStore) {
   if (seededStores.has(store)) return
   try {
     const existing = await store.get(KOREA_TRIP_ID)
-    if (!existing) {
-      await store.create(buildKoreaTrip())
-    } else if (!existing.appearance || !existing.slug) {
-      // One-time display-data upgrade for trips seeded before the dossier
-      // theming existed: backfill appearance + per-day neighborhoods /
-      // weather / callouts from the canonical seed, preserving any item
-      // edits the user has made since.
-      const seed = buildKoreaTrip()
-      await store.update({
-        ...existing,
-        slug: existing.slug ?? seed.slug,
-        appearance: existing.appearance ?? seed.appearance,
-        days: existing.days.map((d) => {
-          const seedDay = seed.days.find((s) => s.id === d.id)
-          if (!seedDay) return d
-          return {
-            ...d,
-            neighborhoods: d.neighborhoods ?? seedDay.neighborhoods,
-            weather: d.weather ?? seedDay.weather,
-            callouts: d.callouts ?? seedDay.callouts,
-          }
-        }),
-        updatedAt: nowIso(),
-      })
-    }
+    if (!existing) await store.create(buildKoreaTrip())
+    else await mutateTrip(store, KOREA_TRIP_ID, upgradeKoreaSeed)
     seededStores.add(store)
   } catch (err) {
     console.warn("[trips] korea seed failed:", err instanceof Error ? err.message : err)
@@ -247,52 +282,43 @@ export function createTripsRouter(deps: TripsRouterDeps) {
   })
 
   const userIdOf = (c: Context) => c.get("userId" as never) as string
+  const withLock = createKeyedLock()
+  const mutate = (tripId: string, change: (trip: Trip) => Trip) => mutateTrip(deps.store, tripId, change)
 
   /** Resolve a trip by id, falling back to its permalink slug. */
   async function resolveTrip(idOrSlug: string): Promise<Trip | null> {
-    const byId = await deps.store.get(idOrSlug)
-    if (byId) return byId
-    const all = await deps.store.list()
-    return all.find((t) => t.slug === idOrSlug) ?? null
+    return (await deps.store.get(idOrSlug)) ?? (await deps.store.getBySlug(idOrSlug))
+  }
+
+  /** True when `slug` cannot be a permalink for trip `excludeId`: reserved,
+   *  or already some other trip's slug or id. */
+  async function slugTaken(slug: string, excludeId?: string): Promise<boolean> {
+    if (RESERVED_SLUGS.has(slug)) return true
+    const [byId, bySlug] = await Promise.all([deps.store.get(slug), deps.store.getBySlug(slug)])
+    return [byId, bySlug].some((t) => t !== null && t.id !== excludeId)
   }
 
   /** Unique permalink: base, base-2, base-3, … (excluding the trip itself). */
   async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
     const fallback = base || "trip"
-    const all = await deps.store.list()
-    const taken = new Set(all.filter((t) => t.id !== excludeId).flatMap((t) => [t.slug, t.id]))
-    if (!taken.has(fallback)) return fallback
+    if (!(await slugTaken(fallback, excludeId))) return fallback
     for (let n = 2; n < 100; n++) {
       const candidate = `${fallback}-${n}`
-      if (!taken.has(candidate)) return candidate
+      if (!(await slugTaken(candidate, excludeId))) return candidate
     }
     return `${fallback}-${newId("x").slice(2)}`
   }
 
-  /** Load trip + enforce access. Returns a Response on failure. */
+  /** Load trip + enforce access. Returns a Response on failure. A trip the
+   *  caller cannot see answers 404, like one that does not exist, so ids
+   *  and slugs cannot be probed. */
   async function loadTrip(c: Context, id: string, needEdit = false) {
     const trip = await resolveTrip(id)
     if (!trip) return { error: c.json({ error: "trip not found" }, 404) }
     const access = accessFor(trip, userIdOf(c))
-    if (!canView(access) || (needEdit && !canEdit(access))) {
-      return { error: c.json({ error: "forbidden" }, 403) }
-    }
+    if (!canView(access)) return { error: c.json({ error: "trip not found" }, 404) }
+    if (needEdit && !canEdit(access)) return { error: c.json({ error: "forbidden" }, 403) }
     return { trip, access }
-  }
-
-  /** Re-read + CAS-write a sharing change so it can't clobber (or be lost
-   *  to) a concurrent document save. `change` returns the trip untouched
-   *  when there is nothing to do. */
-  async function mutateTrip(tripId: string, change: (trip: Trip) => Trip): Promise<Trip | null> {
-    for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
-      const fresh = await deps.store.get(tripId)
-      if (!fresh) return null
-      const changed = change(fresh)
-      if (changed === fresh) return fresh
-      const next = { ...changed, updatedAt: nowIso() }
-      if (await deps.store.updateIfUnchanged(next, fresh.updatedAt)) return next
-    }
-    throw new Error("Trip changed while updating sharing")
   }
 
   // ── Sharing: join by invite link ───────────────────────────────────────
@@ -306,10 +332,10 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     const token = c.req.param("token")
     const userId = userIdOf(c)
     const name = body.data.name || undefined
-    const holder = (await deps.store.list()).find((t) => t.invites?.some((i) => i.token === token))
+    const holder = await deps.store.findByInviteToken(token)
     if (!holder) return c.json({ error: "invite_not_found" }, 404)
 
-    const joined = await mutateTrip(holder.id, (trip) => {
+    const joined = await mutate(holder.id, (trip) => {
       // Re-check on the fresh copy: the owner may have revoked it meanwhile.
       const invite = trip.invites?.find((i) => i.token === token)
       if (!invite || trip.ownerId === userId) return trip
@@ -400,30 +426,45 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if ("error" in result) return result.error
     const body = updateTripSchema.safeParse(await c.req.json().catch(() => null))
     if (!body.success) return c.json({ error: "invalid update", issues: body.error.issues }, 400)
-    const patch = body.data
+    const { baseUpdatedAt, ...patch } = body.data
     // Only the owner may change sharing-relevant fields (collaborators).
     if (patch.collaborators && result.access !== "owner") {
       return c.json({ error: "only the owner can change collaborators" }, 403)
     }
     // Custom permalinks must stay unique across all trips (ids included).
-    if (patch.slug && patch.slug !== result.trip.slug) {
-      const all = await deps.store.list()
-      const clash = all.some((t) => t.id !== result.trip.id && (t.slug === patch.slug || t.id === patch.slug))
-      if (clash) {
-        return c.json({ error: "slug_taken", message: `The permalink “${patch.slug}” is already in use.` }, 409)
+    if (patch.slug && patch.slug !== result.trip.slug && (await slugTaken(patch.slug, result.trip.id))) {
+      return c.json({ error: "slug_taken", message: `The permalink “${patch.slug}” is already in use.` }, 409)
+    }
+
+    // The patch lands on the stored trip, never on a stale copy: fields the
+    // body does not name (invites, collaborators, …) keep their stored value.
+    // With `baseUpdatedAt`, a save based on an older version is refused with
+    // the current trip so the client can rebase; without it (older clients)
+    // the patch is merged as before.
+    const userId = userIdOf(c)
+    let fresh: Trip | null = result.trip
+    for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
+      if (attempt > 0) fresh = await deps.store.get(result.trip.id)
+      if (!fresh) return c.json({ error: "trip not found" }, 404)
+      const access = accessFor(fresh, userId)
+      if (!canEdit(access)) return c.json({ error: "trip not found" }, 404)
+      if (baseUpdatedAt !== undefined && fresh.updatedAt !== baseUpdatedAt) {
+        return c.json({ error: "conflict", trip: present(fresh, access) }, 409)
+      }
+      const next: Trip = {
+        ...fresh,
+        ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
+        description: patch.description === null ? undefined : (patch.description ?? fresh.description),
+        updatedAt: nextUpdatedAt(fresh.updatedAt),
+      }
+      if (next.endDate < next.startDate) {
+        return c.json({ error: "endDate must be on or after startDate" }, 400)
+      }
+      if (await deps.store.updateIfUnchanged(next, fresh.updatedAt)) {
+        return c.json({ trip: present(next, access) })
       }
     }
-    const next: Trip = {
-      ...result.trip,
-      ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
-      description: patch.description === null ? undefined : (patch.description ?? result.trip.description),
-      updatedAt: nowIso(),
-    }
-    if (next.endDate < next.startDate) {
-      return c.json({ error: "endDate must be on or after startDate" }, 400)
-    }
-    await deps.store.update(next)
-    return c.json({ trip: present(next, result.access) })
+    throw new Error("Trip kept changing while saving")
   })
 
   trips.delete("/:id", async (c) => {
@@ -443,7 +484,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     const body = createInviteSchema.safeParse(await c.req.json().catch(() => null))
     if (!body.success) return c.json({ error: "invalid request", issues: body.error.issues }, 400)
     const role = body.data.role
-    const next = await mutateTrip(result.trip.id, (trip) => {
+    const next = await mutate(result.trip.id, (trip) => {
       if (trip.invites?.some((i) => i.role === role)) return trip
       const invite: TripInvite = { token: newInviteToken(), role, createdAt: nowIso() }
       return { ...trip, invites: [...(trip.invites ?? []), invite] }
@@ -458,7 +499,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if ("error" in result) return result.error
     if (result.access !== "owner") return c.json({ error: "only the owner can manage invites" }, 403)
     const token = c.req.param("token")
-    await mutateTrip(result.trip.id, (trip) =>
+    await mutate(result.trip.id, (trip) =>
       trip.invites?.some((i) => i.token === token)
         ? { ...trip, invites: trip.invites.filter((i) => i.token !== token) }
         : trip,
@@ -471,7 +512,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if ("error" in result) return result.error
     if (result.access === "owner") return c.json({ error: "owner_cannot_leave" }, 400)
     const userId = userIdOf(c)
-    await mutateTrip(result.trip.id, (trip) =>
+    await mutate(result.trip.id, (trip) =>
       trip.collaborators.some((col) => col.userId === userId)
         ? { ...trip, collaborators: trip.collaborators.filter((col) => col.userId !== userId) }
         : trip,
@@ -493,28 +534,36 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       return c.json({ error: "itinerary_not_empty", message: "pass replaceExisting: true to overwrite" }, 409)
     }
 
-    const trip = result.trip
-    const access = result.access
+    const tripId = result.trip.id
+    const userId = userIdOf(c)
     const llm = deps.llm
-    type Outcome = { status: 200 | 502; body: Record<string, unknown> }
+    type Outcome = { status: 200 | 404 | 502; body: Record<string, unknown> }
     const work: Promise<Outcome> = (async () => {
       try {
         const generated = await generateItinerary({
-          trip,
+          trip: result.trip,
           prompt: body.data.prompt,
           preferences: body.data.preferences,
           llm,
           geocode: deps.geocode,
         })
-        const next: Trip = {
-          ...trip,
+        // Only the draft's own fields land, and on the trip as it is now:
+        // sharing changes or a rename made while the model worked survive.
+        const next = await mutate(tripId, (fresh) => ({
+          ...fresh,
           days: generated.days,
           // AI-proposed theming fills gaps but never overwrites user choices.
-          appearance: { ...generated.appearance, ...trip.appearance },
-          updatedAt: nowIso(),
+          appearance: { ...generated.appearance, ...fresh.appearance },
+        }))
+        if (!next) return { status: 404 as const, body: { error: "trip not found" } }
+        return {
+          status: 200 as const,
+          body: {
+            trip: present(next, accessFor(next, userId)),
+            summary: generated.summary,
+            incompleteDays: generated.incompleteDays,
+          },
         }
-        await deps.store.update(next)
-        return { status: 200 as const, body: { trip: present(next, access), summary: generated.summary, incompleteDays: generated.incompleteDays } }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         console.warn("[trips/generate] failed:", message)
@@ -534,16 +583,42 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     ])
     if (quick) return c.json(quick.body, quick.status)
 
+    // The client may leave at any point (closed tab, proxy timeout). Every
+    // write checks `closed` first: enqueueing on a cancelled stream throws,
+    // and from inside a timer that throw is uncaught and ends the process.
+    // The draft itself still finishes and is saved.
     const encoder = new TextEncoder()
+    let closed = false
+    let beat: ReturnType<typeof setInterval> | undefined
+    const stop = () => {
+      closed = true
+      clearInterval(beat)
+    }
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        const beat = setInterval(() => controller.enqueue(encoder.encode(" \n")), 8_000)
-        controller.enqueue(encoder.encode(" \n"))
+        const push = (text: string) => {
+          if (closed) return
+          try {
+            controller.enqueue(encoder.encode(text))
+          } catch {
+            stop()
+          }
+        }
+        beat = setInterval(() => push(" \n"), deps.generateHeartbeatMs ?? 8_000)
+        push(" \n")
         void work.then((outcome) => {
-          clearInterval(beat)
-          controller.enqueue(encoder.encode(JSON.stringify(outcome.body)))
-          controller.close()
+          push(JSON.stringify(outcome.body))
+          if (closed) return
+          stop()
+          try {
+            controller.close()
+          } catch {
+            // Already closed by the other side: nothing left to tell it.
+          }
         })
+      },
+      cancel() {
+        stop()
       },
     })
     return new Response(stream, {
@@ -569,32 +644,45 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     }
     if (!deps.llm) return c.json({ error: "ai_not_configured", message: "GEMINI_API_KEY or GROQ_API_KEY missing" }, 503)
 
-    const pending: EnhancementRun = {
-      id: newId("run"),
-      tripId: result.trip.id,
-      scope: body.data.scope,
-      dayId: body.data.scope === "day" ? body.data.dayId : undefined,
-      status: "running",
-      suggestions: [],
-      appliedSuggestionIds: [],
-      createdAt: nowIso(),
-    }
-    await deps.store.saveRun(pending)
-
     const tripId = result.trip.id
-    const snapshot = result.trip
-    const llm = deps.llm
+    // One review per trip at a time: two would each auto-apply their adds
+    // onto the same days. The check and the insert run under one lock.
+    const started = await withLock(`enhance:${tripId}`, async () => {
+      const live = (await deps.store.listRuns(tripId)).find((run) => isLiveRun(run))
+      if (live) return { live }
+      const pending: RunningEnhancementRun = {
+        id: newId("run"),
+        tripId,
+        scope: body.data.scope,
+        dayId: body.data.scope === "day" ? body.data.dayId : undefined,
+        status: "running",
+        suggestions: [],
+        appliedSuggestionIds: [],
+        createdAt: nowIso(),
+      }
+      await deps.store.saveRun(pending)
+      return { pending }
+    })
+    // The body carries the run in flight, so a client that polls on
+    // `run.status === "running"` simply follows the review already going.
+    if ("live" in started) {
+      return c.json(
+        { error: "enhancement_running", message: "An AI review of this trip is already running.", run: started.live },
+        409,
+      )
+    }
+
+    const pending = started.pending
     void persistEnhancementRun({
       store: deps.store,
       tripId,
-      snapshot,
       pending,
       work: enhanceTrip({
-        trip: snapshot,
+        trip: result.trip,
         scope: body.data.scope,
         dayId: body.data.dayId,
         prompt: body.data.prompt,
-        llm,
+        llm: deps.llm,
         fetchWeather: deps.fetchWeather ?? fetchOpenMeteoWeather,
         geocode: deps.geocode,
       }),
@@ -608,14 +696,16 @@ export function createTripsRouter(deps: TripsRouterDeps) {
   trips.get("/:id/enhancements", async (c) => {
     const result = await loadTrip(c, c.req.param("id"))
     if ("error" in result) return result.error
-    return c.json({ runs: await deps.store.listRuns(result.trip.id) })
+    const now = Date.now()
+    return c.json({ runs: (await deps.store.listRuns(result.trip.id)).map((run) => settleStaleRun(run, now)) })
   })
 
   trips.get("/:id/enhancements/:runId", async (c) => {
     const result = await loadTrip(c, c.req.param("id"))
     if ("error" in result) return result.error
-    const run = await deps.store.getRun(result.trip.id, c.req.param("runId"))
-    if (!run) return c.json({ error: "run not found" }, 404)
+    const stored = await deps.store.getRun(result.trip.id, c.req.param("runId"))
+    if (!stored) return c.json({ error: "run not found" }, 404)
+    const run = settleStaleRun(stored)
     // Re-read after the run: persist may have finished between loadTrip and
     // getRun, and the client stops polling on a terminal status.
     const trip = (await deps.store.get(result.trip.id)) ?? result.trip
@@ -623,9 +713,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       run,
       trip: present(trip, result.access),
       applied: run.appliedSuggestionIds,
-      ...(run.status === "error"
-        ? { error: "enhancement_failed" as const, message: run.error ?? "enhancement failed" }
-        : {}),
+      ...(run.status === "error" ? { error: "enhancement_failed" as const, message: run.error } : {}),
     })
   })
 
@@ -634,17 +722,35 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if ("error" in result) return result.error
     const body = applySuggestionsSchema.safeParse(await c.req.json().catch(() => null))
     if (!body.success) return c.json({ error: "invalid request", issues: body.error.issues }, 400)
-    const run = await deps.store.getRun(result.trip.id, c.req.param("runId"))
-    if (!run) return c.json({ error: "run not found" }, 404)
+    const tripId = result.trip.id
+    const runId = c.req.param("runId")
+    const userId = userIdOf(c)
 
-    const { trip: next, applied, skipped } = applySuggestions(result.trip, run, body.data.suggestionIds)
-    if (applied.length > 0) {
-      await deps.store.update(next)
-      run.appliedSuggestionIds = [...run.appliedSuggestionIds, ...applied]
-      await deps.store.saveRun(run)
-    }
-    return c.json({ trip: present(next, result.access), applied, skipped })
+    // Read the run, apply onto the fresh trip, record what landed: all under
+    // one lock per run, so two clicks cannot both apply the same suggestion.
+    return withLock(`apply:${runId}`, async () => {
+      const stored = await deps.store.getRun(tripId, runId)
+      if (!stored) return c.json({ error: "run not found" }, 404)
+      const run = settleStaleRun(stored)
+      if (run.status !== "complete") {
+        return c.json({ error: "run_not_complete", message: "This AI review has not finished.", run }, 409)
+      }
+      let applied: string[] = []
+      let skipped: string[] = []
+      const next = await mutate(tripId, (fresh) => {
+        const outcome = applySuggestions(fresh, run, body.data.suggestionIds)
+        applied = outcome.applied
+        skipped = outcome.skipped
+        return outcome.applied.length > 0 ? outcome.trip : fresh
+      })
+      if (!next) return c.json({ error: "trip not found" }, 404)
+      if (applied.length > 0) {
+        await deps.store.saveRun({ ...run, appliedSuggestionIds: [...run.appliedSuggestionIds, ...applied] })
+      }
+      return c.json({ trip: present(next, accessFor(next, userId)), applied, skipped })
+    })
   })
+
 
   // ── AI: concierge chat (SSE) ───────────────────────────────────────────
 

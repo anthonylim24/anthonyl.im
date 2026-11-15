@@ -164,24 +164,99 @@ export interface EnhancementSuggestion {
   toDayId?: string
 }
 
-export interface EnhancementRun {
+/** What every run carries, whatever state it is in. The client reads
+ *  `suggestions` and `appliedSuggestionIds` on every run, so they stay on
+ *  all three variants. */
+export interface EnhancementRunBase {
   id: string
   tripId: string
   scope: "day" | "trip"
   dayId?: string
-  status: "running" | "complete" | "error"
   summary?: string
-  /** Structured add/no-add decision. Required when status is complete. */
-  outcome?: EnhancementOutcome
-  /** 1–3 sentences: why places were added, or why they were not. */
-  outcomeReason?: string
   suggestions: EnhancementSuggestion[]
   appliedSuggestionIds: string[]
   /** Live forecast fetched during the run — auto-merged onto day.weather
    *  (trusted metadata sync, not a reviewable suggestion). */
   weatherByDate?: Record<string, DayWeather>
-  error?: string
   createdAt: string
+}
+
+export interface RunningEnhancementRun extends EnhancementRunBase {
+  status: "running"
+}
+
+export interface CompleteEnhancementRun extends EnhancementRunBase {
+  status: "complete"
+  /** Structured add/no-add decision. */
+  outcome: EnhancementOutcome
+  /** 1–3 sentences: why places were added, or why they were not. */
+  outcomeReason: string
+}
+
+export interface FailedEnhancementRun extends EnhancementRunBase {
+  status: "error"
+  error: string
+  /** A failed run never added anything; the reason says so in words. */
+  outcome: "no_adds_possible"
+  outcomeReason: string
+}
+
+export type EnhancementRun = RunningEnhancementRun | CompleteEnhancementRun | FailedEnhancementRun
+
+export type EnhancementRunEnd =
+  | { status: "complete"; outcome: EnhancementOutcome; outcomeReason: string }
+  | { status: "error"; error: string; outcomeReason?: string }
+
+export const RUN_FAILED_REASON = "The AI review failed before it could add places."
+
+/** A run that is still `running` after this long was stranded by a process
+ *  restart (the work lives in memory), so readers treat it as failed. */
+export const STALE_RUN_MS = 10 * 60_000
+
+function runBase(run: EnhancementRunBase): EnhancementRunBase {
+  return {
+    id: run.id,
+    tripId: run.tripId,
+    scope: run.scope,
+    ...(run.dayId !== undefined ? { dayId: run.dayId } : {}),
+    ...(run.summary !== undefined ? { summary: run.summary } : {}),
+    suggestions: run.suggestions,
+    appliedSuggestionIds: run.appliedSuggestionIds,
+    ...(run.weatherByDate !== undefined ? { weatherByDate: run.weatherByDate } : {}),
+    createdAt: run.createdAt,
+  }
+}
+
+/** The one way a run leaves `running` (or is re-stamped): keeps the shared
+ *  fields and sets exactly the fields its end state needs. */
+export function finishRun(run: EnhancementRunBase, end: Extract<EnhancementRunEnd, { status: "complete" }>): CompleteEnhancementRun
+export function finishRun(run: EnhancementRunBase, end: Extract<EnhancementRunEnd, { status: "error" }>): FailedEnhancementRun
+export function finishRun(run: EnhancementRunBase, end: EnhancementRunEnd): CompleteEnhancementRun | FailedEnhancementRun
+export function finishRun(run: EnhancementRunBase, end: EnhancementRunEnd): CompleteEnhancementRun | FailedEnhancementRun {
+  if (end.status === "complete") {
+    return { ...runBase(run), status: "complete", outcome: end.outcome, outcomeReason: end.outcomeReason }
+  }
+  return {
+    ...runBase(run),
+    status: "error",
+    error: end.error,
+    outcome: "no_adds_possible",
+    outcomeReason: end.outcomeReason ?? RUN_FAILED_REASON,
+  }
+}
+
+/** True for a run whose background work may still finish. */
+export function isLiveRun(run: EnhancementRun, now = Date.now()): run is RunningEnhancementRun {
+  return run.status === "running" && now - Date.parse(run.createdAt) < STALE_RUN_MS
+}
+
+/** The run as a reader should see it: a stranded `running` run reads as failed. */
+export function settleStaleRun(run: EnhancementRun, now = Date.now()): EnhancementRun {
+  if (run.status !== "running" || isLiveRun(run, now)) return run
+  return finishRun(run, {
+    status: "error",
+    error: "The AI review was interrupted. Nothing in your itinerary changed, so you can run it again.",
+  })
 }
 
 // ── Default AI prompt (spec-mandated) ────────────────────────────────────
@@ -303,11 +378,19 @@ export const createTripSchema = z.object({
   center: centerSchema.optional(),
 })
 
+/** Path segments the client router owns under /trips; a trip cannot take
+ *  one as its permalink or the trip would be unreachable. */
+export const RESERVED_SLUGS: ReadonlySet<string> = new Set(["new", "join", "places-catalog"])
+
 export const updateTripSchema = z.object({
+  /** The `updatedAt` the client's edit was based on. When set and the stored
+   *  trip has moved on, the save is refused with 409 instead of overwriting. */
+  baseUpdatedAt: z.string().min(1).max(64).optional(),
   name: z.string().min(1).max(160).optional(),
   slug: z
     .string()
     .regex(/^[a-z0-9](?:[a-z0-9-]{1,78}[a-z0-9])?$/, "lowercase letters, numbers, and hyphens only")
+    .refine((slug) => !RESERVED_SLUGS.has(slug), "that permalink is reserved")
     .optional(),
   destinations: z.array(z.string().min(1).max(120)).min(1).max(20).optional(),
   startDate: isoDate.optional(),
