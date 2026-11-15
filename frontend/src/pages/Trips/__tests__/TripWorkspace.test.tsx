@@ -526,7 +526,7 @@ describe("TripWorkspace", () => {
       // Untimed items travel with the timed stop they followed.
       expect(order()).toEqual(["item-it-market", "item-it-cafe", "item-it-fado", "item-it-cash"])
       fireEvent.click(screen.getByRole("button", { name: "More for day 1" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add day notes", "Clear this day"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add day notes", "Export to calendar", "Clear this day"])
     })
 
     it("shows a compact trip header that links back to the overview", async () => {
@@ -544,6 +544,7 @@ describe("TripWorkspace", () => {
         "Improve whole trip with AI",
         "Add places from Instagram",
         "Trip details",
+        "Export to calendar",
         "Duplicate trip",
         "Delete trip…",
       ])
@@ -884,7 +885,7 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Duplicate trip"])
       expect(within(screen.getByRole("region", { name: "Day by day" })).getByText("Nothing planned")).toBeInTheDocument()
     })
 
@@ -900,7 +901,10 @@ describe("TripWorkspace", () => {
       expect(screen.queryByRole("textbox", { name: "City for this day" })).toBeNull()
       expect(screen.queryByRole("combobox", { name: "Add a place, note or booking" })).toBeNull()
       expect(screen.queryByRole("button", { name: "Ideas for this day" })).toBeNull()
-      expect(screen.queryByRole("button", { name: /^More for day/ })).toBeNull()
+      // A viewer's day menu only exports.
+      fireEvent.click(screen.getByRole("button", { name: /^More for day/ }))
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar"])
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" })
 
       // Stops still open (read-only) and still locate on the map.
       fireEvent.click(screen.getByRole("button", { name: /Fado dinner/, expanded: false }))
@@ -913,7 +917,7 @@ describe("TripWorkspace", () => {
       expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Duplicate trip"])
       expect(mockUpdateTrip).not.toHaveBeenCalled()
     })
 
@@ -923,7 +927,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText("View only")).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Duplicate trip"])
     })
   })
 
@@ -945,7 +949,7 @@ describe("TripWorkspace", () => {
     it("has no Delete for a trip shared with everyone", async () => {
       renderWorkspace("/trips/lisbon", planned({ sharedWithAllUsers: true }))
       fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Duplicate trip"])
     })
   })
 

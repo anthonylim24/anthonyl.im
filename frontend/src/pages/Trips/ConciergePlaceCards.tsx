@@ -8,17 +8,12 @@ import {
 import { externalMapsLink } from "../../lib/externalMaps"
 import { ConciergePhotoThumb } from "./ConciergePhoto"
 import { dayShort } from "./conciergeProposal"
+import type { AddedPlace } from "./conciergeStore"
 import { itemIcon, titleCase } from "./meta"
 import type { TripDay } from "./types"
 import { a } from "./atlas.stylex"
 import { c } from "./chat.stylex"
 import { sx } from "@/styles/merge"
-
-export interface AddedPlace {
-  dayId: string
-  itemId: string
-  time?: string
-}
 
 /** "9 min walk from MAAT", or a distance once it stops being a walk. */
 export function walkLine(walk: NonNullable<ConciergePlace["walk"]>): string {
@@ -55,7 +50,7 @@ export function ConciergePlaceCards({
   days: TripDay[]
   defaultDayId?: string
   city?: string
-  /** Cards already added to the trip from this reply, by card key. */
+  /** Cards linked to the itinerary from this reply (added, or found already there), by card key. */
   added: Record<string, AddedPlace>
   addingKey: string | null
   /** An itinerary write is in flight: Add and Undo wait for it. */
@@ -186,16 +181,22 @@ function ConciergePlaceCard({
           <span {...sx(c.addedChip)}>
             <Check {...sx(c.icon14)} strokeWidth={2} aria-hidden />
             <span {...sx(a.truncate)}>
-              Added to {addedDay ? dayShort(addedDay) : "the trip"}
+              {added.status === "preexisting" ? "Already on" : "Added to"} {addedDay ? dayShort(addedDay) : "the trip"}
               {added.time ? ` · ${added.time}` : ""}
             </span>
           </span>
           {onShow ? (
-            <button type="button" onClick={() => onShow(added)} {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}>
-              Show on map
+            <button
+              type="button"
+              onClick={() => onShow(added)}
+              aria-label={`Show ${place.name} in the itinerary`}
+              {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}
+            >
+              Show
             </button>
           ) : null}
-          {canEdit && onUndo ? (
+          {/* A stop that was already planned is not this card's to take away. */}
+          {canEdit && onUndo && added.status === "added" ? (
             <button
               type="button"
               disabled={adding || disabled}

@@ -30,6 +30,22 @@ env is missing).
 `photorealAvailable()` is true (a Google tiles / Places key plus WebGL2 in
 production; always in a dev build, which falls back to a procedural ground).
 
+**Concierge panel:** `TripChatLauncher` (in the layout chunk) draws the FAB;
+the panel (`TripChat.tsx`, `TripChatPanel`) is a lazy chunk fetched on the
+FAB's first hover, focus or press, and reads the trip on first open (merged
+with any newer `trip-changed` doc via `mergeFetchedTrip`). Docked on desktop
+it is a non-modal `complementary` region; expanded or on a phone it is a
+modal dialog. A place card that names a stop already on the day records it
+as `preexisting` and never offers Undo; proposal Undo is offered only while
+the touched days still match what Apply saved (`daysFingerprint`). "Show"
+opens `/day/:dayId#item-<id>`.
+
+**Calendar export:** "Export to calendar" in the trip menu and each day's
+"…" menu downloads an RFC 5545 `.ics` built client-side by
+`calendar/ics.ts` (no dependency): timed stops in the trip's time zone with
+a generated `VTIMEZONE`, untimed stops as all-day events, `UID` =
+item id + trip id so a re-import updates rather than duplicates.
+
 **Photoreal 3D view:** `photoreal/PhotorealOverlay` (lazy, default export)
 takes `trip`, `day`, `dayNumber`, `initialStopId?`, `onClose`, `onEditStop?`
 and reads the day document directly — no fetch. `photoreal/scene.ts` is the

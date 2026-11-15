@@ -154,6 +154,27 @@ export function snapshotDays(days: TripDay[], touched: readonly string[]): DaySn
   return days.filter((day) => touched.includes(day.id)).map((day) => ({ dayId: day.id, items: day.items }))
 }
 
+/** Key order is not meaningful in a stored document, so it is fixed before comparing. */
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stable(v)}`).join(",")}}`
+  }
+  return JSON.stringify(value) ?? "null"
+}
+
+/**
+ * The items of some days as one comparable string. Undo restores whole days,
+ * so it is safe only while this still matches what the apply left behind.
+ * A day that is gone reads as missing, which never matches.
+ */
+export function daysFingerprint(days: readonly TripDay[], dayIds: readonly string[]): string {
+  return dayIds.map((id) => `${id}=${stable(days.find((d) => d.id === id)?.items ?? null)}`).join("|")
+}
+
 export function restoreSnapshot(days: TripDay[], snapshot: DaySnapshot): TripDay[] {
   return days.map((day) => {
     const saved = snapshot.find((s) => s.dayId === day.id)

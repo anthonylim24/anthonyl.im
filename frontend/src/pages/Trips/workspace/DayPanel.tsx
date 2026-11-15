@@ -12,6 +12,7 @@ import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { Menu, type MenuItem } from "../components/kit"
+import { calendarMenuItem } from "../calendar/calendarMenu"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type ItemCardProps } from "./ItemCard"
@@ -171,6 +172,7 @@ export function DayPanel({
     ...(onPhotoreal && route.length > 0
       ? [{ label: "Fly the day in 3D", icon: <Orbit size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPhotoreal }]
       : []),
+    calendarMenuItem(trip, day),
     ...(editable && day.items.length > 0
       ? [
           {

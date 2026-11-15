@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 
 const { mockGetToken } = vi.hoisted(() => ({
@@ -19,6 +19,8 @@ vi.mock("../tripsApi", () => ({
   joinTrip: (...args: unknown[]) => mockJoinTrip(...args),
 }))
 
+import { HttpStatusError } from "../../../effect/errors"
+import { joinFailure } from "../joinFailure"
 import { TripJoin } from "../TripJoin"
 
 function Landing() {
@@ -73,15 +75,33 @@ describe("TripJoin", () => {
     expect(screen.queryByTestId("path")).toBeNull()
   })
 
-  it("shows the underlying error for other failures", async () => {
-    mockJoinTrip.mockRejectedValue(new Error("Failed to fetch"))
+  it("calls a 404 from the server an expired link, whatever the body says", async () => {
+    mockJoinTrip.mockRejectedValue(new HttpStatusError({ status: 404, message: "HTTP 404" }))
+    renderJoin("dead")
+    expect(await screen.findByRole("heading", { level: 1, name: "This link has expired." })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+  })
+
+  it("does not call a network or server failure expired, and tries again", async () => {
+    mockJoinTrip
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValueOnce({ trip: { id: "t-1", slug: "lisbon-2026", name: "Lisbon" }, access: "view" })
     renderJoin()
 
-    await waitFor(() =>
-      expect(
-        screen.getByText("We couldn’t add you to the trip. Check your connection and open the link again. (Failed to fetch)"),
-      ).toBeInTheDocument(),
-    )
-    expect(screen.queryByText(/Ask them to send a fresh link/)).toBeNull()
+    expect(await screen.findByRole("heading", { level: 1, name: "Couldn’t join just now." })).toBeInTheDocument()
+    expect(screen.getByText(/Check your connection and try again\. \(Failed to fetch\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/expired/)).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/lisbon-2026")
+    expect(mockJoinTrip).toHaveBeenCalledTimes(2)
+  })
+
+  it("treats a 5xx as worth retrying", () => {
+    expect(joinFailure(new HttpStatusError({ status: 503, message: "Service unavailable" }))).toEqual({
+      kind: "retry",
+      detail: "Service unavailable",
+    })
+    expect(joinFailure(new HttpStatusError({ status: 410, message: "gone" }))).toEqual({ kind: "dead" })
   })
 })

@@ -1,6 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { Link, MemoryRouter } from "react-router-dom"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { Link, MemoryRouter, useLocation } from "react-router-dom"
+import { loadConversation } from "../conciergeStore"
+import { emitTripChanged } from "../tripsEvents"
 import type { Trip } from "../types"
 
 const { mockGetToken } = vi.hoisted(() => ({
@@ -31,7 +33,12 @@ vi.mock("../placePhoto", () => ({
   lookupGooglePlacePhoto: vi.fn().mockResolvedValue(null),
 }))
 
-import { TripChat } from "../TripChat"
+import { TripChatLauncher as TripChat } from "../TripChatLauncher"
+
+// The panel is its own lazy chunk; load the module once so each open is prompt.
+beforeAll(async () => {
+  await import("../TripChat")
+})
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
   return {
@@ -76,9 +83,19 @@ function renderChat(path = "/trips/tokyo") {
   )
 }
 
+/** The open panel: a modal dialog on phones and when expanded, a side region when docked on desktop. */
+function findPanel() {
+  return waitFor(() => {
+    const panel =
+      screen.queryByRole("dialog", { name: "Trip Concierge" }) ?? screen.queryByRole("complementary", { name: "Trip Concierge" })
+    if (!panel) throw new Error("The concierge panel is not open")
+    return panel
+  })
+}
+
 async function openChat() {
   fireEvent.click(await screen.findByRole("button", { name: "Open trip concierge chat" }))
-  return screen.findByRole("dialog", { name: "Trip Concierge" })
+  return findPanel()
 }
 
 describe("TripChat expand", () => {
@@ -157,7 +174,59 @@ describe("TripChat expand", () => {
     })
   })
 
+  it("is a modal dialog on a phone, with Tab kept inside", async () => {
+    stubMatchMedia(false)
+    renderChat()
+    const dialog = await openChat()
+    expect(dialog).toHaveAttribute("role", "dialog")
+    expect(dialog).toHaveAttribute("aria-modal", "true")
+    // Tab from the last control wraps to the first.
+    const send = within(dialog).getByRole("button", { name: "Send message" })
+    within(dialog).getByRole("textbox", { name: "Message the concierge" }).focus()
+    fireEvent.change(document.activeElement!, { target: { value: "hi" } })
+    send.focus()
+    const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+    window.dispatchEvent(tab)
+    expect(tab.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Expand chat" }))
+  })
+
+  it("docks beside the page on desktop without trapping the keyboard", async () => {
+    stubMatchMedia(true)
+    render(
+      <MemoryRouter initialEntries={["/trips/tokyo"]}>
+        <button type="button">Page control</button>
+        <TripChat />
+      </MemoryRouter>,
+    )
+    const panel = await openChat()
+    expect(panel).toHaveAttribute("role", "complementary")
+    expect(panel).not.toHaveAttribute("aria-modal")
+    expect(document.body.style.overflow).toBe("")
+
+    // Tab is not wrapped back into the panel, and Escape on the page leaves it open.
+    const input = within(panel).getByRole("textbox", { name: "Message the concierge" })
+    input.focus()
+    const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+    window.dispatchEvent(tab)
+    expect(tab.defaultPrevented).toBe(false)
+    screen.getByRole("button", { name: "Page control" }).focus()
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(screen.getByRole("complementary", { name: "Trip Concierge" })).toBeTruthy()
+
+    // Escape inside the panel still closes it.
+    input.focus()
+    fireEvent.keyDown(window, { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Trip Concierge" })).toBeNull())
+
+    // Expanded, it is a modal dialog again.
+    await openChat()
+    fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
+    expect(await screen.findByRole("dialog", { name: "Trip Concierge" })).toHaveAttribute("aria-modal", "true")
+  })
+
   it("collapses on the first Escape, then closes", async () => {
+    stubMatchMedia(false)
     renderChat()
     const dialog = await openChat()
     fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
@@ -642,5 +711,193 @@ describe("TripChat conversation", () => {
     const request = mockStreamTripChat.mock.calls[0]![0] as Request & { tripId: string; trip?: Trip }
     expect(request.tripId).toBe("kyoto")
     expect(request.trip?.id).toBe("kyoto")
+  })
+})
+
+function LocationProbe() {
+  const { pathname, hash } = useLocation()
+  return <p data-testid="location">{`${pathname}${hash}`}</p>
+}
+
+describe("TripChat itinerary links", () => {
+  let stored: Trip
+
+  beforeEach(() => {
+    localStorage.clear()
+    stored = tripWithStops()
+    mockGetTrip.mockImplementation(async () => ({ trip: stored, access: "owner" }))
+    mockUpdateTrip.mockImplementation(async (_token: unknown, _id: unknown, patch: { days: Trip["days"] }) => {
+      stored = { ...stored, days: patch.days }
+      return stored
+    })
+    mockStreamTripChat.mockImplementation(async (_request: Request, _token: unknown, handlers: Handlers) => {
+      handlers.onText("Try **Ichiran**.")
+      return { content: "Try **Ichiran**.", places: [ICHIRAN] }
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  function renderWithLocation(path = "/trips/tokyo/day/day-1") {
+    return render(
+      <MemoryRouter initialEntries={[path]}>
+        <LocationProbe />
+        <TripChat />
+      </MemoryRouter>,
+    )
+  }
+
+  it("points at a place that is already planned, and never offers to undo it", async () => {
+    stored.days[0]!.items.push({ id: "mine", kind: "place", title: "Ichiran", time: "13:00", status: "none", createdBy: "user" })
+    renderWithLocation()
+    const dialog = await ask("ramen?")
+    const cards = await within(dialog).findByRole("list", { name: "Suggested places" })
+    fireEvent.click(within(cards).getByRole("button", { name: "Add Ichiran to Fri 10 Jul · 12:30" }))
+
+    expect(await within(cards).findByText("Already on Fri 10 Jul · 13:00")).toBeTruthy()
+    expect(mockUpdateTrip).not.toHaveBeenCalled()
+    expect(within(cards).queryByRole("button", { name: "Undo adding Ichiran" })).toBeNull()
+
+    fireEvent.click(within(cards).getByRole("button", { name: "Show Ichiran in the itinerary" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/trips/tokyo/day/day-1#item-mine")
+    expect(stored.days[0]!.items.map((i) => i.id)).toContain("mine")
+  })
+
+  it("Show on an added place opens its day at the new stop", async () => {
+    renderWithLocation("/trips/tokyo")
+    const dialog = await ask("ramen?")
+    const cards = await within(dialog).findByRole("list", { name: "Suggested places" })
+    fireEvent.click(within(cards).getByRole("button", { name: "Add Ichiran to Fri 10 Jul · 12:30" }))
+    await within(cards).findByText("Added to Fri 10 Jul · 12:30")
+    const added = stored.days[0]!.items.find((i) => i.title === "Ichiran")!
+
+    fireEvent.click(within(cards).getByRole("button", { name: "Show Ichiran in the itinerary" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(`/trips/tokyo/day/day-1#item-${added.id}`)
+  })
+
+  it("reads an old saved record without a status as one this card added", () => {
+    localStorage.setItem(
+      "trips-concierge-v1:tokyo",
+      JSON.stringify([{ id: "a1", role: "assistant", content: "x", added: { k: { dayId: "day-1", itemId: "i1" } } }]),
+    )
+    expect(loadConversation("tokyo")[0]!.added).toEqual({ k: { status: "added", dayId: "day-1", itemId: "i1" } })
+  })
+})
+
+describe("TripChat proposal undo", () => {
+  let stored: Trip
+
+  beforeEach(() => {
+    localStorage.clear()
+    stored = tripWithStops()
+    mockGetTrip.mockImplementation(async () => ({ trip: stored, access: "owner" }))
+    mockUpdateTrip.mockImplementation(async (_token: unknown, _id: unknown, patch: { days: Trip["days"] }) => {
+      stored = { ...stored, days: patch.days }
+      return stored
+    })
+    mockStreamTripChat.mockImplementation(async (_request: Request, _token: unknown, handlers: Handlers) => {
+      handlers.onText("Dinner earlier.")
+      return {
+        content: "Dinner earlier.",
+        proposal: {
+          id: "prop-1",
+          summary: "Earlier dinner",
+          changes: [{ id: "c1", op: "set_time", dayId: "day-1", itemId: "dinner", title: "Sushi Dai", from: "20:30", time: "19:00" }],
+        },
+      }
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  async function applyIt() {
+    renderChat("/trips/tokyo/day/day-1")
+    const dialog = await ask("earlier dinner")
+    const card = await within(dialog).findByRole("region", { name: "Earlier dinner" })
+    fireEvent.click(within(card).getByRole("button", { name: "Apply" }))
+    await within(card).findByText("Applied · Fri 10 Jul")
+    return { dialog, card }
+  }
+
+  const withStop = (trip: Trip, item: Trip["days"][number]["items"][number]): Trip => ({
+    ...trip,
+    days: trip.days.map((d) => ({ ...d, items: [...d.items, item] })),
+  })
+
+  it("turns Undo off once the day is edited after the apply", async () => {
+    const { card } = await applyIt()
+    expect(within(card).getByRole("button", { name: "Undo" })).toBeEnabled()
+
+    // Twenty minutes of editing later: a new stop on that day.
+    stored = withStop(stored, { id: "late", kind: "place", title: "Golden Gai", time: "22:00", status: "none", createdBy: "user" })
+    const edited = stored
+    act(() => emitTripChanged(edited))
+
+    const undo = within(card).getByRole("button", { name: "Undo" })
+    await waitFor(() => expect(undo).toBeDisabled())
+    expect(undo).toHaveAccessibleDescription(/Edited since, so Undo is off/)
+    fireEvent.click(undo)
+    expect(mockUpdateTrip).toHaveBeenCalledTimes(1)
+    expect(stored.days[0]!.items.map((i) => i.id)).toContain("late")
+  })
+
+  it("refuses an Undo when the saved day has changed elsewhere, and keeps the edit", async () => {
+    const { dialog, card } = await applyIt()
+    // Another tab added a stop; this panel has not heard about it.
+    stored = withStop(stored, { id: "other-tab", kind: "note", title: "Buy tickets", status: "none", createdBy: "user" })
+    fireEvent.click(within(card).getByRole("button", { name: "Undo" }))
+    expect(await within(dialog).findByText(/Undo would lose the newer edits/)).toBeTruthy()
+    expect(mockUpdateTrip).toHaveBeenCalledTimes(1)
+    expect(stored.days[0]!.items.map((i) => i.id)).toContain("other-tab")
+  })
+})
+
+describe("TripChat loading", () => {
+  beforeEach(() => {
+    localStorage.clear()
+    mockStreamTripChat.mockResolvedValue({ content: "ok" })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("reads the trip only when the panel first opens", async () => {
+    mockGetTrip.mockResolvedValue({ trip: makeTrip(), access: "owner" })
+    renderChat()
+    const fab = screen.getByRole("button", { name: "Open trip concierge chat" })
+    fireEvent.pointerEnter(fab)
+    fireEvent.focus(fab)
+    await act(async () => {})
+    expect(mockGetTrip).not.toHaveBeenCalled()
+
+    await openChat()
+    await waitFor(() => expect(mockGetTrip).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("button", { name: "Close chat" }))
+    await openChat()
+    expect(mockGetTrip).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps a newer document the page announced over a slower fetch", async () => {
+    const older = makeTrip({ name: "Old name", updatedAt: "2026-01-01T00:00:00Z" })
+    const newer = makeTrip({ name: "New name", updatedAt: "2026-03-01T00:00:00Z" })
+    let resolveFetch: (value: { trip: Trip; access: "owner" }) => void = () => {}
+    mockGetTrip.mockImplementation(() => new Promise((resolve) => (resolveFetch = resolve)))
+    renderChat()
+    const dialog = await openChat()
+    act(() => emitTripChanged(newer))
+    await act(async () => resolveFetch({ trip: older, access: "owner" }))
+
+    const box = within(dialog).getByRole("textbox", { name: "Message the concierge" })
+    fireEvent.change(box, { target: { value: "hi" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+    await waitFor(() => expect(mockStreamTripChat).toHaveBeenCalled())
+    expect((mockStreamTripChat.mock.calls[0]![0] as { trip?: Trip }).trip?.name).toBe("New name")
   })
 })

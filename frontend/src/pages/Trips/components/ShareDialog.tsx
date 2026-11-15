@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { Check, Copy, Globe2, LogOut, UserRound, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { routerBasename } from "@/lib/routerBasename"
@@ -22,6 +22,8 @@ const ROLE_COPY: Record<CollaboratorRole, { label: string; hint: string }> = {
   viewer: { label: "Can view", hint: "Sees the itinerary and map. Can’t change anything." },
   editor: { label: "Can edit", hint: "Can add, move and remove stops, and use AI." },
 }
+
+const ROLES = Object.keys(ROLE_COPY) as CollaboratorRole[]
 
 export function inviteUrl(token: string): string {
   return `${window.location.origin}${routerBasename() ?? ""}/trips/join/${token}`
@@ -52,6 +54,7 @@ export function ShareDialog({
   /** The role whose link is on the clipboard, so the label never speaks for another role. */
   const [copied, setCopied] = useState<CollaboratorRole | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const roleRefs = useRef<Partial<Record<CollaboratorRole, HTMLButtonElement | null>>>({})
 
   useEffect(() => {
     if (!open) return
@@ -126,6 +129,19 @@ export function ShareDialog({
       onChanged?.(next)
     })
 
+  /** Radio group keys: arrows (either axis), Home and End pick and focus a role. */
+  const onRoleKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (busy !== null) return
+    const at = ROLES.indexOf(role)
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0
+    const next =
+      event.key === "Home" ? ROLES[0] : event.key === "End" ? ROLES[ROLES.length - 1] : step ? ROLES[(at + step + ROLES.length) % ROLES.length] : undefined
+    if (!next) return
+    event.preventDefault()
+    setRole(next)
+    roleRefs.current[next]?.focus()
+  }
+
   const leave = () =>
     run("leave", async () => {
       if (!trip) return
@@ -162,13 +178,18 @@ export function ShareDialog({
 
           {owner && (
             <section {...sx(a.stack)} aria-label="Invite link">
-              <div {...sx(s.segment)} role="radiogroup" aria-label="What the link allows">
-                {(Object.keys(ROLE_COPY) as CollaboratorRole[]).map((r) => (
+              <div {...sx(s.segment)} role="radiogroup" aria-label="What the link allows" onKeyDown={onRoleKey}>
+                {ROLES.map((r) => (
                   <button
                     key={r}
+                    ref={(node) => {
+                      roleRefs.current[r] = node
+                    }}
                     type="button"
                     role="radio"
                     aria-checked={role === r}
+                    // One tab stop for the group; arrows move the choice.
+                    tabIndex={role === r ? 0 : -1}
                     disabled={busy !== null}
                     {...sx(s.segmentBtn, role === r && s.segmentOn)}
                     onClick={() => setRole(r)}

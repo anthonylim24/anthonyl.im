@@ -16,7 +16,8 @@ const RECENT = 4
 /** Longest a card may say "Watching the video" on our word alone, whatever the server says. */
 export const DEEPEN_LIMIT_MS = 45_000
 
-export type ImportStatus = "loading" | "ready" | "unconfigured"
+/** `error`: the first read of the jobs failed, so the list is unknown, not empty. */
+export type ImportStatus = "loading" | "ready" | "error" | "unconfigured"
 
 /**
  * Jobs for the import sheet. Posts are read quickly first (caption and
@@ -82,9 +83,16 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
     } catch (err) {
       if (mine !== seq.current) return
       if (err instanceof IgNotConfiguredError) setStatus("unconfigured")
-      else setStatus((current) => (current === "loading" ? "ready" : current))
+      // A failed poll keeps the list it had; a failed first read says so.
+      else setStatus((current) => (current === "loading" ? "error" : current))
     }
   }, [getToken, settle])
+
+  /** Try the first read again after it failed. */
+  const reload = useCallback(() => {
+    setStatus("loading")
+    void refresh()
+  }, [refresh])
 
   useEffect(() => {
     if (open) void refresh()
@@ -180,5 +188,5 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
     [getToken, refresh],
   )
 
-  return { status, session, recent, submitting, pendingUrls, problem, setProblem, deepening, submit, retry, deepen }
+  return { status, session, recent, submitting, pendingUrls, problem, setProblem, deepening, submit, retry, deepen, reload }
 }

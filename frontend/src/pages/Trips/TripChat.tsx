@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import {
   ArrowUp,
   ArrowUpRight,
@@ -10,7 +10,6 @@ import {
   Compass,
   LocateFixed,
   Maximize2,
-  MessageCircle,
   Minimize2,
   Route,
   SquarePen,
@@ -26,27 +25,26 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTranscriptAnchor } from "@/hooks/useTranscriptAnchor"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { AssistantMessage } from "./ConciergeMessage"
+import type { ProposalUndoState } from "./ConciergeProposalCard"
 import { ConciergePhotoViewer } from "./ConciergePhoto"
-import type { AddedPlace } from "./ConciergePlaceCards"
-import { applyProposal, dayShort, insertByTime, restoreSnapshot, snapshotDays, type DaySnapshot } from "./conciergeProposal"
-import { clearConversation, loadConversation, saveConversation, type ChatMessage } from "./conciergeStore"
+import { applyProposal, dayShort, daysFingerprint, insertByTime, restoreSnapshot, snapshotDays, type DaySnapshot } from "./conciergeProposal"
+import { clearConversation, loadConversation, saveConversation, type AddedPlace, type ChatMessage } from "./conciergeStore"
 import { conciergeSuggestions, type Starter, type StarterKind } from "./conciergeSuggestions"
 import { dayHasPlaceNamed, itemFromConciergePlace, removeItem } from "./tripEdits"
 import { getTrip, updateTrip } from "./tripsApi"
-import { emitTripChanged, useTripChanged } from "./tripsEvents"
+import { emitTripChanged, mergeFetchedTrip, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent, tripTiming } from "./meta"
 import type { Trip, TripAccess } from "./types"
 import { a } from "./atlas.stylex"
 import { c } from "./chat.stylex"
 import { sx } from "@/styles/merge"
+import { runTripsViewTransition } from "./viewTransition"
 
 const EASE = [0.16, 1, 0.3, 1] as const
 
 /** The panel settles into place rather than sliding to a stop. */
 const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
-
-const FAB_SPRING = { type: "spring", stiffness: 400, damping: 28 } as const
 
 const STARTER_ICON: Record<StarterKind, LucideIcon> = {
   today: Sun,
@@ -57,24 +55,6 @@ const STARTER_ICON: Record<StarterKind, LucideIcon> = {
   booking: Ticket,
   route: Route,
   idea: Compass,
-}
-
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (update: () => void) => { finished: Promise<void> }
-}
-
-/** Same-document View Transition, or a synchronous update when unsupported. */
-function runTripsViewTransition(update: () => void): void {
-  const reduced =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  const doc = document as ViewTransitionDocument
-  if (reduced || typeof doc.startViewTransition !== "function") {
-    update()
-    return
-  }
-  void doc.startViewTransition(update).finished.catch(() => undefined)
 }
 
 interface PhotoView {
@@ -99,22 +79,6 @@ function useMinWidth(px: number): boolean {
     return () => mq.removeEventListener("change", sync)
   }, [px])
   return matches
-}
-
-/** Concierge lives on the trip dossier and day pages, not the index, create, or editor. */
-export function useTripChatRoute(): { tripId?: string; dayId?: string } {
-  const { pathname } = useLocation()
-  return useMemo(() => {
-    const day = pathname.match(/^\/trips\/([^/]+)\/day\/([^/?#]+)/)
-    if (day) {
-      return { tripId: decodeURIComponent(day[1]), dayId: decodeURIComponent(day[2]) }
-    }
-    const overview = pathname.match(/^\/trips\/([^/]+)\/?$/)
-    if (overview && overview[1] !== "new") {
-      return { tripId: decodeURIComponent(overview[1]) }
-    }
-    return {}
-  }, [pathname])
 }
 
 /** Earlier turns as the server wants them: text plus the cards and change
@@ -190,8 +154,26 @@ function spoken(text: string): string {
     .slice(0, 700)
 }
 
-export function TripChat() {
-  const { tripId, dayId } = useTripChatRoute()
+/** What Undo on an applied proposal needs: the touched days as they were,
+ *  and a fingerprint of them as the apply left them. */
+interface ProposalUndo {
+  before: DaySnapshot
+  dayIds: string[]
+  after: string
+}
+
+const STALE_UNDO = "Those days have changed since, so Undo would lose the newer edits."
+
+export interface TripChatPanelProps {
+  tripId?: string
+  dayId?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** The launcher's button: focus goes back to it after a close. */
+  fabRef: RefObject<HTMLButtonElement | null>
+}
+
+export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: TripChatPanelProps) {
   const navigate = useNavigate()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
@@ -200,18 +182,22 @@ export function TripChat() {
   const isDesktop = useMinWidth(768)
   // The trip is kept with the route id it was loaded for, so one trip's
   // document is never shown, sent or written under another's route.
-  const [loaded, setLoaded] = useState<{ forId: string; trip: Trip; access: TripAccess } | null>(null)
+  // `access` is null until a fetch has said it; a `trip-changed` doc does not.
+  const [loaded, setLoaded] = useState<{ forId: string; trip: Trip; access: TripAccess | null } | null>(null)
   const current = loaded && loaded.forId === tripId ? loaded : null
   const trip = current?.trip ?? null
   const access: TripAccess = current?.access ?? "view"
+  const needsFetch = !current || current.access === null
   const [mutation, setMutation] = useState<Mutation | null>(null)
   /** An Add / Apply / Undo that failed. Not the reply's own `error`, and not saved. */
   const [actionError, setActionError] = useState<{ messageId: string; text: string } | null>(null)
   const [skipped, setSkipped] = useState<Record<string, Record<string, string>>>({})
-  const [undoable, setUndoable] = useState<Set<string>>(() => new Set())
+  /** Applied proposals that can still be undone this session, by message id. */
+  const [undos, setUndos] = useState<Record<string, ProposalUndo>>({})
   const [photo, setPhoto] = useState<PhotoView | null>(null)
-  const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  /** Docked beside the page on desktop, the panel is a side region, not a modal. */
+  const modal = expanded || !isDesktop
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [runState, setRunState] = useState<RunState>(IDLE)
@@ -224,7 +210,6 @@ export function TripChat() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const fabRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const runRef = useRef(0)
@@ -232,7 +217,6 @@ export function TripChat() {
   const tripIdRef = useRef(tripId)
   /** Itinerary writes run one after another, each reading the document the last one left. */
   const writeChain = useRef<Promise<unknown>>(Promise.resolve())
-  const snapshots = useRef(new Map<string, DaySnapshot>())
   const titleId = useId()
   const lastUserId = lastMessageIdByRole(messages, "user")
   const working = phase === "working"
@@ -247,24 +231,35 @@ export function TripChat() {
     setLoaded((prev) => ({
       forId,
       trip: next,
-      access: nextAccess ?? (prev?.forId === forId ? prev.access : "view"),
+      access: nextAccess ?? (prev?.forId === forId ? prev.access : null),
     }))
   }, [])
 
+  /** Keep a fetched document, unless a write the page announced is newer. */
+  const putFetched = useCallback((forId: string, fetched: Trip, nextAccess: TripAccess) => {
+    if (tripIdRef.current !== forId) return
+    setLoaded((prev) => ({
+      forId,
+      trip: mergeFetchedTrip(fetched, prev?.forId === forId ? prev.trip : null),
+      access: nextAccess,
+    }))
+  }, [])
+
+  // Read the trip the first time the panel opens on it, not on every page view.
   useEffect(() => {
-    if (!tripId) return
+    if (!tripId || !open || !needsFetch) return
     let cancelled = false
     void getTrip(readToken, tripId)
       .then(({ trip: next, access: nextAccess }) => {
-        if (!cancelled) putTrip(tripId, next, nextAccess)
+        if (!cancelled) putFetched(tripId, next, nextAccess)
       })
       .catch(() => {
-        if (!cancelled) setLoaded((prev) => (prev?.forId === tripId ? null : prev))
+        // The first message fetches again; a page write still arrives by event.
       })
     return () => {
       cancelled = true
     }
-  }, [tripId, authReady])
+  }, [tripId, open, needsFetch, authReady, readToken, putFetched])
 
   useTripChanged(
     tripId,
@@ -287,8 +282,7 @@ export function TripChat() {
     setMutation(null)
     setActionError(null)
     setSkipped({})
-    setUndoable(new Set())
-    snapshots.current.clear()
+    setUndos({})
     loadedFor.current = tripId
     setMessages(tripId ? loadConversation(tripId) : [])
   }, [tripId])
@@ -309,14 +303,10 @@ export function TripChat() {
   const handleClose = useCallback(() => {
     abortRef.current?.abort()
     runTripsViewTransition(() => {
-      setOpen(false)
+      onOpenChange(false)
       setExpanded(false)
     })
-  }, [])
-
-  const handleOpen = useCallback(() => {
-    runTripsViewTransition(() => setOpen(true))
-  }, [])
+  }, [onOpenChange])
 
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => !current)
@@ -333,12 +323,15 @@ export function TripChat() {
     wasOpen.current = true
     const t = setTimeout(() => inputRef.current?.focus(), reduce ? 0 : 220)
     return () => clearTimeout(t)
-  }, [open, reduce])
+  }, [open, reduce, fabRef])
 
   useEffect(() => {
     if (!open || photo) return
     const onKey = (e: KeyboardEvent) => {
+      const root = dialogRef.current
       if (e.key === "Escape") {
+        // Docked beside the page, Escape is the panel's only while focus is in it.
+        if (!modal && !root?.contains(document.activeElement)) return
         if (expanded) {
           setExpanded(false)
           return
@@ -346,9 +339,8 @@ export function TripChat() {
         handleClose()
         return
       }
-      if (e.key !== "Tab") return
-      const root = dialogRef.current
-      if (!root) return
+      // Only a modal panel keeps Tab inside; docked, the page stays reachable.
+      if (e.key !== "Tab" || !modal || !root) return
       const focusable = root.querySelectorAll<HTMLElement>(
         'button:not(:disabled), [href], textarea, input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
       )
@@ -366,18 +358,16 @@ export function TripChat() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open, expanded, handleClose, photo])
+  }, [open, expanded, modal, handleClose, photo])
 
   useEffect(() => {
-    if (!open) return
-    const lockPage = expanded || !isDesktop
-    if (!lockPage) return
+    if (!open || !modal) return
     const prev = document.body.style.overflow
     document.body.style.overflow = "hidden"
     return () => {
       document.body.style.overflow = prev
     }
-  }, [open, expanded, isDesktop])
+  }, [open, modal])
 
   // Keep the composer above the on-screen keyboard, and the sheet inside
   // what is left of the screen.
@@ -436,7 +426,7 @@ export function TripChat() {
         if (!activeTrip) {
           activeTrip = await getTrip(readToken, tripId).then(
             (fetched) => {
-              if (live()) putTrip(tripId, fetched.trip, fetched.access)
+              if (live()) putFetched(tripId, fetched.trip, fetched.access)
               return fetched.trip
             },
             () => null,
@@ -517,7 +507,7 @@ export function TripChat() {
         }
       }
     },
-    [tripId, dayId, trip, readToken, patchMessage, putTrip],
+    [tripId, dayId, trip, readToken, patchMessage, putFetched],
   )
 
   const send = useCallback(
@@ -565,8 +555,7 @@ export function TripChat() {
     setActionError(null)
     setMessages([])
     setSkipped({})
-    setUndoable(new Set())
-    snapshots.current.clear()
+    setUndos({})
     setLocationNote(null)
     if (tripId) clearConversation(tripId)
     setAnnounce("Started a new chat.")
@@ -630,17 +619,20 @@ export function TripChat() {
           const time = target.time && target.dayId === targetDayId ? target.time : undefined
           const existing = day.items.find((i) => dayHasPlaceNamed({ ...day, items: [i] }, target.name))
           if (existing) {
-            added = { dayId: day.id, itemId: existing.id, time: existing.time }
+            // Already planned: point at it, and never offer to undo it.
+            added = { status: "preexisting", dayId: day.id, itemId: existing.id, time: existing.time }
             return null
           }
           const item = { ...itemFromConciergePlace(target), ...(time ? { time } : {}) }
-          added = { dayId: day.id, itemId: item.id, time }
+          added = { status: "added", dayId: day.id, itemId: item.id, time }
           return fresh.days.map((d) => (d.id === day.id ? { ...d, items: insertByTime(d.items, item) } : d))
         })
         if (added && !stale()) {
           const record: AddedPlace = added
           patchMessage(messageId, (m) => ({ ...m, added: { ...m.added, [key]: record } }))
-          setAnnounce(`Added ${target.name} to the itinerary.`)
+          setAnnounce(
+            record.status === "added" ? `Added ${target.name} to the itinerary.` : `${target.name} is already on that day.`,
+          )
         }
       })
     },
@@ -651,12 +643,13 @@ export function TripChat() {
     (messageId: string, target: ConciergePlace) => {
       const key = conciergePlaceKey(target)
       const record = messagesRef.current.find((m) => m.id === messageId)?.added?.[key]
-      if (!record || !canEdit) return
+      // Undo only removes what this card added, never a stop that was already there.
+      if (!record || record.status !== "added" || !canEdit) return
       return runWrite({ kind: "place", messageId, id: key }, "Could not undo that.", async (stale) => {
         await saveDays((fresh) => removeItem(fresh.days, record.dayId, record.itemId))
         if (stale()) return
         patchMessage(messageId, (m) => {
-          const { [key]: _removed, ...rest } = m.added ?? {}
+          const rest = Object.fromEntries(Object.entries(m.added ?? {}).filter(([k]) => k !== key))
           return { ...m, added: rest }
         })
         setAnnounce(`Removed ${target.name} again.`)
@@ -673,7 +666,7 @@ export function TripChat() {
       return runWrite({ kind: "proposal", messageId, id: messageId }, "Could not update the itinerary.", async (stale) => {
         let outcome: ReturnType<typeof applyProposal> | null = null
         let before: Trip["days"] = []
-        await saveDays((fresh) => {
+        const saved = await saveDays((fresh) => {
           before = fresh.days
           outcome = applyProposal(fresh.days, proposal, selected)
           return outcome.applied.length ? outcome.days : null
@@ -685,8 +678,12 @@ export function TripChat() {
           setAnnounce("Nothing could be applied: the itinerary has changed since.")
           return
         }
-        snapshots.current.set(messageId, snapshotDays(before, result.touched))
-        setUndoable((prev) => new Set(prev).add(messageId))
+        const undo: ProposalUndo = {
+          before: snapshotDays(before, result.touched),
+          dayIds: result.touched,
+          after: daysFingerprint(saved.days, result.touched),
+        }
+        setUndos((prev) => ({ ...prev, [messageId]: undo }))
         patchMessage(messageId, (m) => ({ ...m, proposalState: "applied", appliedIds: result.applied }))
         setAnnounce(`Applied: ${proposal.summary}. Undo is available.`)
       })
@@ -696,38 +693,47 @@ export function TripChat() {
 
   const undoChanges = useCallback(
     (messageId: string) => {
-      const snapshot = snapshots.current.get(messageId)
-      if (!snapshot || !canEdit) return
+      const undo = undos[messageId]
+      if (!undo || !canEdit) return
       return runWrite({ kind: "proposal", messageId, id: messageId }, "Could not undo that.", async (stale) => {
-        await saveDays((fresh) => restoreSnapshot(fresh.days, snapshot))
+        await saveDays((fresh) => {
+          // Checked again on the saved document: an edit from another tab counts too.
+          if (daysFingerprint(fresh.days, undo.dayIds) !== undo.after) throw new Error(STALE_UNDO)
+          return restoreSnapshot(fresh.days, undo.before)
+        })
         if (stale()) return
-        snapshots.current.delete(messageId)
-        setUndoable((prev) => {
-          const next = new Set(prev)
-          next.delete(messageId)
-          return next
+        setUndos((prev) => {
+          const rest = Object.fromEntries(Object.entries(prev).filter(([id]) => id !== messageId))
+          return rest
         })
         patchMessage(messageId, (m) => ({ ...m, proposalState: "undone", appliedIds: undefined }))
         setAnnounce("Undone. The itinerary is back as it was.")
       })
     },
-    [canEdit, saveDays, patchMessage, runWrite],
+    [canEdit, undos, saveDays, patchMessage, runWrite],
   )
 
+  /** Undo for each applied proposal, while the days it touched are as it left them. */
+  const proposalUndo = useCallback(
+    (messageId: string): ProposalUndoState | null => {
+      const undo = undos[messageId]
+      if (!undo) return null
+      if (!trip) return "available"
+      return daysFingerprint(trip.days, undo.dayIds) === undo.after ? "available" : "stale"
+    },
+    [undos, trip],
+  )
+
+  /** Open a day, scrolled to a stop when there is one (the workspace reads `#item-<id>`). */
   const goToDay = useCallback(
     (targetDay: string, itemId?: string) => {
       if (!tripId) return
-      const params = new URLSearchParams()
-      if (itemId) {
-        params.set("map", "1")
-        params.set("focus", itemId)
-      }
-      const query = params.toString()
-      navigate(`/trips/${encodeURIComponent(tripId)}/day/${encodeURIComponent(targetDay)}${query ? `?${query}` : ""}`)
+      const hash = itemId ? `#item-${encodeURIComponent(itemId)}` : ""
+      navigate(`/trips/${encodeURIComponent(tripId)}/day/${encodeURIComponent(targetDay)}${hash}`)
       setExpanded(false)
-      if (!isDesktop) setOpen(false)
+      if (!isDesktop) onOpenChange(false)
     },
-    [tripId, navigate, isDesktop],
+    [tripId, navigate, isDesktop, onOpenChange],
   )
 
   const openPhotos = useCallback(
@@ -780,30 +786,7 @@ export function TripChat() {
         }
 
   return (
-    <div data-trip-accent={accent}>
-      <motion.button
-        ref={fabRef}
-        type="button"
-        onClick={handleOpen}
-        aria-label="Open trip concierge chat"
-        aria-hidden={open || undefined}
-        tabIndex={open ? -1 : undefined}
-        initial={false}
-        animate={open ? { opacity: 0, scale: reduce ? 1 : 0.86 } : { opacity: 1, scale: 1 }}
-        whileHover={reduce || open ? undefined : { scale: 1.06 }}
-        whileTap={reduce || open ? undefined : { scale: 0.94 }}
-        transition={reduce ? { duration: 0.15 } : FAB_SPRING}
-        {...sx(c.fab, open ? c.fabHidden : undefined)}
-        style={{
-          // Shared morph with the panel. Name clears while open so the new
-          // View Transition snapshot never has two `trips-concierge` nodes
-          // (FAB stays mounted; EnhanceButton uses the same handoff).
-          viewTransitionName: open || reduce ? "none" : "trips-concierge",
-        }}
-      >
-        <MessageCircle {...sx(c.icon22)} strokeWidth={1.75} aria-hidden />
-      </motion.button>
-
+    <>
       {typeof document !== "undefined" &&
         createPortal(
           <div {...sx("trips", "trip-chat-portal")} data-trip-accent={accent}>
@@ -823,8 +806,8 @@ export function TripChat() {
                   <motion.div
                     {...panelMotion}
                     ref={dialogRef}
-                    role="dialog"
-                    aria-modal="true"
+                    role={modal ? "dialog" : "complementary"}
+                    aria-modal={modal ? "true" : undefined}
                     aria-labelledby={titleId}
                     data-expanded={expanded ? "true" : "false"}
                     {...panelSx}
@@ -912,7 +895,7 @@ export function TripChat() {
                               proposalBusy={mutation?.kind === "proposal" && mutation.id === m.id}
                               actionError={actionError?.messageId === m.id ? actionError.text : null}
                               onDismissActionError={() => setActionError(null)}
-                              canUndoProposal={undoable.has(m.id)}
+                              proposalUndo={proposalUndo(m.id)}
                               skipped={skipped[m.id]}
                               onAdd={(target, targetDayId) => void addPlace(m.id, target, targetDayId)}
                               onUndoAdd={(target) => void undoAdd(m.id, target)}
@@ -1019,7 +1002,7 @@ export function TripChat() {
           onClose={() => setPhoto(null)}
         />
       ) : null}
-    </div>
+    </>
   )
 }
 

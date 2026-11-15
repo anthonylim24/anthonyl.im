@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { ArrowRight, Check, ClipboardPaste, ExternalLink, Film, Link2, Plus, RotateCw, Search, Trash2, X } from "lucide-react"
 import { sx } from "@/styles/merge"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { errorMessage } from "../../../effect/errors"
 import { a } from "../atlas.stylex"
 import { Spinner } from "../components/kit"
@@ -56,16 +58,34 @@ const NEAR_M = 150_000
 
 const pinId = (place: Pick<IgPlace, "id">) => `ig-${place.id}`
 
+/** How long a removed Saved place can be brought back before it is deleted. */
+export const REMOVE_UNDO_MS = 6000
+
+type Tab = "posts" | "saved"
+const TABS: readonly Tab[] = ["posts", "saved"]
+
+/** The Saved library. `error`: it could not be read, which is not the same as empty. */
+type SavedList =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; places: SavedPlace[]; total: number; hasMore: boolean }
+
 export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getToken, onAdd }: InstagramSheetProps) {
   const imp = useInstagramImport(getToken, open)
   const wide = useMedia(WIDE_QUERY)
-  const [tab, setTab] = useState<"posts" | "saved">("posts")
+  const reduceMotion = useReducedMotion()
+  const [tab, setTab] = useState<Tab>("posts")
   const [text, setText] = useState("")
   const [target, setTarget] = useState<string>(dayId ?? "auto")
   const [hot, setHot] = useState<string | null>(null)
-  const [saved, setSaved] = useState<{ places: SavedPlace[]; total: number; hasMore: boolean } | null>(null)
+  const [saved, setSaved] = useState<SavedList>({ status: "loading" })
   const [query, setQuery] = useState("")
   const [savedBusy, setSavedBusy] = useState(false)
+  /** A Saved place taken out of the list but not yet deleted on the server. */
+  const [removing, setRemoving] = useState<SavedPlace | null>(null)
+  const removal = useRef<{ place: SavedPlace; timer: ReturnType<typeof setTimeout> } | null>(null)
+  const undoRef = useRef<HTMLButtonElement>(null)
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const started = useRef("")
@@ -97,21 +117,35 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
     try {
       const page = await listSaved(getToken, { q, offset })
       if (mine !== savedSeq.current) return
-      setSaved((current) => (offset > 0 && current ? { ...page, places: [...current.places, ...page.places] } : page))
+      setSaved((current) =>
+        offset > 0 && current.status === "ready"
+          ? { status: "ready", ...page, places: [...current.places, ...page.places] }
+          : { status: "ready", ...page },
+      )
     } catch {
-      if (mine === savedSeq.current) setSaved((current) => current ?? { places: [], total: 0, hasMore: false })
+      if (mine !== savedSeq.current) return
+      // More of a list that is showing: keep it and say so. The list itself: say it failed.
+      if (offset > 0) imp.setProblem("Couldn’t load more saved places. Try Show more again.")
+      else setSaved({ status: "error" })
     } finally {
       if (mine === savedSeq.current) setSavedBusy(false)
     }
   }
 
   // The Saved count shows on the tab, so load it with the sheet; search is debounced.
+  // Saved loads even when the posts list failed; only an unconfigured server skips it.
+  const importUp = imp.status === "ready" || imp.status === "error"
   useEffect(() => {
-    if (!open || imp.status !== "ready") return
+    if (!open || !importUp) return
     const timer = setTimeout(() => void loadSaved(query), query ? 220 : 0)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, imp.status, query])
+  }, [open, importUp, query])
+
+  const retrySaved = () => {
+    setSaved({ status: "loading" })
+    void loadSaved(query)
+  }
 
   const dayFor = (place: IgPlace) => {
     const chosen = target === "auto" ? undefined : trip.days.find((d) => d.id === target)
@@ -131,16 +165,66 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
     for (const [id, items] of byDay) onAdd(id, items)
   }
 
-  const removeFromSaved = async (place: SavedPlace) => {
+  // Removing is one tap, so the server delete waits a few seconds for an
+  // Undo (there is no endpoint to put a place back). Closing the sheet, or
+  // removing another place, sends it at once.
+  const commitRemoval = useLatestCallback(() => {
+    const pending = removal.current
+    if (!pending) return
+    clearTimeout(pending.timer)
+    removal.current = null
+    setRemoving(null)
     setSaved((current) =>
-      current ? { ...current, places: current.places.filter((p) => p.id !== place.id), total: Math.max(0, current.total - 1) } : current,
+      current.status === "ready"
+        ? { ...current, places: current.places.filter((p) => p.id !== pending.place.id), total: Math.max(0, current.total - 1) }
+        : current,
     )
-    try {
-      await removeSaved(getToken, place.id)
-    } catch (err) {
-      imp.setProblem(`Couldn’t remove that place. (${errorMessage(err)})`)
+    removeSaved(getToken, pending.place.id).catch((err: unknown) => {
+      imp.setProblem(`Couldn’t remove ${pending.place.name}. (${errorMessage(err)})`)
       void loadSaved(query)
-    }
+    })
+  })
+
+  const removeFromSaved = (place: SavedPlace) => {
+    commitRemoval()
+    removal.current = { place, timer: setTimeout(commitRemoval, REMOVE_UNDO_MS) }
+    setRemoving(place)
+  }
+
+  const undoRemoval = () => {
+    const pending = removal.current
+    if (!pending) return
+    clearTimeout(pending.timer)
+    removal.current = null
+    setRemoving(null)
+  }
+
+  useEffect(() => {
+    if (!open) commitRemoval()
+  }, [open, commitRemoval])
+  useEffect(() => () => commitRemoval(), [commitRemoval])
+  // The row and its button are gone: keyboard focus goes to Undo, not the page.
+  useEffect(() => {
+    if (removing) undoRef.current?.focus()
+  }, [removing])
+
+  /** Tabs are one stop for Tab; arrows, Home and End move between them. */
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const at = TABS.indexOf(tab)
+    const next =
+      event.key === "ArrowRight"
+        ? TABS[(at + 1) % TABS.length]
+        : event.key === "ArrowLeft"
+          ? TABS[(at - 1 + TABS.length) % TABS.length]
+          : event.key === "Home"
+            ? TABS[0]
+            : event.key === "End"
+              ? TABS[TABS.length - 1]
+              : undefined
+    if (!next) return
+    event.preventDefault()
+    setTab(next)
+    tabRefs.current[next]?.focus()
   }
 
   const submit = (list: string[]) => {
@@ -188,8 +272,9 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
   )
   const isNear = (place: IgPlace) =>
     tripCenter != null && place.lat != null && place.lng != null && distanceMeters(tripCenter, { lat: place.lat, lng: place.lng }) < NEAR_M
-  const savedNear = (saved?.places ?? []).filter(isNear)
-  const savedFar = (saved?.places ?? []).filter((place) => !isNear(place))
+  const savedPlaces = saved.status === "ready" ? saved.places.filter((place) => place.id !== removing?.id) : []
+  const savedNear = savedPlaces.filter(isNear)
+  const savedFar = savedPlaces.filter((place) => !isNear(place))
   const shown: IgPlace[] = tab === "posts" ? jobs.flatMap((job) => job.places) : savedNear.length > 0 ? savedNear : savedFar
   const pins = useMemo<AtlasPin[]>(() => {
     const seen = new Set<number>()
@@ -237,7 +322,9 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
         onHover={setHot}
         onSelect={(id) => {
           setHot(id)
-          listRef.current?.querySelector(`[data-pin="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+          listRef.current
+            ?.querySelector(`[data-pin="${id}"]`)
+            ?.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" })
         }}
         label={`Map of ${plural(pins.length, "place")} from Instagram`}
       >
@@ -254,7 +341,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
   const hint =
     imp.problem ??
     (text.trim() !== "" && urls.length === 0 ? "That doesn’t look like an Instagram link. In Instagram: Share, then Copy link." : null)
-  const savedTotal = saved?.total ?? 0
+  const savedTotal = saved.status === "ready" ? Math.max(0, saved.total - (removing ? 1 : 0)) : 0
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
@@ -333,10 +420,36 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                     )}
 
                     <div {...sx(s.tabs)} role="tablist" aria-label="Instagram places">
-                      <button type="button" role="tab" id="ig-tab-posts" aria-selected={tab === "posts"} aria-controls="ig-panel" {...sx(s.tab, tab === "posts" && s.tabOn)} onClick={() => setTab("posts")}>
+                      <button
+                        ref={(node) => {
+                          tabRefs.current.posts = node
+                        }}
+                        type="button"
+                        role="tab"
+                        id="ig-tab-posts"
+                        aria-selected={tab === "posts"}
+                        aria-controls="ig-panel"
+                        tabIndex={tab === "posts" ? 0 : -1}
+                        {...sx(s.tab, tab === "posts" && s.tabOn)}
+                        onClick={() => setTab("posts")}
+                        onKeyDown={onTabKey}
+                      >
                         Posts
                       </button>
-                      <button type="button" role="tab" id="ig-tab-saved" aria-selected={tab === "saved"} aria-controls="ig-panel" {...sx(s.tab, tab === "saved" && s.tabOn)} onClick={() => setTab("saved")}>
+                      <button
+                        ref={(node) => {
+                          tabRefs.current.saved = node
+                        }}
+                        type="button"
+                        role="tab"
+                        id="ig-tab-saved"
+                        aria-selected={tab === "saved"}
+                        aria-controls="ig-panel"
+                        tabIndex={tab === "saved" ? 0 : -1}
+                        {...sx(s.tab, tab === "saved" && s.tabOn)}
+                        onClick={() => setTab("saved")}
+                        onKeyDown={onTabKey}
+                      >
                         Saved
                         {savedTotal > 0 && <span {...sx(s.tabCount)}>{savedTotal}</span>}
                       </button>
@@ -375,6 +488,8 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                             <div {...sx(a.skeleton, s.skeletonRow)} />
                             <div {...sx(a.skeleton, s.skeletonRow)} />
                           </>
+                        ) : imp.status === "error" && jobs.length === 0 ? (
+                          <LoadFailed what="your recent posts" onRetry={imp.reload} />
                         ) : jobs.length === 0 ? (
                           <ol {...sx(s.how)}>
                             {[
@@ -445,13 +560,15 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                             />
                             {savedBusy && <Spinner />}
                           </label>
-                          {saved === null ? (
+                          {saved.status === "loading" ? (
                             <>
                               <div {...sx(a.skeleton, s.skeletonRow)} />
                               <div {...sx(a.skeleton, s.skeletonRow)} />
                               <div {...sx(a.skeleton, s.skeletonRow)} />
                             </>
-                          ) : saved.places.length === 0 ? (
+                          ) : saved.status === "error" ? (
+                            <LoadFailed what="your saved places" onRetry={retrySaved} />
+                          ) : savedPlaces.length === 0 ? (
                             <p {...sx(a.body)}>
                               {query
                                 ? `Nothing saved matches “${query}”.`
@@ -489,7 +606,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                                 ),
                             )
                           )}
-                          {saved?.hasMore && (
+                          {saved.status === "ready" && saved.hasMore && (
                             <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} style={{ alignSelf: "center" }} disabled={savedBusy} onClick={() => void loadSaved(query, saved.places.length)}>
                               Show more
                             </button>
@@ -497,6 +614,21 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                         </>
                       )}
                     </div>
+
+                    {removing && (
+                      <div {...sx(s.undoBar)} role="status">
+                        <span {...sx(s.undoText)}>Removed {removing.name} from Saved.</span>
+                        <button
+                          ref={undoRef}
+                          type="button"
+                          {...sx(a.btn, a.btnSecondary)}
+                          onClick={undoRemoval}
+                          aria-label={`Undo removing ${removing.name}`}
+                        >
+                          Undo
+                        </button>
+                      </div>
+                    )}
 
                     <div {...sx(s.foot)}>
                       <label htmlFor="ig-target" {...sx(a.small, s.footLabel)}>
@@ -542,6 +674,21 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
         </div>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  )
+}
+
+/** A list that could not be read: say so, and offer to read it again. */
+function LoadFailed({ what, onRetry }: { what: string; onRetry: () => void }) {
+  return (
+    <div {...sx(s.message)} role="alert">
+      <span>Couldn’t load {what}. Check your connection and try again.</span>
+      <span {...sx(a.rowWrap)}>
+        <button type="button" {...sx(a.btn, a.btnSecondary)} onClick={onRetry}>
+          <RotateCw size={14} strokeWidth={1.75} aria-hidden />
+          Try again
+        </button>
+      </span>
+    </div>
   )
 }
 

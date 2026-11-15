@@ -373,6 +373,21 @@ export const ig = stylex.create({
     [NARROW]: { position: "sticky", bottom: 0, zIndex: 4, marginTop: "auto" },
   },
   footLabel: { flexShrink: 0, [PHONE]: { display: "none" } },
+  /** "Removed … Undo" after a Saved place is taken out, before it is deleted. */
+  undoBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    paddingInline: "1.5rem",
+    paddingBlock: "0.5rem",
+    borderTopWidth: "1px",
+    borderTopStyle: "solid",
+    borderTopColor: "var(--trips-line)",
+    backgroundColor: "var(--trips-surface)",
+    fontSize: "0.875rem",
+    color: "var(--trips-ink-secondary)",
+  },
+  undoText: { flex: "1 1 0%", minWidth: 0, overflowWrap: "anywhere" },
   daySelect: {
     appearance: "none",
     minWidth: 0,

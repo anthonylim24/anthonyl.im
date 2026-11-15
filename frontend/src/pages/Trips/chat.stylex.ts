@@ -774,6 +774,8 @@ export const c = stylex.create({
     color: "var(--trips-ink-tertiary)",
     overflowWrap: "anywhere",
   },
+  /** A reason that takes its own line under the buttons. */
+  proposalNoteFull: { flexBasis: "100%" },
 
   // ── Photo thumb + lightbox ────────────────────────────
   thumb: {
