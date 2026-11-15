@@ -1,6 +1,7 @@
 import { beforeEach, expect, test } from "bun:test";
 import { Hono } from "hono";
 import {
+  canReadMetrics,
   createReadiness,
   createTelemetryRouter,
   httpCheck,
@@ -98,4 +99,21 @@ test("telemetry logs a valid event and rejects junk", async () => {
   expect((await post("not json")).status).toBe(400);
   expect((await post(JSON.stringify({ kind: "Bad Kind", message: "x" }))).status).toBe(400);
   expect((await post(JSON.stringify({ kind: "x_y", message: "m".repeat(5000) }))).status).toBe(413);
+});
+
+test("canReadMetrics: the token from anywhere, or a local request without it", async () => {
+  const app = new Hono();
+  app.get("/m", (c) => c.text(canReadMetrics(c, "metrics-secret") ? "yes" : "no"));
+  const local = { requestIP: () => ({ address: "::1", family: "IPv6", port: 1 }) };
+  const read = async (headers: Record<string, string>, env?: object) => (await app.request("/m", { headers }, env)).text();
+
+  expect(await read({ Authorization: "Bearer metrics-secret", "cf-connecting-ip": "203.0.113.1" })).toBe("yes");
+  expect(await read({ Authorization: "Bearer wrong", "cf-connecting-ip": "203.0.113.1" })).toBe("no");
+  expect(await read({ Authorization: "Bearer " })).toBe("no");
+  expect(await read({}, local)).toBe("yes");
+  expect(await read({ "x-real-ip": "203.0.113.1" }, local)).toBe("no");
+
+  const noToken = new Hono();
+  noToken.get("/m", (c) => c.text(canReadMetrics(c, undefined) ? "yes" : "no"));
+  expect(await (await noToken.request("/m", { headers: { Authorization: "Bearer " } })).text()).toBe("no");
 });

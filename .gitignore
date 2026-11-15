@@ -134,3 +134,9 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# macOS Finder metadata
+.DS_Store
+
+# Local screenshot output (frontend/scripts/capture-*.mjs write to frontend/screenshots/)
+screenshots/

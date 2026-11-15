@@ -5,7 +5,7 @@ interface RateLimitOpts {
   windowMs: number;
   max: number;
   keyPrefix: string;
-  /** Override the bucket key. Default is the caller-controlled first X-Forwarded-For hop. */
+  /** Override the bucket key. Default is the client address (`trustedProxyClientAddress`). */
   key?: (c: Context) => string;
 }
 
@@ -18,12 +18,31 @@ export type RateLimitConsume =
   | { ok: true }
   | { ok: false; retryAfter: number };
 
-const store = new Map<string, Bucket>();
+/**
+ * Memory bound. One bucket is ~100 bytes, so the cap is about 1 MB on a 1 GB
+ * droplet. Past it the oldest bucket is evicted, which forgets one caller's
+ * count rather than letting a flood of fresh keys grow the map without limit.
+ */
+export const MAX_BUCKETS = 10_000;
+/** Expired buckets are swept at most this often, never on every request. */
+const SWEEP_INTERVAL_MS = 30_000;
 
-function pruneIfNeeded(now: number) {
-  if (store.size < 1000) return;
-  for (const [k, v] of store) {
-    if (v.resetAt < now) store.delete(k);
+const store = new Map<string, Bucket>();
+let nextSweepAt = 0;
+
+function sweep(now: number) {
+  if (now >= nextSweepAt) {
+    nextSweepAt = now + SWEEP_INTERVAL_MS;
+    for (const [k, v] of store) {
+      if (v.resetAt < now) store.delete(k);
+    }
+  }
+  // Map iteration is insertion order, and a bucket is re-inserted when its
+  // window resets, so the first key is the stalest.
+  while (store.size >= MAX_BUCKETS) {
+    const oldest = store.keys().next().value;
+    if (oldest === undefined) break;
+    store.delete(oldest);
   }
 }
 
@@ -32,10 +51,11 @@ export function consumeRateLimit(
   opts: { windowMs: number; max: number },
 ): RateLimitConsume {
   const now = Date.now();
-  pruneIfNeeded(now);
 
   let bucket = store.get(key);
   if (!bucket || bucket.resetAt < now) {
+    if (bucket) store.delete(key);
+    sweep(now);
     bucket = { count: 0, resetAt: now + opts.windowMs };
     store.set(key, bucket);
   }
@@ -48,12 +68,25 @@ export function consumeRateLimit(
   return { ok: true };
 }
 
+/** Test seam: bucket count and a clean slate. */
+export const rateLimitStore = {
+  size: () => store.size,
+  clear: () => {
+    store.clear();
+    nextSweepAt = 0;
+  },
+};
+
 /**
- * Connecting peer as appended by a reverse proxy (`$proxy_add_x_forwarded_for`
- * puts `$remote_addr` last). Never use the first X-Forwarded-For value — that
- * hop is caller-controlled.
+ * The caller's address as our own proxies saw it. Production is
+ * Cloudflare → nginx → Bun: Cloudflare sets `CF-Connecting-IP` (a client
+ * cannot override it) and appends the peer to `X-Forwarded-For`; nginx
+ * passes both through. Never use the first X-Forwarded-For value — that hop
+ * is whatever the caller sent.
  */
 export function trustedProxyClientAddress(c: Context): string {
+  const cf = c.req.header("cf-connecting-ip")?.trim();
+  if (cf) return cf;
   const forwarded = c.req.header("x-forwarded-for");
   if (forwarded) {
     const hops = forwarded
@@ -67,12 +100,22 @@ export function trustedProxyClientAddress(c: Context): string {
   return realIp || "unknown";
 }
 
+/**
+ * The signed-in user when an auth middleware ran first (`c.get("userId")`),
+ * else the client address. Users behind one NAT or office IP then get a
+ * bucket each.
+ */
+export function userOrClientKey(c: Context): string {
+  const userId = c.get("userId" as never) as string | undefined;
+  return userId ? `user:${userId}` : `ip:${trustedProxyClientAddress(c)}`;
+}
+
 export function hashedIdentityKey(token: string): string {
   return createHash("sha256").update(token).digest("hex").slice(0, 32);
 }
 
 export function createRateLimit(opts: RateLimitOpts): MiddlewareHandler {
-  const { windowMs, max, keyPrefix, key: keyFn } = opts;
+  const { windowMs, max, keyPrefix, key: keyFn = trustedProxyClientAddress } = opts;
 
   return async (c, next) => {
     // Idempotency guard: skip if this prefix was already counted for this request
@@ -82,10 +125,7 @@ export function createRateLimit(opts: RateLimitOpts): MiddlewareHandler {
     }
     c.set(guardKey as never, true);
 
-    const ip = keyFn
-      ? keyFn(c)
-      : (c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown");
-    const consumed = consumeRateLimit(`${keyPrefix}:${ip}`, { windowMs, max });
+    const consumed = consumeRateLimit(`${keyPrefix}:${keyFn(c)}`, { windowMs, max });
 
     if (!consumed.ok) {
       c.header("Retry-After", String(consumed.retryAfter));

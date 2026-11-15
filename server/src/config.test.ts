@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import { Hono } from "hono"
 import { parseDevBearer, resolveDevBearers } from "./config"
 import { createClerkAuth, verifyClerkOptional } from "./middleware/clerkAuth"
@@ -40,13 +40,23 @@ describe("resolveDevBearers", () => {
     ).toBe("vite-only")
   })
 
-  test("ignores VITE_DEV_BEARER and file bearers in production", () => {
-    expect(
-      resolveDevBearers(
-        { NODE_ENV: "production", IG_DEV_BEARER: "ig-token", VITE_DEV_BEARER: "vite-token" },
-        "file-token",
-      ),
-    ).toBe("ig-token")
+  test("accepts no dev bearer at all in production, and warns once", () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      expect(
+        resolveDevBearers(
+          { NODE_ENV: "production", IG_DEV_BEARER: "ig-token", VITE_DEV_BEARER: "vite-token" },
+          "file-token",
+        ),
+      ).toBeUndefined()
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0]![0])).toContain("IG_DEV_BEARER and VITE_DEV_BEARER")
+      warn.mockClear()
+      expect(resolveDevBearers({ NODE_ENV: "production" }, undefined)).toBeUndefined()
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 

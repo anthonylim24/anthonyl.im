@@ -41,7 +41,7 @@ Per-route API modules (`Effect.fn` + `runPromise` wrappers — put new I/O here,
 
 - Trips: `frontend/src/pages/Trips/tripsApi.ts`, `tripChatApi.ts`
 - Instagram import: `frontend/src/pages/Trips/instagram/instagramApi.ts`
-- Legacy Korea helpers Trips still imports: `frontend/src/pages/Korea/koreaChatApi.ts`, `entityAboutApi.ts`, `dayPlacesApi.ts`
+- Concierge fallback Trips imports: `frontend/src/pages/Korea/koreaChatApi.ts`
 - Chatbot SSE: `frontend/src/lib/apiService.ts`
 
 Keep Zustand for BreathFlow persisted stores. Keep `useCloudSync` on Promise/Supabase. The photoreal 3D view must unmount when closed — do not hide it with React `Activity`.
