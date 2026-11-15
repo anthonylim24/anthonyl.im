@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { Link } from 'react-router-dom'
-import { addLocalDays, formatLocalDateKey, getLocalDateKey, getLocalDayStart } from '@/lib/localDates'
+import { addLocalDays, formatLocalDateKey, getLocalDayStart, getSessionDayKey } from '@/lib/localDates'
 import { sx } from '@/styles/merge'
-import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
 import { usePracticeStore } from '@/stores/practiceStore'
 import { JourneyNudge, JourneysSection } from '../components/JourneysSection'
@@ -71,18 +70,12 @@ const enter = (reducedMotion: boolean, delay: number) =>
 
 export function HomePage() {
   const sessions = useHistoryStore((state) => state.sessions)
-  const dailySessionCount = useGamificationStore((state) => state.dailySessionCount)
-  const checkResets = useGamificationStore((state) => state.checkResets)
   const recovery = useRecoveryStatus()
   const reducedMotion = useReducedMotion()
   const heroRef = useRef<HTMLElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const [live, setLive] = useState(false)
   const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    checkResets()
-  }, [checkResets])
 
   const now = new Date()
   const hour = now.getHours()
@@ -92,9 +85,10 @@ export function HomePage() {
 
   const streak = useHistoryStore((state) => state.getStreak())
   const isFirstRun = sessions.length === 0
-  const dailyGoalMet = dailySessionCount > 0
   const dailyGoalMinutes = usePracticeStore((state) => state.dailyGoalMinutes)
   const todayGoal = useMemo(() => getDailyGoalStatus(sessions, dailyGoalMinutes), [sessions, dailyGoalMinutes])
+  // "Practiced today" comes from the log, so it cannot carry over from yesterday or from another device's day.
+  const dailyGoalMet = todayGoal.seconds > 0
 
   const recommendation = useMemo(
     () => recommendProtocols({
@@ -443,7 +437,7 @@ function GoalRing({ status }: { status: DailyGoalStatus }) {
 /** The last seven days as dabs of paint: filled where you practiced. */
 function WeekDabs({ sessions }: { sessions: readonly CompletedSession[] }) {
   const days = useMemo(() => {
-    const practiced = new Set(sessions.map((s) => getLocalDateKey(s.date)).filter(Boolean))
+    const practiced = new Set(sessions.map(getSessionDayKey).filter(Boolean))
     const today = getLocalDayStart()
     return Array.from({ length: 7 }, (_, i) => {
       const date = addLocalDays(today, i - 6)

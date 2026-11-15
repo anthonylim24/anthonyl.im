@@ -132,7 +132,12 @@ from the droplet `~/.env` so the extract path matches the running process.
 The preview workflow fails if loopback or `GET /preview/pr/<n>/preview.json`
 does not match the PR (it must not mark a 404 as published).
 `/preview/pr/<n>/api/*` is reverse-proxied to the sidecar when `api.json`
-is present (`X-Preview-API: 1`). Closed PRs delete the tree.
+is present (`X-Preview-API: 1`). If the sidecar is not healthy within about
+20 seconds (or exits during boot), the publish stops it and removes
+`api.json`, so the API answers 404 `preview_api_not_published` rather than
+proxying to a dead port; `api.log` in the PR tree has the reason. A pid
+from `api.pid` is signalled only while `/proc/<pid>/cmdline` still names
+`previewApi`. Closed PRs delete the tree.
 
 New npm dependencies in a PR are **not** installed on the droplet for the
 sidecar — it uses production `~/anthonyl.im/node_modules`. A PR that adds

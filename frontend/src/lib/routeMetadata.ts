@@ -12,7 +12,8 @@ export const LANDING_ROUTE_METADATA = {
 
 export const BREATHFLOW_ROUTE_METADATA = {
   title: 'BreathFlow — Guided breathing with a watercolour cat',
-  description: 'Research-backed breathing, paced by a hand-painted cat that breathes with you.',
+  // Same text as server/app.ts appPreviews.breathwork (the injected preview tags).
+  description: 'Research-backed breathing — box breathing, cyclic sighing, 4-7-8, resonance and more — paced by a hand-painted cat that breathes with you.',
   favicon: '/favicon-breath.svg',
 } as const
 

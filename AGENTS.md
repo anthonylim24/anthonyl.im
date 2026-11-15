@@ -43,7 +43,7 @@ anthonyl.im/
 │   │   │   ├── motion/ platform/ safety/ session/ recommend/
 │   │   ├── pages/
 │   │   │   ├── Landing/         # `/lab` landing: content, StyleX, WebGPU hero scene
-│   │   │   ├── Korea/           # Legacy Korea pages (unrouted) + concierge / theme helpers Trips imports
+│   │   │   ├── Korea/           # Concierge client, markdown and theme helpers Trips imports (no pages)
 │   │   │   └── Trips/           # "The atlas": map-first trip planner + concierge
 │   │   │       ├── TripsLayout, TripsIndex, TripCreate, TripWorkspace, TripJoin, TripChat
 │   │   │       ├── workspace/   # OverviewPanel, DayPanel, ItemCard, AddStop, AiPanels, DetailsDialog
@@ -52,8 +52,8 @@ anthonyl.im/
 │   │   │       ├── photoreal/   # "Fly the day": PhotorealOverlay, scene (Google 3D Tiles), camera / sun / stops maths
 │   │   │       └── atlas/index/workspace/chat .stylex.ts, meta.ts, geocode.ts, useTripEditor.ts
 │   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
-│   │   ├── styles/              # merge.ts (sx), common.stylex.ts, tokens.ts, route *.stylex.ts
-│   │   ├── components/          # Shared: ui/*, CloudSync, RouteErrorBoundary
+│   │   ├── styles/              # merge.ts (sx), common.stylex.ts, route *.stylex.ts
+│   │   ├── components/          # Shared: layout/CloudSync, RouteErrorBoundary, OverlayBoundary, message-content
 │   │   ├── three/               # Shared WebGPU toolkit: createStage, Jelly soft body, jellyMesh, bindJellyPointer
 │   │   ├── hooks/               # useReducedMotion, useLatestCallback, useCloudSync
 │   │   ├── lib/                 # apiBase, apiService, safeAuth, clerk, concierge*, externalMaps
@@ -72,10 +72,7 @@ anthonyl.im/
 │       ├── config.ts            # Env schema
 │       ├── routes/
 │       │   ├── invoke.ts        # POST /api/invoke — chatbot SSE
-│       │   ├── korea.ts         # GET /api/korea/* snapshot
-│       │   ├── koreaChat.ts     # POST /api/korea/chat — concierge SSE
-│       │   ├── koreaPlaces.ts   # day places / dongs / entities
-│       │   ├── entity.ts        # POST /api/entity/about
+│       │   ├── koreaChat.ts     # POST /api/korea/chat — concierge SSE (the only /api/korea route)
 │       │   ├── trips.ts         # /api/trips/* (Clerk required)
 │       │   ├── instagramPlaces.ts
 │       │   └── agentSession.ts  # POST /api/agent/session
@@ -147,7 +144,7 @@ Read the matching skill before writing code. Effect I/O rules win over generic R
 | `vercel-react-best-practices` | React 19 render / bundle. Translate Next.js examples to Vite `React.lazy` + Hono. |
 | `clerk` + `clerk-react-patterns` | Clerk auth (`@clerk/clerk-react` ^5, Core 2). See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
 
-The other vendored Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, billing, orgs, webhooks) are the wrong stack. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+The wrong-stack Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, billing, orgs, webhooks) are deliberately not vendored. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -259,7 +256,7 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/trips/:tripId/places` | Redirect to `/trips/:tripId` (hash + query kept) | Clerk-gated |
 | `/trips/*` | `TripsNotFound` | Clerk-gated |
 
-Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, the photoreal 3D view (day "…" menu, "Fly the day in 3D"). Instagram import is a sheet, not a route (`instagram/InstagramSheet.tsx`): opened from the trip menu, the overview's "From Instagram" button, by pasting a post link into a day's composer, or by `?instagram=<link>` / `?ingest=1` (the PWA share target sends shared links to `/trips?url=…`, which forwards to the current or next trip). `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
+Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, the photoreal 3D view (day "…" menu, "Fly the day in 3D"). Instagram import is a sheet, not a route (`instagram/InstagramSheet.tsx`): opened from the trip menu, the overview's "From Instagram" button, by pasting a post link into a day's composer, or by `?instagram=<link>` / `?ingest=1` (the PWA share target sends shared links to `/trips?url=…`, which forwards to the current or next trip). `pages/Korea/koreaChatApi.ts` is the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
 
 ---
 
@@ -276,7 +273,7 @@ All stores use **Zustand v5**. Persisted stores write to `localStorage` under th
 
 Active breath session is **not** Zustand — `frontend/src/breathflow/engine/useSessionEngine.ts` (React state).
 
-Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticated users sync settings, history (with mood ratings) and practice (daily goal, journeys). Keep those on Promise/Supabase, not Effect.
+Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticated users sync settings, history (with mood ratings) and practice (daily goal, journeys). Keep those on Promise/Supabase, not Effect. The lifecycle is the pure reducer in `lib/cloudSync/machine.ts` (push only after a successful pull; retry with backoff); merges are `lib/cloudSync/merge.ts` + `stores/historyMerge.ts` (always merge, never replace). localStorage stays the offline cache; `breathwork-sync` remembers which account owns it, so another account's data is never merged in. Every store cleans persisted state in its `merge` and follows other tabs (`followOtherTabs`).
 
 ---
 
@@ -284,10 +281,10 @@ Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticat
 
 Full list: [`docs/env.md`](docs/env.md). Schema: `server/src/config.ts`; frontend: `frontend/.env.example`.
 
-- The server refuses to boot without `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL`.
+- No variable is required at boot; a missing key degrades its feature. `KLUSTER_API_*` are unread leftovers.
 - `CLERK_SECRET_KEY` is required in production; without it every Clerk-gated route answers 401.
 - `GEMINI_API_KEY` is the primary model everywhere (Gemini 4 Hydrogen); `GROQ_API_KEY` is the backup.
-- `IG_DEV_BEARER` / `VITE_DEV_BEARER` are a local-only Clerk bypass. **Never** set them in production or PR previews.
+- `IG_DEV_BEARER` / `VITE_DEV_BEARER` are a local-only Clerk bypass, ignored (with a loud warning) when `NODE_ENV=production`. **Never** set them in production or PR previews.
 
 ---
 
@@ -321,7 +318,7 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 - React 19 + Vite 8 + React Router v7 (`react-router-dom` SPA, not SSR)
 - TypeScript: frontend lint `~6.0`; frontend/root **build** `~7.0` via `typescript7`
-- StyleX 0.19 + semantic classes in `index.css` + shadcn/ui (Radix primitives)
+- StyleX 0.19 + semantic classes in `index.css` + Radix primitives (dialog, tabs)
 - Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide
 - Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5), Supabase, PostHog
@@ -415,7 +412,8 @@ The installable PWA is Korea-scoped (`korea.webmanifest`, `CACHE_VERSION = korea
 - **A missing `/assets/*` file is a 404**, never the SPA shell (`server/app.ts`; HTML served as JavaScript breaks lazy imports and gets cached by the SW)
 - **Deploys keep earlier builds' hashed chunks for 14 days** (`deploy.yml` copies the live `dist/assets` into the staged build), so a tab left open across a deploy can still lazy-load
 - **Lazy components go through `lazyRetry`** (`lib/lazyRetry.ts`: one retry). A route chunk that is gone reloads the page once (`RouteErrorBoundary`); an optional overlay (3D view, Instagram sheet, concierge) sits in an `OverlayBoundary`, so its failure closes only the overlay and offers Reload
-- The client (`serviceWorker.ts`) posts `SKIP_WAITING` and reloads on `controllerchange` — gives users seamless updates without a manual hard refresh
+- **Updates never interrupt someone.** `sw.js` does not call `skipWaiting()` on install and never navigates clients; a new worker waits. The client (`serviceWorker.ts`, a pure `updateStep` machine: `uncontrolled → controlled → updateReady → reloading`) posts `SKIP_WAITING` and reloads on the following `controllerchange` only when it is safe: on the next client-side route change, or when the tab is hidden or untouched for 60 s with no text field focused or filled and not on `/breathwork/session`. Any app can hold it off with `setReloadBlocked(key, true)` (release with `false`). A `controllerchange` on a page that had no controller (first visit) never reloads
+- **Navigations are cached as one shell per app** (`/`, `/lab`, `/breathwork`, `/trips`, `/trips/korea-2026`), never under the requested URL: no query strings, and `/trips/join/*`, `/sign-in*`, `/sign-up*` are never stored. `/assets/*` is cache-first; other public files (favicons, `/og-*.jpg`, `/legal.css`) are stale-while-revalidate; the runtime cache is trimmed on activate
 
 ---
 

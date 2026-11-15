@@ -31,10 +31,26 @@ const canRender3D = () =>
   typeof navigator !== 'undefined' && ('gpu' in navigator || typeof window.WebGL2RenderingContext !== 'undefined')
 
 /**
+ * Where the stage is. `drawing` while the scene's chunk downloads; `loading`
+ * while the scene and its GPU come up; `ready` once it exists, `live` from its
+ * first frame. `failed` keeps the drawing for good: no WebGPU / WebGL2
+ * (`unsupported`, known before the first render), the scene would not start
+ * (`init`), or the GPU took the context away later (`lost`).
+ */
+export type StageState =
+  | { kind: 'drawing' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; scene: LimScene }
+  | { kind: 'live'; scene: LimScene }
+  | { kind: 'failed'; reason: 'unsupported' | 'init' | 'lost' }
+
+const sceneOf = (state: StageState) => (state.kind === 'ready' || state.kind === 'live' ? state.scene : null)
+
+/**
  * Lim's stage. The vector drawing paints first (and stays if there's no
- * WebGPU/WebGL2); the jelly scene lazy-loads in a separate chunk and fades in
- * on its first frame. The canvas is created per effect run so StrictMode's
- * double mount never shares a GPU context.
+ * WebGPU/WebGL2, or the GPU is lost); the jelly scene lazy-loads in a
+ * separate chunk and fades in on its first frame. The canvas is created per
+ * effect run so StrictMode's double mount never shares a GPU context.
  */
 export function LimStage({
   mood,
@@ -45,22 +61,31 @@ export function LimStage({
 }: {
   mood: LimMood
   night: boolean
-  /** The items or the place changed (also called once when the scene comes up). */
-  onWorld?: (world: LimWorld) => void
+  /** The items or the place changed (also called once when the scene comes up); null once there is no live scene. */
+  onWorld?: (world: LimWorld | null) => void
   onScore?: (event: ScoreEvent) => void
   ref?: Ref<LimStageHandle>
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const slotRef = useRef<HTMLDivElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
-  const sceneRef = useRef<LimScene | null>(null)
   const initial = useRef({ mood, night })
-  const [live, setLive] = useState(false)
+  const [stage, setStageState] = useState<StageState>(() =>
+    canRender3D() ? { kind: 'drawing' } : { kind: 'failed', reason: 'unsupported' },
+  )
+  // The imperative handle reads the scene synchronously; this mirrors `stage` and is written only by `setStage`.
+  const stageRef = useRef<StageState>(stage)
+  const setStage = useCallback((next: StageState) => {
+    stageRef.current = next
+    setStageState(next)
+  }, [])
   const [beat, setBeat] = useState<{ kind: 'hop' | 'poke'; n: number }>({ kind: 'hop', n: 0 })
   const [pop, setPop] = useState<{ n: number; word: string } | null>(null)
   // Shown only while there is something to score in.
   const [score, setScore] = useState<Score | null>(null)
   const reducedMotion = useReducedMotion()
+  const live = stage.kind === 'live'
+  const scene = sceneOf(stage)
 
   const onWorldRef = useRef(onWorld)
   const onScoreRef = useRef(onScore)
@@ -74,34 +99,36 @@ export function LimStage({
     setPop((p) => ({ n: (p?.n ?? 0) + 1, word }))
   }, [])
 
-  useImperativeHandle(
-    ref,
-    () => ({
+  useImperativeHandle(ref, () => {
+    const current = () => sceneOf(stageRef.current)
+    return {
       hop: () => {
-        if (sceneRef.current) sceneRef.current.hop()
+        const now = current()
+        if (now) now.hop()
         else setBeat((b) => ({ kind: 'hop', n: b.n + 1 }))
       },
-      talk: () => sceneRef.current?.talk(),
-      cheer: (confetti) => sceneRef.current?.cheer(confetti),
-      lookAt: (x, y) => sceneRef.current?.lookAt(x, y),
+      talk: () => current()?.talk(),
+      cheer: (confetti) => current()?.cheer(confetti),
+      lookAt: (x, y) => current()?.lookAt(x, y),
       stunt: (kind) => {
-        sceneRef.current?.stunt(kind)
-        return Boolean(sceneRef.current)
+        const now = current()
+        now?.stunt(kind)
+        return Boolean(now)
       },
-      react: (kind) => sceneRef.current?.react(kind),
+      react: (kind) => current()?.react(kind),
       apply: (ops) => {
-        const scene = sceneRef.current
-        if (!scene) return false
+        const target = current()
+        if (!target) return false
         let did = ops.length === 0
         ops.forEach((op, i) => {
           // One thing at a time, so each gets its moment.
           const run = () => {
-            if (sceneRef.current !== scene) return false
-            if (op.op === 'item') scene.addItem(op.spec, op.then)
-            else if (op.op === 'place') scene.setPlace(op.spec)
-            else if (op.op === 'clear') scene.clear(op.what)
-            else if (op.op === 'tweak') scene.tweak(op.set)
-            else return scene.act(op.action, op.target)
+            if (current() !== target) return false
+            if (op.op === 'item') target.addItem(op.spec, op.then)
+            else if (op.op === 'place') target.setPlace(op.spec)
+            else if (op.op === 'clear') target.clear(op.what)
+            else if (op.op === 'tweak') target.tweak(op.set)
+            else return target.act(op.action, op.target)
             return true
           }
           // Whether the first thing asked for could be done (there may be nothing by that name to act on).
@@ -111,27 +138,41 @@ export function LimStage({
         })
         return did
       },
-      conjure: (on, made) => sceneRef.current?.conjure(on, made),
-      world: () => sceneRef.current?.world() ?? null,
-    }),
-    [],
-  )
+      conjure: (on, made) => current()?.conjure(on, made),
+      world: () => current()?.world() ?? null,
+    }
+  }, [])
 
   useEffect(() => {
     const host = hostRef.current
     const slot = slotRef.current
     if (!host || !slot || !canRender3D()) return
     let disposed = false
-    let scene: LimScene | null = null
+    let created: LimScene | null = null
     const gl = document.createElement('canvas')
     gl.setAttribute('aria-hidden', 'true')
     Object.assign(gl.style, { width: '100%', height: '100%', display: 'block' })
     slot.appendChild(gl)
 
+    /** Let go of the scene and its canvas; the page stops offering Lim's world. */
+    const teardown = () => {
+      created?.dispose()
+      created = null
+      gl.remove()
+      setScore(null)
+      onWorldRef.current?.(null)
+      const a = anchorRef.current
+      if (a) {
+        a.style.transform = ''
+        a.style.removeProperty('--u')
+      }
+    }
+
     void (async () => {
       const { createLimScene } = await import('./scene/limScene')
       if (disposed) return
-      const created = await createLimScene({
+      setStage({ kind: 'loading' })
+      const next = await createLimScene({
         canvas: gl,
         host,
         reducedMotion,
@@ -152,43 +193,46 @@ export function LimStage({
           a.style.setProperty('--u', `${unit.toFixed(1)}px`)
         },
         onFirstFrame: () => {
-          if (!disposed) setLive(true)
+          const now = stageRef.current
+          if (!disposed && now.kind === 'ready') setStage({ kind: 'live', scene: now.scene })
+        },
+        onLost: (reason) => {
+          if (disposed) return
+          console.warn(`[chat] Lim's GPU context was lost (${reason}); showing the drawing.`)
+          teardown()
+          setStage({ kind: 'failed', reason: 'lost' })
         },
       })
-      if (disposed) created.dispose()
-      else {
-        scene = created
-        sceneRef.current = created
-        created.setMood(initial.current.mood)
-        created.setNight(initial.current.night)
-        setScore(created.world().score ?? null)
-        onWorldRef.current?.(created.world())
+      if (disposed) {
+        next.dispose()
+        return
       }
+      created = next
+      setStage({ kind: 'ready', scene: next })
+      next.setMood(initial.current.mood)
+      next.setNight(initial.current.night)
+      setScore(next.world().score ?? null)
+      onWorldRef.current?.(next.world())
     })().catch((error: unknown) => {
+      if (disposed) return
       console.warn('[chat] live Lim unavailable; showing the drawing.', error)
+      teardown()
+      setStage({ kind: 'failed', reason: 'init' })
     })
 
     return () => {
       disposed = true
-      scene?.dispose()
-      sceneRef.current = null
-      gl.remove()
-      setLive(false)
-      setScore(null)
-      const a = anchorRef.current
-      if (a) {
-        a.style.transform = ''
-        a.style.removeProperty('--u')
-      }
+      teardown()
+      setStage({ kind: 'drawing' })
     }
-  }, [reducedMotion, emote])
+  }, [reducedMotion, emote, setStage])
 
   useEffect(() => {
-    sceneRef.current?.setMood(mood)
-  }, [mood, live])
+    scene?.setMood(mood)
+  }, [mood, scene])
   useEffect(() => {
-    sceneRef.current?.setNight(night)
-  }, [night, live])
+    scene?.setNight(night)
+  }, [night, scene])
 
   const pokeDrawing = () => {
     if (live || reducedMotion) return
@@ -197,7 +241,7 @@ export function LimStage({
   }
 
   return (
-    <div ref={hostRef} {...sx(s.host)} aria-hidden="true">
+    <div ref={hostRef} {...sx(s.host)} aria-hidden="true" data-stage={stage.kind}>
       <div {...sx(s.fallback, live && s.hidden)}>
         <div {...sx(s.floorBand)} />
         <div {...sx(s.rug)} />

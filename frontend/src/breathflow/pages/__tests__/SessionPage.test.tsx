@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { usePracticeStore } from '@/stores/practiceStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { LEAD_IN_SECONDS } from '../../protocols/coaching'
 import { SessionPage } from '../SessionPage'
@@ -10,6 +11,7 @@ import { SessionPage } from '../SessionPage'
 function renderSession(search: string) {
   return render(
     <MemoryRouter initialEntries={[`/breathwork/session?${search}`]}>
+      <Link to="/breathwork/session">Breathe</Link>
       <Routes>
         <Route path="/breathwork/session" element={<SessionPage />} />
         <Route path="/breathwork/progress" element={<div>progress page</div>} />
@@ -33,12 +35,14 @@ const BOX_FAST = 'technique=box_breathing&rounds=1&phase_inhale=1&phase_hold_in=
 describe('SessionPage', () => {
   beforeEach(() => {
     localStorage.clear()
+    usePracticeStore.getState().resetPractice()
     useHistoryStore.getState().clearHistory()
     useGamificationStore.getState().resetProgress()
     useSettingsStore.getState().resetSettings()
   })
 
   afterEach(() => {
+    setVisibility('visible')
     vi.useRealTimers()
     vi.unstubAllGlobals()
   })
@@ -128,7 +132,8 @@ describe('SessionPage', () => {
     })
 
     expect(screen.getByText('Session complete')).toBeInTheDocument()
-    expect(screen.getByText('+55')).toBeInTheDocument() // 50 XP * 1.1 streak
+    // 50 XP * 1.1 streak, scaled to a 4 s session's floor share of box breathing's default length.
+    expect(screen.getByText('+14')).toBeInTheDocument()
     expect(screen.getByText('First Breath')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /repeat/i })).toBeInTheDocument()
 
@@ -205,7 +210,7 @@ describe('SessionPage', () => {
     const [session] = useHistoryStore.getState().sessions
     expect(session.rounds).toBe(2)
     expect(session.durationSeconds).toBe(8)
-    expect(useGamificationStore.getState().xp).toBe(Math.round(50 * 1.1 * 0.5))
+    expect(useGamificationStore.getState().xp).toBe(Math.round(50 * 1.1 * 0.5 * 0.25))
   })
 
   it('announces phase changes through the live region', () => {
@@ -253,4 +258,109 @@ describe('SessionPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Calm' }))
     expect(useHistoryStore.getState().sessions[0].moodAfter).toBe(5)
   })
+
+  it('moves focus with the session: Cancel, then Pause, then the summary heading', () => {
+    vi.useFakeTimers()
+    renderSession(BOX_FAST)
+
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    expect(screen.getByRole('button', { name: /cancel/i })).toHaveFocus()
+    tick(LEAD_IN_SECONDS)
+    expect(screen.getByRole('button', { name: 'Pause' })).toHaveFocus()
+    tick(4)
+    expect(screen.getByRole('heading', { level: 2, name: 'Box Breathing' })).toHaveFocus()
+  })
+
+  it('Cancel hands focus back to Start', () => {
+    vi.useFakeTimers()
+    renderSession(BOX_FAST)
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(screen.getByRole('button', { name: /start/i })).toHaveFocus()
+  })
+
+  it('the Breathe link leaves the summary for a fresh setup', () => {
+    vi.useFakeTimers()
+    renderSession(BOX_FAST)
+    startSession()
+    tick(4)
+    expect(screen.getByText('Session complete')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Breathe' }))
+    expect(screen.queryByText('Session complete')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /start/i })).toBeInTheDocument()
+  })
+
+  it('pauses when the page is left in the background, then picks up at the start of the phase', () => {
+    vi.useFakeTimers()
+    renderSession(BOX_FAST.replace('rounds=1', 'rounds=3').replace('phase_exhale=1', 'phase_exhale=6'))
+    startSession()
+    tick(2) // into the 6 s exhale
+
+    setVisibility('hidden')
+    tick(60)
+    expect(useHistoryStore.getState().sessions).toHaveLength(0)
+
+    setVisibility('visible')
+    expect(screen.getByText('Welcome back')).toBeInTheDocument()
+    expect(screen.getAllByRole('status').some((region) => /^Welcome back/.test(region.textContent ?? ''))).toBe(true)
+    expect(screen.getByText('Round 1 of 3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(screen.getByText('Get ready')).toBeInTheDocument()
+    expect(screen.getByText('Breathe Out again, from the beginning.')).toBeInTheDocument()
+    tick(LEAD_IN_SECONDS)
+    expect(screen.getByText('Breathe Out')).toBeInTheDocument()
+    expect(screen.getByText('6')).toBeInTheDocument()
+  })
+
+  it('a journey day ended before half its rounds is not ticked off', () => {
+    vi.useFakeTimers()
+    for (const step of [0, 1, 2, 3]) usePracticeStore.getState().completeJourneyStep('first_week', step)
+    renderSession(`${BOX_FAST.replace('rounds=1', 'rounds=4')}&journey=first_week&step=4`)
+    startSession()
+    tick(5) // one round and a second
+    fireEvent.click(screen.getByRole('button', { name: 'End session and keep 1 round', hidden: true }))
+
+    expect(screen.getByText('Ended early')).toBeInTheDocument()
+    expect(usePracticeStore.getState().journeys.first_week?.done).not.toContain(4)
+  })
+
+  it('a journey day breathed at least halfway is ticked off', () => {
+    vi.useFakeTimers()
+    for (const step of [0, 1, 2, 3]) usePracticeStore.getState().completeJourneyStep('first_week', step)
+    renderSession(`${BOX_FAST.replace('rounds=1', 'rounds=4')}&journey=first_week&step=4`)
+    startSession()
+    tick(9)
+    fireEvent.click(screen.getByRole('button', { name: 'End session and keep 2 rounds', hidden: true }))
+
+    expect(usePracticeStore.getState().journeys.first_week?.done).toContain(4)
+    expect(screen.getByText(/First week: day 5 of 7 done/)).toBeInTheDocument()
+  })
+
+  it('a journey day out of order is not ticked off', () => {
+    vi.useFakeTimers()
+    renderSession(`${BOX_FAST}&journey=first_week&step=4`)
+    startSession()
+    tick(4)
+
+    expect(screen.getByText('Session complete')).toBeInTheDocument()
+    expect(usePracticeStore.getState().journeys.first_week?.done ?? []).toEqual([])
+  })
 })
+
+/** Advance the clock `seconds`, one act per second. */
+function tick(seconds: number) {
+  for (let second = 0; second < seconds; second++) {
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+  }
+}
+
+function setVisibility(state: DocumentVisibilityState) {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+}

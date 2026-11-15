@@ -84,7 +84,9 @@ describe('practice store', () => {
     expect(cleaned.journeys.first_week?.done).toEqual([0, 3])
     expect(Object.keys(cleaned.journeys)).toEqual(['first_week'])
     expect(migratePersistedPracticeState({ activeJourneyId: 'wind_down' }).activeJourneyId).toBeNull()
-    expect(migratePersistedPracticeState('junk')).toEqual({ dailyGoalMinutes: 5, activeJourneyId: null, journeys: {} })
+    expect(migratePersistedPracticeState('junk')).toEqual({
+      dailyGoalMinutes: 5, activeJourneyId: null, journeys: {}, goalUpdatedAt: 0, activeJourneyUpdatedAt: 0,
+    })
   })
 })
 

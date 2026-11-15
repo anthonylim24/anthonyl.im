@@ -11,7 +11,7 @@ export npm_config_registry="$PUBLIC_NPM_REGISTRY"
 # mode where root-level `bun install` ran but the frontend tree was empty,
 # so `tsc -b` resolved an older TypeScript from the root tree.
 FRONTEND_REQUIRED_PACKAGES=(react react-dom vite typescript typescript7 '@vitejs/plugin-react')
-ROOT_REQUIRED_PACKAGES=(hono zod openai)
+ROOT_REQUIRED_PACKAGES=(hono zod groq-sdk)
 
 run_bun_install() {
   local directory="$1"

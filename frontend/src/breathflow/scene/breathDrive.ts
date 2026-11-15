@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { cubicBezier } from 'motion/react'
 import { BREATH_PHASES } from '@/lib/constants'
 import type { EngineStatus } from '../engine/sessionEngine'
@@ -23,6 +23,14 @@ export interface BreathState {
   phaseSeconds: number
   secondsLeftInPhase: number
   status: EngineStatus
+}
+
+/** The engine's sub-second position, so the breath reads continuously between 1 Hz ticks. */
+export interface BreathClock {
+  /** Running: `performance.now()` when the current second began. */
+  secondStartMs: number
+  /** Paused: how far into the current second the pause landed, in ms. */
+  carryMs: number
 }
 
 /** Amplitudes from usePhaseScale (0.62 empty … 1 full) mapped to 0 … 1. */
@@ -65,36 +73,27 @@ export function idleBreath(seconds: number): BreathSample {
 }
 
 /**
- * A stable reader the render loop can call every frame. Re-renders (one per
- * engine tick) refresh the snapshot; reading interpolates between ticks.
+ * A stable reader the render loop can call every frame. The position comes
+ * from the engine's own clock (the start of the current second, or the
+ * fraction a pause landed on), so the bloom lands exactly on each phase
+ * change and resumes from where it paused instead of snapping back.
  */
-export function useBreathReader(state: BreathState): () => BreathSample {
-  const snap = useRef({ state, at: performance.now(), pausedAt: 0 })
-  const prev = snap.current.state
-  if (
-    prev.phaseIndex !== state.phaseIndex ||
-    prev.secondsLeftInPhase !== state.secondsLeftInPhase ||
-    prev.status !== state.status ||
-    prev.phases !== state.phases
-  ) {
-    const now = performance.now()
-    // Pausing freezes where the bloom actually was, not the last whole second.
-    const pausedAt = state.status !== 'paused'
-      ? 0
-      : prev.status === 'running' ? elapsedOf(prev, now - snap.current.at) : snap.current.pausedAt
-    snap.current = { state, at: now, pausedAt }
-  }
-
-  const reader = useRef<() => BreathSample>(null)
-  reader.current ??= () => {
-    const { state: s, at, pausedAt } = snap.current
-    const elapsed = s.status === 'paused' && pausedAt > 0 ? pausedAt : elapsedOf(s, performance.now() - at)
-    return sampleBreath(s, elapsed)
-  }
-  return reader.current
+export function useBreathReader(state: BreathState & BreathClock): () => BreathSample {
+  const latest = useRef(state)
+  // Published before any child's effect reads it (layout effects run first).
+  useLayoutEffect(() => {
+    latest.current = state
+  })
+  return useCallback(() => {
+    const s = latest.current
+    return sampleBreath(s, breathElapsed(s, performance.now()))
+  }, [])
 }
 
-function elapsedOf(s: BreathState, sinceTickMs: number) {
+/** Seconds into the current phase at `now`. */
+export function breathElapsed(s: BreathState & BreathClock, now: number): number {
   const whole = s.phaseSeconds - s.secondsLeftInPhase
-  return s.status === 'running' ? whole + Math.min(1, sinceTickMs / 1000) : whole
+  if (s.status === 'running') return whole + Math.min(1, Math.max(0, (now - s.secondStartMs) / 1000))
+  if (s.status === 'paused') return whole + s.carryMs / 1000
+  return whole
 }

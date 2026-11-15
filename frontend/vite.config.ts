@@ -74,6 +74,10 @@ export default defineConfig({
             // from being buried in a chunk that static-imports three.js.
             { name: 'motion', test: /[\\/]node_modules[\\/](motion|framer-motion)[\\/]/, priority: 85 },
             { name: 'effect', test: /[\\/]node_modules[\\/](effect|@effect)[\\/]/, priority: 82 },
+            // tslib's helpers (__assign, __rest) are shared by @supabase/* and
+            // Radix's react-remove-scroll. Ungrouped, Rolldown parks them in
+            // `supabase`, so every Radix dialog also downloaded Supabase.
+            { name: 'tslib', test: /[\\/]node_modules[\\/]tslib[\\/]/, priority: 81 },
             { name: 'supabase', test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 80 },
             { name: 'router', test: /[\\/]node_modules[\\/]react-router/, priority: 70 },
             { name: 'radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 60 },

@@ -1,13 +1,18 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AppRoutes } from './AppRoutes'
+import { loadInflectTracking } from './lib/analytics'
 import { createOptionalClerkTree } from './lib/clerkProvider'
 import { registerServiceWorker } from './lib/serviceWorker'
 import { installErrorReporting, reportClientEvent } from './lib/telemetry'
 import './index.css'
 
 registerServiceWorker()
-if (import.meta.env.PROD) installErrorReporting()
+if (import.meta.env.PROD) {
+  installErrorReporting()
+  // Third-party analytics waits for the page; it never delays first paint.
+  window.addEventListener('load', () => loadInflectTracking(), { once: true })
+}
 
 const root = createRoot(document.getElementById('root')!)
 

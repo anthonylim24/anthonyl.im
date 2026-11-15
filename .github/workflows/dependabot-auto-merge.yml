@@ -15,25 +15,39 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    # Gate on who opened the PR and where its head lives, not on
+    # github.actor: the actor is whoever triggered this event (a human
+    # re-running it, or a push to the branch), and pull_request_target runs
+    # with a write token. Only same-repo Dependabot branches qualify.
+    if: >
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Majors get a human look: they pass CI and still change behavior
       # (Effect 4, Motion 14 and vitest 5 all did).
       - name: Approve PR
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        # An empty update-type (metadata could not classify the bump) gets
+        # the same human look as a major.
+        if: >
+          steps.metadata.outputs.update-type != '' &&
+          steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        # An empty update-type (metadata could not classify the bump) gets
+        # the same human look as a major.
+        if: >
+          steps.metadata.outputs.update-type != '' &&
+          steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: |
           if ! gh pr merge --auto --squash "$PR_URL"; then
             echo "::warning::Could not enable auto-merge (repo setting or permissions). PR still needs a human merge after pr-gate."

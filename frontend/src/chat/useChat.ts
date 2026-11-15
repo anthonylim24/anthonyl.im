@@ -1,32 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { formatConciergeError } from "../effect/chatErrors"
-import { TimeoutError, errorMessage } from "../effect/errors"
+import { errorMessage } from "../effect/errors"
 import { invokeDeepseek } from "../lib/apiService"
-import { orderState } from "./world/worldApi"
+import { chatReducer, initialChat, isBusy, type ChatEvent, type ChatState } from "./chatMachine"
+import { FALLBACK_ERROR, loadChat, saveChat, toHistory, toPrompt } from "./conversation"
 
-export type ChatRole = "user" | "assistant"
-export type ChatMessage = {
-  id: string
-  role: ChatRole
-  content: string
-  timestamp: number
-  /** Assistant replies only. */
-  status?: "streaming" | "done" | "stopped" | "error"
-  /**
-   * How this turn goes back to the model as history, when that differs from
-   * what is shown: a world order is sent as the order it was (so the model
-   * keeps to the format), and "" drops the turn and the question before it
-   * (a toy-box reply the model never wrote).
-   */
-  sent?: string
-}
-/** thinking = waiting for the first token; streaming = tokens arriving. */
-export type ChatStatus = "idle" | "thinking" | "streaming"
+export type { ChatMessage, ChatRole } from "./conversation"
+export { STORAGE_KEY } from "./conversation"
 
 export type ChatEvents = {
   onSend?: () => void
+  /** A chunk of the reply was shown. */
   onChunk?: () => void
-  /** `local`: the reply came from `intercept`, not the model. */
+  /** `local`: the reply came from `intercept` or a world order, not prose from the model. */
   onDone?: (firstReply: boolean, local: boolean) => void
   onError?: () => void
   /**
@@ -46,221 +31,177 @@ export type ChatEvents = {
   onWorld?: (content: string | null, failed: boolean) => { text: string; ok: boolean }
 }
 
-export const STORAGE_KEY = "lim-chat-v1"
-const MAX_STORED = 50
-const FALLBACK_ERROR = "The reply didn't come through. Try again."
+const isAbort = (err: unknown) => err instanceof DOMException && err.name === "AbortError"
 
-function load(): ChatMessage[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const parsed: unknown = raw ? JSON.parse(raw) : []
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter(
-        (m): m is ChatMessage =>
-          m && typeof m.id === "string" && typeof m.content === "string" && (m.role === "user" || m.role === "assistant"),
-      )
-      // A reload mid-stream leaves a half reply; keep it, but as stopped.
-      .map((m) => (m.status === "streaming" ? { ...m, status: "stopped" as const } : m))
-      .map((m) => (m.sent === undefined || typeof m.sent === "string" ? m : { ...m, sent: undefined }))
-  } catch {
-    return []
-  }
-}
-
-function save(messages: ChatMessage[]) {
-  try {
-    if (messages.length === 0) localStorage.removeItem(STORAGE_KEY)
-    else localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_STORED)))
-  } catch {
-    /* private mode / quota: the chat still works, it just won't persist */
-  }
-}
-
-// The API takes at most 40 earlier messages; toy-world chatter adds up fast, so send the recent ones.
-const HISTORY_MAX = 30
-const toHistory = (messages: ChatMessage[]) => {
-  const turns: { role: ChatRole; content: string }[] = []
-  for (const m of messages) {
-    if (m.status === "error" || !m.content.trim()) continue
-    if (m.sent === "") {
-      // Lim's own reply to a toy-box order: neither it nor the order is the model's business.
-      if (turns[turns.length - 1]?.role === "user") turns.pop()
-      continue
-    }
-    turns.push({ role: m.role, content: m.sent ?? m.content })
-  }
-  // Recent turns only, starting on a question, never two questions in a row (a dropped pair can leave both).
-  const recent = turns.slice(-HISTORY_MAX)
-  while (recent[0]?.role === "assistant") recent.shift()
-  // The new question follows, so the history must not end on an unanswered one.
-  while (recent[recent.length - 1]?.role === "user") recent.pop()
-  return recent.filter((turn, i) => !(turn.role === "user" && recent[i + 1]?.role === "user"))
+const partialOf = (err: unknown): string | null => {
+  if (typeof err !== "object" || err === null || !("partialContent" in err)) return null
+  const partial = (err as { partialContent: unknown }).partialContent
+  return typeof partial === "string" ? partial : null
 }
 
 /**
- * Conversation state for the chatbot: streaming via `invokeDeepseek`, stop,
- * retry/regenerate, new chat, and localStorage persistence. `events` feed the
- * mascot (hop on send, mouth flaps per chunk, squish when done, droop on error).
+ * Conversation state for the chatbot. The decisions are `chatReducer`'s; this
+ * hook does the work (intercept, stream via `invokeDeepseek`, world orders),
+ * reports it as events, and fires `events` on the transitions that matter to
+ * the mascot (hop on send, mouth flaps per chunk, squish when done, droop on
+ * error). The conversation is saved whenever a turn starts or settles, and on
+ * `pagehide`, so a reload mid-reply keeps the question and what had arrived.
  */
 export function useChat(events: ChatEvents = {}) {
-  const [messages, setMessages] = useState<ChatMessage[]>(load)
-  const [status, setStatus] = useState<ChatStatus>("idle")
+  const [state, setState] = useState<ChatState>(() => initialChat(loadChat()))
+  // The reducer runs here, not inside setState, so each transition is known
+  // at once (to fire mascot events and persist) and runs exactly once.
+  const stateRef = useRef(state)
   const eventsRef = useRef(events)
   const abortRef = useRef<AbortController | null>(null)
-  const messagesRef = useRef(messages)
   useLayoutEffect(() => {
     eventsRef.current = events
-    messagesRef.current = messages
   })
 
-  useEffect(() => {
-    if (status === "idle") save(messages)
-  }, [messages, status])
-
-  useEffect(() => () => abortRef.current?.abort(), [])
-
-  /** Patch one reply by id; a reply that is gone (New chat) is left alone. */
-  const patchReply = (id: string, patch: Partial<ChatMessage>) =>
-    setMessages((prev) => (prev.some((m) => m.id === id) ? prev.map((m) => (m.id === id ? { ...m, ...patch } : m)) : prev))
-
-  /** Ask `text` on top of `base` (the conversation before this turn). */
-  const ask = useCallback((text: string, base: ChatMessage[]) => {
-    const now = Date.now()
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text, timestamp: now }
-    const reply: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: "", timestamp: now, status: "streaming" }
-    const firstReply = !base.some((m) => m.role === "assistant" && m.status === "done")
-    const controller = new AbortController()
-    abortRef.current = controller
-    setMessages([...base, userMsg, reply])
-    setStatus("thinking")
-    eventsRef.current.onSend?.()
-
-    let latest = ""
-    let wasLocal = false
-    // A reply that opens with the world marker is an order for Lim's toy
-    // world, not prose: it is held back, and handed over when it is complete.
-    let order: "no" | "writing" | "done" = "no"
-    const finishOrder = (content: string) => {
-      order = "done"
-      const { text: line, ok } = eventsRef.current.onWorld!(content, false)
-      latest = line
-      wasLocal = true
-      // A good order goes back to the model as the order it was; one that came to nothing is left out.
-      if (abortRef.current === controller) patchReply(reply.id, { content: line, sent: ok ? content : "" })
-    }
-    const answer = () =>
-      invokeDeepseek(
-        text,
-        toHistory(base),
-        (content) => {
-          if (controller.signal.aborted) return
-          latest = content
-          if (eventsRef.current.onWorld) {
-            const state = order === "writing" ? "yes" : orderState(content)
-            // "@" or an opening fence could still become an order: show nothing until it is clear which.
-            if (state === "maybe") return
-            if (state === "yes") {
-              if (order === "no") {
-                order = "writing"
-                // Anything shown before the marker turned up (a preface) goes.
-                patchReply(reply.id, { content: "" })
-                eventsRef.current.onWorldStart?.()
-              }
-              return
-            }
-          }
-          patchReply(reply.id, { content })
-          setStatus("streaming")
-          eventsRef.current.onChunk?.()
-        },
-        controller.signal,
-        eventsRef.current.world?.() ?? undefined,
-      ).then(() => {
-        if (order === "writing") return finishOrder(latest)
-        // Only ever the start of a marker or a fence: it was the whole answer.
-        if (eventsRef.current.onWorld && orderState(latest) === "maybe") patchReply(reply.id, { content: latest })
-      })
-    /** Cut short mid-order: the show still has to end. */
-    const dropOrder = (failed: boolean) => {
-      if (order !== "writing") return
-      order = "done"
-      latest = eventsRef.current.onWorld!(null, failed).text
-    }
-    const intercept = eventsRef.current.intercept
-    const work = intercept
-      ? intercept(text, controller.signal)
-          .catch(() => null)
-          .then((handled) => {
-            if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError")
-            if (handled === null) return answer()
-            latest = handled
-            wasLocal = true
-            patchReply(reply.id, { content: handled, sent: "" })
-          })
-      : answer()
-    void work
-      .then(() => {
-        // Settled after New chat (or a newer send): this request no longer owns the chat.
-        if (abortRef.current !== controller) return
-        patchReply(reply.id, { status: "done" })
-        eventsRef.current.onDone?.(firstReply, wasLocal)
-      })
-      .catch((err: unknown) => {
-        const ordering = order === "writing"
-        dropOrder(!controller.signal.aborted)
-        if (ordering && !controller.signal.aborted && abortRef.current === controller) {
-          // An order that failed is Lim's to own up to, not a chat error.
-          patchReply(reply.id, { content: latest, status: "done", sent: "" })
-          return
-        }
-        if (controller.signal.aborted) {
-          patchReply(reply.id, { content: latest, status: "stopped" })
-          return
-        }
-        if (abortRef.current !== controller) return
-        console.error(err)
-        const partial = err instanceof TimeoutError ? err.partialContent : undefined
-        patchReply(reply.id, { content: formatConciergeError(partial ?? latest, errorMessage(err) || FALLBACK_ERROR), status: "error" })
-        eventsRef.current.onError?.()
-      })
-      .finally(() => {
-        if (abortRef.current !== controller) return
-        abortRef.current = null
-        setStatus("idle")
-      })
+  const dispatch = useCallback((event: ChatEvent) => {
+    const prev = stateRef.current
+    const next = chatReducer(prev, event)
+    if (next === prev) return prev
+    stateRef.current = next
+    setState(next)
+    // A turn started or settled (or the chat was cleared): not on every chunk.
+    if (next.messages !== prev.messages && (next.turn.phase === "idle" || prev.turn.phase === "idle")) saveChat(next.messages)
+    return next
   }, [])
 
-  const busy = status !== "idle"
+  useEffect(() => {
+    const flush = () => saveChat(stateRef.current.messages)
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") flush()
+    }
+    window.addEventListener("pagehide", flush)
+    document.addEventListener("visibilitychange", onHidden)
+    return () => {
+      window.removeEventListener("pagehide", flush)
+      document.removeEventListener("visibilitychange", onHidden)
+      abortRef.current?.abort()
+    }
+  }, [])
 
-  const send = useCallback(
-    (raw: string) => {
-      const text = raw.trim()
-      if (!text || abortRef.current) return false
-      ask(text, messagesRef.current)
+  /** Ask `text` (or, for a retry, the last question again). */
+  const ask = useCallback(
+    (text: string, retry: boolean) => {
+      if (isBusy(stateRef.current.turn)) return false
+      const before = stateRef.current.messages
+      const firstReply = !before.some((m) => m.role === "assistant" && m.status === "done")
+      const intercept = eventsRef.current.intercept
+      const replyId = crypto.randomUUID()
+      const started = dispatch({ type: "SEND", text, retry, userId: crypto.randomUUID(), replyId, at: Date.now(), intercept: Boolean(intercept) })
+      if (started.turn.phase === "idle") return false
+      const question = started.messages[started.messages.length - 2].content
+      const history = toHistory(started.messages.slice(0, -2))
+
+      const controller = new AbortController()
+      abortRef.current = controller
+      eventsRef.current.onSend?.()
+      const phase = () => (stateRef.current.turn.phase !== "idle" && stateRef.current.turn.replyId === replyId ? stateRef.current.turn.phase : null)
+
+      const done = (local: boolean) => eventsRef.current.onDone?.(firstReply, local)
+      const fail = (err: unknown) => {
+        console.error(err)
+        const after = dispatch({ type: "FAIL", replyId, error: errorMessage(err) || FALLBACK_ERROR, partial: partialOf(err) })
+        if (after.lastOutcome === "failed") eventsRef.current.onError?.()
+      }
+      /** An order that failed part-way: the show still has to end, and Lim owns up to it. */
+      const dropOrder = () => {
+        const line = eventsRef.current.onWorld?.(null, true).text ?? ""
+        dispatch({ type: "ORDER_RESULT", replyId, text: line, order: "" })
+      }
+
+      const answer = async () => {
+        let latest = ""
+        try {
+          await invokeDeepseek(
+            question,
+            history,
+            (content) => {
+              if (controller.signal.aborted) return
+              latest = content
+              const was = phase()
+              const now = dispatch({ type: "CHUNK", replyId, content, worldAware: Boolean(eventsRef.current.onWorld), at: Date.now() })
+              const is = now.turn.phase
+              if (is === "ordering" && was !== "ordering") eventsRef.current.onWorldStart?.()
+              if (is === "streaming") eventsRef.current.onChunk?.()
+            },
+            controller.signal,
+            eventsRef.current.world?.() ?? undefined,
+          )
+        } catch (err) {
+          if (isAbort(err) || controller.signal.aborted || phase() === null) return
+          if (phase() === "ordering") return dropOrder()
+          return fail(err)
+        }
+        if (phase() === "ordering") {
+          const result = eventsRef.current.onWorld!(latest, false)
+          // A good order goes back to the model as the order it was; one that came to nothing is left out.
+          dispatch({ type: "ORDER_RESULT", replyId, text: result.text, order: result.ok ? latest : "" })
+          return done(true)
+        }
+        if (dispatch({ type: "STREAM_END", replyId, content: latest }).lastOutcome === "answered") done(false)
+      }
+
+      void (async () => {
+        if (intercept) {
+          const handled = await intercept(question, controller.signal).catch(() => null)
+          if (controller.signal.aborted || phase() !== "intercepting") return
+          if (handled !== null) {
+            dispatch({ type: "INTERCEPT_HIT", replyId, text: handled })
+            return done(true)
+          }
+          dispatch({ type: "INTERCEPT_MISS", replyId })
+        }
+        await answer()
+      })().finally(() => {
+        if (abortRef.current === controller) abortRef.current = null
+      })
       return true
     },
-    [ask],
+    [dispatch],
   )
 
-  const stop = useCallback(() => abortRef.current?.abort(), [])
-
-  /** Re-ask the last question, replacing its reply (regenerate and retry). */
-  const regenerate = useCallback(() => {
-    if (abortRef.current) return
-    const list = messagesRef.current
-    let i = list.length - 1
-    while (i >= 0 && list[i].role !== "user") i--
-    if (i < 0) return
-    ask(list[i].content, list.slice(0, i))
+  const send = useCallback((raw: string) => {
+    const text = toPrompt(raw)
+    return text ? ask(text, false) : false
   }, [ask])
 
-  const newChat = useCallback(() => {
+  const stop = useCallback(() => {
+    const turn = stateRef.current.turn
+    if (turn.phase === "idle") return
+    const ordering = turn.phase === "ordering"
     abortRef.current?.abort()
     abortRef.current = null
-    setMessages([])
-    setStatus("idle")
-  }, [])
+    dispatch({ type: "STOP", replyId: turn.replyId })
+    // Stopped by the visitor mid-order: the conjuring ends, with nothing to add.
+    if (ordering) eventsRef.current.onWorld?.(null, false)
+  }, [dispatch])
 
-  return { messages, status, busy, send, stop, regenerate, newChat }
+  /** Re-ask the last question, replacing its reply (regenerate and retry). */
+  const regenerate = useCallback(() => void ask("", true), [ask])
+
+  const newChat = useCallback(() => {
+    if (stateRef.current.turn.phase === "ordering") eventsRef.current.onWorld?.(null, false)
+    abortRef.current?.abort()
+    abortRef.current = null
+    dispatch({ type: "RESET" })
+  }, [dispatch])
+
+  /** Lim's mood from the last turn has worn off. */
+  const calm = useCallback(() => void dispatch({ type: "CALM" }), [dispatch])
+
+  return {
+    messages: state.messages,
+    turn: state.turn,
+    lastOutcome: state.lastOutcome,
+    busy: isBusy(state.turn),
+    send,
+    stop,
+    regenerate,
+    newChat,
+    calm,
+  }
 }

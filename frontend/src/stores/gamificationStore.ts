@@ -1,78 +1,31 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/lib/constants'
-import { formatLocalDateKey, getLocalWeekStartKey } from '@/lib/localDates'
-import { createBrowserJSONStorage } from '@/lib/persistStorage'
+import { createBrowserJSONStorage, followOtherTabs } from '@/lib/persistStorage'
+import { DEFAULT_ORB_THEME_ID } from '@/breathflow/gamify/orbThemes'
+import { isNonNegativeNumber, isRecord } from './sessionRecord'
 
-function getToday(): string {
-  return formatLocalDateKey(new Date())
-}
-
-function getWeekStart(): string {
-  return getLocalWeekStartKey()
-}
+// Sessions per day / week are derived from the history log; they are not stored
+// here. Older persisted and cloud copies may still carry `dailySessionCount`
+// and friends: the cleaner below ignores them.
 
 interface GamificationState {
   xp: number
   earnedBadges: string[]
   selectedTheme: string
-  dailySessionCount: number
-  weeklySessionCount: number
-  lastDailyReset: string
-  lastWeeklyReset: string
 
   addXP: (amount: number) => void
   unlockBadges: (badgeIds: string[]) => void
   setSelectedTheme: (id: string) => void
-  recordSession: () => void
-  checkResets: () => void
   resetProgress: () => void
 }
 
-export type PersistedGamificationState = Pick<
-  GamificationState,
-  | 'xp'
-  | 'earnedBadges'
-  | 'selectedTheme'
-  | 'dailySessionCount'
-  | 'weeklySessionCount'
-  | 'lastDailyReset'
-  | 'lastWeeklyReset'
->
+export type PersistedGamificationState = Pick<GamificationState, 'xp' | 'earnedBadges' | 'selectedTheme'>
 
 export const GAMIFICATION_STORAGE_VERSION = 1
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isNonNegativeNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function isLocalDateKey(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
-}
-
-function getInitialProgressState(): Pick<
-  GamificationState,
-  | 'xp'
-  | 'earnedBadges'
-  | 'selectedTheme'
-  | 'dailySessionCount'
-  | 'weeklySessionCount'
-  | 'lastDailyReset'
-  | 'lastWeeklyReset'
-> {
-  return {
-    xp: 0,
-    earnedBadges: [],
-    selectedTheme: 'default',
-    dailySessionCount: 0,
-    weeklySessionCount: 0,
-    lastDailyReset: getToday(),
-    lastWeeklyReset: getWeekStart(),
-  }
+export function getInitialProgressState(): PersistedGamificationState {
+  return { xp: 0, earnedBadges: [], selectedTheme: DEFAULT_ORB_THEME_ID }
 }
 
 export function migratePersistedGamificationState(
@@ -86,30 +39,21 @@ export function migratePersistedGamificationState(
   return {
     xp: isNonNegativeNumber(persistedState.xp) ? persistedState.xp : defaults.xp,
     earnedBadges: Array.isArray(persistedState.earnedBadges)
-      && persistedState.earnedBadges.every((badge) => typeof badge === 'string')
-      ? persistedState.earnedBadges
+      ? [...new Set(persistedState.earnedBadges.filter((badge): badge is string => typeof badge === 'string'))]
       : defaults.earnedBadges,
     selectedTheme: typeof persistedState.selectedTheme === 'string'
       ? persistedState.selectedTheme
       : defaults.selectedTheme,
-    dailySessionCount: isNonNegativeNumber(persistedState.dailySessionCount)
-      ? persistedState.dailySessionCount
-      : defaults.dailySessionCount,
-    weeklySessionCount: isNonNegativeNumber(persistedState.weeklySessionCount)
-      ? persistedState.weeklySessionCount
-      : defaults.weeklySessionCount,
-    lastDailyReset: isLocalDateKey(persistedState.lastDailyReset)
-      ? persistedState.lastDailyReset
-      : defaults.lastDailyReset,
-    lastWeeklyReset: isLocalDateKey(persistedState.lastWeeklyReset)
-      ? persistedState.lastWeeklyReset
-      : defaults.lastWeeklyReset,
   }
+}
+
+export function pickPersistedGamification(state: PersistedGamificationState): PersistedGamificationState {
+  return { xp: state.xp, earnedBadges: state.earnedBadges, selectedTheme: state.selectedTheme }
 }
 
 export const useGamificationStore = create<GamificationState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...getInitialProgressState(),
 
       addXP: (amount) => {
@@ -130,36 +74,6 @@ export const useGamificationStore = create<GamificationState>()(
         set({ selectedTheme: id })
       },
 
-      recordSession: () => {
-        get().checkResets()
-        set((state) => ({
-          dailySessionCount: state.dailySessionCount + 1,
-          weeklySessionCount: state.weeklySessionCount + 1,
-        }))
-      },
-
-      checkResets: () => {
-        const today = getToday()
-        const weekStart = getWeekStart()
-        const state = get()
-
-        const updates: Partial<GamificationState> = {}
-
-        if (state.lastDailyReset !== today) {
-          updates.dailySessionCount = 0
-          updates.lastDailyReset = today
-        }
-
-        if (state.lastWeeklyReset !== weekStart) {
-          updates.weeklySessionCount = 0
-          updates.lastWeeklyReset = weekStart
-        }
-
-        if (Object.keys(updates).length > 0) {
-          set(updates)
-        }
-      },
-
       resetProgress: () => {
         set(getInitialProgressState())
       },
@@ -168,16 +82,13 @@ export const useGamificationStore = create<GamificationState>()(
       name: STORAGE_KEYS.GAMIFICATION,
       storage: createBrowserJSONStorage<PersistedGamificationState>(),
       version: GAMIFICATION_STORAGE_VERSION,
-      partialize: (state): PersistedGamificationState => ({
-        xp: state.xp,
-        earnedBadges: state.earnedBadges,
-        selectedTheme: state.selectedTheme,
-        dailySessionCount: state.dailySessionCount,
-        weeklySessionCount: state.weeklySessionCount,
-        lastDailyReset: state.lastDailyReset,
-        lastWeeklyReset: state.lastWeeklyReset,
-      }),
+      partialize: (state) => pickPersistedGamification(state),
       migrate: (persistedState) => migratePersistedGamificationState(persistedState),
+      // zustand calls `migrate` only on a version change; same-version data is cleaned here.
+      merge: (persisted, current) =>
+        persisted === undefined ? current : { ...current, ...migratePersistedGamificationState(persisted) },
     },
   ),
 )
+
+followOtherTabs(useGamificationStore, STORAGE_KEYS.GAMIFICATION)

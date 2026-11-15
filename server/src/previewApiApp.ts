@@ -5,11 +5,10 @@ import { prettyJSON } from "hono/pretty-json"
 
 import { config } from "./config"
 import { errorHandler } from "./middleware/error"
-import { createRateLimit } from "./middleware/rateLimit"
+import { createRateLimit, userOrClientKey } from "./middleware/rateLimit"
 import { createClerkAuth, verifyClerkOptional } from "./middleware/clerkAuth"
 import invokeRouter from "./routes/invoke"
-import koreaRouter from "./routes/korea"
-import entityRouter from "./routes/entity"
+import koreaChatRouter from "./routes/koreaChat"
 import { createInstagramPlacesRouter } from "./routes/instagramPlaces"
 import { createTripsRouter } from "./routes/trips"
 import { getTripStore } from "./trips/store"
@@ -65,18 +64,18 @@ export function createPreviewApiApp(): Hono {
   app.use("/api/trips/:id/chat", applySse)
 
   app.use("/api/invoke/*", createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "preview-invoke" }))
-  app.use("/api/entity/*", createRateLimit({ windowMs: 60_000, max: 30, keyPrefix: "preview-entity" }))
-  const tripsRateLimit = createRateLimit({ windowMs: 60_000, max: 60, keyPrefix: "preview-trips" })
-  app.use("/api/trips/*", tripsRateLimit)
-  app.use("/api/trips/:id/*", tripsRateLimit)
+  app.use(
+    "/api/korea/chat",
+    createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "preview-korea-chat", key: userOrClientKey }),
+  )
 
   app.route("/api/invoke", invokeRouter)
-  app.route("/api/korea", koreaRouter)
-  app.route("/api/entity", entityRouter)
+  app.route("/api/korea/chat", koreaChatRouter)
   app.route(
     "/api/trips",
     createTripsRouter({
       store: getTripStore(),
+      rateLimit: createRateLimit({ windowMs: 60_000, max: 60, keyPrefix: "preview-trips", key: userOrClientKey }),
       verifyAuth: (authHeader) =>
         verifyClerkOptional(authHeader, {
           secretKey: config.clerkSecretKey,
@@ -118,6 +117,12 @@ export function createPreviewApiApp(): Hono {
       listIgPlaceDays,
       setIgPlaceDays,
       removeExtractedPlace,
+      enqueueRateLimit: createRateLimit({
+        windowMs: 60_000,
+        max: 10,
+        keyPrefix: "preview-ig-enqueue",
+        key: userOrClientKey,
+      }),
     })
     for (const base of ["/api/instagram", "/api/korea/places/from-instagram"]) {
       app.use(`${base}/*`, clerkAuth)

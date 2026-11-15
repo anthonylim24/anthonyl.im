@@ -8,7 +8,7 @@
  * payoff: "Tense → Calm".
  *
  * Mood is persisted in the history store and, for signed-in users, in the
- * `mood_before` / `mood_after` columns of `sessions` (see `useCloudSync`).
+ * `mood_before` / `mood_after` columns of `sessions` (see `lib/cloudSync/rows.ts`).
  */
 
 export const MOOD_MIN = 1

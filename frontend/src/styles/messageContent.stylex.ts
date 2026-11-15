@@ -79,8 +79,10 @@ export const messageContent = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
-    minHeight: '36px',
-    paddingInline: '10px',
+    // A 44 px target; the bar is 36 px tall, so the button overhangs it evenly.
+    minHeight: '44px',
+    marginBlock: '-4px',
+    paddingInline: '12px',
     borderRadius: '999px',
     borderWidth: 0,
     backgroundColor: { default: 'transparent', ':hover': { default: null, [HOVER]: 'rgba(243, 237, 255, 0.08)' } },
@@ -144,5 +146,5 @@ export const messageContent = stylex.create({
     borderRadius: '2px',
     backgroundColor: 'var(--chat-line)',
   },
-  img: { maxWidth: '100%', borderRadius: '12px' },
+  imageLink: { display: 'inline-flex', alignItems: 'center', gap: '4px' },
 })

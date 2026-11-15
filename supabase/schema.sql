@@ -102,7 +102,7 @@ create policy "Anyone signed in can read entity cache"
 
 -- ============================================================
 -- Instagram → Korea trip place extractor
--- See docs/superpowers/specs/2026-05-18-instagram-place-extractor-design.md
+-- See server/src/igPlaces/README.md
 -- ============================================================
 
 create type ig_job_status        as enum ('pending','running','done','failed','dead');

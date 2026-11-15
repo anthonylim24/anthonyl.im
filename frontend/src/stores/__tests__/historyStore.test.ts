@@ -107,6 +107,36 @@ describe('historyStore', () => {
     expect(useHistoryStore.getState().getStreak()).toBe(2)
   })
 
+  it('records the local day on a new session and counts streaks by it', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 4, 2, 12))
+    useHistoryStore.getState().addSession({
+      techniqueId: TECHNIQUE_IDS.BOX_BREATHING,
+      date: new Date(2026, 4, 2, 9).toISOString(),
+      durationSeconds: 120,
+      rounds: 3,
+      holdTimes: [],
+      maxHoldTime: 0,
+      avgHoldTime: 0,
+    })
+    expect(useHistoryStore.getState().sessions[0].localDay).toBe('2026-05-02')
+
+    // A session whose timestamp reads as another day here (after travel) still
+    // counts on the day it was done.
+    useHistoryStore.setState((state) => ({
+      sessions: [
+        ...state.sessions,
+        { ...state.sessions[0], id: 'abroad', date: new Date(2026, 3, 29, 9).toISOString(), localDay: '2026-05-01' },
+      ],
+    }))
+    expect(useHistoryStore.getState().getStreak()).toBe(2)
+  })
+
+  it('a clear records when it happened, so other copies forget what came before', () => {
+    useHistoryStore.getState().clearHistory('2026-05-03T00:00:00.000Z')
+    expect(useHistoryStore.getState().resetAt).toBe('2026-05-03T00:00:00.000Z')
+  })
+
   it('versions and migrates persisted history state', () => {
     const migrated = migratePersistedHistoryState({
       sessions: [
@@ -138,6 +168,7 @@ describe('historyStore', () => {
       personalBests: {},
       vo2MaxManual: null,
       vo2MaxHistory: [],
+      resetAt: null,
     })
   })
 
@@ -172,6 +203,17 @@ describe('historyStore', () => {
       const session = addSession()
       useHistoryStore.getState().setSessionMood('does-not-exist', { moodAfter: 4 })
       expect(useHistoryStore.getState().sessions[0]).toEqual(session)
+    })
+
+    it('clears a rating passed explicitly as undefined, and leaves an omitted one alone', () => {
+      const session = addSession()
+      useHistoryStore.getState().setSessionMood(session.id, { moodBefore: 2, moodAfter: 5 })
+
+      useHistoryStore.getState().setSessionMood(session.id, { moodAfter: undefined })
+
+      const updated = useHistoryStore.getState().sessions[0]
+      expect(updated).not.toHaveProperty('moodAfter')
+      expect(updated.moodBefore).toBe(2)
     })
 
     it('leaves other sessions untouched', () => {

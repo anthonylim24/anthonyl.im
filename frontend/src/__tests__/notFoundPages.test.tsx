@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { SiteNotFound } from '../pages/SiteNotFound'
-import { KoreaNotFound } from '../pages/Korea/KoreaNotFound'
 import { isMissingTripError, TripsNotFound } from '../pages/Trips/TripsNotFound'
 
 describe('not-found pages', () => {
@@ -14,21 +13,6 @@ describe('not-found pages', () => {
     )
     expect(screen.getByRole('heading', { name: 'This page is not here.' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ask Anthony' })).toHaveAttribute('href', '/')
-  })
-
-  it('keeps unknown Korea routes inside the dossier', () => {
-    render(
-      <MemoryRouter>
-        <KoreaNotFound />
-      </MemoryRouter>,
-    )
-    expect(
-      screen.getByRole('heading', { name: 'This page is not in the dossier.' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Back to overview' })).toHaveAttribute(
-      'href',
-      '/trips/korea-2026',
-    )
   })
 
   it('keeps unknown trip routes inside the planner', () => {

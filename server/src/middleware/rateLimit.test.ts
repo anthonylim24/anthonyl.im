@@ -1,6 +1,13 @@
 import { test, expect, describe } from "bun:test";
 import { Hono } from "hono";
-import { createRateLimit, trustedProxyClientAddress } from "./rateLimit";
+import {
+  MAX_BUCKETS,
+  consumeRateLimit,
+  createRateLimit,
+  rateLimitStore,
+  trustedProxyClientAddress,
+  userOrClientKey,
+} from "./rateLimit";
 
 function makeApp(max: number, windowMs = 60_000) {
   const app = new Hono();
@@ -75,5 +82,51 @@ describe("createRateLimit", () => {
       headers: { "x-forwarded-for": "198.51.100.1, 203.0.113.11" },
     });
     expect(otherPeer.status).toBe(200);
+  });
+
+  test("the default key ignores a spoofed first X-Forwarded-For hop", async () => {
+    const app = makeApp(1);
+    await app.request("/", { headers: { "x-forwarded-for": "1.1.1.1, 203.0.113.50" } });
+    const spoofed = await app.request("/", { headers: { "x-forwarded-for": "9.9.9.9, 203.0.113.50" } });
+    expect(spoofed.status).toBe(429);
+  });
+
+  test("CF-Connecting-IP wins over X-Forwarded-For", async () => {
+    const app = makeApp(1);
+    await app.request("/", { headers: { "cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "10.9.9.1" } });
+    const sameClient = await app.request("/", {
+      headers: { "cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "10.9.9.2" },
+    });
+    expect(sameClient.status).toBe(429);
+  });
+
+  test("userOrClientKey buckets signed-in users separately behind one address", async () => {
+    const app = new Hono();
+    app.use("/*", async (c, next) => {
+      const user = c.req.header("x-test-user");
+      if (user) c.set("userId" as never, user as never);
+      await next();
+    });
+    app.use("/*", createRateLimit({ windowMs: 60_000, max: 1, keyPrefix: "per-user", key: userOrClientKey }));
+    app.get("/", (c) => c.json({ ok: true }));
+    const ip = { "cf-connecting-ip": "203.0.113.99" };
+    expect((await app.request("/", { headers: { ...ip, "x-test-user": "u1" } })).status).toBe(200);
+    expect((await app.request("/", { headers: { ...ip, "x-test-user": "u1" } })).status).toBe(429);
+    expect((await app.request("/", { headers: { ...ip, "x-test-user": "u2" } })).status).toBe(200);
+    expect((await app.request("/", { headers: ip })).status).toBe(200);
+    expect((await app.request("/", { headers: ip })).status).toBe(429);
+  });
+});
+
+describe("consumeRateLimit store", () => {
+  test("never grows past MAX_BUCKETS", () => {
+    rateLimitStore.clear();
+    for (let i = 0; i < MAX_BUCKETS + 500; i++) {
+      consumeRateLimit(`flood:${i}`, { windowMs: 60_000, max: 5 });
+    }
+    expect(rateLimitStore.size()).toBeLessThanOrEqual(MAX_BUCKETS);
+    // The newest caller is still counted.
+    expect(consumeRateLimit(`flood:${MAX_BUCKETS + 499}`, { windowMs: 60_000, max: 1 }).ok).toBe(false);
+    rateLimitStore.clear();
   });
 });

@@ -11,7 +11,7 @@ import { createBundleBuilder } from './buildBundle';
 import { createExtractor } from './extractPlaces';
 import { ENODEVBROWSER, type PostPayload } from './types';
 import { createGeocoder, realGoogleLookup, realKakaoLookup } from './geocode';
-import { LRU, memoLRU } from './lru';
+import { memoLRU } from './lru';
 import { upsertPostFactory, createSavePlaces } from './savePlaces';
 import { createProcessor } from './process';
 import { createWorkerLoop } from './worker';
@@ -499,104 +499,11 @@ export async function setIgPlaceDays(opts: { userId: string; placeId: number; da
 
   const { userId, placeId, days } = opts;
   const supabase = createSupabaseClient({ url: supabaseUrl, serviceKey: supabaseServiceKey });
-  // We invalidate the previous day-set AND the new day-set — without this,
-  // unchecking a day would leave the cached list still containing the place.
-  // The current state (pre-change) requires a read; rather than do that
-  // round-trip, blast all 12 days for this user. Cheap (12 map deletes).
-  invalidateDayPlacesCache(userId, Array.from({ length: 12 }, (_, i) => i + 1));
   await supabase.rpc('ig_set_place_days', {
     p_user_id: userId,
     p_place_id: placeId,
     p_days: days,
   });
-}
-
-/**
- * Fetches IG places assigned to a specific day_n for a user, joined with
- * their source post data. Returns an array ready for the IgSave shape.
- */
-export type IgPlaceForDay = {
-  id: number;
-  name: string;
-  name_romanized: string | null;
-  category: string;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  confidence_band: 'high' | 'medium' | 'low';
-  supporting_quote: string | null;
-  busyness: 'quiet' | 'moderate' | 'busy' | 'very_busy' | null;
-  post: {
-    url: string;
-    shortcode: string | null;
-    owner_username: string | null;
-    caption: string | null;
-  };
-};
-
-// 60-second in-process cache for the day-saves enrichment. Map Mode polls
-// /day/:slug/places repeatedly while the user pans/filters; the underlying
-// assignments only change when the user explicitly hits "Add to days" on a
-// place, which already invalidates from elsewhere via setIgPlaceDays.
-const dayPlacesCache = new LRU<string, IgPlaceForDay[]>({ max: 200, ttlMs: 60_000 });
-
-/** Invalidate the day-saves cache for a (user, day) pair. Called from
- *  setIgPlaceDays when an assignment changes. */
-function invalidateDayPlacesCache(userId: string, dayNs: number[]) {
-  for (const dayN of dayNs) dayPlacesCache.delete(`${userId}|${dayN}`);
-}
-
-export async function listIgPlacesForDay(opts: { userId: string; dayN: number }): Promise<IgPlaceForDay[]> {
-  const supabaseUrl = config.supabaseUrl;
-  const supabaseServiceKey = config.supabaseServiceKey;
-  if (!supabaseUrl || !supabaseServiceKey) return [];
-
-  const { userId, dayN } = opts;
-  const cacheKey = `${userId}|${dayN}`;
-  const cached = dayPlacesCache.get(cacheKey);
-  if (cached) return cached;
-
-  // Join assignments → places → posts
-  const params = new URLSearchParams({
-    select: 'place_id,instagram_places!inner(id,name,name_romanized,category,address,lat,lng,confidence_band,supporting_quote,busyness,post:instagram_posts!inner(url,shortcode,owner_username,caption))',
-    user_id: `eq.${userId}`,
-    day_n: `eq.${dayN}`,
-  });
-  const url = `${supabaseUrl}/rest/v1/instagram_place_day_assignments?${params.toString()}`;
-  const r = await fetch(url, {
-    headers: {
-      apikey: supabaseServiceKey,
-      Authorization: `Bearer ${supabaseServiceKey}`,
-    },
-  });
-  if (!r.ok) return [];
-  const rows = await r.json() as Array<{
-    place_id: number;
-    instagram_places: {
-      id: number;
-      name: string;
-      name_romanized: string | null;
-      category: string;
-      address: string | null;
-      lat: number | null;
-      lng: number | null;
-      confidence_band: 'high' | 'medium' | 'low';
-      supporting_quote: string | null;
-      busyness: 'quiet' | 'moderate' | 'busy' | 'very_busy' | null;
-      post: {
-        url: string;
-        shortcode: string | null;
-        owner_username: string | null;
-        caption: string | null;
-      };
-    };
-  }>;
-  const result = rows.map((row) => ({
-    ...row.instagram_places,
-    post: row.instagram_places.post,
-  }));
-  dayPlacesCache.set(cacheKey, result);
-  return result;
 }
 
 export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
