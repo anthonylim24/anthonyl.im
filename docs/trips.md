@@ -46,20 +46,16 @@ data (backward compat). Frontend `/korea*` redirects to `/trips/korea-2026`.
 The snapshot is data, and the trips system is the path for all new
 destination work. Do not add new destination-specific routes or logic.
 
-## Legacy Korea pages (`frontend/src/pages/Korea/`)
+## Korea helpers (`frontend/src/pages/Korea/`)
 
-Legacy Korea pages, places, and linkify implementation. Frontend `/korea*`
-redirects to `/trips/korea-2026`; none of these pages is mounted by a route.
-Trips imports only helpers from here (`ThemeToggle`, `koreaUtils`,
-`koreaChatApi`, `ConciergeSources`, `ConciergeText*`, `types`). The old Map
-Mode (overlay, scene, effects pipelines) is gone; its successor lives in
-`pages/Trips/photoreal/`. Do not add `/japan`-style routes.
+The legacy Korea pages are gone; frontend `/korea*` redirects to
+`/trips/korea-2026` (`pages/Trips/KoreaRedirects.tsx`). What remains are the
+helpers Trips imports. Do not add `/japan`-style routes.
 
 | File | Purpose |
 |------|---------|
-| `KoreaLayout.tsx` | Shell with auth gate, theme toggle, KST clock; mounts `KoreaChat` |
-| `KoreaIndex.tsx` | Trip hero, day list |
-| `KoreaDay.tsx` | Day detail — reservations, places, timeline |
-| `KoreaChat.tsx` | Concierge SSE (`POST /api/korea/chat`) |
-| `LinkifiedText.tsx` | Auto-links flight #s, addresses, phones |
-| `SmartEntity.tsx` | Entity cards with linked metadata |
+| `koreaChatApi.ts` | Concierge SSE client (`POST /api/korea/chat`), the Trips concierge fallback |
+| `ConciergeText.tsx` | Concierge markdown renderer (with `conciergeMarkdown.ts`) |
+| `ThemeToggle.tsx`, `koreaUtils.ts` | Light / dark / system theme toggle and persistence for the Trips layout |
+| `types.ts` | `Reservation` shape used by `pages/Trips/reservationView.ts` |
+| `korea.stylex.ts` | Palette constants for the theme toggle |
