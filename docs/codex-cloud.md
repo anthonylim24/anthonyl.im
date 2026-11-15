@@ -22,8 +22,6 @@ The setup script writes ignored local env files only when they are missing:
 
 Those defaults are intentionally safe for cloud tasks:
 
-- `KLUSTER_API_KEY=codex-stub`
-- `KLUSTER_API_BASE_URL=https://example.invalid`
 - `IG_WORKER_ENABLED=false`
 - matching `IG_DEV_BEARER` / `VITE_DEV_BEARER` values for Clerk-free Korea route development
 - `VITE_ENABLE_SERVICE_WORKER=false` to avoid stale PWA state in short-lived containers

@@ -23,8 +23,6 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 source "$ROOT_DIR/.codex/lib.sh"
 
 # Stubs match .codex/dev.sh so the spawned backend doesn't trip on missing env.
-export KLUSTER_API_KEY="${KLUSTER_API_KEY:-codex-stub}"
-export KLUSTER_API_BASE_URL="${KLUSTER_API_BASE_URL:-https://example.invalid}"
 export IG_WORKER_ENABLED="${IG_WORKER_ENABLED:-false}"
 export IG_DEV_BEARER="${IG_DEV_BEARER:-codex-dev-bearer}"
 export IG_DEV_USER_ID="${IG_DEV_USER_ID:-codex-dev}"

@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEY, useChat } from '../useChat'
 import { HttpStatusError } from '../../effect/errors'
+import { isReloadBlocked } from '../../lib/serviceWorker'
 
 type Invoke = (
   prompt: string,
@@ -72,6 +73,28 @@ describe('useChat', () => {
     expect(events.onDone).toHaveBeenCalledWith(true, false)
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
     expect(stored).toHaveLength(2)
+  })
+
+  it('holds off update reloads while a turn runs, and releases on settle or unmount', async () => {
+    const reply = deferredReply()
+    const { result, unmount } = renderHook(() => useChat())
+    expect(isReloadBlocked()).toBe(false)
+    act(() => {
+      result.current.send('Hi')
+    })
+    expect(isReloadBlocked()).toBe(true)
+    reply.chunk('Hello')
+    expect(isReloadBlocked()).toBe(true)
+    await reply.finish()
+    expect(isReloadBlocked()).toBe(false)
+
+    deferredReply()
+    act(() => {
+      result.current.send('Again')
+    })
+    expect(isReloadBlocked()).toBe(true)
+    unmount()
+    expect(isReloadBlocked()).toBe(false)
   })
 
   it('ignores sends while a reply is in flight', () => {

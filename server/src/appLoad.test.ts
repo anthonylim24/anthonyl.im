@@ -9,11 +9,8 @@ import { test, expect } from 'bun:test';
 // so a missing/renamed export fails the gate instead of pm2.
 
 test('server/app.ts loads without throwing — catches missing-export regressions', async () => {
-  // The app reads env at import time. Stub the minimum it needs to
-  // get past config.ts's required-key check. Matches the CI env in
-  // .github/workflows/deploy.yml.
-  process.env.KLUSTER_API_KEY ||= 'load-test-stub';
-  process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
+  // The app reads env at import time; keep the IG worker from booting.
+  // Matches the CI env in .github/workflows/deploy.yml.
   process.env.IG_WORKER_ENABLED ||= 'false';
 
   // Importing app.ts pulls in every route (including igPlaces.wire,

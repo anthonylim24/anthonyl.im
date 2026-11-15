@@ -95,6 +95,7 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
   }, [refresh])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches the job list on open; every set lands after the network await
     if (open) void refresh()
   }, [open, refresh])
 
@@ -150,6 +151,7 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
   useEffect(() => {
     for (const job of session) {
       if (deepened.current.has(job.id)) continue
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reacts to a server result by starting a second request; its bookkeeping must be set before that request goes out
       if (jobProgress(job).phase === "empty" && job.skip_video !== false) void deepen(job)
     }
   }, [session, deepen])

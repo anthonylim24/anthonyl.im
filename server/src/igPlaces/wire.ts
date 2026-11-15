@@ -602,7 +602,6 @@ export async function removeExtractedPlace(opts: { userId: string; placeId: numb
     { status: 'rejected' },
     { id: opts.placeId, user_id: opts.userId },
   );
-  dayPlacesCache.clear();
   return rows.length > 0;
 }
 

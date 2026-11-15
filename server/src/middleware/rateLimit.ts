@@ -81,8 +81,9 @@ export const rateLimitStore = {
  * The caller's address as our own proxies saw it. Production is
  * Cloudflare → nginx → Bun: Cloudflare sets `CF-Connecting-IP` (a client
  * cannot override it) and appends the peer to `X-Forwarded-For`; nginx
- * passes both through. Never use the first X-Forwarded-For value — that hop
- * is whatever the caller sent.
+ * appends the peer it saw (`$proxy_add_x_forwarded_for`) and sets
+ * `X-Real-IP`. Never use the first X-Forwarded-For value — that hop is
+ * whatever the caller sent.
  */
 export function trustedProxyClientAddress(c: Context): string {
   const cf = c.req.header("cf-connecting-ip")?.trim();

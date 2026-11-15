@@ -20,8 +20,9 @@
 
 ## Architecture
 
-See `docs/superpowers/specs/2026-05-18-instagram-place-extractor-design.md`.
-Shipped pipeline; historical Apify spec is archived — see the status banner on that spec.
+See the Instagram import row in [`docs/trips.md`](../../../docs/trips.md)
+(routes, job lifecycle, client sheet) and [`docs/env.md`](../../../docs/env.md)
+for the keys each stage needs.
 
 ## Manual dry-run
 

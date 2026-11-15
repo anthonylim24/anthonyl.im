@@ -84,6 +84,7 @@ import { PaintingLoader } from '../components/PaintingLoader'
 import { BloomAnchor } from '../scene/BloomAnchor'
 import { BloomCanvas, type BloomCanvasHandle } from '../scene/BloomCanvas'
 import { sampleBreath, useBreathReader, type BreathSample } from '../scene/breathDrive'
+import { useReloadBlock } from '@/hooks/useReloadBlock'
 
 const CONTROLS_HIDE_MS = 3000
 
@@ -218,6 +219,8 @@ export function SessionPage() {
     setCheckedSafety(new Set())
   }, [location.key, location.pathname, location.search, send])
 
+  // An update must not reload the page mid-breath (or while the result saves).
+  useReloadBlock('breathflow-session', inSession || session.tag === 'saving')
   useWakeLock(inSession)
   useScrollLock(inSession)
   useImmersive(inSession)

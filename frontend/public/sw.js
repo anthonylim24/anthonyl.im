@@ -25,7 +25,8 @@ const APP_SHELL = [
 ]
 const CACHEABLE_DESTINATIONS = new Set(['script', 'style', 'font', 'image', 'manifest'])
 
-// Server-rendered HTML that is not the SPA shell (server/app.ts staticPages).
+// Server-rendered HTML that is not the SPA shell (server/src/staticPages.ts;
+// server/src/staticPages.test.ts fails when the two lists drift).
 const STATIC_PAGES = new Set(['/home', '/privacy', '/terms', '/sms-consent'])
 
 function cachePutSafe(cache, request, response) {

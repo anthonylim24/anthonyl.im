@@ -9,7 +9,8 @@ import { externalMapsLink } from "../../lib/externalMaps"
 import { ConciergePhotoThumb } from "./ConciergePhoto"
 import { dayShort } from "./conciergeProposal"
 import type { AddedPlace } from "./conciergeStore"
-import { itemIcon, titleCase } from "./meta"
+import { titleCase } from "./meta"
+import { ItemIcon } from "./ItemIcon"
 import type { TripDay } from "./types"
 import { a } from "./atlas.stylex"
 import { c } from "./chat.stylex"
@@ -125,7 +126,6 @@ function ConciergePlaceCard({
   const addedDay = added ? days.find((d) => d.id === added.dayId) : undefined
   const maps = externalMapsLink(place)
   const hours = hoursLine(place)
-  const Icon = itemIcon("place", place.category)
   const kind = place.category && place.category !== "venue" && place.category !== "other" ? titleCase(place.category) : null
 
   return (
@@ -137,7 +137,7 @@ function ConciergePlaceCard({
           lat={place.lat}
           lng={place.lng}
           compact
-          fallback={<Icon {...sx(c.icon22)} strokeWidth={1.5} />}
+          fallback={<ItemIcon kind="place" category={place.category} {...sx(c.icon22)} strokeWidth={1.5} />}
           onOpen={(url) => onPhotos(place, url)}
         />
         <div {...sx(c.cardBody)}>

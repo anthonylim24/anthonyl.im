@@ -7,6 +7,7 @@ import { usePracticeStore } from '@/stores/practiceStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { LEAD_IN_SECONDS } from '../../protocols/coaching'
 import { SessionPage } from '../SessionPage'
+import { isReloadBlocked } from '@/lib/serviceWorker'
 
 function renderSession(search: string) {
   return render(
@@ -161,6 +162,30 @@ describe('SessionPage', () => {
     expect(screen.getByText('Session complete')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /repeat/i })).not.toBeInTheDocument()
     expect(screen.getByText(/90 seconds of easy breathing/)).toBeInTheDocument()
+  })
+
+  it('holds off update reloads from the lead-in to the summary, and releases on unmount', () => {
+    vi.useFakeTimers()
+    const { unmount } = renderSession(BOX_FAST)
+    expect(isReloadBlocked()).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    expect(isReloadBlocked()).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(isReloadBlocked()).toBe(false)
+
+    startSession()
+    expect(isReloadBlocked()).toBe(true)
+    act(() => {
+      vi.advanceTimersByTime(4000)
+    })
+    expect(screen.getByText('Session complete')).toBeInTheDocument()
+    expect(isReloadBlocked()).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: /repeat/i }))
+    expect(isReloadBlocked()).toBe(true)
+    unmount()
+    expect(isReloadBlocked()).toBe(false)
   })
 
   it('counts down a lead-in before the first breath, and Cancel returns to setup', () => {

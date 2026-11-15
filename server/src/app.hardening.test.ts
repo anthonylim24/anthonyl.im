@@ -44,32 +44,13 @@ test("the retired Korea and entity endpoints are JSON 404s, not the SPA shell", 
     ["GET", "/api/korea/day/1/places"],
     ["GET", "/api/korea/dongs"],
     ["GET", "/api/korea/entities"],
+    ["POST", "/api/korea/chat"],
     ["POST", "/api/entity/about"],
     ["GET", "/api/entity/about/_stats"],
   ] as const) {
     const res = await app.request(path, { method, headers: { "Content-Type": "application/json" }, body: method === "POST" ? "{}" : undefined })
     expect(`${method} ${path} ${res.status}`).toBe(`${method} ${path} 404`)
     expect(res.headers.get("content-type")).toContain("application/json")
-  }
-})
-
-test("the Korea concierge is still mounted and rate limited", async () => {
-  const previous = process.env.GEMINI_API_KEY
-  delete process.env.GEMINI_API_KEY
-  try {
-    const app = await loadApp()
-    const ask = () =>
-      app.request("/api/korea/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "cf-connecting-ip": "198.51.100.200" },
-        body: JSON.stringify({ prompt: "hi" }),
-      })
-    const statuses: number[] = []
-    for (let i = 0; i < 21; i++) statuses.push((await ask()).status)
-    expect(statuses[0]).toBe(503) // mounted, no key in tests
-    expect(statuses.at(-1)).toBe(429)
-  } finally {
-    if (previous !== undefined) process.env.GEMINI_API_KEY = previous
   }
 })
 

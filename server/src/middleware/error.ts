@@ -1,4 +1,4 @@
-import { Context, MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 
 export const errorHandler: MiddlewareHandler = async (c: Context, next) => {
   try {

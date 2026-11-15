@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { sx } from "@/styles/merge"
 import { ACCENT_LABEL, addDays, dayCount, plural, resolveAccent, TRIP_ACCENTS } from "../meta"
 import type { Trip, TripDay, TripStatus } from "../types"
@@ -64,11 +64,12 @@ export function DetailsDialog({
   const formId = useId()
   const zones = useMemo(() => timezones(trip.timezone), [trip.timezone])
 
-  useEffect(() => {
+  // Re-seed only when the dialog opens; live saves must not clobber typing.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) setDraft(trip)
-    // Re-seed only when the dialog opens; live saves must not clobber typing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }
 
   const badRange = draft.endDate < draft.startDate
   const tooLong = !badRange && dayCount(draft.startDate, draft.endDate) > 60

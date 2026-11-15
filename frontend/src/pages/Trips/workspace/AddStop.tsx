@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
 import { MapPin, Plus, Search, StickyNote, Ticket } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { searchPlaces, type PlaceResult } from "../geocode"
@@ -20,39 +20,38 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 
 /** Debounced, abortable place search biased toward `near`. */
 export function usePlaceSearch(query: string, near: LngLat | null) {
-  const [results, setResults] = useState<PlaceResult[]>([])
-  const [loading, setLoading] = useState(false)
   const nearKey = near ? `${near.lat.toFixed(2)},${near.lng.toFixed(2)}` : ""
   const nearRef = useRef(near)
-  nearRef.current = near
+  useLayoutEffect(() => {
+    nearRef.current = near
+  })
+  const text = query.trim()
+  const searchKey = `${text}|${nearKey}`
+  /** The last answer and the search it answers; loading is "no answer for this search yet". */
+  const [search, setSearch] = useState<{ key: string; results: PlaceResult[] }>({ key: "", results: [] })
+  const searching = text.length >= 2
+  const results = searching ? search.results : []
+  const loading = searching && search.key !== searchKey
 
   useEffect(() => {
-    const text = query.trim()
-    if (text.length < 2) {
-      setResults([])
-      setLoading(false)
-      return
-    }
+    if (text.length < 2) return
     const controller = new AbortController()
-    setLoading(true)
     const timer = setTimeout(() => {
       searchPlaces(text, nearRef.current, controller.signal)
         .then((found) => {
           if (controller.signal.aborted) return
-          setResults(found)
-          setLoading(false)
+          setSearch({ key: searchKey, results: found })
         })
         .catch(() => {
           if (controller.signal.aborted) return
-          setResults([])
-          setLoading(false)
+          setSearch({ key: searchKey, results: [] })
         })
     }, 220)
     return () => {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [query, nearKey])
+  }, [text, searchKey])
 
   return { results, loading }
 }

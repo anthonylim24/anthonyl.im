@@ -7,8 +7,9 @@
 
 ```
 PR → .github/workflows/pr.yml
-        ├─ pr-server-tests          bun test --parallel --bail server/src  (incl. appLoad smoke)
+        ├─ pr-server-tests          bun run typecheck:server, then bun test --parallel --bail server/src  (incl. appLoad smoke)
         ├─ pr-frontend-typecheck    tsc -b --noEmit
+        ├─ pr-frontend-lint         eslint . (zero errors; warnings allowed)
         ├─ pr-frontend-build        tsc -b && vite build (stub .env)
         ├─ pr-frontend-tests        vitest run
         ├─ pr-cloud-setup           .codex/setup.sh → check.sh + invariant lints
@@ -71,14 +72,18 @@ Dependabot uses `package-ecosystem: "bun"` (not `npm`) for `/` and `/frontend`.
 
 | Entry | What it runs |
 |-------|----------------|
-| `.codex/check.sh` / `bun run codex:check` | ensure deps → TS pre-flight → server tests → frontend typecheck |
+| `.codex/check.sh` / `bun run codex:check` | ensure deps → TS pre-flight → server typecheck → server tests → frontend typecheck |
 | `.claude/cloud/verify.sh` | exec wrapper around `.codex/check.sh` |
 
-This is the **minimum** agents must pass before merging. The full GitHub `pr-gate` is stricter (also build + vitest + cloud setup smoke). After frontend edits also run:
+This is the **minimum** agents must pass before merging. The full GitHub `pr-gate` is stricter (also lint + build + vitest + cloud setup smoke). After frontend edits also run:
 
 ```bash
-cd frontend && bun run build && bun run test:run
+cd frontend && bun run lint && bun run build && bun run test:run
 ```
+
+**Server typecheck.** `tsconfig.server.json` (root) extends `tsconfig.json`, adds `types: ["bun"]`, includes `server/**/*.ts` + `index.ts` and excludes tests. Bun runs TypeScript without checking it, so before this a call to a removed variable shipped (`dayPlacesCache` in `igPlaces/wire.ts`). Run it with `bun run typecheck:server`.
+
+**Lint.** `pr-frontend-lint` fails on any ESLint error (warnings pass). Fix the code; where a rule is genuinely wrong for one spot, a single-line `// eslint-disable-next-line <rule> -- <reason>`. No file- or config-wide disables.
 
 ## Deploy invariants (do not break)
 
@@ -99,6 +104,8 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBL
 |---------|--------|
 | Missing/renamed server export (PM2 crash) | `server/src/appLoad.test.ts` via `bun test server/src` |
 | Frontend types green in vite/esbuild but red in `tsc` | `pr-frontend-typecheck` + `bun run typecheck` |
+| Server code that Bun runs but `tsc` rejects (a removed name, a wrong call) | `bun run typecheck:server` in `pr-server-tests` and `.codex/check.sh` |
+| React hook misuse (`set-state-in-effect`, refs read in render) | `pr-frontend-lint` |
 | Cloud agent builds before `frontend/node_modules` exists → TS 5.x fallback | `.codex/lib.sh` `verify_frontend_typescript` |
 | Dependabot bumps `package.json` without lockfile | Fixed by `package-ecosystem: bun` + text `bun.lock` |
 | PM2 online but app dead on first request | Post-deploy `/health` + SPA smoke |
@@ -114,7 +121,7 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBL
 
 ## What is intentionally NOT in the cloud verify gate
 
-- ESLint (`bun run lint`) — still has debt; not a merge blocker via check.sh
+- ESLint (`bun run lint`) — kept out of check.sh for speed; it is a merge blocker through `pr-frontend-lint` in `pr-gate`
 - Playwright e2e — opt-in via `.claude/cloud/e2e.sh`
 - Remote PR preview publish — droplet SSH; tracked in `preview.yml`, not check.sh
 

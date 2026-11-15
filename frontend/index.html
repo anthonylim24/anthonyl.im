@@ -10,11 +10,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <!-- Short label shown under the icon when added to iOS Home Screen.
-         The PWA we install is the Korea trip dossier — the only app on
-         the site that benefits from a standalone shell. iOS Safari
-         reads these synchronously at page load, BEFORE any route
-         script runs, so the default has to be the desired install
-         identity (not chatbot or BreathFlow). -->
+         iOS Safari reads these synchronously at page load, BEFORE any
+         route script runs, so the server writes each route's own short
+         name into the HTML (server/src/shellMeta.ts: "Korea Trip" on
+         /trips/korea-2026, "Trips" on other /trips, "Lim", "BreathFlow",
+         "anthonyl.im"). These defaults only show in dev. -->
     <meta name="apple-mobile-web-app-title" content="Korea Trip" />
     <meta name="application-name" content="Korea Trip" />
     <meta name="description" content="Meet Lim, a squishy jelly who answers for Anthony Lim. Ask about his work, projects, and engineering background." />
@@ -36,45 +36,21 @@
     <title>Lim — Ask Anthony Lim's AI</title>
 
     <!-- Route metadata for the SPA. The server strips the static preview tags
-         and injects the route's own at the end of <head>, after these scripts
-         run, so a tag written now would be a duplicate. setRouteMeta writes
-         once the head is parsed, updating the tag in place (or creating it in
-         dev, where nothing injects), and the sweep leaves exactly one tag of
-         each kind. -->
+         and writes the route's own straight after <meta charset>
+         (server/src/shellMeta.ts), above these scripts, so setRouteMeta
+         updates that one tag in place. In dev nothing injects and it updates
+         the static tags above, or creates the tag. -->
     <script data-route-metadata="shared">
       (() => {
-        const SINGLE = /^(description|application-name|apple-mobile-web-app-title|og:.+|twitter:.+)$/;
-        function writeMeta(attribute, value, content) {
-          const all = document.head.querySelectorAll('meta[' + attribute + '="' + value + '"]');
-          let element = all[all.length - 1];
+        window.__setRouteMeta = (attribute, value, content) => {
+          let element = document.head.querySelector('meta[' + attribute + '="' + value + '"]');
           if (!element) {
             element = document.createElement('meta');
             element.setAttribute(attribute, value);
             document.head.appendChild(element);
           }
           element.setAttribute('content', content);
-        }
-        // Keep the last tag of each kind: the server's, the most specific.
-        function dedupe() {
-          const seen = new Set();
-          const tags = Array.from(document.head.querySelectorAll('meta[name], meta[property]')).reverse();
-          for (const tag of tags) {
-            const kind = tag.getAttribute('property') || tag.getAttribute('name');
-            if (!SINGLE.test(kind)) continue;
-            const key = (tag.hasAttribute('property') ? 'property:' : 'name:') + kind;
-            if (seen.has(key)) tag.remove();
-            else seen.add(key);
-          }
-        }
-        const pending = [];
-        window.__setRouteMeta = (attribute, value, content) => {
-          if (document.readyState === 'loading') pending.push([attribute, value, content]);
-          else writeMeta(attribute, value, content);
         };
-        document.addEventListener('DOMContentLoaded', () => {
-          dedupe();
-          for (const args of pending) writeMeta(...args);
-        }, { once: true });
       })();
     </script>
 
@@ -97,10 +73,9 @@
         setRouteMeta('property', 'og:description', description);
         setRouteMeta('name', 'twitter:title', title);
         setRouteMeta('name', 'twitter:description', description);
-        // BreathFlow is intentionally NOT a PWA — we don't expose the
-        // manifest, apple-mobile-web-app-title, or application-name
-        // here so iOS's Add-to-Home-Screen flow defaults to the Korea
-        // identity set in the base head.
+        // BreathFlow is not a PWA: the manifest stays the Korea trip's,
+        // whose scope is /trips. Its Home Screen label ("BreathFlow") is
+        // in the server's HTML, since iOS reads it before this runs.
       })();
     </script>
 

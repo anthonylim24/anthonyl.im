@@ -85,12 +85,11 @@ export function Counter({ value, suffix = '', decimals = 0 }: { value: number; s
     () => new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }),
     [decimals],
   )
-  const [shown, setShown] = useState(reduced ? value : 0)
+  const [counted, setShown] = useState(0)
+  // Reduced motion shows the final value; nothing counts up.
+  const shown = reduced ? value : counted
   useEffect(() => {
-    if (!inView || reduced) {
-      if (reduced) setShown(value)
-      return
-    }
+    if (!inView || reduced) return
     const controls = animate(0, value, { duration: 1.8, ease: EASE, onUpdate: setShown })
     return () => controls.stop()
   }, [inView, reduced, value])

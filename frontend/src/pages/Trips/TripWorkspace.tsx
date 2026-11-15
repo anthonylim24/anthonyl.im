@@ -230,11 +230,17 @@ function Workspace() {
   const basePath = trip ? `/trips/${trip.slug ?? trip.id}` : "/trips"
   useTabTitle(trip ? `${day ? `Day ${dayIndex + 1} · ` : ""}${trip.name} · Trips` : null)
 
-  // New day (or back to the overview): start at the top with nothing selected.
-  useEffect(() => {
+  // New day (or back to the overview): nothing selected (adjusted during
+  // render) and the page back at the top (the effect below).
+  const viewKey = `${trip?.id ?? ""}|${dayId ?? ""}`
+  const [seenViewKey, setSeenViewKey] = useState(viewKey)
+  if (seenViewKey !== viewKey) {
+    setSeenViewKey(viewKey)
     setActiveId(null)
     setFocusId(null)
     setHotId(null)
+  }
+  useEffect(() => {
     if (wide) paneRef.current?.scrollTo({ top: 0 })
     else window.scrollTo({ top: 0 })
     railRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" })
@@ -290,12 +296,12 @@ function Workspace() {
     return centroid(all) ?? trip.center ?? null
   }, [trip])
 
-  // Search bias for the composer and every stop's place search. Keyed by
-  // rounded coordinates: a new object per keystroke would re-render every card.
+  // Search bias for the composer and every stop's place search. Memoised on
+  // the coordinates: a new object per keystroke would re-render every card.
   const nearNow = day ? (centroid(dayRoute(day)) ?? tripCenter) : tripCenter
-  const nearKey = nearNow ? `${nearNow.lat.toFixed(4)},${nearNow.lng.toFixed(4)}` : ""
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const near = useMemo<LngLat | null>(() => nearNow, [nearKey])
+  const nearLat = nearNow?.lat ?? null
+  const nearLng = nearNow?.lng ?? null
+  const near = useMemo<LngLat | null>(() => (nearLat === null || nearLng === null ? null : { lat: nearLat, lng: nearLng }), [nearLat, nearLng])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
@@ -303,14 +309,10 @@ function Workspace() {
   const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
   const frameKey = `${day?.id ?? "all"}|${pins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}`
 
-  const active = useMemo(() => {
-    if (!trip || !activeId) return null
-    for (let i = 0; i < trip.days.length; i++) {
-      const item = trip.days[i]!.items.find((it) => it.id === activeId)
-      if (item) return { item, day: trip.days[i]!, dayNumber: i + 1 }
-    }
-    return null
-  }, [trip, activeId])
+  const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
+  const activeDay = trip && activeDayIndex >= 0 ? trip.days[activeDayIndex] : undefined
+  const activeItem = activeDay?.items.find((it) => it.id === activeId)
+  const active = activeDay && activeItem ? { item: activeItem, day: activeDay, dayNumber: activeDayIndex + 1 } : null
 
   // Touring: step through the day's pinned stops from the place card.
   const tour = useMemo(() => {
@@ -330,12 +332,19 @@ function Workspace() {
   )
 
   // Deep link: /day/:id#item-<id> selects that stop and shows it on the map
-  // (on a phone that means switching to the map).
-  useEffect(() => {
-    if (!day) return
-    const id = location.hash.startsWith("#item-") ? decodeURIComponent(location.hash.slice(6)) : null
-    if (id && day.items.some((i) => i.id === id)) locate(id)
-  }, [location.hash, day?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // (on a phone that means switching to the map). Checked once per day and
+  // hash, during render, after the new-day reset above.
+  const deepLinkKey = day ? `${day.id}${location.hash}` : null
+  const [seenDeepLink, setSeenDeepLink] = useState<string | null>(null)
+  if (deepLinkKey !== seenDeepLink) {
+    setSeenDeepLink(deepLinkKey)
+    const id = day && location.hash.startsWith("#item-") ? decodeURIComponent(location.hash.slice(6)) : null
+    if (day && id && day.items.some((i) => i.id === id)) {
+      setActiveId(id)
+      setFocusId(id)
+      if (!wide) setView("map")
+    }
+  }
 
   const onAdded = useCallback((id: string) => {
     setFresh(new Set([id]))
@@ -354,6 +363,7 @@ function Workspace() {
 
   useEffect(() => {
     if (!trip || !editable || !wantsImport) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot hand-off from the URL; this effect also strips the query, which cannot happen during render
     openInstagram(extractInstagramUrls(sharedLink ?? ""))
     const next = new URLSearchParams(searchParams)
     for (const key of ["instagram", "url", "text", "title", "ingest"]) next.delete(key)

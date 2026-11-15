@@ -30,13 +30,6 @@ describe("readErrorMessage", () => {
     await expect(Effect.runPromise(readErrorMessage(res, "error-only"))).resolves.toBe("quota")
   })
 
-  it("reads message only (korea chat)", async () => {
-    const res = jsonResponse({ message: "GEMINI_API_KEY is not set on the server.", error: "missing_key" })
-    await expect(Effect.runPromise(readErrorMessage(res, "message-only"))).resolves.toBe(
-      "GEMINI_API_KEY is not set on the server.",
-    )
-  })
-
   it("falls back to HTTP status when the body is empty", async () => {
     const res = jsonResponse({}, 502)
     await expect(Effect.runPromise(readErrorMessage(res, "error-only"))).resolves.toBe("HTTP 502")

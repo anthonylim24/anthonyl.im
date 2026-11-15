@@ -72,7 +72,6 @@ anthonyl.im/
 │       ├── config.ts            # Env schema
 │       ├── routes/
 │       │   ├── invoke.ts        # POST /api/invoke — chatbot SSE
-│       │   ├── koreaChat.ts     # POST /api/korea/chat — concierge SSE (the only /api/korea route)
 │       │   ├── trips.ts         # /api/trips/* (Clerk required)
 │       │   ├── instagramPlaces.ts
 │       │   └── agentSession.ts  # POST /api/agent/session
@@ -110,6 +109,9 @@ cd frontend && bun run build
 
 # Run server tests (mocked, no external deps)
 bun test --parallel --bail server/src
+
+# Typecheck server (tsconfig.server.json; tests excluded)
+bun run typecheck:server
 
 # Run frontend unit tests
 cd frontend && bun run test:run
@@ -153,8 +155,9 @@ The wrong-stack Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, bill
 > Full agent memory: [`docs/ci-cd.md`](docs/ci-cd.md) (also `.agents/memory/ci-cd.md`).
 
 ```
-PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tests
+PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tests (server typecheck + tests)
                                            ├─► pr-frontend-typecheck
+                                           ├─► pr-frontend-lint
                                            ├─► pr-frontend-build
                                            ├─► pr-frontend-tests
                                            ├─► pr-cloud-setup
@@ -188,19 +191,23 @@ If a check ever needs to be temporarily skipped (genuine emergency hotfix only),
 The canonical **local/cloud** gate — `.codex/check.sh` / `.claude/cloud/verify.sh` — is:
 
 ```bash
-# 1. Server tests (mocked, no env needed beyond stubs)
-KLUSTER_API_KEY=ci-stub KLUSTER_API_BASE_URL=https://example.invalid IG_WORKER_ENABLED=false \
-  bun test --parallel --bail server/src
+# 1. Server typecheck (nothing else typechecks server/)
+bun run typecheck:server
 
-# 2. Frontend typecheck
+# 2. Server tests (mocked, no env needed)
+IG_WORKER_ENABLED=false bun test --parallel --bail server/src
+
+# 3. Frontend typecheck
 cd frontend && bun run typecheck
 ```
 
-GitHub `pr-gate` is stricter (also build + vitest + cloud-setup smoke). If you touched anything in `frontend/`, also run:
+GitHub `pr-gate` is stricter (also frontend lint + build + vitest + cloud-setup smoke). If you touched anything in `frontend/`, also run:
 
 ```bash
-cd frontend && bun run build && bun run test:run
+cd frontend && bun run lint && bun run build && bun run test:run
 ```
+
+Lint must stay at zero errors. Fix the code rather than disabling a rule; where a rule is genuinely wrong for one spot, use a single-line `// eslint-disable-next-line <rule> -- <reason>`, never a file- or config-wide disable.
 
 ### Type-fixture invariant
 
@@ -227,7 +234,7 @@ Two regressions surfaced in May 2026 that the verify gate now catches:
 
 ## Routing
 
-Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Link previews: `appPreviews` in `server/app.ts` (title, description, 1200×630 card `frontend/public/og-<app>.jpg`; bump `OG_VERSION` when a card changes). Keep `index.html`'s bootstrap scripts and `lib/routeMetadata.ts` in sync with it. `/` must stay routed to the SPA shell (Lim) ahead of `serveStatic` (`server/src/previewMeta.test.ts`). Basename comes from `lib/routerBasename.ts` (PR preview support).
+Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Link previews: `appPreviews` in `server/src/shellMeta.ts` (title, description, Home Screen `installName`, 1200×630 card `frontend/public/og-<app>.jpg`; bump `OG_VERSION` when a card changes), written straight after `<meta charset>` so the inline scripts update those tags in place. Keep `index.html`'s bootstrap scripts and `lib/routeMetadata.ts` in sync with it. `/` must stay routed to the SPA shell (Lim) ahead of `serveStatic` (`server/src/previewMeta.test.ts`). Basename comes from `lib/routerBasename.ts` (PR preview support).
 
 | Path | App | Auth |
 |------|-----|------|
@@ -256,7 +263,7 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/trips/:tripId/places` | Redirect to `/trips/:tripId` (hash + query kept) | Clerk-gated |
 | `/trips/*` | `TripsNotFound` | Clerk-gated |
 
-Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, the photoreal 3D view (day "…" menu, "Fly the day in 3D"). Instagram import is a sheet, not a route (`instagram/InstagramSheet.tsx`): opened from the trip menu, the overview's "From Instagram" button, by pasting a post link into a day's composer, or by `?instagram=<link>` / `?ingest=1` (the PWA share target sends shared links to `/trips?url=…`, which forwards to the current or next trip). `pages/Korea/koreaChatApi.ts` is the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
+Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, the photoreal 3D view (day "…" menu, "Fly the day in 3D"). Instagram import is a sheet, not a route (`instagram/InstagramSheet.tsx`): opened from the trip menu, the overview's "From Instagram" button, by pasting a post link into a day's composer, or by `?instagram=<link>` / `?ingest=1` (the PWA share target sends shared links to `/trips?url=…`, which forwards to the current or next trip). Do not add destination-specific routes.
 
 ---
 
@@ -281,7 +288,7 @@ Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticat
 
 Full list: [`docs/env.md`](docs/env.md). Schema: `server/src/config.ts`; frontend: `frontend/.env.example`.
 
-- No variable is required at boot; a missing key degrades its feature. `KLUSTER_API_*` are unread leftovers.
+- No variable is required at boot; a missing key degrades its feature.
 - `CLERK_SECRET_KEY` is required in production; without it every Clerk-gated route answers 401.
 - `GEMINI_API_KEY` is the primary model everywhere (Gemini 4 Hydrogen); `GROQ_API_KEY` is the backup.
 - `IG_DEV_BEARER` / `VITE_DEV_BEARER` are a local-only Clerk bypass, ignored (with a loud warning) when `NODE_ENV=production`. **Never** set them in production or PR previews.
@@ -412,7 +419,7 @@ The installable PWA is Korea-scoped (`korea.webmanifest`, `CACHE_VERSION = korea
 - **A missing `/assets/*` file is a 404**, never the SPA shell (`server/app.ts`; HTML served as JavaScript breaks lazy imports and gets cached by the SW)
 - **Deploys keep earlier builds' hashed chunks for 14 days** (`deploy.yml` copies the live `dist/assets` into the staged build), so a tab left open across a deploy can still lazy-load
 - **Lazy components go through `lazyRetry`** (`lib/lazyRetry.ts`: one retry). A route chunk that is gone reloads the page once (`RouteErrorBoundary`); an optional overlay (3D view, Instagram sheet, concierge) sits in an `OverlayBoundary`, so its failure closes only the overlay and offers Reload
-- **Updates never interrupt someone.** `sw.js` does not call `skipWaiting()` on install and never navigates clients; a new worker waits. The client (`serviceWorker.ts`, a pure `updateStep` machine: `uncontrolled → controlled → updateReady → reloading`) posts `SKIP_WAITING` and reloads on the following `controllerchange` only when it is safe: on the next client-side route change, or when the tab is hidden or untouched for 60 s with no text field focused or filled and not on `/breathwork/session`. Any app can hold it off with `setReloadBlocked(key, true)` (release with `false`). A `controllerchange` on a page that had no controller (first visit) never reloads
+- **Updates never interrupt someone.** `sw.js` does not call `skipWaiting()` on install and never navigates clients; a new worker waits. The client (`serviceWorker.ts`, a pure `updateStep` machine: `uncontrolled → controlled → updateReady → reloading`) posts `SKIP_WAITING` and reloads on the following `controllerchange` only when it is safe: on the next client-side route change, or when the tab is hidden or untouched for 60 s with no text field focused or filled. An app holds it off with `useReloadBlock(key, busy)` (`hooks/useReloadBlock.ts`, over `setReloadBlocked`): BreathFlow from the lead-in until the result is saved, Lim while a turn is not idle. A held block wins even over a route change. A `controllerchange` on a page that had no controller (first visit) never reloads
 - **Navigations are cached as one shell per app** (`/`, `/lab`, `/breathwork`, `/trips`, `/trips/korea-2026`), never under the requested URL: no query strings, and `/trips/join/*`, `/sign-in*`, `/sign-up*` are never stored. `/assets/*` is cache-first; other public files (favicons, `/og-*.jpg`, `/legal.css`) are stale-while-revalidate; the runtime cache is trimmed on activate
 
 ---

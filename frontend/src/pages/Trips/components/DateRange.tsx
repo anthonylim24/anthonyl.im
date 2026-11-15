@@ -60,11 +60,18 @@ export function DateRange({
   const wrapRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
+  const toggle = () => {
+    if (!open) {
+      // Opening re-centres on the current start; later edits must not.
+      setMonth(monthOf(start))
+      setAnchor(null)
+      setHover(start)
+    }
+    setOpen(!open)
+  }
+
   useEffect(() => {
     if (!open) return
-    setMonth(monthOf(start))
-    setAnchor(null)
-    setHover(start)
     // Land on the first day so the arrow keys work straight away.
     requestAnimationFrame(() => gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${start}"]`)?.focus())
     const onPointer = (event: PointerEvent) => {
@@ -72,7 +79,7 @@ export function DateRange({
     }
     document.addEventListener("pointerdown", onPointer)
     return () => document.removeEventListener("pointerdown", onPointer)
-    // Opening re-centres on the current start; later edits must not.
+    // Focus lands on the start the panel opened with; later edits must not move it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
@@ -131,7 +138,7 @@ export function DateRange({
         aria-label={`${label}: ${formatRangeLong(start, end)}, ${plural(count, "day")}. Change dates`}
         disabled={disabled}
         {...sx(a.field, r.trigger, open && r.triggerOpen)}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
       >
         <CalendarDays size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.muted)} />
         <span {...sx(a.grow, a.truncate)}>{formatRangeLong(start, end)}</span>

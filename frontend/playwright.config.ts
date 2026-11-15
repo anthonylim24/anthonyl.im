@@ -46,8 +46,6 @@ export default defineConfig({
           stdout: 'pipe',
           stderr: 'pipe',
           env: {
-            KLUSTER_API_KEY: 'codex-stub',
-            KLUSTER_API_BASE_URL: 'https://example.invalid',
             IG_WORKER_ENABLED: 'false',
             IG_DEV_BEARER: 'codex-dev-bearer',
             IG_DEV_USER_ID: 'codex-dev',

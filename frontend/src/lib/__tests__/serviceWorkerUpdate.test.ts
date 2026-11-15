@@ -4,7 +4,7 @@ import {
   INITIAL_UPDATE_STATE,
   createUpdateController,
   hasDraft,
-  isBusyRoute,
+  isReloadBlocked,
   isSafeToReload,
   registerServiceWorker,
   setReloadBlocked,
@@ -57,7 +57,7 @@ describe('updateStep', () => {
   })
 })
 
-const calm: ReloadContext = { blocked: false, navigated: false, hidden: false, idleMs: 0, draft: false, busyRoute: false }
+const calm: ReloadContext = { blocked: false, navigated: false, hidden: false, idleMs: 0, draft: false }
 
 describe('isSafeToReload', () => {
   it('reloads on a route change, a hidden tab, or a minute untouched', () => {
@@ -67,18 +67,22 @@ describe('isSafeToReload', () => {
     expect(isSafeToReload({ ...calm, idleMs: IDLE_RELOAD_MS })).toBe(true)
   })
 
-  it('never reloads over a draft, a breath session, or an app block', () => {
+  it('never reloads over a draft or an app block', () => {
     expect(isSafeToReload({ ...calm, hidden: true, draft: true })).toBe(false)
-    expect(isSafeToReload({ ...calm, idleMs: IDLE_RELOAD_MS * 5, busyRoute: true })).toBe(false)
+    expect(isSafeToReload({ ...calm, idleMs: IDLE_RELOAD_MS * 5, blocked: true })).toBe(false)
     expect(isSafeToReload({ ...calm, navigated: true, blocked: true })).toBe(false)
   })
 })
 
-describe('isBusyRoute', () => {
-  it('marks the breath session, preview prefix or not', () => {
-    expect(isBusyRoute('/breathwork/session')).toBe(true)
-    expect(isBusyRoute('/preview/pr/7/breathwork/session')).toBe(true)
-    expect(isBusyRoute('/breathwork')).toBe(false)
+describe('setReloadBlocked', () => {
+  it('holds while any key is held, and only those keys release it', () => {
+    expect(isReloadBlocked()).toBe(false)
+    setReloadBlocked('a', true)
+    setReloadBlocked('b', true)
+    setReloadBlocked('a', false)
+    expect(isReloadBlocked()).toBe(true)
+    setReloadBlocked('b', false)
+    expect(isReloadBlocked()).toBe(false)
   })
 })
 
@@ -108,7 +112,7 @@ describe('createUpdateController', () => {
     const deps = {
       postSkipWaiting: vi.fn(),
       reload: vi.fn(),
-      readContext: vi.fn(() => ({ hidden: false, idleMs: 0, draft: false, busyRoute: false, ...context })),
+      readContext: vi.fn(() => ({ hidden: false, idleMs: 0, draft: false, ...context })),
       onUpdateReady: vi.fn(),
     }
     return { deps, updater: createUpdateController(deps) }
@@ -165,7 +169,7 @@ describe('registerServiceWorker update flow', () => {
     registerServiceWorker(
       { PROD: true },
       { serviceWorker: container },
-      { addEventListener: vi.fn() as unknown as Window['addEventListener'], location: { reload, pathname: '/' } },
+      { addEventListener: vi.fn() as unknown as Window['addEventListener'], location: { reload } },
     )
     return { fire: () => listeners.controllerchange?.(new Event('controllerchange')), reload }
   }

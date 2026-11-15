@@ -8,7 +8,6 @@ import { errorHandler } from "./middleware/error"
 import { createRateLimit, userOrClientKey } from "./middleware/rateLimit"
 import { createClerkAuth, verifyClerkOptional } from "./middleware/clerkAuth"
 import invokeRouter from "./routes/invoke"
-import koreaChatRouter from "./routes/koreaChat"
 import { createInstagramPlacesRouter } from "./routes/instagramPlaces"
 import { createTripsRouter } from "./routes/trips"
 import { getTripStore } from "./trips/store"
@@ -60,17 +59,11 @@ export function createPreviewApiApp(): Hono {
     await next()
   }
   app.use("/api/invoke/*", applySse)
-  app.use("/api/korea/chat", applySse)
   app.use("/api/trips/:id/chat", applySse)
 
   app.use("/api/invoke/*", createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "preview-invoke" }))
-  app.use(
-    "/api/korea/chat",
-    createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "preview-korea-chat", key: userOrClientKey }),
-  )
 
   app.route("/api/invoke", invokeRouter)
-  app.route("/api/korea/chat", koreaChatRouter)
   app.route(
     "/api/trips",
     createTripsRouter({

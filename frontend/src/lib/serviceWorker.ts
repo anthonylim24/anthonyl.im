@@ -31,7 +31,7 @@ interface ServiceWorkerNavigator {
 
 interface ServiceWorkerWindow {
   addEventListener: Window["addEventListener"]
-  location?: { reload: () => void; pathname?: string }
+  location?: { reload: () => void }
   document?: Document
 }
 
@@ -121,19 +121,18 @@ export interface ReloadContext {
   idleMs: number
   /** A text field has focus or holds text. */
   draft: boolean
-  /** A route where watching without touching is the point (a breath session). */
-  busyRoute: boolean
 }
 
 /**
- * An app's own block always wins. A route change is a page change anyway, so
- * it is the best moment. Otherwise wait until the tab is hidden or untouched
- * for a minute, and never while a field holds text or a breath session is on.
+ * An app's own block always wins (a breath session, a Lim turn: see
+ * `setReloadBlocked`). A route change is a page change anyway, so it is the
+ * best moment. Otherwise wait until the tab is hidden or untouched for a
+ * minute, and never while a field holds text.
  */
 export function isSafeToReload(ctx: ReloadContext): boolean {
   if (ctx.blocked) return false
   if (ctx.navigated) return true
-  if (ctx.draft || ctx.busyRoute) return false
+  if (ctx.draft) return false
   return ctx.hidden || ctx.idleMs >= IDLE_RELOAD_MS
 }
 
@@ -160,11 +159,6 @@ export function hasDraft(doc: Document): boolean {
   return false
 }
 
-export function isBusyRoute(pathname: string): boolean {
-  const appPath = pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, "") || "/"
-  return appPath.startsWith("/breathwork/session")
-}
-
 const blockers = new Set<string>()
 let activeUpdater: UpdateController | null = null
 
@@ -179,6 +173,11 @@ export function setReloadBlocked(key: string, blocked: boolean): void {
   }
   blockers.delete(key)
   activeUpdater?.check(false)
+}
+
+/** True while any `setReloadBlocked` key is held. */
+export function isReloadBlocked(): boolean {
+  return blockers.size > 0
 }
 
 /** The router calls this on every client-side route change. */
@@ -211,7 +210,7 @@ export function createUpdateController(deps: UpdateControllerDeps): UpdateContro
 
   const check = (navigated: boolean) => {
     if (state.phase !== "updateReady") return
-    if (isSafeToReload({ ...deps.readContext(), blocked: blockers.size > 0, navigated })) {
+    if (isSafeToReload({ ...deps.readContext(), blocked: isReloadBlocked(), navigated })) {
       dispatch({ type: "SAFE_TO_RELOAD" })
     }
   }
@@ -329,7 +328,6 @@ export function registerServiceWorker(
       hidden: doc?.visibilityState === "hidden",
       idleMs: Date.now() - lastActivity,
       draft: doc ? hasDraft(doc) : false,
-      busyRoute: isBusyRoute(windowRef.location?.pathname ?? "/"),
     }),
     onUpdateReady: () => {
       // Idle counts from now at the earliest, so a tab left open does not

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useHistoryStore } from '@/stores/historyStore'
 import { getRecoveryStatus, type RecoveryStatus } from './recovery'
 
@@ -15,9 +15,14 @@ export function useRecoveryStatus(): RecoveryStatus {
   const [now, setNow] = useState(() => new Date())
   const status = getRecoveryStatus(sessions, now)
 
-  useLayoutEffect(() => {
-    setNow(new Date())
-  }, [sessions])
+  // Refresh the clock in the same batch as the history change.
+  useEffect(
+    () =>
+      useHistoryStore.subscribe((next, prev) => {
+        if (next.sessions !== prev.sessions) setNow(new Date())
+      }),
+    [],
+  )
 
   useEffect(() => {
     if (!status.isActive) return

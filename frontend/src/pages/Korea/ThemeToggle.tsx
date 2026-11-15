@@ -22,11 +22,10 @@ const icons: Record<Theme, typeof Sun> = {
 
 export function ThemeToggle({ style }: { style?: StyleXStyles } = {}) {
   const reduce = useReducedMotion()
-  const [theme, setTheme] = useState<Theme>("system")
+  const [theme, setTheme] = useState<Theme>(getInitialTheme)
 
   useEffect(() => {
     const initial = getInitialTheme()
-    setTheme(initial)
     applyTheme(initial)
 
     if (initial !== "system") return

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useNavigate } from "react-router-dom"
@@ -199,7 +199,7 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
   const [expanded, setExpanded] = useState(false)
   /** Docked beside the page on desktop, the panel is a side region, not a modal. */
   const modal = expanded || !isDesktop
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => (tripId ? loadConversation(tripId) : []))
   const [input, setInput] = useState("")
   const [runState, setRunState] = useState<RunState>(IDLE)
   const phase = runState.phase
@@ -223,8 +223,10 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
   const working = phase === "working"
   const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, phase, open)
 
-  messagesRef.current = messages
-  tripIdRef.current = tripId
+  useLayoutEffect(() => {
+    messagesRef.current = messages
+    tripIdRef.current = tripId
+  })
 
   /** Keep `next` as the document for route `forId`, unless the route has moved on. */
   const putTrip = useCallback((forId: string, next: Trip, nextAccess?: TripAccess) => {
@@ -272,11 +274,11 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
     ),
   )
 
-  // The conversation belongs to the trip: restore it, and keep it saved.
-  const loadedFor = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    abortRef.current?.abort()
-    runRef.current += 1
+  // The conversation belongs to the trip. A new trip restores its own, adjusted
+  // during render so `messages` never pairs with the wrong `tripId` ...
+  const [conversationFor, setConversationFor] = useState(tripId)
+  if (conversationFor !== tripId) {
+    setConversationFor(tripId)
     setRunState(IDLE)
     setStatus(null)
     setInput("")
@@ -284,12 +286,19 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
     setActionError(null)
     setSkipped({})
     setUndos({})
-    loadedFor.current = tripId
     setMessages(tripId ? loadConversation(tripId) : [])
-  }, [tripId])
+  }
+  // ... and drops whatever the last trip's run was still streaming.
+  useEffect(
+    () => () => {
+      abortRef.current?.abort()
+      runRef.current += 1
+    },
+    [tripId],
+  )
 
   useEffect(() => {
-    if (!tripId || loadedFor.current !== tripId || phase === "working") return
+    if (!tripId || phase === "working") return
     saveConversation(tripId, messages)
   }, [tripId, messages, phase])
 
@@ -445,7 +454,6 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
             messages: toHistory(history),
             dayId: focusedDayId,
             location,
-            trip: activeTrip ?? undefined,
             signal: controller.signal,
           },
           readToken,

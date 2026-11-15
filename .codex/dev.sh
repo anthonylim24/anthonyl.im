@@ -19,8 +19,6 @@ if [ -f "$ROOT_DIR/.nvmrc" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
   fi
 fi
 
-export KLUSTER_API_KEY="${KLUSTER_API_KEY:-codex-stub}"
-export KLUSTER_API_BASE_URL="${KLUSTER_API_BASE_URL:-https://example.invalid}"
 export IG_WORKER_ENABLED="${IG_WORKER_ENABLED:-false}"
 export IG_DEV_BEARER="${IG_DEV_BEARER:-codex-dev-bearer}"
 export IG_DEV_USER_ID="${IG_DEV_USER_ID:-codex-dev}"

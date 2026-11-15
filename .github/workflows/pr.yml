@@ -40,8 +40,6 @@ permissions:
 
 env:
   # Shared stub env for any job that loads server/src/config.ts
-  KLUSTER_API_KEY: ci-stub
-  KLUSTER_API_BASE_URL: https://example.invalid
   IG_WORKER_ENABLED: "false"
 
 jobs:
@@ -57,6 +55,8 @@ jobs:
       - uses: ./.github/actions/setup-ci
         with:
           install-root: "true"
+      - name: Server typecheck (tsconfig.server.json)
+        run: bun run typecheck:server
       - name: Server tests (mocked, includes appLoad smoke)
         run: bun test --parallel --bail server/src
 
@@ -76,6 +76,24 @@ jobs:
       - name: Frontend typecheck (tsc -b --noEmit)
         working-directory: frontend
         run: bun run typecheck
+
+  # ─── 2b. Frontend lint ──────────────────────────────────────────────
+  # Zero ESLint errors (warnings pass). Fix the code; a one-off exception is
+  # a single-line `eslint-disable-next-line <rule> -- <reason>`.
+  pr-frontend-lint:
+    name: pr-frontend-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-ci
+        with:
+          install-frontend: "true"
+      - name: Frontend lint (eslint .)
+        working-directory: frontend
+        run: bun run lint
 
   # ─── 3. Frontend build ──────────────────────────────────────────────
   pr-frontend-build:
@@ -182,6 +200,7 @@ jobs:
           REQUIRED_JOBS=(
             pr-server-tests
             pr-frontend-typecheck
+            pr-frontend-lint
             pr-frontend-build
             pr-frontend-tests
             pr-cloud-setup

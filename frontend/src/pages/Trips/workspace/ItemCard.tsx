@@ -3,7 +3,7 @@ import { isToSchedule, TO_SCHEDULE } from "../map/geo"
 import { ArrowDown, ArrowUp, ChevronDown, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
-import { formatClock, itemIcon, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
+import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
@@ -13,6 +13,7 @@ import { scrollBehavior } from "./scroll"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
+import { ItemIcon } from "../ItemIcon"
 
 export interface ItemCardProps {
   item: ItineraryItem
@@ -69,7 +70,15 @@ export const ItemCard = memo(function ItemCard({
   onAnnounce,
   onGone,
 }: ItemCardProps) {
-  const [open, setOpen] = useState(false)
+  // A just-added, untitled item opens ready to type; later edits must not
+  // re-open a card the user closed, so this is decided once, on mount.
+  const [open, setOpen] = useState(() => !!expand || (editable && !item.title && item.kind !== "section"))
+  // Each new `expand` request opens the card (adjusted during render, not in an effect).
+  const [seenExpand, setSeenExpand] = useState(expand)
+  if (expand !== seenExpand) {
+    setSeenExpand(expand)
+    if (expand) setOpen(true)
+  }
   const [endOpen, setEndOpen] = useState(false)
   const panelId = useId()
   const rowRef = useRef<HTMLDivElement>(null)
@@ -83,17 +92,8 @@ export const ItemCard = memo(function ItemCard({
   }, [active])
 
   useEffect(() => {
-    if (!expand) return
-    setOpen(true)
-    rowRef.current?.scrollIntoView({ block: "center", behavior: scrollBehavior() })
+    if (expand) rowRef.current?.scrollIntoView({ block: "center", behavior: scrollBehavior() })
   }, [expand])
-
-  // A just-added, untitled item opens ready to type.
-  useEffect(() => {
-    if (editable && !item.title && item.kind !== "section") setOpen(true)
-    // Only on mount: later edits must not re-open a card the user closed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // "To schedule" is the planner's own divider: a plain header, not a row to edit.
   if (isToSchedule(item)) {
@@ -140,7 +140,6 @@ export const ItemCard = memo(function ItemCard({
     )
   }
 
-  const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
   const pinned = pinLabel !== null
   const sub = item.location?.address || firstLine(item.notes)
   const category = item.kind === "reservation" ? titleCase(item.reservation?.type ?? "Booking") : item.location?.category ? titleCase(item.location.category) : null
@@ -161,7 +160,7 @@ export const ItemCard = memo(function ItemCard({
           </button>
         ) : (
           <span {...sx(s.marker)} aria-hidden>
-            <Icon size={13} strokeWidth={1.75} />
+            <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={13} strokeWidth={1.75} />
           </span>
         )}
       </div>
@@ -457,10 +456,13 @@ function TimeField({
   const id = useId()
   const [text, setText] = useState(() => formatClock(value))
   const [bad, setBad] = useState(false)
-  useEffect(() => {
+  // A new value from outside (undo, another editor) replaces the draft.
+  const [seenValue, setSeenValue] = useState(value)
+  if (value !== seenValue) {
+    setSeenValue(value)
     setText(formatClock(value))
     setBad(false)
-  }, [value])
+  }
   const commit = () => {
     if (!text.trim()) {
       setBad(false)
