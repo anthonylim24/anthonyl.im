@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, renderHook } from "@testing-library/react"
 import { runPromise } from "@/effect/runtime"
-import { STALL_AFTER_MS, diagnose, probeDelay, useAuthStall } from "../authStall"
+import { STALL_AFTER_MS, diagnose, probeDelay, reloadToRecover, useAuthStall } from "../authStall"
 import { reloadOnce } from "../lazyRetry"
 import { resetClientEvents } from "../telemetry"
 
@@ -72,6 +72,29 @@ describe("diagnose", () => {
 describe("probeDelay", () => {
   it("doubles from 4 s to a 30 s ceiling", () => {
     expect([0, 1, 2, 3, 9].map(probeDelay)).toEqual([4_000, 8_000, 16_000, 30_000, 30_000])
+  })
+})
+
+describe("reloadToRecover", () => {
+  it("spends the reload budget only when a reload happens", () => {
+    vi.mocked(reloadOnce).mockReturnValueOnce(false)
+    expect(reloadToRecover()).toBe(false)
+    expect(sessionStorage.getItem("auth-reloads")).toBeNull()
+
+    expect(reloadToRecover()).toBe(true)
+    expect(sessionStorage.getItem("auth-reloads")).toBe("1")
+  })
+
+  it("keeps both reloads available across the one-minute window", () => {
+    vi.mocked(reloadOnce).mockReturnValueOnce(true).mockReturnValueOnce(false).mockReturnValueOnce(true)
+    expect([reloadToRecover(), reloadToRecover(), reloadToRecover(), reloadToRecover()]).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ])
+    expect(sessionStorage.getItem("auth-reloads")).toBe("2")
+    expect(reloadOnce).toHaveBeenCalledTimes(3)
   })
 })
 

@@ -175,7 +175,6 @@ describe('service worker registration', () => {
     expect(worker).toContain("'/trips/korea-2026'")
     expect(worker).toContain("'/korea.webmanifest'")
     expect(worker).toContain("'/breathwork'")
-    expect(worker).toContain("'/breathwork/progress'")
     expect(worker).toContain("request.mode === 'navigate'")
     expect(worker).toContain("url.pathname.startsWith('/api/')")
     expect(worker).toContain("url.pathname.startsWith('/preview/')")

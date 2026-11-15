@@ -415,7 +415,8 @@ The installable PWA is Korea-scoped (`korea.webmanifest`, `CACHE_VERSION = korea
 - **A missing `/assets/*` file is a 404**, never the SPA shell (`server/app.ts`; HTML served as JavaScript breaks lazy imports and gets cached by the SW)
 - **Deploys keep earlier builds' hashed chunks for 14 days** (`deploy.yml` copies the live `dist/assets` into the staged build), so a tab left open across a deploy can still lazy-load
 - **Lazy components go through `lazyRetry`** (`lib/lazyRetry.ts`: one retry). A route chunk that is gone reloads the page once (`RouteErrorBoundary`); an optional overlay (3D view, Instagram sheet, concierge) sits in an `OverlayBoundary`, so its failure closes only the overlay and offers Reload
-- The client (`serviceWorker.ts`) posts `SKIP_WAITING` and reloads on `controllerchange` — gives users seamless updates without a manual hard refresh
+- **Updates never interrupt someone.** `sw.js` does not call `skipWaiting()` on install and never navigates clients; a new worker waits. The client (`serviceWorker.ts`, a pure `updateStep` machine: `uncontrolled → controlled → updateReady → reloading`) posts `SKIP_WAITING` and reloads on the following `controllerchange` only when it is safe: on the next client-side route change, or when the tab is hidden or untouched for 60 s with no text field focused or filled and not on `/breathwork/session`. Any app can hold it off with `setReloadBlocked(key, true)` (release with `false`). A `controllerchange` on a page that had no controller (first visit) never reloads
+- **Navigations are cached as one shell per app** (`/`, `/lab`, `/breathwork`, `/trips`, `/trips/korea-2026`), never under the requested URL: no query strings, and `/trips/join/*`, `/sign-in*`, `/sign-up*` are never stored. `/assets/*` is cache-first; other public files (favicons, `/og-*.jpg`, `/legal.css`) are stale-while-revalidate; the runtime cache is trimmed on activate
 
 ---
 
