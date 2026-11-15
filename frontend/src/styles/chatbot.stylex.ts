@@ -895,6 +895,41 @@ export const chatbot = stylex.create({
     cursor: 'default',
     transform: 'none',
   },
+  /** How much room is left, shown only near the server's cap. */
+  counter: {
+    display: 'block',
+    marginTop: '6px',
+    paddingInline: '14px',
+    textAlign: 'right',
+    fontSize: '12px',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--chat-mid)',
+  },
+  counterFull: { color: 'var(--chat-error-text)', fontWeight: 600 },
+  /** A failed reply's own line, under whatever had arrived. */
+  errorNote: {
+    marginTop: '8px',
+    color: 'var(--chat-error-text)',
+    fontSize: '14px',
+    lineHeight: 1.45,
+  },
+  errorNoteAlone: { marginTop: 0 },
+  /** Follow-up suggestions under the last settled reply. */
+  followUps: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    paddingInlineStart: { default: '36px', [DESK]: '44px' },
+  },
+  followChip: {
+    minHeight: '44px',
+    paddingBlock: '6px',
+    paddingInlineStart: '12px',
+    paddingInlineEnd: '15px',
+    borderRadius: '999px',
+    fontSize: '14px',
+    animationName: { default: popIn, [RM]: 'none' },
+  },
   hint: {
     display: { default: 'none', '@media (hover: hover) and (pointer: fine)': 'flex' },
     flexWrap: 'wrap',

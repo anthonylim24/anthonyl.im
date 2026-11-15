@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { errorIfIncomplete, formatConciergeError, isLostConnection, remapChatFailure } from "../chatErrors"
+import { LIM_ERRORS, errorIfIncomplete, isLostConnection, limHttpError, remapChatFailure } from "../chatErrors"
 
 describe("remapChatFailure", () => {
   it("preserves AbortError", () => {
@@ -21,15 +21,14 @@ describe("remapChatFailure", () => {
   })
 })
 
-describe("formatConciergeError", () => {
-  it("keeps partial tokens and appends the warning", () => {
-    expect(formatConciergeError("Hello, wo", "The concierge lost its connection. Please try again.")).toBe(
-      "Hello, wo\n\n⚠️ The concierge lost its connection. Please try again.",
-    )
-  })
-
-  it("shows only the warning when nothing streamed", () => {
-    expect(formatConciergeError("  ", "boom")).toBe("⚠️ boom")
+describe("limHttpError", () => {
+  it("speaks for each status family, never in codes", () => {
+    expect(limHttpError(400)).toBe(LIM_ERRORS.tooLong)
+    expect(limHttpError(413)).toBe(LIM_ERRORS.tooLong)
+    expect(limHttpError(429)).toBe(LIM_ERRORS.busy)
+    expect(limHttpError(502)).toBe(LIM_ERRORS.server)
+    expect(limHttpError(418)).toBe(LIM_ERRORS.unknown)
+    for (const status of [400, 429, 500]) expect(limHttpError(status)).not.toMatch(/\d{3}/)
   })
 })
 

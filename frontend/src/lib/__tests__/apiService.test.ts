@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { TimeoutError } from "../../effect/errors";
-import { invokeDeepseek } from "../apiService";
+import { HttpStatusError, TimeoutError } from "../../effect/errors";
+import { LIM_ERRORS, ReplyStreamError } from "../../effect/chatErrors";
+import { invokeDeepseek, readInvokeChunk } from "../apiService";
 
 function sseResponse(lines: string[], status = 200): Response {
   const encoder = new TextEncoder();
@@ -38,12 +39,65 @@ describe("invokeDeepseek", () => {
     expect(updates).toEqual(["Hello", "Hello, world"]);
   });
 
-  it("throws on non-OK response with status in message", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 503 }),
-    );
+  it("answers a non-OK response in Lim's words, keeping the status for code", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const [status, line] of [
+      [400, LIM_ERRORS.tooLong],
+      [429, LIM_ERRORS.busy],
+      [503, LIM_ERRORS.server],
+    ] as const) {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("error", { status }));
+      const err = await invokeDeepseek("hi").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpStatusError);
+      expect((err as HttpStatusError).status).toBe(status);
+      expect((err as HttpStatusError).message).toBe(line);
+    }
+  });
 
-    await expect(invokeDeepseek("hi")).rejects.toThrow("503");
+  it("turns a mid-stream {error} event into a typed failure that keeps the partial reply", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([
+        `data: ${JSON.stringify("Anthony is")}\n`,
+        `data: ${JSON.stringify({ error: "Streaming error occurred" })}\n`,
+      ]),
+    );
+    const updates: string[] = [];
+    const err = await invokeDeepseek("hi", [], (c) => updates.push(c)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ReplyStreamError);
+    expect((err as ReplyStreamError).reason).toBe("server");
+    expect((err as ReplyStreamError).message).toBe(LIM_ERRORS.broke);
+    expect((err as ReplyStreamError).partialContent).toBe("Anthony is");
+    // The error object never reaches the text.
+    expect(updates).toEqual(["Anthony is"]);
+    expect(String((err as Error).message)).not.toContain("[object Object]");
+  });
+
+  it("drops payloads that are not text chunks", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([`data: ${JSON.stringify("A")}\n`, `data: {"weird":1}\n`, `data: not json\n`, `data: [DONE]\n`]),
+    );
+    expect((await invokeDeepseek("hi")).content).toBe("A");
+  });
+
+  it("hands a Stop back as an AbortError, not a failure", async () => {
+    const controller = new AbortController();
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) =>
+      new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))),
+    );
+    const pending = invokeDeepseek("hi", [], undefined, controller.signal).catch((e: unknown) => e);
+    controller.abort();
+    const err = await pending;
+    expect(err).toBeInstanceOf(DOMException);
+    expect((err as DOMException).name).toBe("AbortError");
+  });
+
+  it("says when the server could not be reached", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+    const err = await invokeDeepseek("hi").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ReplyStreamError);
+    expect((err as ReplyStreamError).reason).toBe("offline");
+    expect((err as ReplyStreamError).message).toBe(LIM_ERRORS.offline);
   });
 
   it("fires the watchdog after 45 s of silence", async () => {
@@ -79,17 +133,22 @@ describe("invokeDeepseek", () => {
     // to unblock it (AbortSignal abort propagates through the fetch mock's body).
     try { streamController!.close(); } catch { /* already closed */ }
 
-    await expect(promise).rejects.toThrow("timed out");
+    const err = await promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TimeoutError);
+    expect((err as TimeoutError).message).toBe(LIM_ERRORS.silent);
+    expect((err as TimeoutError).partialContent).toBe("hi");
   });
 
-  it("throws when the stream closes without [DONE]", async () => {
+  it("tells a stream that ended without [DONE] from the watchdog", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       sseResponse([`data: ${JSON.stringify("Hello")}\n`]),
     );
     const updates: string[] = [];
     const err = await invokeDeepseek("hi", [], (content) => updates.push(content)).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(TimeoutError);
-    expect((err as TimeoutError).partialContent).toBe("Hello");
+    expect(err instanceof ReplyStreamError).toBe(true);
+    expect((err as ReplyStreamError).reason).toBe("cut");
+    expect((err as ReplyStreamError).message).toBe(LIM_ERRORS.cut);
+    expect((err as ReplyStreamError).partialContent).toBe("Hello");
     expect(updates).toEqual(["Hello"]);
   });
 
@@ -110,5 +169,14 @@ describe("invokeDeepseek", () => {
 
     // Even though the first onUpdate threw, content must be exactly "AB"
     expect(result.content).toBe("AB");
+  });
+});
+
+describe("readInvokeChunk", () => {
+  it("accepts only string chunks and {error} events", () => {
+    expect(readInvokeChunk(JSON.stringify("hi\nthere"))).toEqual({ text: "hi\nthere" });
+    expect(readInvokeChunk(JSON.stringify({ error: "Streaming error occurred" }))).toEqual({ error: "Streaming error occurred" });
+    expect(readInvokeChunk(JSON.stringify({ error: { code: 1 } }))).toEqual({ error: "unknown" });
+    for (const bad of ["not json", "42", "null", "[1]", JSON.stringify({ content: "x" })]) expect(readInvokeChunk(bad)).toBeNull();
   });
 });

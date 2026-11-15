@@ -1,37 +1,23 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  Code,
-  Copy,
-  Heart,
-  Mail,
-  Moon,
-  Plus,
-  Rocket,
-  RotateCcw,
-  Sparkles,
-  Square,
-  Sun,
-  ToyBrick,
-  Volume2,
-  VolumeX,
-  Wrench,
-} from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useSearchParams } from "react-router-dom";
+import { ArrowDown, Moon, Plus, Sun, ToyBrick, Volume2, VolumeX } from "lucide-react";
 import { sx } from "./lib/utils";
 import { useFavicon } from "./hooks/useFavicon";
+import { useLatestCallback } from "./hooks/useLatestCallback";
 import { useReducedMotion } from "./hooks/useReducedMotion";
 import { getPostHogConfig } from "./lib/analytics";
 import { syncThemeColor } from "./lib/themeColor";
 import { chatbot } from "./styles/chatbot.stylex";
 import { layout } from "./styles/common.stylex";
-import { useChat, type ChatMessage } from "./chat/useChat";
+import { useChat } from "./chat/useChat";
+import { MAKING_STEP_MS, makingLine, moodFor } from "./chat/chatMachine";
+import { Composer, type ComposerHandle } from "./chat/Composer";
+import { Transcript } from "./chat/Transcript";
+import { SUGGESTIONS, followUps, prefillFrom } from "./chat/suggestions";
 import { LimStage, type LimStageHandle } from "./chat/LimStage";
 import { ToyCard, useThumbs } from "./chat/ToyCard";
 import { LimArt } from "./chat/LimArt";
 import { caretPoint } from "./chat/caret";
-import type { LimMood } from "./chat/scene/limScene";
 import { konami, stuntFor, type Stunt } from "./chat/eggs";
 import { sound } from "./chat/sound";
 import type { LimWorld, ScoreEvent } from "./chat/scene/limScene";
@@ -39,28 +25,6 @@ import { ITEMS, PLACES, localIntent, looksLikeWorldRequest, type WorldOp } from 
 import { loadMade, readWorldReply, rememberMade } from "./chat/world/worldApi";
 import "./chat/chat.css";
 
-const MessageContent = lazy(() => import("./components/message-content"));
-
-const SUGGESTIONS = [
-  { text: "What is Anthony's background?", short: "Background", Icon: Sparkles },
-  { text: "What are his technical skills?", short: "Skills", Icon: Wrench },
-  { text: "How can I contact him?", short: "Contact", Icon: Mail },
-  { text: "What is he building right now?", short: "Building now", Icon: Rocket },
-  { text: "What did he build on this site?", short: "This site", Icon: Heart },
-  { text: "Can you help me with a coding question?", short: "Coding help", Icon: Code },
-];
-/** What Lim is up to while the model invents something (it can take a while). */
-const MAKING = [
-  "Rummaging in the toy box…",
-  "Squishing it into shape…",
-  "Adding a pinch of sparkle…",
-  "Picking the nicest colours…",
-  "Blowing on it to dry…",
-  "Nearly there…",
-  "This one's tricky…",
-  "Still squishing…",
-  "Worth the wait, promise…",
-];
 const CHIP_TINTS = [chatbot.chip1, chatbot.chip2, chatbot.chip3, chatbot.chip4];
 const NIGHT_KEY = "lim-chat-night";
 const KNOWN = {
@@ -68,6 +32,13 @@ const KNOWN = {
   places: new Set(Object.values(PLACES).map((x) => x.spec.name)),
 };
 const THEME = { light: "#FFF6EC", dark: "#1E1833" };
+/** How long Lim stays pleased with itself after a reply. */
+const CHEER_MS = 2200;
+/**
+ * Page shortcuts. They need Alt+Shift so typing a letter anywhere never flips
+ * the lights or the sound (WCAG 2.1.4); `code` because Alt changes `key` on a Mac.
+ */
+const SHORTCUTS = { night: { code: "KeyS", label: "Alt+Shift+S" }, sound: { code: "KeyM", label: "Alt+Shift+M" } };
 /** Phones: the share of the shell the visitor gave Lim's stage by dragging the grip. */
 const STAGE_KEY = "lim-stage";
 const STAGE_DEFAULT = { empty: 0.5, chatting: 0.4 };
@@ -136,82 +107,15 @@ function Backdrop() {
   );
 }
 
-/* ── Messages ───────────────────────────────────────── */
-
-function ThinkingDots() {
-  return (
-    <span {...sx(chatbot.thinking)}>
-      {["#FF7E6B", "#B9A6FF", "#7FD6B5"].map((color, i) => (
-        <span key={color} {...sx(chatbot.thinkingDot)} style={{ backgroundColor: color, animationDelay: `${i * 140}ms` }} />
-      ))}
-      <span {...sx(layout.srOnly)}>Lim is thinking</span>
-    </span>
-  );
-}
-
-function AssistantMessage({
-  message,
-  last,
-  copied,
-  onCopy,
-  onRegenerate,
-  waiting,
-}: {
-  message: ChatMessage;
-  last: boolean;
-  copied: boolean;
-  onCopy: () => void;
-  onRegenerate: () => void;
-  /** A progress line to show instead of the dots while this reply is being made. */
-  waiting?: string;
-}) {
-  const { content, status } = message;
-  const settled = status !== "streaming";
-  return (
-    <div {...sx(chatbot.row, chatbot.rowAssistant)}>
-      <LimArt mood={status === "error" ? "sad" : "idle"} {...sx(chatbot.avatar)} />
-      <div {...sx(chatbot.assistantCol)}>
-        <div {...sx(chatbot.card, status === "error" && chatbot.cardError)}>
-          {content ? (
-            <Suspense fallback={<p>{content}</p>}>
-              <MessageContent content={content} isStreaming={status === "streaming"} />
-            </Suspense>
-          ) : status === "streaming" ? (
-            waiting ? (
-              <span key={waiting} {...sx(chatbot.making)}>
-                {waiting}
-              </span>
-            ) : (
-              <ThinkingDots />
-            )
-          ) : (
-            <p>I stopped before saying anything.</p>
-          )}
-          {status === "error" && last && (
-            <button type="button" onClick={onRegenerate} {...sx(chatbot.retry)}>
-              <RotateCcw size={16} aria-hidden="true" /> Try again
-            </button>
-          )}
-        </div>
-        {settled && status !== "error" && (
-          <div {...sx(chatbot.actions, !last && chatbot.actionsEarlier)}>
-            {status === "stopped" && <span {...sx(chatbot.tag)}>Stopped</span>}
-            {content && (
-              <button type="button" onClick={onCopy} {...sx(chatbot.action)} aria-label={copied ? "Copied" : "Copy reply"}>
-                {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
-            )}
-            {last && (
-              <button type="button" onClick={onRegenerate} {...sx(chatbot.action)}>
-                <RotateCcw size={15} aria-hidden="true" /> Regenerate
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+/** The current time, ticking every `ms` while `on` (for the "making" lines). */
+function useTicker(on: boolean, ms: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!on) return;
+    const tick = window.setInterval(() => setNow(Date.now()), ms);
+    return () => window.clearInterval(tick);
+  }, [on, ms]);
+  return now;
 }
 
 /* ── App ────────────────────────────────────────────── */
@@ -223,31 +127,27 @@ function App() {
   // Where a press on the grip began, and whether it has turned into a drag.
   const grip = useRef<{ from: number; moved: boolean } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<ComposerHandle>(null);
   const stick = useRef(true);
   const pendingStunt = useRef<Stunt | null>(null);
-  const makingTick = useRef(0);
   const worldChanged = useRef(false);
-  const cheerTimer = useRef(0);
   const copyTimer = useRef(0);
 
+  // `/?q=…` starts the composer with a question; it is never sent by itself.
+  const [search, setSearch] = useSearchParams();
+  const [prefill] = useState(() => prefillFrom(search) ?? "");
   const [night, setNight] = useState(readNight);
   const [soundOn, setSoundOn] = useState(() => sound.load());
-  const [input, setInput] = useState("");
+  const [hasText, setHasText] = useState(prefill.length > 0);
   const [focused, setFocused] = useState(false);
-  const [sad, setSad] = useState(false);
-  const [cheering, setCheering] = useState(false);
   const [showJump, setShowJump] = useState(false);
   const [notice, setNotice] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [sendBeat, setSendBeat] = useState(0);
   const [keyboardH, setKeyboardH] = useState<number | null>(null);
   const [played, setPlayed] = useState(false);
   const [toyOpen, setToyOpen] = useState(false);
-  // Counts up while Lim's world model is working; 0 when it isn't.
-  const [making, setMaking] = useState(0);
   const [made, setMade] = useState(loadMade);
-  // Lim's world as the live scene has it; null until (unless) the 3D scene is up.
+  // Lim's world as the live scene has it; null until (unless) the 3D scene is up, and again if it goes.
   const [world, setWorld] = useState<LimWorld | null>(null);
   // null: the stage follows the chat (bigger before the first message).
   const [stageShare, setStageShare] = useState<number | null>(readStage);
@@ -267,10 +167,8 @@ function App() {
     reducedMotion && ops.some((op) => (op.op === "act" && !["remove", "wear", "eat", "look"].includes(op.action)) || (op.op === "item" && op.then))
       ? "I'm keeping still (reduced motion is on), but it's right here."
       : reply;
-  const { messages, status, busy, send, stop, regenerate, newChat } = useChat({
+  const { messages, turn, lastOutcome, busy, send, stop, regenerate, newChat, calm } = useChat({
     onSend: () => {
-      setSad(false);
-      setCheering(false);
       setNotice("");
       worldChanged.current = false;
       // A message that names a trick ("do a flip") gets the trick, not the hop.
@@ -308,22 +206,15 @@ function App() {
     },
     // The model is writing an order for Lim's world (an invention takes it a
     // while): Lim conjures and the reply shows what it's up to.
-    onWorldStart: () => {
-      setMaking(1);
-      stageRef.current?.conjure(true);
-      window.clearInterval(makingTick.current);
-      makingTick.current = window.setInterval(() => setMaking((n) => n + 1), 2200);
-    },
+    onWorldStart: () => stageRef.current?.conjure(true),
     onWorld: (content, failed) => {
-      window.clearInterval(makingTick.current);
-      setMaking(0);
       const stage = stageRef.current;
       const { ops, reply } = content ? readWorldReply(content) : { ops: [], reply: "" };
       const ok = Boolean(stage && ops.length);
       stage?.conjure(false, ok);
       // Stopped by the visitor: nothing to add. Anything else that came to nothing, Lim owns up to.
       if (!content && !failed) return { text: "", ok: false };
-      if (!stage || !ok) return { text: "I couldn't make that just now. Try me again, or pick something from the toy box!", ok: false };
+      if (!stage || !ok) return { text: "I couldn't make that just now. Try me again, or pick something from the toy box.", ok: false };
       if (!stage.apply(ops)) return { text: "Hmm, I can't find that here.", ok: false };
       worldChanged.current = true;
       setMade((m) => rememberMade(m, ops, KNOWN));
@@ -335,23 +226,45 @@ function App() {
         return;
       }
       stageRef.current?.cheer(firstReply);
-      setCheering(true);
-      window.clearTimeout(cheerTimer.current);
-      cheerTimer.current = window.setTimeout(() => setCheering(false), 2200);
       setNotice("Reply received.");
     },
-    onError: () => {
-      setSad(true);
-      setNotice("The reply didn't come through. Try again.");
-    },
+    onError: () => setNotice("The reply didn't come through. Try again."),
   });
 
-  const typing = focused && input.trim().length > 0;
-  const mood: LimMood =
-    status === "thinking" ? "thinking" : status === "streaming" ? "talking" : sad ? "sad" : cheering ? "happy" : typing ? "typing" : "idle";
-  const announce = making ? "Lim is making something." : status === "thinking" ? "Lim is thinking." : status === "streaming" ? "Lim is writing." : notice;
+  const ordering = turn.phase === "ordering";
+  const now = useTicker(ordering, MAKING_STEP_MS);
+  const making = makingLine(turn, ordering ? Math.max(now, turn.startedAt) : 0);
+  const typing = focused && hasText;
+  const mood = moodFor(turn, lastOutcome, typing);
+  const announce = ordering
+    ? "Lim is making something."
+    : turn.phase === "streaming"
+      ? "Lim is writing."
+      : busy
+        ? "Lim is thinking."
+        : notice;
+  const nextQuestions = useMemo(() => followUps(messages, turn), [messages, turn]);
 
   useFavicon();
+
+  // Lim is pleased with itself for a moment after a reply, then settles.
+  useEffect(() => {
+    if (lastOutcome !== "answered") return;
+    const timer = window.setTimeout(calm, CHEER_MS);
+    return () => window.clearTimeout(timer);
+  }, [lastOutcome, calm]);
+
+  // The question from `/?q=` is in the composer now; take it out of the address bar.
+  useEffect(() => {
+    if (!search.has("q")) return;
+    setSearch(
+      (params) => {
+        params.delete("q");
+        return params;
+      },
+      { replace: true },
+    );
+  }, [search, setSearch]);
 
   useEffect(() => {
     syncThemeColor(night ? "dark" : "light", THEME);
@@ -386,14 +299,7 @@ function App() {
     }
   }, []);
 
-  useEffect(
-    () => () => {
-      window.clearTimeout(cheerTimer.current);
-      window.clearTimeout(copyTimer.current);
-      window.clearInterval(makingTick.current);
-    },
-    [],
-  );
+  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
 
   const toggleSound = useCallback(() => {
     setSoundOn((on) => {
@@ -411,7 +317,7 @@ function App() {
     );
   }, []);
 
-  // Lim watches the pointer; Esc stops a reply; S flips the lights; M is sound.
+  // Lim watches the pointer; Esc stops a reply; Alt+Shift+S flips the lights; Alt+Shift+M is sound.
   useEffect(() => {
     const code = konami();
     const onMove = (e: PointerEvent) => {
@@ -429,10 +335,18 @@ function App() {
         setNotice("Stopped.");
         return;
       }
+      if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey) {
+        if (e.code === SHORTCUTS.night.code) {
+          e.preventDefault();
+          setNight((n) => !n);
+        } else if (e.code === SHORTCUTS.sound.code) {
+          e.preventDefault();
+          toggleSound();
+        }
+        return;
+      }
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "s" || e.key === "S") setNight((n) => !n);
-      if (e.key === "m" || e.key === "M") toggleSound();
       if (code(e.key)) stageRef.current?.stunt("party");
     };
     window.addEventListener("pointermove", onMove, { passive: true });
@@ -466,7 +380,7 @@ function App() {
   useLayoutEffect(() => {
     const el = logRef.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+  }, [messages, nextQuestions]);
 
   const jumpToLatest = () => {
     const el = logRef.current;
@@ -477,25 +391,17 @@ function App() {
 
   /* ── Composer ── */
 
-  const followCaret = () => {
-    const el = inputRef.current;
-    if (el) {
-      const p = caretPoint(el);
-      stageRef.current?.lookAt(p.x, p.y);
-    }
-  };
+  const followCaret = useLatestCallback((el: HTMLTextAreaElement) => {
+    const p = caretPoint(el);
+    stageRef.current?.lookAt(p.x, p.y);
+  });
 
-  const onInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    setSad(false);
-    const el = e.target;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-    followCaret();
+  const onType = useLatestCallback((value: string) => {
+    if (lastOutcome === "failed") calm();
     // Lim nods along with each keystroke, and flinches at SHOUTING.
-    const text = e.target.value.trim();
+    const text = value.trim();
     stageRef.current?.react(text.length >= 6 && /[A-Z]/.test(text) && text === text.toUpperCase() ? "shout" : "key");
-  };
+  });
 
   /** From the toy box: straight into the world, no chat message. */
   const give = (op: WorldOp, label: string) => {
@@ -503,56 +409,48 @@ function App() {
     setNotice(ok ? label : "Lim's world isn't available right now.");
   };
 
-  const submit = (text: string) => {
+  const submit = useLatestCallback((text: string) => {
     // "Bounce the ball" is about the ball, not a request for a jump.
     const here = stageRef.current?.world()?.items ?? [];
     // And "can he have a tiny castle" is about the castle, not a cue to shrink.
     pendingStunt.current = localIntent(text, here, made, stageRef.current?.world()?.worn ?? []) || looksLikeWorldRequest(text) ? null : stuntFor(text);
     setToyOpen(false);
-    if (!send(text)) return;
-    setInput("");
+    if (!send(text)) return false;
     stick.current = true;
-    setSendBeat((n) => n + 1);
-    if (inputRef.current) inputRef.current.style.height = "auto";
-  };
+    return true;
+  });
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy) {
-      stop();
-      setNotice("Stopped.");
-    } else submit(input);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      if (!busy) submit(input);
-    }
-  };
+  const stopReply = useLatestCallback(() => {
+    stop();
+    setNotice("Stopped.");
+  });
 
   const startOver = () => {
     newChat();
-    setSad(false);
-    setCheering(false);
-    setInput("");
+    composerRef.current?.clear();
     setNotice("New chat started.");
     stageRef.current?.hop();
-    inputRef.current?.focus();
+    composerRef.current?.focus();
   };
 
-  const copy = (m: ChatMessage) => {
+  const copy = useLatestCallback((id: string) => {
+    const m = messages.find((x) => x.id === id);
+    if (!m) return;
     void navigator.clipboard?.writeText(m.content).then(() => {
-      setCopiedId(m.id);
+      setCopiedId(id);
       setNotice("Copied to clipboard.");
       stageRef.current?.react("wink");
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopiedId(null), 1600);
     });
-  };
+  });
+
+  const ask = useLatestCallback((text: string) => {
+    if (submit(text)) composerRef.current?.clear();
+  });
+  const look = useCallback((el: Element) => stageRef.current?.lookAt(...center(el)), []);
 
   const empty = messages.length === 0;
-  const canSend = input.trim().length > 0;
 
   /* ── Stage grip (phones) ── */
 
@@ -643,6 +541,8 @@ function App() {
           {...sx(chatbot.iconButton)}
           aria-label="Night mode"
           aria-pressed={night}
+          aria-keyshortcuts={SHORTCUTS.night.label}
+          title={`Night mode (${SHORTCUTS.night.label})`}
         >
           {night ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
         </button>
@@ -652,6 +552,8 @@ function App() {
           {...sx(chatbot.iconButton)}
           aria-label="Lim's sounds"
           aria-pressed={soundOn}
+          aria-keyshortcuts={SHORTCUTS.sound.label}
+          title={`Lim's sounds (${SHORTCUTS.sound.label})`}
         >
           {soundOn ? <Volume2 size={18} aria-hidden="true" /> : <VolumeX size={18} aria-hidden="true" />}
         </button>
@@ -714,9 +616,9 @@ function App() {
                       key={text}
                       type="button"
                       aria-label={text}
-                      onClick={() => submit(text)}
-                      onPointerEnter={(e) => stageRef.current?.lookAt(...center(e.currentTarget))}
-                      onFocus={(e) => stageRef.current?.lookAt(...center(e.currentTarget))}
+                      onClick={() => ask(text)}
+                      onPointerEnter={(e) => look(e.currentTarget)}
+                      onFocus={(e) => look(e.currentTarget)}
                       {...sx(chatbot.chip, CHIP_TINTS[i % CHIP_TINTS.length])}
                       style={{ animationDelay: `${460 + i * 70}ms` }}
                     >
@@ -730,85 +632,53 @@ function App() {
                 </div>
               </div>
             ) : (
-              messages.map((m, i) =>
-                m.role === "user" ? (
-                  <div key={m.id} {...sx(chatbot.row, chatbot.rowUser)}>
-                    <div {...sx(chatbot.userBubble)}>{m.content}</div>
-                  </div>
-                ) : (
-                  <AssistantMessage
-                    key={m.id}
-                    message={m}
-                    last={i === messages.length - 1}
-                    copied={copiedId === m.id}
-                    onCopy={() => copy(m)}
-                    onRegenerate={regenerate}
-                    waiting={making && i === messages.length - 1 ? MAKING[making <= MAKING.length ? making - 1 : MAKING.length - 3 + (making % 3)] : undefined}
-                  />
-                ),
-              )
+              <Transcript
+                messages={messages}
+                making={making}
+                copiedId={copiedId}
+                onCopy={copy}
+                onRegenerate={regenerate}
+                followUps={nextQuestions}
+                onAsk={ask}
+                onLook={look}
+              />
             )}
           </div>
         </div>
 
-        <form onSubmit={onSubmit} {...sx(chatbot.composer)}>
-          {showJump && !empty && (
-            <button type="button" onClick={jumpToLatest} {...sx(chatbot.jump)}>
-              <ArrowDown size={16} aria-hidden="true" /> Jump to latest
+        <Composer
+          ref={composerRef}
+          busy={busy}
+          roomy={roomy}
+          initialText={prefill}
+          onSubmit={submit}
+          onStop={stopReply}
+          onFocusChange={setFocused}
+          onHasText={setHasText}
+          onType={onType}
+          onCaret={followCaret}
+          jump={
+            showJump && !empty ? (
+              <button type="button" onClick={jumpToLatest} {...sx(chatbot.jump)}>
+                <ArrowDown size={16} aria-hidden="true" /> Jump to latest
+              </button>
+            ) : null
+          }
+          toyButton={
+            <button
+              type="button"
+              onClick={() => setToyOpen((open) => !open)}
+              aria-label="Toy box"
+              aria-expanded={toyOpen}
+              aria-controls={toyOpen ? "toy-box" : undefined}
+              ref={toyButtonRef}
+              {...sx(chatbot.toyButton, toyOpen && chatbot.toyButtonOn)}
+            >
+              <ToyBrick size={20} aria-hidden="true" />
             </button>
-          )}
-          <div {...sx(chatbot.composerInner)}>
-            <label htmlFor="chat-input" {...sx(layout.srOnly)}>
-              Ask about Anthony
-            </label>
-            <div {...sx(chatbot.box)}>
-              <button
-                type="button"
-                onClick={() => setToyOpen((open) => !open)}
-                aria-label="Toy box"
-                aria-expanded={toyOpen}
-                aria-controls={toyOpen ? "toy-box" : undefined}
-                ref={toyButtonRef}
-                {...sx(chatbot.toyButton, toyOpen && chatbot.toyButtonOn)}
-              >
-                <ToyBrick size={20} aria-hidden="true" />
-              </button>
-              <textarea
-                ref={inputRef}
-                id="chat-input"
-                rows={1}
-                value={input}
-                onChange={onInput}
-                onKeyDown={onKeyDown}
-                onKeyUp={followCaret}
-                onClick={followCaret}
-                onFocus={() => {
-                  setFocused(true);
-                  followCaret();
-                }}
-                onBlur={() => setFocused(false)}
-                placeholder={roomy ? "Ask about Anthony, or give Lim a toy…" : "Ask about Anthony…"}
-                enterKeyHint="send"
-                {...sx(chatbot.textarea)}
-              />
-              <button
-                type="submit"
-                {...sx(
-                  chatbot.send,
-                  sendBeat > 0 && (sendBeat % 2 ? chatbot.sendSquish : chatbot.sendSquishAgain),
-                  !busy && !canSend && chatbot.sendIdle,
-                )}
-                aria-label={busy ? "Stop generating" : "Send message"}
-                aria-disabled={!busy && !canSend}
-              >
-                {busy ? (
-                  <Square size={16} fill="currentColor" aria-hidden="true" />
-                ) : (
-                  <ArrowUp size={20} strokeWidth={2.6} aria-hidden="true" />
-                )}
-              </button>
-            </div>
-            {toyOpen && (
+          }
+          toyPanel={
+            toyOpen ? (
               <div id="toy-box" role="group" aria-label="Lim's toy box" {...sx(chatbot.toyPanel)}>
                 {world ? (
                   <>
@@ -853,22 +723,19 @@ function App() {
                   <p {...sx(chatbot.toyLabel)}>Lim's toy box needs the live 3D scene, which isn't available here.</p>
                 )}
               </div>
-            )}
-            <p {...sx(chatbot.hint)}>
+            ) : null
+          }
+          shortcuts={
+            <>
               <span>
-                <kbd {...sx(chatbot.kbd)}>Enter</kbd> to send
+                <kbd {...sx(chatbot.kbd)}>{SHORTCUTS.night.label}</kbd> lights
               </span>
               <span>
-                <kbd {...sx(chatbot.kbd)}>Shift</kbd>+<kbd {...sx(chatbot.kbd)}>Enter</kbd> new line
+                <kbd {...sx(chatbot.kbd)}>{SHORTCUTS.sound.label}</kbd> sound
               </span>
-              {busy && (
-                <span>
-                  <kbd {...sx(chatbot.kbd)}>Esc</kbd> to stop
-                </span>
-              )}
-            </p>
-          </div>
-        </form>
+            </>
+          }
+        />
       </main>
 
       <div role="status" aria-live="polite" {...sx(layout.srOnly)}>
