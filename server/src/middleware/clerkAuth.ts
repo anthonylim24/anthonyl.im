@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { verifyToken as clerkVerify } from '@clerk/backend';
+import { secretsEqual } from '../agentTasks';
 
 export interface ClerkAuthDeps {
   verifyToken?: (token: string) => Promise<{ sub: string }>;
@@ -13,7 +14,10 @@ export interface ClerkAuthDeps {
 
 function matchesDevBearer(token: string, devBearer: string | string[] | undefined): boolean {
   if (!devBearer) return false;
-  return Array.isArray(devBearer) ? devBearer.includes(token) : devBearer === token;
+  // Constant-time, and every candidate is compared, so timing reveals neither
+  // the bearer nor which of several matched.
+  const candidates = Array.isArray(devBearer) ? devBearer : [devBearer];
+  return candidates.reduce((matched, candidate) => secretsEqual(candidate, token) || matched, false);
 }
 
 export function createClerkAuth(deps: ClerkAuthDeps = {}): MiddlewareHandler {

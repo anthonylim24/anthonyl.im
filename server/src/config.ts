@@ -31,18 +31,29 @@ function readFrontendDevBearer(): string | undefined {
   }
 }
 
-/** Accepted dev bearers: IG_DEV_BEARER plus (in non-production) every
- *  VITE_DEV_BEARER we can see — process env AND frontend/.env. Cloud
- *  agents often have the Vite token only in the environment, with no
- *  frontend/.env file; both must work even when the values differ. */
+/** Accepted dev bearers: IG_DEV_BEARER plus every VITE_DEV_BEARER we can
+ *  see — process env AND frontend/.env. Cloud agents often have the Vite
+ *  token only in the environment, with no frontend/.env file; both must work
+ *  even when the values differ.
+ *
+ *  Production accepts none. A dev bearer there is a master key to every
+ *  Clerk-gated route, so a stray variable is ignored with a loud warning
+ *  instead of throwing: it must not take the site down either. */
 export function resolveDevBearers(
   env: NodeJS.ProcessEnv = process.env,
   fileBearer: string | undefined = readFrontendDevBearer(),
 ): string | string[] | undefined {
-  const fromViteEnv =
-    env.NODE_ENV === "production" ? undefined : env.VITE_DEV_BEARER?.trim() || undefined;
-  const fromFile = env.NODE_ENV === "production" ? undefined : fileBearer;
-  const bearers = [env.IG_DEV_BEARER, fromViteEnv, fromFile]
+  if (env.NODE_ENV === "production") {
+    const stray = (["IG_DEV_BEARER", "VITE_DEV_BEARER"] as const).filter((k) => env[k]?.trim());
+    if (stray.length) {
+      console.warn(
+        `[config] !!! ${stray.join(" and ")} set with NODE_ENV=production — IGNORED. ` +
+          "Dev bearers never authenticate in production; remove them from the environment.",
+      );
+    }
+    return undefined;
+  }
+  const bearers = [env.IG_DEV_BEARER, env.VITE_DEV_BEARER, fileBearer]
     .map((v) => v?.trim())
     .filter((v): v is string => !!v);
   const unique = [...new Set(bearers)];
@@ -52,8 +63,6 @@ export function resolveDevBearers(
 
 export const config = {
   port: process.env.PORT || 3000,
-  deepseekApiKey: process.env.KLUSTER_API_KEY,
-  deepseekApiBaseUrl: process.env.KLUSTER_API_BASE_URL,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
 
   supabaseUrl: process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
@@ -91,6 +100,8 @@ export const config = {
   clerkAgentUserEmail: process.env.CLERK_AGENT_USER_EMAIL,
   agentGithubRepo: process.env.AGENT_GITHUB_REPO ?? "anthonylim24/anthonyl.im",
   agentRedirectHosts: process.env.AGENT_REDIRECT_HOSTS,
+  // Bearer for GET /health/metrics from off the droplet. Unset → local requests only.
+  metricsToken: process.env.METRICS_TOKEN?.trim() || undefined,
 
   igWorkerEnabled: isTruthy(process.env.IG_WORKER_ENABLED ?? 'true'),
   igWorkerConcurrency: Number(process.env.IG_WORKER_CONCURRENCY ?? 3),
@@ -100,12 +111,10 @@ export const config = {
   igDevUserId: process.env.IG_DEV_USER_ID ?? 'dev-user',
 } as const;
 
-// Validate required env vars — only enforce keys for features that are enabled.
-const requiredAlways = ['KLUSTER_API_KEY', 'KLUSTER_API_BASE_URL'] as const;
-for (const v of requiredAlways) {
-  if (!process.env[v]) throw new Error(`Missing required environment variable: ${v}`);
-}
-
+// Warn about keys for features that are enabled. Nothing is required at boot:
+// a missing key degrades that feature, it does not take the site down.
+// (KLUSTER_API_KEY / KLUSTER_API_BASE_URL were once required; nothing reads
+// them now, and a deploy that still sets them is fine.)
 if (config.igWorkerEnabled) {
   const required = ['GOOGLE_MAPS_API_KEY', 'GROQ_API_KEY', 'CLERK_SECRET_KEY',
                     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const;

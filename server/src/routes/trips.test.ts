@@ -3,6 +3,7 @@ import { Hono } from "hono"
 import { MemoryTripStore } from "../trips/store"
 import { KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { createTripsRouter, type TripsRouterDeps } from "./trips"
+import { createRateLimit, userOrClientKey } from "../middleware/rateLimit"
 
 const AUTH = { Authorization: "Bearer test-token", "Content-Type": "application/json" }
 
@@ -81,6 +82,17 @@ describe("trips auth", () => {
     const { app } = makeApp()
     const res = await app.request("/api/trips")
     expect(res.status).toBe(401)
+  })
+
+  test("the rate limit is per signed-in user, not per address", async () => {
+    const { app } = makeApp({
+      rateLimit: createRateLimit({ windowMs: 60_000, max: 1, keyPrefix: "trips-per-user-test", key: userOrClientKey }),
+    })
+    const sameIp = { "cf-connecting-ip": "203.0.113.5" }
+    expect((await app.request("/api/trips", { headers: { ...AUTH, ...sameIp } })).status).toBe(200)
+    expect((await app.request("/api/trips", { headers: { ...AUTH, ...sameIp } })).status).toBe(429)
+    const other = { ...sameIp, Authorization: "Bearer other-token" }
+    expect((await app.request("/api/trips", { headers: other })).status).toBe(200)
   })
 })
 
