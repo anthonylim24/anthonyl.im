@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { migratePersistedSettingsState } from '@/stores/settingsStore'
-import { resetAudioContextForTests } from '../audio'
+import { closeAudioContext } from '../audio'
 import { breathMix, isSoundscapeId, startSoundscape } from '../soundscape'
 import { phasePhrase, speak } from '../voice'
 
 describe('soundscape', () => {
   afterEach(() => {
-    resetAudioContextForTests()
+    closeAudioContext()
     vi.unstubAllGlobals()
   })
 

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, Ref } from 'react'
 import { motion } from 'motion/react'
 import { Link } from 'react-router-dom'
 import { sx, stylex } from '@/styles/merge'
@@ -12,6 +12,7 @@ import { useReducedMotion } from '../platform/useReducedMotion'
 import { isAdvancedProtocol } from '../protocols/catalog'
 import type { BreathingProtocol } from '../protocols/types'
 import type { CompletionResult } from '../session/completeSession'
+import type { JourneyOutcome } from '../session/journeyStep'
 import { bf } from '../styles/breathflow.stylex'
 import { wc } from '../styles/watercolor.stylex'
 import { WaxSeal } from './BadgeGrid'
@@ -110,18 +111,6 @@ const styles = stylex.create({
   },
 })
 
-/** What finishing this session did to the journey it belongs to. */
-export interface JourneyOutcome {
-  name: string
-  /** 1-based day just finished. */
-  day: number
-  total: number
-  /** This was the journey's last step. */
-  finished: boolean
-  /** Title of the step that comes next, or null when none is left. */
-  next: string | null
-}
-
 interface SessionSummaryProps {
   protocol: BreathingProtocol
   result: CompletionResult
@@ -131,6 +120,8 @@ interface SessionSummaryProps {
   moodAfter: MoodValue | undefined
   onMoodAfter: (value: MoodValue | undefined) => void
   onRepeat: () => void
+  /** Focused when the summary appears, so focus never falls to the page body. */
+  headingRef?: Ref<HTMLHeadingElement>
 }
 
 function Stat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
@@ -157,6 +148,7 @@ export function SessionSummary({
   moodAfter,
   onMoodAfter,
   onRepeat,
+  headingRef,
 }: SessionSummaryProps) {
   const reducedMotion = useReducedMotion()
   const advanced = isAdvancedProtocol(protocol)
@@ -176,7 +168,7 @@ export function SessionSummary({
       <motion.p {...rise(0.15)} {...sx(wc.eyebrow, styles.eyebrow)}>
         {endedEarly ? 'Ended early' : 'Session complete'}
       </motion.p>
-      <motion.h2 {...rise(0.22)} {...sx('bf-display', styles.title)}>{protocol.name}</motion.h2>
+      <motion.h2 ref={headingRef} tabIndex={-1} {...rise(0.22)} {...sx('bf-display', styles.title)}>{protocol.name}</motion.h2>
 
       <motion.dl {...rise(0.32)} {...sx(styles.stats)}>
         <Stat label="Duration" value={formatDuration(session.durationSeconds)} />

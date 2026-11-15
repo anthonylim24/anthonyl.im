@@ -25,6 +25,7 @@ export function OverviewPanel({
   onHoverDay,
   onApplyRun,
   onDismissRun,
+  onStopAi,
 }: {
   trip: Trip
   basePath: string
@@ -40,6 +41,7 @@ export function OverviewPanel({
   onHoverDay: (dayId: string | null) => void
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
+  onStopAi: () => void
 }) {
   const [brief, setBrief] = useState<DraftBrief>(EMPTY_BRIEF)
   const today = todayIsoIn(trip.timezone)
@@ -96,10 +98,10 @@ export function OverviewPanel({
       </dl>
 
       {drafting && (
-        <AiBusy steps={["Reading up on the area…", "Choosing places worth the detour…", "Arranging each day so the route flows…", "Pinning everything to the map…"]} />
+        <AiBusy steps={["Reading up on the area…", "Choosing places worth the detour…", "Arranging each day so the route flows…", "Pinning everything to the map…"]} onStop={onStopAi} />
       )}
       {enhancing && (
-        <AiBusy steps={["Reading the whole itinerary…", "Checking pacing and routes…", "Scouting what’s missing…", "Writing up suggestions…"]} />
+        <AiBusy steps={["Reading the whole itinerary…", "Checking pacing and routes…", "Scouting what’s missing…", "Writing up suggestions…"]} onStop={onStopAi} />
       )}
       {run && !enhancing && (
         <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />

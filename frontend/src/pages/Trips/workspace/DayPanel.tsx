@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
 import { ArrowDownUp, ArrowLeft, ArrowRight, CloudSun, Lightbulb, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
@@ -9,6 +9,8 @@ import { formatDistance, formatWalkMinutes } from "../reservationView"
 import { addItem } from "../tripEdits"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
+import type { UndoMark } from "../editorMachine"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { Menu, type MenuItem } from "../components/kit"
@@ -34,8 +36,8 @@ export interface DayPanelProps {
   /** Stop whose editor should open (from the map's "Edit stop"); `n` is new for each request. */
   edit: { id: string; n: number } | null
   near: LngLat | null
-  onChange: (fn: (days: TripDay[]) => TripDay[]) => void
-  onDelete: (dayId: string, item: ItineraryItem, index: number) => void
+  onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
+  onDelete: (dayId: string, item: ItineraryItem) => void
   onAdded: (id: string) => void
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
@@ -43,6 +45,7 @@ export interface DayPanelProps {
   onClear: () => void
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
+  onStopAi: () => void
   /** Present when the photoreal 3D view can open in this build. */
   onPhotoreal?: () => void
   /** Opens the Instagram import with these post links. */
@@ -60,9 +63,11 @@ export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
   return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
 }
 
-function Sortable(props: ItemCardProps & { leg: string | null }) {
+/** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
+const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null }) {
   const controls = useDragControls()
   const { leg, ...card } = props
+  const onGrip = useCallback((event: ReactPointerEvent) => controls.start(event), [controls])
   return (
     <Reorder.Item
       as="li"
@@ -72,7 +77,7 @@ function Sortable(props: ItemCardProps & { leg: string | null }) {
       style={{ position: "relative", listStyle: "none" }}
       whileDrag={{ scale: 1.02, zIndex: 5 }}
     >
-      <ItemCard {...card} onGrip={(event) => controls.start(event)} />
+      <ItemCard {...card} onGrip={onGrip} />
       {leg && (
         <div {...sx(s.item)} aria-hidden>
           <div {...sx(s.gutter)} style={{ paddingTop: 0 }}>
@@ -86,7 +91,10 @@ function Sortable(props: ItemCardProps & { leg: string | null }) {
       )}
     </Reorder.Item>
   )
-}
+})
+
+/** Focus target after a stop leaves the list: the next stop, else the one before, else the composer. */
+const COMPOSER = "composer"
 
 export function DayPanel({
   trip,
@@ -113,11 +121,15 @@ export function DayPanel({
   onClear,
   onApplyRun,
   onDismissRun,
+  onStopAi,
   onPhotoreal,
   onInstagram,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
+  const rootRef = useRef<HTMLDivElement>(null)
+  /** Where keyboard focus goes once the list has re-rendered without a stop. */
+  const focusNext = useRef<string | null>(null)
   const isToday = day.date === todayIsoIn(trip.timezone)
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
   const next = dayIndex < trip.days.length - 1 ? trip.days[dayIndex + 1] : undefined
@@ -152,8 +164,30 @@ export function DayPanel({
     return times.some((time, i) => i > 0 && time < times[i - 1]!)
   }, [day.items])
 
-  const patchDay = (patch: Partial<TripDay>) =>
-    onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...patch } : d)))
+  const patchDay = (patch: Partial<TripDay>, undo?: UndoMark) =>
+    onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...patch } : d)), undo)
+
+  // A deleted or moved stop takes focus with it; hand it to its neighbour
+  // so a keyboard user carries on from where they were.
+  const leave = useLatestCallback((index: number) => {
+    const after = day.items[index + 1] ?? day.items[index - 1]
+    focusNext.current = after?.id ?? COMPOSER
+  })
+  const removeStop = useCallback(
+    (dayId: string, item: ItineraryItem, index: number) => {
+      leave(index)
+      onDelete(dayId, item)
+    },
+    [leave, onDelete],
+  )
+  // The edit that removed the stop re-renders this panel; focus moves once it has.
+  useLayoutEffect(() => {
+    const target = focusNext.current
+    if (!target) return
+    focusNext.current = null
+    const row = target === COMPOSER ? null : document.getElementById(`item-${target}`)?.querySelector<HTMLElement>("[data-card-row]")
+    ;(row ?? rootRef.current?.querySelector<HTMLElement>('input[role="combobox"]'))?.focus()
+  })
 
   const menu: MenuItem[] = [
     ...(editable
@@ -165,7 +199,7 @@ export function DayPanel({
             label: "Sort stops by time",
             icon: <ArrowDownUp size={16} strokeWidth={1.75} aria-hidden />,
             disabled: locked,
-            onSelect: () => patchDay({ items: sortByTime(day.items) }),
+            onSelect: () => patchDay({ items: sortByTime(day.items) }, { label: `Sorted day ${dayIndex + 1} by time`, toast: true }),
           },
         ]
       : []),
@@ -188,7 +222,7 @@ export function DayPanel({
   ]
 
   return (
-    <div {...sx(s.content)} key={day.id}>
+    <div {...sx(s.content)} key={day.id} ref={rootRef}>
       <header {...sx(s.dayHead)}>
         <p {...sx(a.eyebrow)}>
           Day {dayIndex + 1} of {trip.days.length} · {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
@@ -286,7 +320,7 @@ export function DayPanel({
       ))}
 
       {enhancing && (
-        <AiBusy steps={["Reading what’s already planned…", "Scouting places near your route…", "Checking they fit the day…", "Pinning the best ones…"]} />
+        <AiBusy steps={["Reading what’s already planned…", "Scouting places near your route…", "Checking they fit the day…", "Pinning the best ones…"]} onStop={onStopAi} />
       )}
       {run && !enhancing && (
         <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
@@ -312,7 +346,7 @@ export function DayPanel({
             as="ol"
             axis="y"
             values={day.items}
-            onReorder={(items) => !locked && patchDay({ items })}
+            onReorder={(items) => !locked && patchDay({ items }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })}
             {...sx(s.timeline)}
           >
             {day.items.map((item, index) => (
@@ -333,7 +367,8 @@ export function DayPanel({
                 near={near}
                 dayOptions={dayOptions}
                 onChange={onChange}
-                onDelete={onDelete}
+                onDelete={removeStop}
+                onGone={leave}
                 onHover={onHover}
                 onLocate={onLocate}
                 onAnnounce={setSpoken}
@@ -349,7 +384,7 @@ export function DayPanel({
           disabled={locked}
           onInstagram={onInstagram}
           onAdd={(item) => {
-            onChange((days) => addItem(days, day.id, item))
+            onChange((days) => addItem(days, day.id, item), { label: `Added “${item.title || "Untitled"}”` })
             onAdded(item.id)
           }}
         />

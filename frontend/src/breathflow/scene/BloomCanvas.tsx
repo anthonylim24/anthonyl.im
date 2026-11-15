@@ -32,30 +32,75 @@ interface BloomCanvasProps {
 /** Pages hold their reveal this long at most before showing the painted wash. */
 const REVEAL_TIMEOUT_MS = 5000
 
-type Shared = { canvas: HTMLCanvasElement; reducedMotion: boolean; scene: Promise<BloomScene> }
+/** A GPU lost this many times in one visit is not trusted again: painted wash until reload. */
+const MAX_LOSSES = 2
+
 /**
  * One live scene for all of BreathFlow. Building it (WebGPU device, shader
  * compile) is the slow part, so pages hand it their host and anchor instead
  * of rebuilding it on every route change.
+ *
+ * - `idle` / `disposed`: nothing built; the next page builds.
+ * - `loading` → `live` once a frame is painted.
+ * - `lost`: the GPU went away mid-visit; released, and the painted wash
+ *   shows. The next page tries again.
+ * - `failed`: no WebGPU / WebGL2, or the build threw, or the GPU was lost
+ *   too often. Sticky for the visit, so every route change does not retry.
  */
-let shared: Shared | null = null
-let owner: object | null = null
+export type BloomStatus = 'idle' | 'loading' | 'live' | 'failed' | 'lost' | 'disposed'
 
-/** Drop the shared scene (leaving BreathFlow, or reduced motion flipped). */
+type Slot =
+  | { status: 'idle' | 'failed' | 'lost' | 'disposed' }
+  | { status: 'loading' | 'live'; canvas: HTMLCanvasElement; reducedMotion: boolean; scene: Promise<BloomScene> }
+
+let slot: Slot = { status: 'idle' }
+let losses = 0
+/** The mounted BloomCanvas, and what to tell it if the GPU goes away. */
+let owner: { onLost: () => void } | null = null
+
+export function bloomStatus(): BloomStatus {
+  return slot.status
+}
+
+/** Drop the shared scene (leaving BreathFlow, reduced motion flipped, or the GPU lost). */
 export function releaseBloomScene() {
-  const s = shared
-  shared = null
+  const s = slot
   owner = null
-  if (!s) return
+  if (s.status !== 'loading' && s.status !== 'live') return
+  slot = { status: 'disposed' }
   s.canvas.remove()
   void s.scene.then((scene) => scene.dispose(), () => {})
 }
 
+function sceneLost(scene: Promise<BloomScene>) {
+  if ((slot.status !== 'loading' && slot.status !== 'live') || slot.scene !== scene) return
+  console.warn('[breathflow] GPU lost; showing the painted wash.')
+  const lostOwner = owner
+  releaseBloomScene()
+  losses += 1
+  slot = { status: losses >= MAX_LOSSES ? 'failed' : 'lost' }
+  lostOwner?.onLost()
+}
+
+function sceneFailed(scene: Promise<BloomScene>, error: unknown) {
+  if ((slot.status !== 'loading' && slot.status !== 'live') || slot.scene !== scene) return
+  console.warn('[breathflow] live bloom unavailable; keeping the painted wash.', error)
+  slot.canvas.remove()
+  slot = { status: 'failed' }
+}
+
+/** Test seam: forget everything, including a sticky failure. */
+export function resetBloomSceneForTests() {
+  releaseBloomScene()
+  slot = { status: 'idle' }
+  losses = 0
+}
+
 /**
  * Two layers: a painted CSS wash inside the anchor (stays if WebGPU/WebGL2
- * is unavailable) and the live scene, lazily imported so three.js stays out
- * of BreathFlow's first chunk. The scene and its canvas outlive the page:
- * unmounting detaches it, the next BloomCanvas re-attaches it.
+ * is unavailable or lost) and the live scene, lazily imported so three.js
+ * stays out of BreathFlow's first chunk. The scene and its canvas outlive
+ * the page: unmounting detaches it, the next BloomCanvas re-attaches it.
  */
 export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(function BloomCanvas(
   { anchorRef, pointerHostRef, mode, pigment, read, vignette = false, tick, onLive, onReady, style },
@@ -79,7 +124,14 @@ export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(funct
     const host = hostRef.current
     const anchor = anchorRef.current
     if (!host || !anchor) return
-    const me = {}
+    const me = {
+      onLost: () => {
+        sceneRef.current = null
+        setLive(false)
+        latest.current.onLive?.(false)
+        latest.current.onReady?.()
+      },
+    }
     const reveal = () => {
       if (owner === me) latest.current.onReady?.()
     }
@@ -93,34 +145,39 @@ export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(funct
       read: () => latest.current.read(),
       onFirstFrame: () => {
         if (owner !== me) return
+        if (slot.status === 'loading') slot = { ...slot, status: 'live' }
         setLive(true)
         latest.current.onLive?.(true)
         reveal()
       },
     }
 
-    if (shared && shared.reducedMotion !== reducedMotion) releaseBloomScene()
-    let s = shared
-    if (!s) {
+    if ((slot.status === 'loading' || slot.status === 'live') && slot.reducedMotion !== reducedMotion) releaseBloomScene()
+    if (slot.status === 'failed') {
+      // The painted wash is all there is this visit; show the page now.
+      latest.current.onReady?.()
+      clearTimeout(timer)
+      return
+    }
+    if (slot.status !== 'loading' && slot.status !== 'live') {
       const canvas = document.createElement('canvas')
       canvas.setAttribute('aria-hidden', 'true')
       Object.assign(canvas.style, { width: '100%', height: '100%', display: 'block' })
-      const scene = import('./catScene').then(({ createBloomScene }) =>
+      const scene: Promise<BloomScene> = import('./catScene').then(({ createBloomScene }) =>
         createBloomScene({
           canvas,
           reducedMotion,
           night: latest.current.night,
           pigment: latest.current.pigment,
+          onLost: () => sceneLost(scene),
           ...target,
         }),
       )
-      s = shared = { canvas, reducedMotion, scene }
-      scene.catch(() => {
-        if (shared?.scene === scene) shared = null
-      })
+      slot = { status: 'loading', canvas, reducedMotion, scene }
+      scene.catch((error: unknown) => sceneFailed(scene, error))
     }
-    const { scene } = s
-    host.appendChild(s.canvas)
+    const { scene, canvas } = slot
+    host.appendChild(canvas)
     owner = me
     scene.then(
       (bloom) => {
@@ -130,10 +187,7 @@ export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(funct
         bloom.setPigment(latest.current.pigment)
         bloom.setNight(latest.current.night)
       },
-      (error: unknown) => {
-        console.warn('[breathflow] live bloom unavailable; keeping the painted wash.', error)
-        reveal()
-      },
+      () => reveal(),
     )
 
     return () => {

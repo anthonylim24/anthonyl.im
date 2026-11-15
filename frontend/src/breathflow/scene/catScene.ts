@@ -67,6 +67,7 @@ import { jellyGeometry, syncJellyGeometry } from '@/three/jellyMesh'
 import { bindJellyPointer, type JellyPointer } from '@/three/jellyPointer'
 import { bodyImpulse } from '@/three/physics'
 import { createStage, type Stage } from '@/three/stage'
+import { watchContextLoss } from './contextLoss'
 import type { Pigment } from '../pigments'
 import type { BreathSample } from './breathDrive'
 import { SPLATTER_EXTENT, noiseTexture, splatterTexture } from './paintTextures'
@@ -93,6 +94,8 @@ export type BloomSceneOptions = {
   vignette: boolean
   read: () => BreathSample
   onFirstFrame: () => void
+  /** The GPU device or WebGL context went away; the scene can no longer draw. Fires at most once. */
+  onLost: () => void
 }
 
 /** The page-owned part of the scene: where it sits and what drives it. */
@@ -199,9 +202,19 @@ const puffBody = (x: number, y: number, z: number): Vec3 => [x * 0.9, y * 0.86, 
 export async function createBloomScene(opts: BloomSceneOptions): Promise<BloomScene> {
   const { canvas, host, reducedMotion } = opts
   const stage = await createStage({ canvas, host, reducedMotion, maxDpr: 2 })
+  const stopWatching = watchContextLoss(stage.renderer.backend, canvas, opts.onLost)
   try {
-    return await buildScene(opts, stage)
+    const scene = await buildScene(opts, stage)
+    return {
+      ...scene,
+      dispose() {
+        // Destroying the device settles `device.lost`; that is not a loss.
+        stopWatching()
+        scene.dispose()
+      },
+    }
   } catch (error) {
+    stopWatching()
     stage.dispose()
     throw error
   }

@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
@@ -21,7 +21,7 @@ import { sx } from "@/styles/merge"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
-import { deleteTrip, duplicateTrip, generateItinerary } from "./tripsApi"
+import { deleteTrip, duplicateTrip } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
 import { makeItem } from "./tripEdits"
@@ -32,6 +32,8 @@ import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
+import type { HistoryEntry, Sync } from "./editorMachine"
+import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
@@ -76,6 +78,61 @@ function typing(target: EventTarget | null): boolean {
 
 type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip" }
 
+/** Long enough to read and reach (WCAG 2.2.1); paused while hovered or focused. */
+const UNDO_TOAST_MS = 12_000
+
+const itemTotal = (days: readonly TripDay[]) => days.reduce((n, d) => n + d.items.length, 0)
+
+/** "Saved" / "Saving" / "Not saved · Retry", read out politely as it changes. */
+function SaveStatus({ sync, locked, compact, onRetry }: { sync: Sync; locked: boolean; compact?: boolean; onRetry: () => void }) {
+  const busy = sync.k === "dirty" || sync.k === "saving"
+  const failed = sync.k === "saveError" || sync.k === "conflict"
+  return (
+    <span {...sx(s.saveState, compact && s.saveCompact)} role="status" aria-live="polite">
+      <span {...sx(s.saveDot, busy && s.saveDotBusy, failed && s.saveDotError)} aria-hidden />
+      {sync.k === "saveError" ? (
+        <button type="button" {...sx(a.link)} disabled={locked} onClick={onRetry}>
+          Not saved · Retry
+        </button>
+      ) : sync.k === "conflict" ? (
+        "Not saved"
+      ) : busy ? (
+        "Saving"
+      ) : (
+        "Saved"
+      )}
+    </span>
+  )
+}
+
+/**
+ * The offer to take back a destructive change. Stays for 12 s, and not
+ * while the pointer or focus is on it or an AI run holds the editor.
+ */
+function UndoToast({ entry, hold, onUndo, onExpire }: { entry: HistoryEntry; hold: boolean; onUndo: () => void; onExpire: () => void }) {
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    if (paused || hold) return
+    const timer = setTimeout(onExpire, UNDO_TOAST_MS)
+    return () => clearTimeout(timer)
+  }, [paused, hold, onExpire, entry.id])
+  return (
+    <div
+      {...sx(s.dockItem)}
+      role="status"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      <span {...sx(a.grow, a.truncate)}>{entry.label}</span>
+      <button type="button" {...sx(s.dockBtn)} disabled={hold} onClick={onUndo} aria-keyshortcuts="Control+Z Meta+Z">
+        Undo
+      </button>
+    </div>
+  )
+}
+
 /**
  * One workspace per trip. Going from one trip to another (Duplicate, browser
  * Back) starts a fresh one, so nothing from the last trip (a pending AI
@@ -87,9 +144,7 @@ export function TripWorkspace() {
 }
 
 function Workspace() {
-  const [drafting, setDrafting] = useState(false)
-  // A draft locks editing like any AI run, so the delete-Undo window waits for it.
-  const editor = useTripEditor({ undoHeld: drafting })
+  const editor = useTripEditor()
   const { dayId } = useParams<{ dayId?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -111,16 +166,55 @@ function Workspace() {
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
-  const igAddedRef = useRef<string[]>([])
+  /** What this opening of the Instagram import has added: one undo step, one toast. */
+  const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
   /** Offered after the traveller adds or changes where they sleep. */
   const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
   const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
-  const [igUndo, setIgUndo] = useState<{ ids: string[]; count: number; key: number } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLElement>(null)
+  /** Phones mount the map the first time it is asked for, then only hide it. */
+  const [mapOpened, setMapOpened] = useState(false)
+  if (view === "map" && !mapOpened) setMapOpened(true)
+  /** Spoken confirmations (Undo, Redo) for screen readers. */
+  const [announce, setAnnounce] = useState("")
+  const aliveRef = useRef(true)
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
 
-  const { trip, editable } = editor
-  const locked = editor.editorLocked || drafting
+  const { trip, editable, locked } = editor
+  const ai = editor.ai
+
+  // The newest undo step offers a toast when it was a destructive change.
+  // An older step coming back to the top (after an Undo) does not.
+  const lastStep = editor.history?.past[editor.history.past.length - 1]
+  const [seenStep, setSeenStep] = useState(0)
+  const [toastStep, setToastStep] = useState<number | null>(null)
+  if (lastStep && lastStep.id > seenStep) {
+    setSeenStep(lastStep.id)
+    setToastStep(lastStep.toast ? lastStep.id : null)
+  }
+  const toast = lastStep && lastStep.id === toastStep && lastStep.label ? lastStep : null
+  const expireToast = useCallback(() => setToastStep(null), [])
+
+  const undoLast = useCallback(() => {
+    if (!lastStep || locked) return
+    editor.undo()
+    setToastStep(null)
+    setAnnounce(`Undone: ${lastStep.label ?? "your last edit"}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastStep, locked, editor.undo])
+  const nextStep = editor.history?.future[editor.history.future.length - 1]
+  const redoNext = useCallback(() => {
+    if (!nextStep || locked) return
+    editor.redo()
+    setAnnounce(`Redone: ${nextStep.label ?? "your last edit"}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextStep, locked, editor.redo])
 
   // Whatever was open for one day (3D view, "Clear day", the day's AI sheet,
   // an edit request) does not follow the traveller to another day.
@@ -147,13 +241,6 @@ function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayId, trip?.id])
 
-  // Deep link: /day/:id#item-<id> selects that stop.
-  useEffect(() => {
-    if (!day) return
-    const id = location.hash.startsWith("#item-") ? decodeURIComponent(location.hash.slice(6)) : null
-    if (id && day.items.some((i) => i.id === id)) setActiveId(id)
-  }, [location.hash, day?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     if (!trip) return
     const onKey = (event: KeyboardEvent) => {
@@ -173,6 +260,21 @@ function Workspace() {
     return () => window.removeEventListener("keydown", onKey)
   }, [trip, dayIndex, basePath, navigate, dialog, activeId])
 
+  // Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z. A text field keeps the keys for its own
+  // undo history, and so does an open dialog.
+  useEffect(() => {
+    if (!editable) return
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== "z") return
+      if (typing(event.target) || dialog !== null || instagram !== null) return
+      event.preventDefault()
+      if (event.shiftKey) redoNext()
+      else undoLast()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [editable, dialog, instagram, undoLast, redoNext])
+
   // Good news clears itself; anything that reads like a problem stays put.
   const notice = editor.notice
   useEffect(() => {
@@ -188,7 +290,12 @@ function Workspace() {
     return centroid(all) ?? trip.center ?? null
   }, [trip])
 
-  const near = useMemo<LngLat | null>(() => (day ? (centroid(dayRoute(day)) ?? tripCenter) : tripCenter), [day, tripCenter])
+  // Search bias for the composer and every stop's place search. Keyed by
+  // rounded coordinates: a new object per keystroke would re-render every card.
+  const nearNow = day ? (centroid(dayRoute(day)) ?? tripCenter) : tripCenter
+  const nearKey = nearNow ? `${nearNow.lat.toFixed(4)},${nearNow.lng.toFixed(4)}` : ""
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const near = useMemo<LngLat | null>(() => nearNow, [nearKey])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
@@ -222,6 +329,14 @@ function Workspace() {
     [wide],
   )
 
+  // Deep link: /day/:id#item-<id> selects that stop and shows it on the map
+  // (on a phone that means switching to the map).
+  useEffect(() => {
+    if (!day) return
+    const id = location.hash.startsWith("#item-") ? decodeURIComponent(location.hash.slice(6)) : null
+    if (id && day.items.some((i) => i.id === id)) locate(id)
+  }, [location.hash, day?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const onAdded = useCallback((id: string) => {
     setFresh(new Set([id]))
   }, [])
@@ -232,9 +347,14 @@ function Workspace() {
   // ?ingest=1 both open the import; the query is dropped once handled.
   const sharedLink = searchParams.get("instagram") ?? searchParams.get("url") ?? searchParams.get("text")
   const wantsImport = sharedLink != null || searchParams.get("ingest") === "1"
+  const openInstagram = useCallback((urls: string[]) => {
+    igRef.current = { session: igRef.current.session + 1, ids: [], places: 0 }
+    setInstagram({ urls })
+  }, [])
+
   useEffect(() => {
     if (!trip || !editable || !wantsImport) return
-    setInstagram({ urls: extractInstagramUrls(sharedLink ?? "") })
+    openInstagram(extractInstagramUrls(sharedLink ?? ""))
     const next = new URLSearchParams(searchParams)
     for (const key of ["instagram", "url", "text", "title", "ingest"]) next.delete(key)
     setSearchParams(next, { replace: true })
@@ -247,18 +367,22 @@ function Workspace() {
     (toDayId: string, items: ItineraryItem[]) => {
       if (items.length === 0) return
       const added: string[] = items.map((item) => item.id)
-      editor.setDays((days) =>
-        days.map((d) => {
-          if (d.id !== toDayId) return d
-          const timed = d.items.some((item) => item.time)
-          const hasHeading = d.items.some(isToSchedule)
-          if (!timed || hasHeading) return { ...d, items: [...d.items, ...items] }
-          const heading = makeItem("section", TO_SCHEDULE)
-          added.push(heading.id)
-          return { ...d, items: [...d.items, heading, ...items] }
-        }),
+      const ig = igRef.current
+      ig.places += items.length
+      editor.setDays(
+        (days) =>
+          days.map((d) => {
+            if (d.id !== toDayId) return d
+            const timed = d.items.some((item) => item.time)
+            const hasHeading = d.items.some(isToSchedule)
+            if (!timed || hasHeading) return { ...d, items: [...d.items, ...items] }
+            const heading = makeItem("section", TO_SCHEDULE)
+            added.push(heading.id)
+            return { ...d, items: [...d.items, heading, ...items] }
+          }),
+        { label: `Added ${plural(ig.places, "place")} from Instagram`, key: `instagram:${ig.session}`, toast: true },
       )
-      igAddedRef.current = [...igAddedRef.current, ...added]
+      ig.ids = [...ig.ids, ...added]
       const ids = new Set(items.map((item) => item.id))
       editor.flashTouched(ids)
       setFresh(ids)
@@ -280,29 +404,28 @@ function Workspace() {
     })
   }
 
-  // Closing the import: show what landed (flash + pin drop) and offer Undo.
+  // Closing the import: show what landed (flash + pin drop). Its Undo is the
+  // toast for the import's one undo step.
   const closeInstagram = () => {
     setInstagram(null)
-    const ids = igAddedRef.current
-    igAddedRef.current = []
+    const ids = igRef.current.ids
     if (ids.length === 0 || !editor.trip) return
     const places = editor.trip.days.flatMap((d) => d.items.filter((item) => ids.includes(item.id) && item.kind !== "section"))
     if (places.length === 0) return
     const shown = new Set(places.map((item) => item.id))
     editor.flashTouched(shown)
     setFresh(shown)
-    setIgUndo({ ids, count: places.length, key: Date.now() })
     // Bring the new stops to the top of the list, clear of the toast: the
     // "To schedule" heading when there is one, else the first new stop.
     const anchor = ids.find((id) => editor.trip?.days.some((d) => d.items.some((item) => item.id === id && item.kind === "section"))) ?? places[0]!.id
-    requestAnimationFrame(() => document.getElementById(`item-${anchor}`)?.scrollIntoView({ block: "start", behavior: "smooth" }))
+    requestAnimationFrame(() => document.getElementById(`item-${anchor}`)?.scrollIntoView({ block: "start", behavior: scrollBehavior() }))
   }
 
   // A new or different hotel changes what a good day looks like. Offer to
   // rework the plan around it; never do it unasked. Changes made by an AI
   // run (a draft, an applied review) only update what we compare against.
   const lodgingKey = trip ? lodgingEntries(trip).map((entry) => entry.key).join("|") : ""
-  const aiBusy = drafting || editor.enhancingTarget !== null
+  const aiBusy = locked
   useEffect(() => {
     if (!trip) return
     const entries = lodgingEntries(trip)
@@ -316,53 +439,10 @@ function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lodgingKey, trip?.id])
 
-  useEffect(() => {
-    if (!igUndo || locked) return
-    const timer = setTimeout(() => setIgUndo(null), 12_000)
-    return () => clearTimeout(timer)
-  }, [igUndo, locked])
-
   const draft = async (brief: DraftBrief) => {
     if (!trip) return
-    setDrafting(true)
-    editor.setNotice(null)
-    try {
-      await editor.flushPendingSave()
-      if (!editor.aliveRef.current) return
-      const { trip: next, summary, incompleteDays } = await generateItinerary(editor.readToken, trip.id, {
-        ...briefToRequest(brief),
-        replaceExisting: hasItems,
-      })
-      // Left for another trip while it was drafting: the answer isn't for this page.
-      if (!editor.aliveRef.current) return
-      editor.cancelPendingSave()
-      editor.setAiTrip(next)
-      editor.setSaveState("saved")
-      const added = next.days.flatMap((d) => d.items.map((i) => i.id))
-      editor.flashTouched(new Set(added))
-      setFresh(new Set(added))
-      const thin =
-        incompleteDays.length > 0
-          ? ` ${incompleteDays.length === 1 ? `Day ${incompleteDays[0]} needs` : `Days ${incompleteDays.join(", ")} need`} another go: open ${incompleteDays.length === 1 ? "it" : "each"} and use “Ideas for this day”.`
-          : ""
-      editor.setNotice(
-        added.length > 0
-          ? incompleteDays.length > 0
-            ? `Drafted ${plural(added.length, "stop")}, but not every day.${thin}`
-            : (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}. Edit anything.`)
-          : "The draft came back empty. Try again with a little more detail.",
-      )
-    } catch (err) {
-      if (!editor.aliveRef.current) return
-      const message = errorText(err)
-      editor.setNotice(
-        /GEMINI|GROQ|ai_not_configured|503/i.test(message)
-          ? "AI isn’t switched on for this server yet, so drafts are unavailable. You can still add stops yourself."
-          : `The draft didn’t finish, so nothing changed. Try again in a moment. (${message})`,
-      )
-    } finally {
-      setDrafting(false)
-    }
+    const added = await editor.draft(briefToRequest(brief), hasItems)
+    if (added.length > 0 && aliveRef.current) setFresh(new Set(added))
   }
 
   const runAi = (request: AiRequest) => {
@@ -376,6 +456,15 @@ function Workspace() {
     else void editor.runEnhance("trip", undefined, request.prompt)
   }
 
+  // The Itinerary / Map switch is a radio group: arrow keys move the choice and focus together.
+  const onViewKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return
+    event.preventDefault()
+    const next = view === "list" ? "map" : "list"
+    setView(next)
+    event.currentTarget.querySelector<HTMLElement>(`[data-view="${next}"]`)?.focus()
+  }
+
   const act = async (key: string, work: () => Promise<void>) => {
     setBusy(key)
     try {
@@ -387,7 +476,7 @@ function Workspace() {
     }
   }
 
-  if (editor.state.status === "loading") {
+  if (editor.state.s === "loading") {
     return (
       <div {...sx(s.root)} role="status" aria-label="Loading trip">
         <div {...sx(s.pane)}>
@@ -407,19 +496,24 @@ function Workspace() {
     )
   }
 
-  if (editor.state.status === "error" || !trip) {
-    if (editor.state.status === "error" && isMissingTripError(editor.state.message)) return <TripsNotFound />
+  if (editor.state.s === "loadError" || !trip) {
+    if (editor.state.s === "loadError" && isMissingTripError(editor.state.message)) return <TripsNotFound />
     return (
       <div {...sx(s.content)} style={{ maxWidth: "36rem", marginInline: "auto" }}>
         <div {...sx(a.alert)} role="alert">
           <p {...sx(a.wrap)} style={{ margin: 0 }}>
             Couldn’t open this trip. Check your connection, then try again.
-            {editor.state.status === "error" ? ` (${editor.state.message})` : ""}
+            {editor.state.s === "loadError" ? ` (${editor.state.message})` : ""}
           </p>
         </div>
-        <Link to="/trips" {...sx(a.btn, a.btnSecondary)} style={{ alignSelf: "flex-start" }}>
-          Back to all trips
-        </Link>
+        <div {...sx(a.rowWrap)}>
+          <button type="button" {...sx(a.btn, a.btnPrimary)} onClick={editor.reload}>
+            Try again
+          </button>
+          <Link to="/trips" {...sx(a.btn, a.btnSecondary)}>
+            Back to all trips
+          </Link>
+        </div>
       </div>
     )
   }
@@ -429,6 +523,8 @@ function Workspace() {
   const today = todayIsoIn(trip.timezone)
   const owner = editor.access === "owner"
   const showMap = wide || view === "map"
+  const sync = editor.sync
+  const running = ai.k === "running" ? ai.run : null
 
   const menu: MenuItem[] = [
     ...(editable && dayId
@@ -447,7 +543,7 @@ function Workspace() {
             label: "Add places from Instagram",
             icon: <IgGlyph size={16} />,
             disabled: locked,
-            onSelect: () => setInstagram({ urls: [] }),
+            onSelect: () => openInstagram([]),
           },
         ]
       : []),
@@ -460,9 +556,9 @@ function Workspace() {
       icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,
       onSelect: () =>
         void act("duplicate", async () => {
-          await editor.flushPendingSave()
+          await editor.flush()
           const copy = await duplicateTrip(editor.readToken, editor.trip ?? trip)
-          if (!editor.aliveRef.current) return
+          if (!aliveRef.current) return
           navigate(`/trips/${copy.slug ?? copy.id}`)
         }),
     },
@@ -498,23 +594,7 @@ function Workspace() {
             </Link>
             <span {...sx(a.mono, a.muted, a.noShrink, s.compactDates)}>{formatRange(trip.startDate, trip.endDate)}</span>
             <span {...sx(a.grow)} />
-            {editable && (
-              <span {...sx(s.saveState, s.saveCompact)} role="status" aria-live="polite">
-                <span
-                  {...sx(s.saveDot, (editor.saveState === "saving" || editor.saveState === "dirty") && s.saveDotBusy, editor.saveState === "error" && s.saveDotError)}
-                  aria-hidden
-                />
-                {editor.saveState === "error" ? (
-                  <button type="button" {...sx(a.link)} disabled={locked} onClick={() => editor.scheduleSave({ ...trip })}>
-                    Not saved · Retry
-                  </button>
-                ) : editor.saveState === "saved" ? (
-                  "Saved"
-                ) : (
-                  "Saving"
-                )}
-              </span>
-            )}
+            {editable && <SaveStatus sync={sync} locked={locked} compact onRetry={editor.retrySave} />}
             <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
               <Share2 size={14} strokeWidth={1.75} aria-hidden />
               Share
@@ -559,7 +639,10 @@ function Workspace() {
                       event.currentTarget.blur()
                     }
                   }}
-                  onChange={(event) => editor.scheduleSave({ ...trip, name: event.target.value.replace(/\s*\n\s*/g, " ") })}
+                  onChange={(event) => {
+                    const name = event.target.value.replace(/\s*\n\s*/g, " ")
+                    editor.edit((doc) => ({ ...doc, name }))
+                  }}
                 />
               </>
             ) : (
@@ -590,7 +673,7 @@ function Workspace() {
                 </button>
               )}
               {editable && (
-                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={locked} onClick={() => setInstagram({ urls: [] })}>
+                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={locked} onClick={() => openInstagram([])}>
                   <IgGlyph size={14} />
                   From Instagram
                 </button>
@@ -608,23 +691,7 @@ function Workspace() {
                   items={menu}
                 />
               )}
-              {editable && (
-                <span {...sx(s.saveState)} role="status" aria-live="polite">
-                  <span
-                    {...sx(s.saveDot, (editor.saveState === "saving" || editor.saveState === "dirty") && s.saveDotBusy, editor.saveState === "error" && s.saveDotError)}
-                    aria-hidden
-                  />
-                  {editor.saveState === "error" ? (
-                    <button type="button" {...sx(a.link)} disabled={locked} onClick={() => editor.scheduleSave({ ...trip })}>
-                      Not saved · Retry
-                    </button>
-                  ) : editor.saveState === "saved" ? (
-                    "Saved"
-                  ) : (
-                    "Saving"
-                  )}
-                </span>
-              )}
+              {editable && <SaveStatus sync={sync} locked={locked} onRetry={editor.retrySave} />}
             </div>
           </header>
         )}
@@ -670,8 +737,8 @@ function Workspace() {
             basePath={basePath}
             editable={editable}
             locked={locked}
-            enhancing={editor.enhancingTarget === day.id}
-            applying={editor.enhancingTarget === "apply"}
+            enhancing={typeof running === "object" && running?.day === day.id}
+            applying={ai.k === "applying"}
             run={editor.activeRun && editor.activeRun.scope === "day" && editor.activeRun.dayId === day.id ? editor.activeRun : null}
             dayOptions={editor.dayOptions}
             recentIds={editor.recentIds}
@@ -688,8 +755,9 @@ function Workspace() {
             onClear={() => setDialog("clear")}
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
+            onStopAi={editor.stopAi}
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
-            onInstagram={(urls) => setInstagram({ urls })}
+            onInstagram={openInstagram}
           />
         ) : (
           <OverviewPanel
@@ -697,21 +765,86 @@ function Workspace() {
             basePath={basePath}
             editable={editable}
             locked={locked}
-            drafting={drafting}
-            enhancing={editor.enhancingTarget === "trip"}
-            applying={editor.enhancingTarget === "apply"}
+            drafting={running === "draft"}
+            enhancing={running === "trip"}
+            applying={ai.k === "applying"}
             run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
             dayOptions={editor.dayOptions}
             onDraft={(brief) => void draft(brief)}
             onHoverDay={(id) => setHotId(id ? `${DAY_PIN}${id}` : null)}
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
+            onStopAi={editor.stopAi}
           />
         )}
       </div>
 
-      {showMap && (
-        <div {...sx(s.mapPane)}>
+      <p {...sx(a.srOnly)} role="status" aria-live="polite">
+        {announce}
+      </p>
+      {(toast || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
+        <div {...sx(s.dock)}>
+          {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={undoLast} onExpire={expireToast} />}
+          {sync.k === "conflict" && (
+            <div {...sx(s.dockItem)} role="alert">
+              <span {...sx(a.grow, a.wrap)}>
+                Someone else changed the same part of this trip while you were editing. Which version should stay?
+              </span>
+              <button type="button" {...sx(s.dockBtn)} onClick={() => editor.resolveConflict("mine")}>
+                Keep mine
+              </button>
+              <button type="button" {...sx(s.dockBtn)} onClick={() => editor.resolveConflict("theirs")}>
+                Use theirs
+              </button>
+            </div>
+          )}
+          {lodgingNudge && (
+            <div {...sx(s.dockItem)} role="status">
+              <span {...sx(a.grow, a.wrap)}>Staying at {lodgingNudge.name}. Rework the plan around it?</span>
+              <button
+                type="button"
+                {...sx(s.dockBtn)}
+                disabled={locked}
+                onClick={() => {
+                  const name = lodgingNudge.name
+                  setLodgingNudge(null)
+                  navigate(basePath)
+                  void editor.runEnhance("trip", undefined, lodgingBrief(name))
+                }}
+              >
+                Adjust plan
+              </button>
+              <button type="button" {...sx(s.dockBtn)} onClick={() => setLodgingNudge(null)}>
+                Not now
+              </button>
+            </div>
+          )}
+          {overlayProblem && (
+            <div {...sx(s.dockItem)} role="alert">
+              <span {...sx(a.grow, a.wrap)}>{overlayProblem.text}</span>
+              {overlayProblem.stale && (
+                <button type="button" {...sx(s.dockBtn)} onClick={() => window.location.reload()}>
+                  Reload
+                </button>
+              )}
+              <button type="button" {...sx(s.dockBtn)} onClick={() => setOverlayProblem(null)}>
+                Dismiss
+              </button>
+            </div>
+          )}
+          {editor.notice && (
+            <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : "status"}>
+              <span {...sx(a.grow, a.wrap)}>{editor.notice}</span>
+              <button type="button" {...sx(s.dockBtn)} onClick={() => editor.setNotice(null)}>
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(wide || mapOpened) && (
+        <div {...sx(s.mapPane)} hidden={!showMap}>
           <AtlasMap
             pins={pins}
             routes={routes}
@@ -821,89 +954,33 @@ function Workspace() {
       )}
 
       <div {...sx(s.bar)}>
-        <div {...sx(share.segment, s.barSegment)} role="radiogroup" aria-label="View">
-          <button type="button" role="radio" aria-checked={view === "list"} {...sx(share.segmentBtn, s.barBtn, view === "list" && share.segmentOn)} onClick={() => setView("list")}>
+        <div {...sx(share.segment, s.barSegment)} role="radiogroup" aria-label="View" onKeyDown={onViewKey}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={view === "list"}
+            tabIndex={view === "list" ? 0 : -1}
+            data-view="list"
+            {...sx(share.segmentBtn, s.barBtn, view === "list" && share.segmentOn)}
+            onClick={() => setView("list")}
+          >
             <List size={16} strokeWidth={1.75} aria-hidden />
             Itinerary
           </button>
-          <button type="button" role="radio" aria-checked={view === "map"} {...sx(share.segmentBtn, s.barBtn, view === "map" && share.segmentOn)} onClick={() => setView("map")}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={view === "map"}
+            tabIndex={view === "map" ? 0 : -1}
+            data-view="map"
+            {...sx(share.segmentBtn, s.barBtn, view === "map" && share.segmentOn)}
+            onClick={() => setView("map")}
+          >
             <MapIcon size={16} strokeWidth={1.75} aria-hidden />
             Map
           </button>
         </div>
       </div>
-
-      {(editor.notice || editor.deleted || igUndo || lodgingNudge || overlayProblem) && (
-        <div {...sx(s.dock)}>
-          {lodgingNudge && (
-            <div {...sx(s.dockItem)} role="status">
-              <span {...sx(a.grow, a.wrap)}>Staying at {lodgingNudge.name}. Rework the plan around it?</span>
-              <button
-                type="button"
-                {...sx(s.dockBtn)}
-                disabled={locked}
-                onClick={() => {
-                  const name = lodgingNudge.name
-                  setLodgingNudge(null)
-                  navigate(basePath)
-                  void editor.runEnhance("trip", undefined, lodgingBrief(name))
-                }}
-              >
-                Adjust plan
-              </button>
-              <button type="button" {...sx(s.dockBtn)} onClick={() => setLodgingNudge(null)}>
-                Not now
-              </button>
-            </div>
-          )}
-          {igUndo && (
-            <div {...sx(s.dockItem)} role="status" key={igUndo.key}>
-              <span {...sx(a.grow, a.truncate)}>Added {plural(igUndo.count, "place")} from Instagram</span>
-              <button
-                type="button"
-                {...sx(s.dockBtn)}
-                disabled={locked}
-                onClick={() => {
-                  const ids = igUndo.ids
-                  editor.setDays((days) => days.map((d) => ({ ...d, items: d.items.filter((item) => !ids.includes(item.id)) })))
-                  setIgUndo(null)
-                }}
-              >
-                Undo
-              </button>
-            </div>
-          )}
-          {overlayProblem && (
-            <div {...sx(s.dockItem)} role="alert">
-              <span {...sx(a.grow, a.wrap)}>{overlayProblem.text}</span>
-              {overlayProblem.stale && (
-                <button type="button" {...sx(s.dockBtn)} onClick={() => window.location.reload()}>
-                  Reload
-                </button>
-              )}
-              <button type="button" {...sx(s.dockBtn)} onClick={() => setOverlayProblem(null)}>
-                Dismiss
-              </button>
-            </div>
-          )}
-          {editor.notice && (
-            <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : "status"}>
-              <span {...sx(a.grow, a.wrap)}>{editor.notice}</span>
-              <button type="button" {...sx(s.dockBtn)} onClick={() => editor.setNotice(null)}>
-                Dismiss
-              </button>
-            </div>
-          )}
-          {editor.deleted && (
-            <div {...sx(s.dockItem)} role="status" key={editor.deleted.key}>
-              <span {...sx(a.grow, a.truncate)}>Removed “{editor.deleted.title || "Untitled"}”</span>
-              <button type="button" {...sx(s.dockBtn)} disabled={locked} onClick={editor.undoDelete}>
-                Undo
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {dialog === "share" && (
         <ShareDialog
@@ -912,9 +989,7 @@ function Workspace() {
           getToken={editor.readToken}
           viewerId={viewer.id}
           onClose={() => setDialog(null)}
-          onChanged={(next) => {
-            if (editor.saveState === "saved") editor.setTrip({ ...(editor.trip ?? trip), collaborators: next.collaborators })
-          }}
+          onChanged={(next) => editor.setCollaborators(next.collaborators)}
           onLeft={() => navigate("/trips")}
         />
       )}
@@ -924,7 +999,8 @@ function Workspace() {
           open={dialog === "details" && !locked}
           onClose={() => setDialog(null)}
           onSave={(next: Trip) => {
-            editor.scheduleSave(next)
+            const lost = itemTotal(next.days) < itemTotal(trip.days)
+            editor.edit(() => next, lost ? { label: "Changed the trip dates", toast: true } : { label: "Updated the trip details" })
             if (dayId && !next.days.some((d: TripDay) => d.id === dayId)) navigate(basePath)
           }}
         />
@@ -972,8 +1048,8 @@ function Workspace() {
                   // Unsaved edits are dropped only once the trip is really gone;
                   // a failed delete leaves them to save as usual.
                   await deleteTrip(editor.readToken, trip.id)
-                  editor.cancelPendingSave()
-                  if (!editor.aliveRef.current) return
+                  editor.discard()
+                  if (!aliveRef.current) return
                   navigate("/trips")
                 })
               }
@@ -1001,7 +1077,12 @@ function Workspace() {
               type="button"
               {...sx(a.btn, a.btnDanger)}
               onClick={() => {
-                if (day) editor.setDays((days) => days.map((d) => (d.id === day.id ? { ...d, items: [] as ItineraryItem[] } : d)))
+                if (day) {
+                  editor.setDays((days) => days.map((d) => (d.id === day.id ? { ...d, items: [] as ItineraryItem[] } : d)), {
+                    label: `Cleared day ${dayIndex + 1}`,
+                    toast: true,
+                  })
+                }
                 setDialog(null)
               }}
             >

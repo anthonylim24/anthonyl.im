@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CompletedSession } from '@/stores/historyStore'
-import { calculateXP } from '../xp'
+import { calculateXP, MIN_LENGTH_SHARE, plannedLengthShare } from '../xp'
 import { getLevelProgress, getLevelTitle, levelForXP, xpForLevel } from '../levels'
 import { BADGES, checkBadgeUnlocks } from '../badges'
 import { DEFAULT_ORB_THEME_ID, isOrbThemeUnlocked, ORB_THEMES, resolveOrbTheme } from '../orbThemes'
@@ -34,6 +34,26 @@ describe('XP formula', () => {
   it('caps the streak multiplier at 2.0', () => {
     expect(calculateXP('box_breathing', 19, 10)).toBe(100)
     expect(calculateXP('box_breathing', 19, 50)).toBe(100)
+  })
+
+  it('scales a session planned shorter than the default by its length', () => {
+    // Box breathing's default is 19 rounds of 16 s.
+    expect(plannedLengthShare('box_breathing', 19)).toBe(1)
+    expect(plannedLengthShare('box_breathing', 38)).toBe(1)
+    expect(plannedLengthShare('box_breathing', 10)).toBeCloseTo(10 / 19)
+    expect(calculateXP('box_breathing', 10, 0, 1, plannedLengthShare('box_breathing', 10))).toBe(Math.round(50 * 10 / 19))
+  })
+
+  it('never scales below the floor: a one-round session is still practice', () => {
+    expect(plannedLengthShare('box_breathing', 1)).toBe(MIN_LENGTH_SHARE)
+    expect(plannedLengthShare('box_breathing', 1, { inhale: 1, hold_in: 1, exhale: 1, hold_out: 1 })).toBe(MIN_LENGTH_SHARE)
+    expect(calculateXP('box_breathing', 1, 0, 1, plannedLengthShare('box_breathing', 1))).toBe(Math.round(50 * MIN_LENGTH_SHARE))
+  })
+
+  it('counts custom phase lengths toward the planned length', () => {
+    // Twice-as-long phases over half the rounds: about the default length.
+    const custom = { inhale: 8, hold_in: 8, exhale: 8, hold_out: 8 }
+    expect(plannedLengthShare('box_breathing', 10, custom)).toBe(1)
   })
 })
 

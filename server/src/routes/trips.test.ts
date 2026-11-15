@@ -157,15 +157,19 @@ describe("trips CRUD", () => {
     expect(updated.days[0]!.items.length).toBe(1)
   })
 
-  test("other users cannot see, edit, or delete a private trip", async () => {
-    const trip = await createTrip(app)
+  test("a private trip reads as missing to other users, by id and by slug", async () => {
+    const trip = (await createTrip(app)) as { id: string; slug: string }
     const other = { Authorization: "Bearer other-token", "Content-Type": "application/json" }
-    expect((await app.request(`/api/trips/${trip.id}`, { headers: other })).status).toBe(403)
+    for (const ref of [trip.id, trip.slug, "no-such-trip"]) {
+      const res = await app.request(`/api/trips/${ref}`, { headers: other })
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ error: "trip not found" })
+    }
     expect(
       (await app.request(`/api/trips/${trip.id}`, { method: "PATCH", headers: other, body: JSON.stringify({ name: "hijack" }) }))
         .status,
-    ).toBe(403)
-    expect((await app.request(`/api/trips/${trip.id}`, { method: "DELETE", headers: other })).status).toBe(403)
+    ).toBe(404)
+    expect((await app.request(`/api/trips/${trip.id}`, { method: "DELETE", headers: other })).status).toBe(404)
   })
 
   test("viewer collaborators can view but not edit", async () => {
@@ -903,6 +907,51 @@ describe("concierge chat", () => {
     expect(reply.response.rejected[0]).toContain("no stop with that itemId")
   })
 
+  test("runs at most four paid lookups per round and answers the rest as skipped", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    const realMapsKey = process.env.GOOGLE_MAPS_API_KEY
+    process.env.GOOGLE_MAPS_API_KEY = "maps-key"
+    try {
+      const { app } = makeApp()
+      const trip = await createTrip(app)
+      let placesCalls = 0
+      const requests: Array<{ contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }> = []
+      globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        if (String(url).includes("places.googleapis.com")) {
+          placesCalls++
+          return Response.json({ places: [] })
+        }
+        if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
+        requests.push(JSON.parse(String(init?.body)))
+        if (requests.length === 1) {
+          const calls = Array.from({ length: 6 }, (_, i) => ({
+            functionCall: { id: `call-${i}`, name: "find_places", args: { query: `ramen ${i}` } },
+          }))
+          return geminiRawSse([{ candidates: [{ content: { parts: calls } }] }])
+        }
+        return geminiSseResponse(["Here is what I found."])
+      }) as unknown as typeof fetch
+
+      const res = await app.request(`/api/trips/${trip.id}/chat`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ prompt: "Ramen everywhere" }),
+      })
+      await res.text()
+      expect(placesCalls).toBe(4)
+      const second = requests[1]!.contents
+      const replies = second[second.length - 1]!.parts.map(
+        (p) => (p.functionResponse as { id: string; response: { error?: string } }),
+      )
+      expect(replies.map((r) => r.id)).toEqual(["call-0", "call-1", "call-2", "call-3", "call-4", "call-5"])
+      expect(replies.slice(4).every((r) => /Skipped/.test(r.response.error ?? ""))).toBe(true)
+      expect(replies.slice(0, 4).some((r) => /Skipped/.test(r.response.error ?? ""))).toBe(false)
+    } finally {
+      if (realMapsKey === undefined) delete process.env.GOOGLE_MAPS_API_KEY
+      else process.env.GOOGLE_MAPS_API_KEY = realMapsKey
+    }
+  })
+
   test("passes earlier cards back so follow-ups can point at them", async () => {
     process.env.GEMINI_API_KEY = "test-key"
     let contents: Array<{ role: string; parts: Array<{ text?: string }> }> = []
@@ -1210,7 +1259,7 @@ describe("invites and joining", () => {
     const trip = await createTrip(app)
     const invite = await inviteFor(app, trip.id, "editor")
     // Stranger
-    expect((await createInvite(app, trip.id, "viewer", OTHER)).status).toBe(403)
+    expect((await createInvite(app, trip.id, "viewer", OTHER)).status).toBe(404)
     // Editor collaborator
     expect((await join(app, invite.token)).status).toBe(200)
     expect((await createInvite(app, trip.id, "viewer", OTHER)).status).toBe(403)
@@ -1305,7 +1354,7 @@ describe("invites and joining", () => {
     expect(leave.status).toBe(200)
     expect(await leave.json()).toEqual({ ok: true })
     expect((await store.get(trip.id))!.collaborators).toEqual([])
-    expect((await app.request(`/api/trips/${trip.id}`, { headers: OTHER })).status).toBe(403)
+    expect((await app.request(`/api/trips/${trip.id}`, { headers: OTHER })).status).toBe(404)
   })
 
   test("invites are only returned to the owner and survive collaborator edits", async () => {
@@ -1347,5 +1396,257 @@ describe("invites and joining", () => {
     // Summaries never carry invites.
     const summary = (await summaryOf(app, trip.id, AUTH)) as unknown as Record<string, unknown>
     expect("invites" in summary).toBe(false)
+  })
+})
+
+describe("slow /generate body", () => {
+  const draft = () =>
+    JSON.stringify({
+      summary: "Plan ready.",
+      days: [{ title: "Asakusa", items: [{ kind: "place", title: "Senso-ji", location: { name: "Senso-ji", lat: 35.7, lng: 139.8 } }] }],
+    })
+
+  test("a client that hangs up mid-heartbeat does not crash the process, and the draft still lands", async () => {
+    const uncaught: unknown[] = []
+    const onUncaught = (err: unknown) => uncaught.push(err)
+    process.on("uncaughtException", onUncaught)
+    try {
+      let release!: () => void
+      const hold = new Promise<void>((resolve) => (release = resolve))
+      const { app, store } = makeApp({
+        llm: async () => {
+          await hold
+          return draft()
+        },
+        generateGraceMs: 1,
+        generateHeartbeatMs: 2,
+      })
+      const trip = await createTrip(app)
+      const res = await app.request(`/api/trips/${trip.id}/generate`, { method: "POST", headers: AUTH, body: "{}" })
+      const reader = res.body!.getReader()
+      expect(new TextDecoder().decode((await reader.read()).value)).toBe(" \n")
+      await reader.cancel()
+      await Bun.sleep(20) // several heartbeats past the hang-up
+      release()
+      await Bun.sleep(20)
+      expect(uncaught).toEqual([])
+      expect((await store.get(trip.id))!.days[0]!.items.map((i) => i.title)).toEqual(["Senso-ji"])
+    } finally {
+      process.off("uncaughtException", onUncaught)
+    }
+  })
+
+  test("merges the draft onto the trip as it is now, not as it was when the draft began", async () => {
+    let release!: () => void
+    const hold = new Promise<void>((resolve) => (release = resolve))
+    const { app, store } = makeApp({
+      llm: async () => {
+        await hold
+        return draft()
+      },
+    })
+    const trip = await createTrip(app)
+    const pending = app.request(`/api/trips/${trip.id}/generate`, { method: "POST", headers: AUTH, body: "{}" })
+    await Bun.sleep(5)
+    // While the model works: a rename and a new invite link.
+    await app.request(`/api/trips/${trip.id}`, { method: "PATCH", headers: AUTH, body: JSON.stringify({ name: "Renamed" }) })
+    await app.request(`/api/trips/${trip.id}/invites`, { method: "POST", headers: AUTH, body: JSON.stringify({ role: "viewer" }) })
+    release()
+    const res = await pending
+    expect(res.status).toBe(200)
+    const stored = (await store.get(trip.id))!
+    expect(stored.name).toBe("Renamed")
+    expect(stored.invites?.length).toBe(1)
+    expect(stored.days[0]!.items[0]!.title).toBe("Senso-ji")
+  })
+})
+
+describe("PATCH with baseUpdatedAt", () => {
+  async function patch(app: Hono, id: string, body: unknown, headers: Record<string, string> = AUTH) {
+    return app.request(`/api/trips/${id}`, { method: "PATCH", headers, body: JSON.stringify(body) })
+  }
+
+  test("a save based on the current version lands and moves updatedAt on", async () => {
+    const { app } = makeApp()
+    const trip = (await createTrip(app)) as unknown as { id: string; updatedAt: string }
+    const res = await patch(app, trip.id, { name: "First", baseUpdatedAt: trip.updatedAt })
+    expect(res.status).toBe(200)
+    const { trip: saved } = (await res.json()) as { trip: { name: string; updatedAt: string } }
+    expect(saved.name).toBe("First")
+    expect(saved.updatedAt).not.toBe(trip.updatedAt)
+    // Chaining on the returned version keeps working, even within one millisecond.
+    expect((await patch(app, trip.id, { name: "Second", baseUpdatedAt: saved.updatedAt })).status).toBe(200)
+  })
+
+  test("a save based on an older version is refused with the current trip and writes nothing", async () => {
+    const { app, store } = makeApp()
+    const trip = (await createTrip(app)) as unknown as { id: string; updatedAt: string }
+    const first = (await (await patch(app, trip.id, { name: "Theirs" })).json()) as { trip: { updatedAt: string } }
+    const res = await patch(app, trip.id, { name: "Mine", baseUpdatedAt: trip.updatedAt })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { error: string; trip: { name: string; updatedAt: string } }
+    expect(body.error).toBe("conflict")
+    expect(body.trip.name).toBe("Theirs")
+    expect(body.trip.updatedAt).toBe(first.trip.updatedAt)
+    expect((await store.get(trip.id))!.name).toBe("Theirs")
+  })
+
+  test("the conflict body is the trip as that user may see it (no invites for an editor)", async () => {
+    const { app } = makeApp()
+    const trip = (await createTrip(app)) as unknown as { id: string; updatedAt: string }
+    await patch(app, trip.id, { collaborators: [{ userId: "user-2", role: "editor" }] })
+    await app.request(`/api/trips/${trip.id}/invites`, { method: "POST", headers: AUTH, body: JSON.stringify({ role: "viewer" }) })
+    const res = await patch(app, trip.id, { name: "Stale", baseUpdatedAt: trip.updatedAt }, OTHER)
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { trip: Record<string, unknown> }
+    expect("invites" in body.trip).toBe(false)
+  })
+
+  test("without baseUpdatedAt the patch merges onto a write that lands mid-save", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const realCas = store.updateIfUnchanged.bind(store)
+    let sneaked = false
+    store.updateIfUnchanged = async (next, expected) => {
+      if (!sneaked) {
+        sneaked = true
+        const current = (await store.get(next.id))!
+        await store.update({
+          ...current,
+          collaborators: [{ userId: "user-3", role: "viewer" }],
+          updatedAt: "2099-01-01T00:00:00.000Z",
+        })
+      }
+      return realCas(next, expected)
+    }
+    const res = await patch(app, trip.id, { name: "Old client" })
+    expect(res.status).toBe(200)
+    const stored = (await store.get(trip.id))!
+    expect(stored.name).toBe("Old client")
+    expect(stored.collaborators).toEqual([{ userId: "user-3", role: "viewer" }])
+  })
+
+  test("reserved permalinks are refused", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    for (const slug of ["new", "join", "places-catalog"]) {
+      expect((await patch(app, trip.id, { slug })).status).toBe(400)
+    }
+  })
+})
+
+describe("enhancement run lifecycle", () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString()
+
+  function runningRun(tripId: string, createdAt: string) {
+    return {
+      id: "run-live",
+      tripId,
+      scope: "trip" as const,
+      status: "running" as const,
+      suggestions: [],
+      appliedSuggestionIds: [],
+      createdAt,
+    }
+  }
+
+  test("refuses a second review while one is running, and hands back the one in flight", async () => {
+    const { app, store } = makeApp({ llm: async () => "{}" })
+    const trip = await createTrip(app)
+    await store.saveRun(runningRun(trip.id, ago(1_000)))
+    const res = await app.request(`/api/trips/${trip.id}/enhance`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ scope: "trip" }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { error: string; run: { id: string; status: string } }
+    expect(body.error).toBe("enhancement_running")
+    expect(body.run).toMatchObject({ id: "run-live", status: "running" })
+  })
+
+  test("two reviews started together: one runs, the other is refused", async () => {
+    let release!: () => void
+    const hold = new Promise<void>((resolve) => (release = resolve))
+    const { app } = makeApp({
+      llm: async () => {
+        await hold
+        return JSON.stringify({ suggestions: [] })
+      },
+    })
+    const trip = await createTrip(app)
+    const start = () =>
+      app.request(`/api/trips/${trip.id}/enhance`, { method: "POST", headers: AUTH, body: JSON.stringify({ scope: "trip" }) })
+    const statuses = (await Promise.all([start(), start()])).map((r) => r.status).sort()
+    expect(statuses).toEqual([202, 409])
+    release()
+  })
+
+  test("a run stranded by a restart reads as failed and does not block a new review", async () => {
+    const { app, store } = makeApp({ llm: async () => JSON.stringify({ suggestions: [] }) })
+    const trip = await createTrip(app)
+    await store.saveRun(runningRun(trip.id, ago(11 * 60_000)))
+    const res = await app.request(`/api/trips/${trip.id}/enhancements/run-live`, { headers: AUTH })
+    const body = (await res.json()) as { run: { status: string }; error?: string; message?: string }
+    expect(body.run.status).toBe("error")
+    expect(body.error).toBe("enhancement_failed")
+    expect(body.message).toMatch(/interrupted/i)
+    const list = (await (await app.request(`/api/trips/${trip.id}/enhancements`, { headers: AUTH })).json()) as {
+      runs: Array<{ status: string }>
+    }
+    expect(list.runs.map((r) => r.status)).toEqual(["error"])
+    await startEnhance(app, trip.id)
+  })
+
+  test("apply refuses a run that has not finished", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    await store.saveRun(runningRun(trip.id, ago(1_000)))
+    const res = await app.request(`/api/trips/${trip.id}/enhancements/run-live/apply`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ suggestionIds: ["sug-x"] }),
+    })
+    expect(res.status).toBe(409)
+    expect(((await res.json()) as { error: string }).error).toBe("run_not_complete")
+  })
+
+  test("two applies of the same suggestion at once apply it once", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          { id: "day-1", date: "2026-07-10", title: "A", items: [] },
+          { id: "day-2", date: "2026-07-11", title: "B", items: [] },
+        ],
+      }),
+    })
+    await store.saveRun({
+      id: "run-done",
+      tripId: trip.id,
+      scope: "trip",
+      status: "complete",
+      outcome: "no_adds_needed",
+      outcomeReason: "Fine as is.",
+      suggestions: [
+        { id: "sug-swap", kind: "swap_days", dayId: "day-1", toDayId: "day-2", title: "Swap", detail: "", confidence: "high" },
+      ],
+      appliedSuggestionIds: [],
+      createdAt: new Date().toISOString(),
+    })
+    const apply = () =>
+      app.request(`/api/trips/${trip.id}/enhancements/run-done/apply`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ suggestionIds: ["sug-swap"] }),
+      })
+    const responses = await Promise.all([apply(), apply()])
+    const bodies = (await Promise.all(responses.map((r) => r.json()))) as Array<{ applied: string[] }>
+    expect(bodies.flatMap((b) => b.applied)).toEqual(["sug-swap"])
+    expect((await store.get(trip.id))!.days.map((d) => d.title)).toEqual(["B", "A"])
+    expect((await store.getRun(trip.id, "run-done"))!.appliedSuggestionIds).toEqual(["sug-swap"])
   })
 })

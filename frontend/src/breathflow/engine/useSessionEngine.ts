@@ -1,177 +1,110 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BreathPhase } from '@/lib/constants'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLatestCallback } from '@/hooks/useLatestCallback'
+import type { EngineConfig } from './sessionEngine'
 import {
-  advanceOneSecond,
-  createIdleState,
-  createRunningState,
-  elapsedSessionSeconds,
-  finishEarly,
-  getCurrentPhase,
-  getCurrentPhaseSeconds,
-  type EngineConfig,
-  type EngineEvent,
-  type EngineState,
-} from './sessionEngine'
+  nextTickAt,
+  reduceSession,
+  SETUP,
+  type Completion,
+  type Saved,
+  type Session,
+  type SessionEffect,
+  type SessionEvent,
+} from './sessionMachine'
+
+export type OutputEffect = Exclude<SessionEffect, { type: 'persist' }>
+
+export interface SessionEffects {
+  /** Sound, speech, haptics and announcements. */
+  perform: (effect: OutputEffect) => void
+  /** Write the finished session (history, XP, journey). Runs once per session. */
+  persist: (completion: Completion) => Saved
+}
 
 export interface SessionEngineHandle {
-  status: EngineState['status']
-  phase: BreathPhase
-  /** 0-based index into protocol.phases. */
-  phaseIndex: number
-  phaseSeconds: number
-  secondsLeftInPhase: number
-  /** 1-based for display ("Round n of N"). */
-  roundNumber: number
-  totalRounds: number
-  holdTimes: number[]
-  /** Seconds breathed so far, for whole-session progress. */
-  elapsedSeconds: number
-  start: () => void
-  pause: () => void
-  resume: () => void
-  /**
-   * End now. Whole rounds already breathed complete the session (a 'complete'
-   * event with that count); inside the first round it is discarded ('stop').
-   */
-  finish: () => void
-  /** Back to round 1, phase 1, discarding partial progress. */
-  restart: () => void
+  session: Session
+  send: (event: SessionEvent) => void
 }
 
 /**
- * React driver for the pure session state machine. A 1 Hz interval drives
- * the clock while running; each tick reconciles against a monotonic origin
- * so background-tab timer throttling cannot leave the session behind
- * wall-clock. Events surface through onEvent for audio, haptics, and the
- * screen-reader announcer.
+ * React driver for the pure session machine (`sessionMachine.ts`). The
+ * session is React state, not a store: it lives as long as the page.
+ *
+ * - The clock is one timeout at a time, aimed at the true end of the
+ *   current second (`originMs + n * 1000`) rather than a free-running
+ *   interval, so drift never accumulates and a pause keeps its fraction.
+ *   It is re-armed inside `send`, not in an effect, so the next second never
+ *   waits on React committing the last one.
+ * - `visibilitychange` becomes HIDDEN / VISIBLE, so a page left in the
+ *   background pauses instead of breathing on unseen.
  */
 export function useSessionEngine(
   config: EngineConfig,
-  onEvent?: (event: EngineEvent | { type: 'start' | 'pause' | 'resume' | 'stop' | 'restart' }) => void,
+  effects: SessionEffects,
+  initial: Session = SETUP,
 ): SessionEngineHandle {
-  const [state, setState] = useState<EngineState>(createIdleState)
-  const [clockEpoch, setClockEpoch] = useState(0)
-  const stateRef = useRef(state)
+  const [session, setSession] = useState<Session>(initial)
+  const sessionRef = useRef(session)
   const configRef = useRef(config)
-  const onEventRef = useRef(onEvent)
-
   useEffect(() => {
     configRef.current = config
   }, [config])
-  useEffect(() => {
-    onEventRef.current = onEvent
-  }, [onEvent])
+  const perform = useLatestCallback(effects.perform)
+  const persist = useLatestCallback(effects.persist)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const applyState = useCallback((next: EngineState) => {
-    stateRef.current = next
-    setState(next)
-  }, [])
+  const send = useCallback((event: SessionEvent) => {
+    dispatch(event)
 
-  const emit = useCallback(
-    (event: EngineEvent | { type: 'start' | 'pause' | 'resume' | 'stop' | 'restart' }) => {
-      onEventRef.current?.(event)
-    },
-    [],
-  )
-
-  const bumpClock = useCallback(() => {
-    setClockEpoch((epoch) => epoch + 1)
-  }, [])
-
-  // Monotonic 1 Hz clock, active only while running. Replays any seconds
-  // the browser dropped between interval callbacks.
-  const isRunning = state.status === 'running'
-  useEffect(() => {
-    if (!isRunning) return
-
-    const origin = performance.now()
-    let applied = 0
-
-    const tick = () => {
-      const elapsed = Math.floor((performance.now() - origin) / 1000)
-      let missed = elapsed - applied
-      if (missed <= 0) return
-
-      let current = stateRef.current
-      const events: EngineEvent[] = []
-      while (missed > 0 && current.status === 'running') {
-        const result = advanceOneSecond(configRef.current, current)
-        current = result.state
-        events.push(...result.events)
-        missed -= 1
-        applied += 1
+    function dispatch(first: SessionEvent) {
+      const queue: SessionEvent[] = [first]
+      for (let event = queue.shift(); event; event = queue.shift()) {
+        const previous = sessionRef.current
+        const [next, output] = reduceSession(configRef.current, previous, event)
+        if (next !== previous) {
+          sessionRef.current = next
+          setSession(next)
+        }
+        // A tick that found nothing due (an early timer) still re-arms the clock.
+        if (next !== previous || event.type === 'TICK') arm(next)
+        for (const effect of output) {
+          if (effect.type === 'persist') queue.push({ type: 'SAVED', saved: persist(effect.completion) })
+          else perform(effect)
+        }
       }
-      applyState(current)
-      for (const event of events) emit(event)
     }
 
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
-  }, [isRunning, clockEpoch, applyState, emit])
-
-  const start = useCallback(() => {
-    if (stateRef.current.status !== 'idle') return
-    bumpClock()
-    applyState(createRunningState(configRef.current))
-    emit({ type: 'start' })
-  }, [applyState, emit, bumpClock])
-
-  const pause = useCallback(() => {
-    if (stateRef.current.status !== 'running') return
-    applyState({ ...stateRef.current, status: 'paused' })
-    emit({ type: 'pause' })
-  }, [applyState, emit])
-
-  const resume = useCallback(() => {
-    if (stateRef.current.status !== 'paused') return
-    bumpClock()
-    applyState({ ...stateRef.current, status: 'running' })
-    emit({ type: 'resume' })
-  }, [applyState, emit, bumpClock])
-
-  const finish = useCallback(() => {
-    const current = stateRef.current
-    if (current.status !== 'running' && current.status !== 'paused') return
-    const result = finishEarly(current)
-    if (!result) {
-      applyState(createIdleState())
-      emit({ type: 'stop' })
-      return
+    function arm(next: Session) {
+      if (timer.current !== null) clearTimeout(timer.current)
+      timer.current = null
+      if (next.tag === 'running') {
+        const wait = Math.max(0, nextTickAt(next) - performance.now())
+        timer.current = setTimeout(() => dispatch({ type: 'TICK', now: performance.now() }), wait)
+      } else if (next.tag === 'leadIn') {
+        timer.current = setTimeout(() => dispatch({ type: 'LEAD_TICK', now: performance.now() }), 1000)
+      }
     }
-    applyState(result.state)
-    for (const event of result.events) emit(event)
-  }, [applyState, emit])
+  }, [perform, persist])
 
-  const restart = useCallback(() => {
-    bumpClock()
-    applyState(createRunningState(configRef.current))
-    emit({ type: 'restart' })
-  }, [applyState, emit, bumpClock])
+  // An autostarted lead-in needs its first second armed; unmounting stops the clock.
+  useEffect(() => {
+    if (sessionRef.current.tag === 'leadIn') {
+      timer.current = setTimeout(() => send({ type: 'LEAD_TICK', now: performance.now() }), 1000)
+    }
+    return () => {
+      if (timer.current !== null) clearTimeout(timer.current)
+      timer.current = null
+    }
+  }, [send])
 
-  return useMemo(() => ({
-    status: state.status,
-    phase: getCurrentPhase(config, state),
-    phaseIndex: state.phaseIndex,
-    phaseSeconds: getCurrentPhaseSeconds(config, state),
-    secondsLeftInPhase: state.secondsLeftInPhase,
-    roundNumber: state.roundIndex + 1,
-    totalRounds: config.rounds,
-    holdTimes: state.holdTimes,
-    elapsedSeconds: elapsedSessionSeconds(config, state),
-    start,
-    pause,
-    resume,
-    finish,
-    restart,
-  }), [
-    state,
-    config.protocol,
-    config.rounds,
-    config.customDurations,
-    start,
-    pause,
-    resume,
-    finish,
-    restart,
-  ])
+  useEffect(() => {
+    const onVisibility = () => {
+      const now = performance.now()
+      send(document.visibilityState === 'hidden' ? { type: 'HIDDEN', now } : { type: 'VISIBLE', now })
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [send])
+
+  return { session, send }
 }

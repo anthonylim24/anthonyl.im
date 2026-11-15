@@ -1,7 +1,8 @@
 // server/src/igPlaces/eval/score.ts
 import { fuzzyEq as _fuzzyEq } from '../textMatch';
 import { haversineMeters } from '../geocode';
-import type { EnrichedPlace, IgPlaceCategory } from '../types';
+import type { IgPlaceCategory } from '../types';
+import type { GeocodedPlace } from '../geocode';
 
 export interface ExpectedPlace {
   name: string;
@@ -23,7 +24,7 @@ export interface FixtureScore {
 
 const fuzzyEq = _fuzzyEq;
 
-export function scoreFixture(got: EnrichedPlace[], expected: ExpectedPlace[]): FixtureScore {
+export function scoreFixture(got: GeocodedPlace[], expected: ExpectedPlace[]): FixtureScore {
   let catHits = 0, geoHits = 0, matched = 0;
   const usedExpected = new Set<number>();
   for (const g of got) {

@@ -1,50 +1,40 @@
 import { isSoundscapeId } from '@/breathflow/engine/soundscape'
+import { readLocalSnapshot, type Snapshot } from '@/lib/cloudSync/snapshot'
+import { GAMIFICATION_STORAGE_VERSION } from '@/stores/gamificationStore'
+import { HISTORY_STORAGE_VERSION } from '@/stores/historyStore'
+import { PRACTICE_STORAGE_VERSION } from '@/stores/practiceStore'
 import {
-  BREATHFLOW_STORAGE_KEYS,
-  BREATH_PHASES,
-  STORAGE_KEYS,
-  TECHNIQUE_IDS,
-} from './constants'
+  isLocalDateKey,
+  isNonNegativeNumber,
+  isRecord,
+  parsePersonalBest,
+  parseSession,
+  parseVO2Entry,
+} from '@/stores/sessionRecord'
+import { SETTINGS_STORAGE_VERSION } from '@/stores/settingsStore'
+import { BREATHFLOW_STORAGE_KEYS, STORAGE_KEYS } from './constants'
 
-type ExportStorage = Pick<Storage, 'getItem'>
 type ImportStorage = Pick<Storage, 'removeItem' | 'setItem'>
 type BreathFlowStorageKey = typeof BREATHFLOW_STORAGE_KEYS[number]
 
-export function buildBreathFlowExportData(storage: ExportStorage): Record<string, string> {
-  const data: Record<string, string> = {}
-
-  for (const key of BREATHFLOW_STORAGE_KEYS) {
-    const value = storage.getItem(key)
-    if (value !== null) {
-      data[key] = value
-    }
+/**
+ * The backup file: each store as zustand persists it (`{ state, version }`,
+ * stringified), keyed by its localStorage key, so an import is a plain write
+ * of those keys. Built from the live stores rather than read back from
+ * localStorage, which may be behind them.
+ */
+export function buildBreathFlowExportData(snapshot: Snapshot = readLocalSnapshot()): Record<BreathFlowStorageKey, string> {
+  const entry = (state: unknown, version: number) => JSON.stringify({ state, version })
+  return {
+    [STORAGE_KEYS.SESSION_HISTORY]: entry(snapshot.history, HISTORY_STORAGE_VERSION),
+    [STORAGE_KEYS.GAMIFICATION]: entry(snapshot.gamification, GAMIFICATION_STORAGE_VERSION),
+    [STORAGE_KEYS.SETTINGS]: entry(snapshot.settings, SETTINGS_STORAGE_VERSION),
+    [STORAGE_KEYS.PRACTICE]: entry(snapshot.practice, PRACTICE_STORAGE_VERSION),
   }
-
-  return data
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isBreathFlowStorageKey(value: string): value is BreathFlowStorageKey {
   return BREATHFLOW_STORAGE_KEYS.includes(value as BreathFlowStorageKey)
-}
-
-function isNonNegativeNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function isPositiveInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
-}
-
-function isDateString(value: unknown): value is string {
-  return typeof value === 'string' && !Number.isNaN(Date.parse(value))
-}
-
-function isLocalDateKey(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
 function assertStringArray(value: unknown, key: string, field: string) {
@@ -53,69 +43,16 @@ function assertStringArray(value: unknown, key: string, field: string) {
   }
 }
 
-function assertNumberArray(value: unknown, key: string, field: string) {
-  if (!Array.isArray(value) || !value.every(isNonNegativeNumber)) {
-    throw new Error(`Import value for ${key} has invalid ${field}.`)
-  }
-}
-
-const techniqueIds = new Set<string>(Object.values(TECHNIQUE_IDS))
-const breathPhases = new Set<string>(Object.values(BREATH_PHASES))
-
-function validateCustomPhaseDurations(value: unknown, key: string) {
-  if (value === undefined) return
-  if (!isRecord(value)) {
-    throw new Error(`Import value for ${key} has invalid custom phase durations.`)
-  }
-
-  for (const [phase, duration] of Object.entries(value)) {
-    if (!breathPhases.has(phase) || !isPositiveInteger(duration)) {
-      throw new Error(`Import value for ${key} has invalid custom phase durations.`)
-    }
-  }
-}
-
 function validateHistoryState(state: Record<string, unknown>, key: BreathFlowStorageKey) {
   if (state.sessions !== undefined) {
-    if (!Array.isArray(state.sessions)) {
+    if (!Array.isArray(state.sessions) || !state.sessions.every((session) => parseSession(session) !== null)) {
       throw new Error(`Import value for ${key} has invalid sessions.`)
-    }
-
-    for (const session of state.sessions) {
-      if (
-        !isRecord(session) ||
-        typeof session.id !== 'string' ||
-        typeof session.techniqueId !== 'string' ||
-        !techniqueIds.has(session.techniqueId) ||
-        !isDateString(session.date) ||
-        !isNonNegativeNumber(session.durationSeconds) ||
-        !isPositiveInteger(session.rounds) ||
-        !isNonNegativeNumber(session.maxHoldTime) ||
-        !isNonNegativeNumber(session.avgHoldTime)
-      ) {
-        throw new Error(`Import value for ${key} has invalid sessions.`)
-      }
-
-      assertNumberArray(session.holdTimes, key, 'hold times')
-      validateCustomPhaseDurations(session.customPhaseDurations, key)
     }
   }
 
   if (state.personalBests !== undefined) {
-    if (!isRecord(state.personalBests)) {
+    if (!isRecord(state.personalBests) || !Object.values(state.personalBests).every((best) => parsePersonalBest(best) !== null)) {
       throw new Error(`Import value for ${key} has invalid personal bests.`)
-    }
-
-    for (const best of Object.values(state.personalBests)) {
-      if (
-        !isRecord(best) ||
-        typeof best.techniqueId !== 'string' ||
-        !techniqueIds.has(best.techniqueId) ||
-        !isNonNegativeNumber(best.maxHoldTime) ||
-        !isDateString(best.date)
-      ) {
-        throw new Error(`Import value for ${key} has invalid personal bests.`)
-      }
     }
   }
 
@@ -128,18 +65,8 @@ function validateHistoryState(state: Record<string, unknown>, key: BreathFlowSto
   }
 
   if (state.vo2MaxHistory !== undefined) {
-    if (!Array.isArray(state.vo2MaxHistory)) {
+    if (!Array.isArray(state.vo2MaxHistory) || !state.vo2MaxHistory.every((entry) => parseVO2Entry(entry) !== null)) {
       throw new Error(`Import value for ${key} has invalid VO2 max history.`)
-    }
-
-    for (const entry of state.vo2MaxHistory) {
-      if (
-        !isRecord(entry) ||
-        !isNonNegativeNumber(entry.value) ||
-        !isDateString(entry.date)
-      ) {
-        throw new Error(`Import value for ${key} has invalid VO2 max history.`)
-      }
     }
   }
 }
@@ -154,6 +81,7 @@ function validateGamificationState(state: Record<string, unknown>, key: BreathFl
   if (state.selectedTheme !== undefined && typeof state.selectedTheme !== 'string') {
     throw new Error(`Import value for ${key} has invalid selected theme.`)
   }
+  // Exports from before session counts were derived from the log still carry these.
   for (const field of ['dailySessionCount', 'weeklySessionCount'] as const) {
     if (state[field] !== undefined && !isNonNegativeNumber(state[field])) {
       throw new Error(`Import value for ${key} has invalid ${field}.`)

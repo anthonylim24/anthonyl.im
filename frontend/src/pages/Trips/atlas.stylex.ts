@@ -142,7 +142,14 @@ export const a = stylex.create({
     backgroundColor: "var(--trips-danger)",
     color: "#ffffff",
   },
-  btnSm: { minHeight: "2.25rem", paddingInline: "0.875rem", fontSize: "0.8125rem", position: "relative" },
+  // Looks 36px tall; the ::after band makes the target 44px (WCAG 2.5.5).
+  btnSm: {
+    minHeight: "2.25rem",
+    paddingInline: "0.875rem",
+    fontSize: "0.8125rem",
+    position: "relative",
+    "::after": { content: '""', position: "absolute", inset: "-4px 0" },
+  },
   btnBlock: { width: "100%" },
   iconBtn: {
     display: "inline-grid",

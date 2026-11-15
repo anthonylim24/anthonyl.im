@@ -44,7 +44,6 @@ describe('HomePage', () => {
       maxHoldTime: 0,
       avgHoldTime: 0,
     })
-    useGamificationStore.getState().recordSession()
 
     renderHome()
     expect(screen.queryByText(/About 5 minutes/)).not.toBeInTheDocument()

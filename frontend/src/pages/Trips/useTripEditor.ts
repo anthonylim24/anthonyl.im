@@ -1,17 +1,32 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useTransition } from "react"
 import { useLocation, useParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
-import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
-import { insertItemAt, removeItem } from "./tripEdits"
-import { emitTripChanged, preferFresherTrip, useTripChanged } from "./tripsEvents"
-import { formatTripDate } from "./meta"
-import type { EnhancementRun, GeneratePreferences, ItineraryItem, Trip, TripAccess, TripDay } from "./types"
+import { applySuggestions, enhanceTrip, generateItinerary, getTrip, updateTrip } from "./tripsApi"
+import { isTripConflict } from "./tripConflict"
+import { removeItem } from "./tripEdits"
+import { emitTripChanged, useTripChanged } from "./tripsEvents"
+import { formatTripDate, plural } from "./meta"
+import {
+  canEdit,
+  canWrite,
+  editorReducer,
+  initialEditor,
+  savePatch,
+  type AiRun,
+  type Editor,
+  type EditorEvent,
+  type Sync,
+  type UndoMark,
+} from "./editorMachine"
+import type { EnhancementRun, GeneratePreferences, ItineraryItem, Trip, TripCollaborator, TripDay } from "./types"
 
-const UNDO_WINDOW_MS = 6000
+// The thin shell around `editorMachine`: it loads, saves and runs AI calls,
+// and turns their results into events. Rules about what may happen when
+// belong in the machine, not here.
 
-export type SaveState = "saved" | "dirty" | "saving" | "error"
+const SAVE_DEBOUNCE_MS = 900
 
 export interface DayOption {
   id: string
@@ -20,266 +35,194 @@ export interface DayOption {
 
 export const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "success" }
+const isAbort = (err: unknown) => err instanceof Error && err.name === "AbortError"
 
-export interface DeletedItem {
-  title: string
-  key: number
-  dayId: string
-  item: ItineraryItem
-  index: number
+/** What an AI call hands back: the machine's `AI_DONE` payload plus work to do with it. */
+interface AiOutcome {
+  trip?: Trip
+  run: EnhancementRun | null
+  undo?: UndoMark
+  /** Runs in the same update as the new document (flash, notice, scroll hold). */
+  onLand?: () => void
 }
 
-export function useTripEditor({ undoHeld = false }: { undoHeld?: boolean } = {}) {
+export function useTripEditor() {
   const { tripId } = useParams<{ tripId: string }>()
   const routerLocation = useLocation()
   const reduce = useReducedMotion()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
   const [, startTransition] = useTransition()
-  const [state, setState] = useState<LoadState>({ status: "loading" })
-  const [trip, setTrip] = useState<Trip | null>(null)
-  const [access, setAccess] = useState<TripAccess>("view")
-  const [saveState, setSaveState] = useState<SaveState>("saved")
+  const [state, dispatch] = useReducer(editorReducer, initialEditor)
+  const [loadKey, setLoadKey] = useState(0)
   const navState = routerLocation.state as {
     notice?: string
     retryGenerate?: { prompt?: string; preferences?: GeneratePreferences }
   } | null
   const [notice, setNotice] = useState<string | null>(navState?.notice ?? null)
-  const [enhancingTarget, setEnhancingTarget] = useState<string | null>(null)
-  const [activeRun, setActiveRun] = useState<EnhancementRun | null>(null)
-  const [deleted, setDeleted] = useState<DeletedItem | null>(null)
   const [recentIds, setRecentIds] = useState<Set<string>>(() => new Set())
   const recentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveGenRef = useRef(0)
-  const persistAbortRef = useRef<AbortController | null>(null)
-  const persistPromiseRef = useRef<Promise<void> | null>(null)
   const restoreScrollRef = useRef<number | null>(null)
-  const editable = access === "edit" || access === "owner"
-  const tripDocId = trip?.id
-
-  const pendingPatchRef = useRef<Trip | null>(null)
-  const editedRef = useRef(false)
-  const tripRef = useRef<Trip | null>(null)
-  tripRef.current = trip
-  /** False once this editor is unmounted: a late AI answer must not land. */
-  const aliveRef = useRef(true)
+  /** The committed state, for callbacks and cleanups that outlive a render. */
+  const stateRef = useRef<Editor>(state)
+  useLayoutEffect(() => {
+    stateRef.current = state
+  }, [state])
+  /** The PATCH on its way (one per `saving` state), resolving to the saved trip (null on failure). */
+  const inflightRef = useRef<{ for: Sync; work: Promise<Trip | null> } | null>(null)
+  const aiAbortRef = useRef<AbortController | null>(null)
+  /** Set once the trip is deleted: nothing left to save. */
+  const discardedRef = useRef(false)
   /** The document an AI run last put in place, so its changes aren't read as the traveller's. */
   const aiTripRef = useRef<Trip | null>(null)
+  const settleWaiters = useRef(new Set<(s: Editor) => boolean>())
 
-  useEffect(() => {
-    aliveRef.current = true
-    return () => {
-      aliveRef.current = false
-    }
-  }, [])
+  const ready = state.s === "ready" ? state : null
+  const trip = ready?.doc ?? null
+  const access = ready?.access ?? "view"
+  const editable = canWrite(access)
+  const tripDocId = trip?.id
 
   useEffect(() => {
     if (!tripId) return
     let cancelled = false
-    void (async () => {
-      try {
-        const { trip: loaded, access: a } = await getTrip(readToken, tripId)
-        if (cancelled) return
-        const pending = pendingPatchRef.current ?? (editedRef.current ? tripRef.current : null)
-        if (pending && pending.id === loaded.id) {
-          setAccess(a)
-          setState({ status: "success" })
-          return
-        }
-        pendingPatchRef.current = null
-        editedRef.current = false
-        startTransition(() => {
-          setTrip(loaded)
-          setAccess(a)
-          setState({ status: "success" })
-        })
-      } catch (err) {
-        if (cancelled) return
-        setState({ status: "error", message: errorText(err) })
-      }
-    })()
+    getTrip(readToken, tripId).then(
+      ({ trip: loaded, access: a }) => {
+        if (!cancelled) startTransition(() => dispatch({ type: "LOADED", trip: loaded, access: a }))
+      },
+      (err: unknown) => {
+        if (!cancelled) dispatch({ type: "LOAD_FAILED", message: errorText(err) })
+      },
+    )
     return () => {
       cancelled = true
     }
-  }, [tripId])
+  }, [tripId, loadKey, readToken])
 
+  const reload = useCallback(() => {
+    dispatch({ type: "RELOAD" })
+    setLoadKey((k) => k + 1)
+  }, [])
+
+  // The concierge (and any other writer on this page) announces what it saved.
   useTripChanged(
     tripDocId,
-    useCallback((incoming) => {
-      if (editedRef.current || pendingPatchRef.current) return
-      setTrip((current) => {
-        if (!current) return incoming
-        return preferFresherTrip(current, incoming)
-      })
-    }, []),
+    useCallback((incoming: Trip) => dispatch({ type: "EXTERNAL_CHANGE", trip: incoming }), []),
   )
 
-  const cancelPendingSave = useCallback(() => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current)
-      saveTimer.current = null
-    }
-    pendingPatchRef.current = null
-    editedRef.current = false
-    saveGenRef.current += 1
-    persistAbortRef.current?.abort()
-    persistAbortRef.current = null
-  }, [])
-
-  const persistTrip = useCallback(async (next: Trip) => {
-    const gen = saveGenRef.current
-    persistAbortRef.current?.abort()
-    const ac = new AbortController()
-    persistAbortRef.current = ac
-    setSaveState("saving")
-    const work = (async () => {
-      try {
-        await updateTrip(
-          readToken,
-          next.id,
-          {
-            name: next.name,
-            status: next.status,
-            slug: next.slug,
-            appearance: next.appearance,
-            destinations: next.destinations,
-            startDate: next.startDate,
-            endDate: next.endDate,
-            timezone: next.timezone,
-            tags: next.tags,
-            description: next.description ?? null,
-            days: next.days,
-            center: next.center,
-          },
-          { signal: ac.signal },
-        )
-        if (saveGenRef.current !== gen) return
-        if (pendingPatchRef.current && pendingPatchRef.current !== next) return
-        pendingPatchRef.current = null
-        setSaveState("saved")
-        emitTripChanged(next)
-      } catch (err: unknown) {
-        if (ac.signal.aborted || (err instanceof Error && err.name === "AbortError")) return
-        if (saveGenRef.current !== gen) return
-        setSaveState("error")
-        const message = errorText(err)
-        if (/permalink|slug|hyphen/i.test(message)) {
-          setNotice(`Couldn’t save the link name. Change it under Trip details and it will save. (${message})`)
-        }
-        throw err instanceof Error ? err : new Error(message)
-      }
-    })()
-    persistPromiseRef.current = work.then(
-      () => undefined,
-      () => undefined,
-    )
-    await work
-  }, [])
-
-  const flushPendingSave = useCallback(async () => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current)
-      saveTimer.current = null
-    }
-    // Nothing unsaved: don't PUT (a viewer can't, and a stale copy must not
-    // overwrite the server). Just let a save already on its way finish.
-    const unsaved = pendingPatchRef.current !== null || editedRef.current
-    const latest = tripRef.current ?? pendingPatchRef.current
-    if (unsaved && latest) {
-      pendingPatchRef.current = latest
-      try {
-        await persistTrip(latest)
-      } catch (err) {
-        pendingPatchRef.current = latest
-        editedRef.current = true
-        throw new Error(
-          `Couldn’t save your latest edits. Nothing in your itinerary changed. (${errorText(err)})`,
-        )
-      }
-      return
-    }
-    if (persistPromiseRef.current) await persistPromiseRef.current
-  }, [persistTrip])
-
-  const markEdited = useCallback(() => {
-    editedRef.current = true
-    setSaveState("dirty")
-  }, [])
-
-  const scheduleSave = useCallback(
-    (next: Trip) => {
-      markEdited()
-      tripRef.current = next
-      pendingPatchRef.current = next
-      setTrip(next)
-    },
-    [markEdited],
-  )
-
+  // Back to the tab after a while: a collaborator may have changed the trip.
   useEffect(() => {
-    if (!trip || !editedRef.current) return
-    editedRef.current = false
-    pendingPatchRef.current = trip
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      void persistTrip(trip).catch(() => {
-        /* saveState already error */
-      })
-    }, 900)
-  }, [trip, persistTrip])
+    if (!tripDocId) return
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return
+      const now = stateRef.current
+      if (now.s !== "ready" || now.sync.k !== "clean" || !(now.ai.k === "idle" || now.ai.k === "review")) return
+      getTrip(readToken, tripDocId).then(
+        ({ trip: fresh, access: a }) => dispatch({ type: "LOADED", trip: fresh, access: a }),
+        () => undefined, // a missed refresh changes nothing; the next save still checks
+      )
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => document.removeEventListener("visibilitychange", onVisible)
+  }, [tripDocId, readToken])
+
+  // Debounce: every edit replaces `doc`, which restarts the wait.
+  const dirtyDoc = ready?.sync.k === "dirty" ? ready.doc : null
+  useEffect(() => {
+    if (!dirtyDoc) return
+    const timer = setTimeout(() => dispatch({ type: "DEBOUNCE_ELAPSED" }), SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [dirtyDoc])
+
+  // Send each save the machine asks for, once. Never aborted: see editorMachine.
+  const saving = ready?.sync.k === "saving" ? ready.sync : null
+  useEffect(() => {
+    if (!saving || inflightRef.current?.for === saving) return
+    const { sent, against } = saving
+    const work = updateTrip(readToken, sent.id, savePatch(sent, against)).then(
+      (saved) => {
+        dispatch({ type: "SAVE_OK", sent, saved })
+        emitTripChanged(saved)
+        return saved
+      },
+      (err: unknown) => {
+        if (isTripConflict(err)) {
+          dispatch({ type: "SAVE_CONFLICT", sent, theirs: err.trip })
+          return null
+        }
+        const message = errorText(err)
+        dispatch({ type: "SAVE_FAILED", sent, message })
+        if (/permalink|slug|hyphen/i.test(message)) {
+          setNotice(`Couldn’t save this trip’s link name, so nothing since your last save is stored yet. Press Retry, and if it fails again, rename the trip. (${message})`)
+        }
+        return null
+      },
+    )
+    inflightRef.current = { for: saving, work }
+  }, [saving, readToken])
+
+  // Resolve `flush()` callers once the save they waited for has settled.
+  useEffect(() => {
+    for (const settle of [...settleWaiters.current]) if (settle(state)) settleWaiters.current.delete(settle)
+  }, [state])
+
+  /** Save now; resolves once nothing is unsaved, rejects if the save fails or needs a decision. */
+  const flush = useCallback(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const settle = (now: Editor) => {
+          if (now.s !== "ready" || now.sync.k === "clean") resolve()
+          else if (now.sync.k === "saveError") reject(new Error(`Couldn’t save your latest edits. Nothing in your itinerary changed. (${now.sync.message})`))
+          else if (now.sync.k === "conflict") reject(new Error("Couldn’t save your latest edits: someone else changed the same thing. Choose whose version to keep first."))
+          else return false
+          return true
+        }
+        const now = stateRef.current
+        if (now.s !== "ready" || now.sync.k === "clean" || now.sync.k === "conflict") {
+          settle(now)
+          return
+        }
+        settleWaiters.current.add(settle)
+        dispatch({ type: "FLUSH" })
+      }),
+    [],
+  )
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!pendingPatchRef.current) return
+      const now = stateRef.current
+      if (discardedRef.current || now.s !== "ready" || now.sync.k === "clean") return
       e.preventDefault()
       e.returnValue = ""
     }
     window.addEventListener("beforeunload", onBeforeUnload)
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload)
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current)
-        saveTimer.current = null
-      }
-      const pending = pendingPatchRef.current
-      if (pending) {
-        pendingPatchRef.current = null
-        void updateTrip(readToken, pending.id, {
-          name: pending.name,
-          status: pending.status,
-          slug: pending.slug,
-          appearance: pending.appearance,
-          destinations: pending.destinations,
-          startDate: pending.startDate,
-          endDate: pending.endDate,
-          timezone: pending.timezone,
-          tags: pending.tags,
-          description: pending.description ?? null,
-          days: pending.days,
-          center: pending.center,
-        }).catch(() => {
-          /* best-effort flush on leave */
-        })
-      }
-    }
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
   }, [])
 
-  const setDays = useCallback(
-    (fn: (days: TripDay[]) => TripDay[]) => {
-      const current = tripRef.current
-      if (!current) return
-      const next = { ...current, days: fn(current.days) }
-      markEdited()
-      tripRef.current = next
-      pendingPatchRef.current = next
-      setTrip(next)
+  // Leaving the trip: stop any AI wait, and send what isn't saved yet (after
+  // the save in flight, so the two can't land out of order).
+  useEffect(
+    () => () => {
+      aiAbortRef.current?.abort()
+      const now = stateRef.current
+      if (discardedRef.current || now.s !== "ready" || !canWrite(now.access)) return
+      const { sync, doc, base } = now
+      const unsaved = sync.k === "dirty" || sync.k === "saveError" || (sync.k === "saving" && sync.queued)
+      if (!unsaved) return
+      const before = sync.k === "saving" ? inflightRef.current?.work : undefined
+      void (async () => {
+        const saved = before ? await before : null
+        const written = await updateTrip(readToken, doc.id, savePatch(doc, (saved ?? base).updatedAt))
+        emitTripChanged(written)
+      })().catch(() => undefined) // best effort: the page is gone, there is no one to tell
     },
-    [markEdited],
+    [readToken],
+  )
+
+  const edit = useCallback((fn: (doc: Trip) => Trip, undo?: UndoMark) => dispatch({ type: "EDIT", fn, undo }), [])
+  const setDays = useCallback(
+    (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => edit((doc) => ({ ...doc, days: fn(doc.days) }), undo),
+    [edit],
   )
 
   const dayKey = (trip?.days ?? []).map((d) => `${d.id}|${d.date}`).join(",")
@@ -301,6 +244,13 @@ export function useTripEditor({ undoHeld = false }: { undoHeld?: boolean } = {})
     recentTimer.current = setTimeout(() => setRecentIds(new Set()), 3200)
   }, [])
 
+  useEffect(
+    () => () => {
+      if (recentTimer.current) clearTimeout(recentTimer.current)
+    },
+    [],
+  )
+
   const holdScroll = useCallback(() => {
     restoreScrollRef.current = window.scrollY
   }, [])
@@ -311,148 +261,212 @@ export function useTripEditor({ undoHeld = false }: { undoHeld?: boolean } = {})
     restoreScrollRef.current = null
   })
 
-  /** Put an AI-made document in place: saved already, and not the traveller's own edit. */
-  const setAiTrip = useCallback((next: Trip) => {
-    aiTripRef.current = next
-    setTrip(next)
+  /**
+   * One AI call: lock editing (`start`), save what's unsaved, run `work`,
+   * then put its document in place. Stopping (or leaving) aborts the wait
+   * and drops the answer.
+   */
+  const runAi = useCallback(
+    async (start: EditorEvent, work: (signal: AbortController["signal"]) => Promise<AiOutcome>, fail: (err: unknown) => void) => {
+      const ac = new AbortController()
+      aiAbortRef.current?.abort()
+      aiAbortRef.current = ac
+      dispatch(start)
+      try {
+        await flush()
+        if (ac.signal.aborted) return
+        const outcome = await work(ac.signal)
+        if (ac.signal.aborted) return
+        if (outcome.trip) aiTripRef.current = outcome.trip
+        outcome.onLand?.()
+        dispatch({ type: "AI_DONE", trip: outcome.trip, run: outcome.run, undo: outcome.undo })
+      } catch (err) {
+        if (ac.signal.aborted || isAbort(err)) return
+        dispatch({ type: "AI_FAILED" })
+        fail(err)
+      } finally {
+        if (aiAbortRef.current === ac) aiAbortRef.current = null
+      }
+    },
+    [flush],
+  )
+
+  const startAi = useCallback(
+    (run: AiRun, work: (signal: AbortSignal) => Promise<AiOutcome>, fail: (err: unknown) => void) => {
+      if (!canEdit(stateRef.current)) return Promise.resolve()
+      return runAi({ type: "AI_START", run }, work, fail)
+    },
+    [runAi],
+  )
+
+  const reviewFailed = useCallback((err: unknown) => {
+    const message = errorText(err)
+    setNotice(
+      message.startsWith("Couldn’t save your latest edits")
+        ? message
+        : `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${message})`,
+    )
   }, [])
 
   const runEnhance = useCallback(
-    async (scope: "day" | "trip", dayId?: string, prompt?: string) => {
-      if (!tripDocId) return
-      setEnhancingTarget(scope === "day" ? (dayId ?? null) : "trip")
-      setActiveRun(null)
-      try {
-        await flushPendingSave()
-        if (!aliveRef.current) return
-        const { run, trip: refreshed, applied, error } = await enhanceTrip(
-          readToken,
-          tripDocId,
-          scope,
-          dayId,
-          prompt,
-        )
-        if (!aliveRef.current) return
-        cancelPendingSave()
-        holdScroll()
-        if (refreshed) setAiTrip(refreshed)
-        setSaveState("saved")
-        setActiveRun(run)
-        const addedIds = new Set<string>()
-        for (const id of applied ?? run.appliedSuggestionIds) {
-          const s = run.suggestions.find((x) => x.id === id)
-          if (s?.kind === "add" && s.proposedItem?.id) addedIds.add(s.proposedItem.id)
-        }
-        if (addedIds.size > 0) flashTouched(addedIds)
-        if (run.status === "error" || error) {
+    (scope: "day" | "trip", dayId?: string, prompt?: string) => {
+      if (!tripDocId) return Promise.resolve()
+      setNotice(null)
+      return startAi(
+        scope === "day" ? { day: dayId ?? "" } : "trip",
+        async (signal) => {
+          const { run, trip: refreshed, applied, error } = await enhanceTrip(readToken, tripDocId, scope, dayId, prompt, signal)
+          return {
+            trip: refreshed,
+            run,
+            onLand: () => {
+              holdScroll()
+              const addedIds = new Set<string>()
+              for (const id of applied ?? run.appliedSuggestionIds) {
+                const s = run.suggestions.find((x) => x.id === id)
+                if (s?.kind === "add" && s.proposedItem?.id) addedIds.add(s.proposedItem.id)
+              }
+              if (addedIds.size > 0) flashTouched(addedIds)
+              if (run.status === "error" || error) {
+                setNotice(
+                  run.outcomeReason ??
+                    `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${run.error ?? error ?? "unknown error"})`,
+                )
+              } else if (run.outcomeReason) {
+                setNotice(run.outcomeReason)
+              }
+            },
+          }
+        },
+        reviewFailed,
+      )
+    },
+    [tripDocId, startAi, readToken, holdScroll, flashTouched, reviewFailed],
+  )
+
+  /** Draft the itinerary with AI. Resolves to the ids of every stop it placed (empty if it didn't land). */
+  const draft = useCallback(
+    async (input: { prompt?: string; preferences?: GeneratePreferences }, replaceExisting: boolean): Promise<string[]> => {
+      if (!tripDocId) return []
+      setNotice(null)
+      let added: string[] = []
+      await startAi(
+        "draft",
+        async (signal) => {
+          const { trip: next, summary, incompleteDays } = await generateItinerary(readToken, tripDocId, { ...input, replaceExisting }, signal)
+          added = next.days.flatMap((d) => d.items.map((i) => i.id))
+          return {
+            trip: next,
+            run: null,
+            undo: replaceExisting ? { label: "Replaced your itinerary with a draft", toast: true } : undefined,
+            onLand: () => {
+              flashTouched(new Set(added))
+              const thin =
+                incompleteDays.length > 0
+                  ? ` ${incompleteDays.length === 1 ? `Day ${incompleteDays[0]} needs` : `Days ${incompleteDays.join(", ")} need`} another go: open ${incompleteDays.length === 1 ? "it" : "each"} and use “Ideas for this day”.`
+                  : ""
+              setNotice(
+                added.length > 0
+                  ? incompleteDays.length > 0
+                    ? `Drafted ${plural(added.length, "stop")}, but not every day.${thin}`
+                    : (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}. Edit anything.`)
+                  : "The draft came back empty. Try again with a little more detail.",
+              )
+            },
+          }
+        },
+        (err) => {
+          added = []
+          const message = errorText(err)
           setNotice(
-            run.outcomeReason ??
-              `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${run.error ?? error ?? "unknown error"})`,
+            message.startsWith("Couldn’t save your latest edits")
+              ? message
+              : /GEMINI|GROQ|ai_not_configured|503/i.test(message)
+                ? "AI isn’t switched on for this server yet, so drafts are unavailable. You can still add stops yourself."
+                : `The draft didn’t finish, so nothing changed. Try again in a moment. (${message})`,
           )
-        } else if (run.outcomeReason) {
-          setNotice(run.outcomeReason)
-        }
-      } catch (err) {
-        if (!aliveRef.current) return
-        const message = errorText(err)
-        setNotice(
-          message.startsWith("Couldn’t save your latest edits")
-            ? message
-            : `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${message})`,
-        )
-      } finally {
-        setEnhancingTarget(null)
-      }
+        },
+      )
+      return added
     },
-    [tripDocId, cancelPendingSave, flashTouched, flushPendingSave, holdScroll, setAiTrip],
+    [tripDocId, startAi, readToken, flashTouched],
   )
 
-  const applyRun = useCallback(
-    async (suggestionIds: string[]) => {
-      if (!tripDocId || !activeRun) return
-      setEnhancingTarget("apply")
-      try {
-        await flushPendingSave()
-        if (!aliveRef.current) return
-        const { trip: next, applied, skipped } = await applySuggestions(
-          readToken,
-          tripDocId,
-          activeRun.id,
-          suggestionIds,
-        )
-        if (!aliveRef.current) return
-        cancelPendingSave()
-        const touched = new Set<string>()
-        for (const id of applied) {
-          const s = activeRun.suggestions.find((x) => x.id === id)
-          const target = s?.proposedItem?.id ?? s?.itemId
-          if (target && (s?.kind === "add" || s?.kind === "edit")) touched.add(target)
-        }
-        setAiTrip(next)
-        setActiveRun(null)
-        setSaveState("saved")
-        flashTouched(touched)
-        const skipNote = skipped.length > 0 ? ` ${skipped.length} could not be applied.` : ""
-        setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.${skipNote}`)
-      } catch (err) {
-        if (!aliveRef.current) return
-        const message = errorText(err)
-        setNotice(
-          message.startsWith("Couldn’t save your latest edits")
-            ? message
-            : `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${message})`,
-        )
-      } finally {
-        setEnhancingTarget(null)
-      }
+  const activeRun = ready && (ready.ai.k === "review" || ready.ai.k === "applying") ? ready.ai.run : null
+
+  const applyActiveRun = useCallback(
+    (suggestionIds: string[]) => {
+      const now = stateRef.current
+      if (!tripDocId || now.s !== "ready" || now.ai.k !== "review") return
+      const run = now.ai.run
+      void runAi(
+        { type: "APPLY" },
+        async () => {
+          const { trip: next, applied, skipped } = await applySuggestions(readToken, tripDocId, run.id, suggestionIds)
+          return {
+            trip: next,
+            run: null,
+            onLand: () => {
+              const touched = new Set<string>()
+              for (const id of applied) {
+                const s = run.suggestions.find((x) => x.id === id)
+                const target = s?.proposedItem?.id ?? s?.itemId
+                if (target && (s?.kind === "add" || s?.kind === "edit")) touched.add(target)
+              }
+              flashTouched(touched)
+              const skipNote = skipped.length > 0 ? ` ${skipped.length} could not be applied.` : ""
+              setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.${skipNote}`)
+            },
+          }
+        },
+        (err) => {
+          const message = errorText(err)
+          setNotice(
+            message.startsWith("Couldn’t save your latest edits")
+              ? message
+              : `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${message})`,
+          )
+        },
+      )
     },
-    [tripDocId, activeRun, cancelPendingSave, flashTouched, flushPendingSave, setAiTrip],
+    [tripDocId, runAi, readToken, flashTouched],
   )
 
-  const applyActiveRun = useCallback((ids: string[]) => void applyRun(ids), [applyRun])
-  const dismissRun = useCallback(() => setActiveRun(null), [])
-  const enhanceDay = useCallback(
-    (dayId: string, prompt?: string) => void runEnhance("day", dayId, prompt),
-    [runEnhance],
-  )
+  /** Stop waiting for the AI and unlock editing. The server may still finish; its result arrives like any other change. */
+  const stopAi = useCallback(() => {
+    aiAbortRef.current?.abort()
+    aiAbortRef.current = null
+    dispatch({ type: "AI_FAILED" })
+  }, [])
+
+  const dismissRun = useCallback(() => dispatch({ type: "DISMISS_RUN" }), [])
+  const enhanceDay = useCallback((dayId: string, prompt?: string) => void runEnhance("day", dayId, prompt), [runEnhance])
 
   const deleteItem = useCallback(
-    (dayId: string, item: ItineraryItem, index: number) => {
-      setDays((days) => removeItem(days, dayId, item.id))
-      setDeleted({ dayId, item, index, title: item.title, key: Date.now() })
-    },
+    (dayId: string, item: ItineraryItem) =>
+      setDays((days) => removeItem(days, dayId, item.id), { label: `Removed “${item.title || "Untitled"}”`, toast: true }),
     [setDays],
   )
 
-  const undoDelete = useCallback(() => {
-    if (!deleted) return
-    setDays((days) => insertItemAt(days, deleted.dayId, deleted.item, deleted.index))
-    setDeleted(null)
-  }, [deleted, setDays])
-
-  // The Undo window doesn't run down during an AI run: editing is locked, so
-  // Undo can't be pressed until it ends. `undoHeld` covers the workspace's own run (a draft).
-  const undoWaiting = undoHeld || enhancingTarget !== null
-  useEffect(() => {
-    if (!deleted || undoWaiting) return
-    const timer = setTimeout(() => setDeleted(null), UNDO_WINDOW_MS)
-    return () => clearTimeout(timer)
-  }, [deleted, undoWaiting])
-
-  useEffect(
-    () => () => {
-      if (recentTimer.current) clearTimeout(recentTimer.current)
-    },
+  const undo = useCallback(() => dispatch({ type: "UNDO" }), [])
+  const redo = useCallback(() => dispatch({ type: "REDO" }), [])
+  const retrySave = useCallback(() => dispatch({ type: "RETRY" }), [])
+  const resolveConflict = useCallback((keep: "mine" | "theirs") => dispatch({ type: "RESOLVE", keep }), [])
+  const setCollaborators = useCallback(
+    (collaborators: TripCollaborator[]) => dispatch({ type: "SERVER_FIELDS", patch: { collaborators } }),
     [],
   )
+  /** The trip is gone (deleted): drop unsaved edits instead of sending them. */
+  const discard = useCallback(() => {
+    discardedRef.current = true
+  }, [])
 
   const publish = useCallback(() => {
-    const current = tripRef.current
-    if (!current) return
-    scheduleSave({ ...current, status: "active" })
+    edit((doc) => ({ ...doc, status: "active" }))
     setNotice("Trip published. It’s now active for everyone who can see it.")
-  }, [scheduleSave])
+  }, [edit])
 
+  const ai = ready?.ai ?? { k: "idle" as const }
   return {
     tripId,
     routerLocation,
@@ -462,32 +476,36 @@ export function useTripEditor({ undoHeld = false }: { undoHeld?: boolean } = {})
     trip,
     access,
     editable,
-    saveState,
+    sync: ready?.sync ?? { k: "clean" as const },
+    ai,
+    history: ready?.history ?? null,
+    /** An AI run owns the document: edits wait. */
+    locked: ai.k === "running" || ai.k === "applying",
     notice,
     setNotice,
-    enhancingTarget,
     activeRun,
-    deleted,
     recentIds,
-    editorLocked: enhancingTarget !== null,
     dayOptions,
     navState,
-    scheduleSave,
+    edit,
     setDays,
-    cancelPendingSave,
-    flushPendingSave,
+    flush,
+    reload,
     flashTouched,
-    setTrip,
-    setAiTrip,
     aiTripRef,
-    aliveRef,
-    setSaveState,
     runEnhance,
+    draft,
     applyActiveRun,
+    stopAi,
     dismissRun,
     enhanceDay,
     deleteItem,
-    undoDelete,
+    undo,
+    redo,
+    retrySave,
+    resolveConflict,
+    setCollaborators,
+    discard,
     publish,
   }
 }

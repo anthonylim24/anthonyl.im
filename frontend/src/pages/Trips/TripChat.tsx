@@ -32,6 +32,7 @@ import { clearConversation, loadConversation, saveConversation, type AddedPlace,
 import { conciergeSuggestions, type Starter, type StarterKind } from "./conciergeSuggestions"
 import { dayHasPlaceNamed, itemFromConciergePlace, removeItem } from "./tripEdits"
 import { getTrip, updateTrip } from "./tripsApi"
+import { isTripConflict } from "./tripConflict"
 import { emitTripChanged, mergeFetchedTrip, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent, tripTiming } from "./meta"
@@ -565,11 +566,13 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
   const canEdit = access === "edit" || access === "owner"
 
   /** Read the trip fresh, change its days, save, and tell the page. Writes
-   *  queue: each one starts after the last settled, so it reads that result. */
+   *  queue: each one starts after the last settled, so it reads that result.
+   *  The save names the copy it read; if someone wrote in between (the
+   *  editor's autosave), read again and re-apply the change, once. */
   const saveDays = useCallback(
     (change: (fresh: Trip) => Trip["days"] | null): Promise<Trip> => {
       const forId = tripId
-      const job = writeChain.current.then(async () => {
+      const write = async (retried: boolean): Promise<Trip> => {
         if (!forId) throw new Error("No trip is open.")
         const { trip: fresh } = await getTrip(readToken, forId)
         const days = change(fresh)
@@ -577,11 +580,17 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
           putTrip(forId, fresh)
           return fresh
         }
-        const next = await updateTrip(readToken, fresh.id, { days })
-        putTrip(forId, next)
-        emitTripChanged(next)
-        return next
-      })
+        try {
+          const next = await updateTrip(readToken, fresh.id, { days, baseUpdatedAt: fresh.updatedAt })
+          putTrip(forId, next)
+          emitTripChanged(next)
+          return next
+        } catch (err) {
+          if (!retried && isTripConflict(err)) return write(true)
+          throw err
+        }
+      }
+      const job = writeChain.current.then(() => write(false))
       writeChain.current = job.catch(() => undefined)
       return job
     },

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { playCue, resetAudioContextForTests } from '../audio'
+import { closeAudioContext, holdAudio, playCue, releaseAudio, unlockAudio } from '../audio'
 import { vibrate } from '../haptics'
 
 describe('audio cues', () => {
   afterEach(() => {
-    resetAudioContextForTests()
+    closeAudioContext()
     vi.unstubAllGlobals()
   })
 
@@ -58,6 +58,69 @@ describe('audio cues', () => {
 
     playCue('inhale', { enabled: true, volume: 0.3 })
     expect(context.createOscillator).toHaveBeenCalledTimes(8)
+  })
+})
+
+describe('audio context lifetime', () => {
+  function fakeContext(state: AudioContextState) {
+    const context = {
+      currentTime: 0,
+      state,
+      destination: {},
+      createOscillator: vi.fn(() => ({
+        type: 'sine',
+        frequency: { setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      })),
+      createGain: vi.fn(() => ({ gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn() })),
+      resume: vi.fn(async () => undefined),
+      suspend: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    }
+    vi.stubGlobal('AudioContext', class {
+      constructor() {
+        return context
+      }
+    })
+    return context
+  }
+
+  afterEach(() => {
+    closeAudioContext()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('wakes a suspended context from a tap', () => {
+    const context = fakeContext('suspended')
+    unlockAudio()
+    expect(context.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('suspends once the last cue has rung out, and not while a soundscape plays', () => {
+    vi.useFakeTimers()
+    const context = fakeContext('running')
+    holdAudio()
+    playCue('start', { enabled: true, volume: 0.3 })
+    vi.advanceTimersByTime(10_000)
+    expect(context.suspend).not.toHaveBeenCalled()
+
+    releaseAudio()
+    // The start bell rings for 1.2 s of context time.
+    vi.advanceTimersByTime(500)
+    expect(context.suspend).not.toHaveBeenCalled()
+    context.currentTime = 2
+    vi.advanceTimersByTime(5_000)
+    expect(context.suspend).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the context when BreathFlow is left', () => {
+    const context = fakeContext('running')
+    unlockAudio()
+    closeAudioContext()
+    expect(context.close).toHaveBeenCalledTimes(1)
   })
 })
 
