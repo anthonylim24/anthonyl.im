@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { TripConflictError } from "../tripConflict"
 import type { Trip } from "../types"
@@ -31,7 +31,7 @@ vi.mock("../placePhoto", () => ({
   lookupGooglePlacePhoto: vi.fn().mockResolvedValue(null),
 }))
 
-import { TripChat } from "../TripChat"
+import { TripChatLauncher as TripChat } from "../TripChatLauncher"
 
 type Handlers = { onText: (content: string) => void }
 
@@ -64,6 +64,7 @@ describe("TripChat saveDays", () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.clearAllMocks()
     localStorage.clear()
   })
@@ -75,7 +76,7 @@ describe("TripChat saveDays", () => {
       </MemoryRouter>,
     )
     fireEvent.click(await screen.findByRole("button", { name: "Open trip concierge chat" }))
-    const dialog = await screen.findByRole("dialog", { name: "Trip Concierge" })
+    const dialog = await screen.findByLabelText("Trip Concierge")
     const box = within(dialog).getByRole("textbox", { name: "Message the concierge" })
     fireEvent.change(box, { target: { value: "ramen?" } })
     fireEvent.keyDown(box, { key: "Enter" })

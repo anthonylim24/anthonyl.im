@@ -8,6 +8,10 @@ import { a } from "./atlas.stylex"
 import { c } from "./chat.stylex"
 import { sx } from "@/styles/merge"
 
+/** Undo puts whole days back, so it is offered only while nobody has
+ *  touched those days since the apply. `stale`: shown, but unavailable. */
+export type ProposalUndoState = "available" | "stale"
+
 const EYEBROW: Record<ProposalState, string> = {
   pending: "Proposed change",
   applied: "Applied",
@@ -29,7 +33,7 @@ export function ConciergeProposalCard({
   busy,
   disabled = false,
   canEdit,
-  canUndo,
+  undo,
   onApply,
   onDismiss,
   onUndo,
@@ -47,13 +51,14 @@ export function ConciergeProposalCard({
   disabled?: boolean
   canEdit: boolean
   /** Undo needs the snapshot taken at Apply, which lives for this session. */
-  canUndo: boolean
+  undo: ProposalUndoState | null
   onApply: (selected: Set<string>) => void
   onDismiss: () => void
   onUndo: () => void
   onView?: () => void
 }) {
   const titleId = useId()
+  const staleId = useId()
   const batch = proposal.changes.length > 1
   const [off, setOff] = useState<Set<string>>(() => new Set())
   // A batch for one day names the day once, in the heading.
@@ -168,11 +173,23 @@ export function ConciergeProposalCard({
                 View day
               </button>
             ) : null}
-            {canUndo ? (
-              <button type="button" disabled={locked} aria-busy={busy} onClick={onUndo} {...sx(a.btn, a.btnSm, a.btnSecondary, c.action)}>
+            {undo ? (
+              <button
+                type="button"
+                disabled={locked || undo === "stale"}
+                aria-busy={busy}
+                aria-describedby={undo === "stale" ? staleId : undefined}
+                onClick={onUndo}
+                {...sx(a.btn, a.btnSm, a.btnSecondary, c.action)}
+              >
                 <Undo2 {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
                 {busy ? "Undoing…" : "Undo"}
               </button>
+            ) : null}
+            {undo === "stale" ? (
+              <p id={staleId} {...sx(c.proposalNote, c.proposalNoteFull)}>
+                Edited since, so Undo is off. Change the day by hand instead.
+              </p>
             ) : null}
           </>
         ) : (

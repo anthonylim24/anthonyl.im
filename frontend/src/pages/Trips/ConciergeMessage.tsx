@@ -3,9 +3,9 @@ import { ArrowUpRight, RotateCcw, TriangleAlert } from "lucide-react"
 import type { ConciergePlace, ConciergeSource, ConciergeStatus } from "../../lib/conciergeGrounding"
 import { ConciergeText } from "../Korea/ConciergeText"
 import { conciergeText } from "../Korea/ConciergeText.stylex"
-import { ConciergePlaceCards, type AddedPlace } from "./ConciergePlaceCards"
-import { ConciergeProposalCard } from "./ConciergeProposalCard"
-import type { ChatMessage } from "./conciergeStore"
+import { ConciergePlaceCards } from "./ConciergePlaceCards"
+import { ConciergeProposalCard, type ProposalUndoState } from "./ConciergeProposalCard"
+import type { AddedPlace, ChatMessage } from "./conciergeStore"
 import { settleStreamingMarkdown, useSmoothText } from "./streamingText"
 import type { Trip } from "./types"
 import { a } from "./atlas.stylex"
@@ -93,7 +93,8 @@ export interface AssistantMessageProps {
   /** An Add / Apply / Undo on this reply failed. The reply itself is fine. */
   actionError?: string | null
   onDismissActionError?: () => void
-  canUndoProposal: boolean
+  /** Undo for an applied proposal: offered, unavailable because the days changed, or none. */
+  proposalUndo: ProposalUndoState | null
   skipped?: Record<string, string>
   onAdd: (place: ConciergePlace, dayId: string) => void
   onUndoAdd: (place: ConciergePlace) => void
@@ -121,7 +122,7 @@ export function AssistantMessage({
   proposalBusy,
   actionError,
   onDismissActionError,
-  canUndoProposal,
+  proposalUndo,
   skipped,
   onAdd,
   onUndoAdd,
@@ -155,7 +156,7 @@ export function AssistantMessage({
             busy={proposalBusy}
             disabled={writing}
             canEdit={canEdit}
-            canUndo={canUndoProposal}
+            undo={proposalUndo}
             onApply={onApply}
             onDismiss={onDismiss}
             onUndo={onUndo}

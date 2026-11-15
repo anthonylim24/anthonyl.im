@@ -105,6 +105,30 @@ describe("ShareDialog", () => {
     expect(mockCreateInvite).toHaveBeenCalledTimes(1)
   })
 
+  it("owner: the role choice is one tab stop, moved with the arrow keys", async () => {
+    renderShare(makeTrip(), "owner")
+    await screen.findByRole("button", { name: "Copy invite link" })
+    const view = screen.getByRole("radio", { name: "Can view" })
+    const edit = screen.getByRole("radio", { name: "Can edit" })
+    expect(view).toHaveAttribute("tabindex", "0")
+    expect(edit).toHaveAttribute("tabindex", "-1")
+
+    view.focus()
+    fireEvent.keyDown(view, { key: "ArrowRight" })
+    expect(edit).toHaveAttribute("aria-checked", "true")
+    expect(edit).toHaveFocus()
+    expect(edit).toHaveAttribute("tabindex", "0")
+    expect(view).toHaveAttribute("tabindex", "-1")
+
+    fireEvent.keyDown(edit, { key: "ArrowDown" })
+    expect(view).toHaveAttribute("aria-checked", "true")
+    expect(view).toHaveFocus()
+    fireEvent.keyDown(view, { key: "End" })
+    expect(edit).toHaveFocus()
+    fireEvent.keyDown(edit, { key: "Home" })
+    expect(view).toHaveAttribute("aria-checked", "true")
+  })
+
   it("owner: reuses an existing invite for that role", async () => {
     const trip = makeTrip({ invites: [{ token: "existing-view", role: "viewer", createdAt: "2026-05-01T00:00:00Z" }] })
     renderShare(trip, "owner")

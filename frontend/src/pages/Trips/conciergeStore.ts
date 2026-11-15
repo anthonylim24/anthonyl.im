@@ -12,6 +12,16 @@ import type { ProposalState } from "./tripChatApi"
 export const CONCIERGE_STORE_KEY = "trips-concierge-v1"
 const MAX_MESSAGES = 40
 
+/** A place card's link to the itinerary. `added`: this card put the stop
+ *  there, so Undo may take it out. `preexisting`: the stop was already on
+ *  that day; the card points at it and must never remove it. */
+export interface AddedPlace {
+  status: "added" | "preexisting"
+  dayId: string
+  itemId: string
+  time?: string
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "assistant"
@@ -22,8 +32,8 @@ export interface ChatMessage {
   proposalState?: ProposalState
   /** Change ids that took effect when the proposal was applied. */
   appliedIds?: string[]
-  /** Place cards added to the trip from this reply: card key → new item. */
-  added?: Record<string, { dayId: string; itemId: string; time?: string }>
+  /** Place cards linked to the itinerary from this reply, by card key. */
+  added?: Record<string, AddedPlace>
   followups?: string[]
   error?: string
   /** The traveller stopped the reply. */
@@ -40,13 +50,34 @@ function isMessage(value: unknown): value is ChatMessage {
   return typeof m.id === "string" && (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
 }
 
+/** Records saved before `status` existed were all written by Add. */
+function cleanAdded(added: unknown): Record<string, AddedPlace> | undefined {
+  if (!added || typeof added !== "object") return undefined
+  const out: Record<string, AddedPlace> = {}
+  for (const [key, value] of Object.entries(added as Record<string, unknown>)) {
+    if (!value || typeof value !== "object") continue
+    const r = value as Record<string, unknown>
+    if (typeof r.dayId !== "string" || typeof r.itemId !== "string") continue
+    out[key] = {
+      status: r.status === "preexisting" ? "preexisting" : "added",
+      dayId: r.dayId,
+      itemId: r.itemId,
+      ...(typeof r.time === "string" ? { time: r.time } : {}),
+    }
+  }
+  return out
+}
+
 export function loadConversation(tripId: string): ChatMessage[] {
   try {
     const raw = localStorage.getItem(keyFor(tripId))
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter(isMessage).slice(-MAX_MESSAGES)
+    return parsed
+      .filter(isMessage)
+      .slice(-MAX_MESSAGES)
+      .map((m) => (m.added ? { ...m, added: cleanAdded(m.added) } : m))
   } catch {
     return []
   }

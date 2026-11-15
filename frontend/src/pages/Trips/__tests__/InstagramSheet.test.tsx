@@ -27,7 +27,7 @@ vi.mock("../map/AtlasMap", () => ({
   AtlasMap: ({ pins, label }: { pins: Array<{ id: string }>; label: string }) => <div role="region" aria-label={label} data-pins={pins.length} />,
 }))
 
-import { InstagramSheet } from "../instagram/InstagramSheet"
+import { InstagramSheet, REMOVE_UNDO_MS } from "../instagram/InstagramSheet"
 import { IgNotConfiguredError } from "../instagram/instagramApi"
 
 const getToken = async () => "t"
@@ -164,11 +164,85 @@ describe("InstagramSheet", () => {
     expect(onAdd.mock.calls[0]![1][0].links).toEqual(["https://www.instagram.com/p/z/"])
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "market" } })
     await waitFor(() => expect(mockSaved).toHaveBeenLastCalledWith(getToken, { q: "market", offset: 0 }))
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Remove Time Out Market from saved" }))
     })
-    expect(mockRemove).toHaveBeenCalledWith(getToken, 5)
+    // Gone from the list at once, deleted only once the Undo has had its time.
     expect(screen.queryByText("Time Out Market")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Undo removing Time Out Market" })).toHaveFocus()
+    expect(mockRemove).not.toHaveBeenCalled()
+    await act(async () => {
+      vi.advanceTimersByTime(REMOVE_UNDO_MS)
+    })
+    expect(mockRemove).toHaveBeenCalledWith(getToken, 5)
+    expect(screen.queryByRole("button", { name: /Undo removing/ })).toBeNull()
+    expect(screen.queryByText("Time Out Market")).not.toBeInTheDocument()
+  })
+
+  it("brings a removed Saved place back on Undo, and deletes nothing", async () => {
+    const saved = { ...place(5, "Time Out Market"), created_at: "", post: null }
+    mockSaved.mockResolvedValue({ places: [saved], total: 1, hasMore: false })
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderSheet()
+    fireEvent.click(await screen.findByRole("tab", { name: /Saved/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Time Out Market from saved" }))
+    expect(screen.queryByText("Time Out Market")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Undo removing Time Out Market" }))
+    expect(screen.getByText("Time Out Market")).toBeInTheDocument()
+    await act(async () => {
+      vi.advanceTimersByTime(REMOVE_UNDO_MS * 2)
+    })
+    expect(mockRemove).not.toHaveBeenCalled()
+  })
+
+  it("sends a pending removal when the sheet closes", async () => {
+    const saved = { ...place(5, "Time Out Market"), created_at: "", post: null }
+    mockSaved.mockResolvedValue({ places: [saved], total: 1, hasMore: false })
+    const view = renderSheet()
+    fireEvent.click(await screen.findByRole("tab", { name: /Saved/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Time Out Market from saved" }))
+    expect(mockRemove).not.toHaveBeenCalled()
+    view.rerender(<InstagramSheet open={false} trip={makeTrip()} getToken={getToken} onAdd={onAdd} onClose={onClose} />)
+    expect(mockRemove).toHaveBeenCalledWith(getToken, 5)
+  })
+
+  it("says the posts list failed to load instead of showing the how-to, and retries", async () => {
+    mockJobs.mockRejectedValueOnce(new Error("Failed to fetch")).mockResolvedValue([])
+    renderSheet()
+    expect(await screen.findByText(/Couldn’t load your recent posts/)).toBeInTheDocument()
+    expect(screen.queryByText(/choose Share, then Copy link/)).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(await screen.findByText(/choose Share, then Copy link/)).toBeInTheDocument()
+  })
+
+  it("says Saved failed to load instead of calling it empty, and retries", async () => {
+    mockSaved.mockRejectedValueOnce(new Error("HTTP 502")).mockResolvedValue({ places: [], total: 0, hasMore: false })
+    renderSheet()
+    fireEvent.click(await screen.findByRole("tab", { name: /Saved/ }))
+    expect(await screen.findByText(/Couldn’t load your saved places/)).toBeInTheDocument()
+    expect(screen.queryByText(/Nothing saved yet/)).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(await screen.findByText(/Nothing saved yet/)).toBeInTheDocument()
+  })
+
+  it("moves between tabs with the arrow keys, one tab stop", async () => {
+    renderSheet()
+    const posts = await screen.findByRole("tab", { name: "Posts" })
+    const savedTab = screen.getByRole("tab", { name: /Saved/ })
+    expect(posts).toHaveAttribute("tabindex", "0")
+    expect(savedTab).toHaveAttribute("tabindex", "-1")
+    posts.focus()
+    fireEvent.keyDown(posts, { key: "ArrowRight" })
+    expect(savedTab).toHaveAttribute("aria-selected", "true")
+    expect(savedTab).toHaveFocus()
+    expect(savedTab).toHaveAttribute("tabindex", "0")
+    fireEvent.keyDown(savedTab, { key: "ArrowRight" })
+    expect(posts).toHaveFocus()
+    fireEvent.keyDown(posts, { key: "End" })
+    expect(savedTab).toHaveFocus()
+    fireEvent.keyDown(savedTab, { key: "Home" })
+    expect(posts).toHaveAttribute("aria-selected", "true")
   })
 
   it("tells the traveller when import is not set up on the server", async () => {

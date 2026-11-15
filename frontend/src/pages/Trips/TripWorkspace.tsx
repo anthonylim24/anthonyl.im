@@ -42,6 +42,7 @@ import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./work
 import { DayPanel } from "./workspace/DayPanel"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
+import { calendarMenuItem } from "./calendar/calendarMenu"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import { a } from "./atlas.stylex"
 import { share, ws as s } from "./workspace.stylex"
@@ -549,6 +550,7 @@ function Workspace() {
     ...(editable
       ? [{ label: "Trip details", icon: <Settings2 size={16} strokeWidth={1.75} aria-hidden />, disabled: locked, onSelect: () => setDialog("details") }]
       : []),
+    calendarMenuItem(trip),
     {
       label: "Duplicate trip",
       icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,

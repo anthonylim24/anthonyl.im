@@ -3,6 +3,7 @@ import {
   useId,
   useRef,
   useState,
+  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react"
@@ -83,8 +84,16 @@ export function Menu({
     nodes[next]?.focus()
   }
 
+  // Tab (or a click on something focusable) taking focus outside closes the
+  // menu. A blur with no target is left to the pointerdown handler: Safari
+  // blurs to nothing when a menu item is pressed, before its click lands.
+  const onFocusOut = (event: ReactFocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget
+    if (open && next instanceof Node && !wrapRef.current?.contains(next)) setOpen(false)
+  }
+
   return (
-    <div ref={wrapRef} {...sx(a.menuWrap)} onKeyDown={onKeyDown}>
+    <div ref={wrapRef} {...sx(a.menuWrap)} onKeyDown={onKeyDown} onBlur={onFocusOut}>
       <button
         ref={buttonRef}
         type="button"

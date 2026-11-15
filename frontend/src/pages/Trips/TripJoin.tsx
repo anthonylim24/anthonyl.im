@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
+import { RotateCw } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
+import { joinFailure, type JoinFailure } from "./joinFailure"
 import { joinTrip } from "./tripsApi"
 import { a } from "./atlas.stylex"
 import { shell as s } from "./index.stylex"
@@ -18,7 +20,9 @@ export function TripJoin() {
   const readToken = useLatestCallback(getToken)
   const authReady = useAuthReady()
   const viewer = useViewer()
-  const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<JoinFailure | null>(null)
+  /** Bumped by Try again to run the join once more. */
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!authReady || !token) return
@@ -28,7 +32,7 @@ export function TripJoin() {
         if (!cancelled) navigate(`/trips/${trip.slug ?? trip.id}`, { replace: true })
       },
       (err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+        if (!cancelled) setFailure(joinFailure(err))
       },
     )
     return () => {
@@ -36,25 +40,44 @@ export function TripJoin() {
     }
     // The viewer's name only decorates the join; it must not re-fire it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authReady, token, readToken, navigate])
+  }, [authReady, token, readToken, navigate, attempt])
 
   return (
     <div {...sx(s.gate)}>
       <div {...sx(s.gateInner)}>
-        {error ? (
+        {failure?.kind === "dead" ? (
           <>
             <p {...sx(a.eyebrow)}>Invite link</p>
             <h1 {...sx(a.display, s.gateTitle)}>
               This link has <span {...sx(a.italic)}>expired.</span>
             </h1>
-            <p {...sx(a.body)}>
-              {/invite_not_found|404/i.test(error)
-                ? "The trip’s owner turned it off or made a new one. Ask them to send a fresh link."
-                : `We couldn’t add you to the trip. Check your connection and open the link again. (${error})`}
-            </p>
+            <p {...sx(a.body)}>The trip’s owner turned it off or made a new one. Ask them to send a fresh link.</p>
             <Link to="/trips" {...sx(a.btn, a.btnPrimary)}>
               Go to your trips
             </Link>
+          </>
+        ) : failure?.kind === "retry" ? (
+          <>
+            <p {...sx(a.eyebrow)}>Invite link</p>
+            <h1 {...sx(a.display, s.gateTitle)}>
+              Couldn’t <span {...sx(a.italic)}>join</span> just now.
+            </h1>
+            <p {...sx(a.body)}>
+              The link may be fine; the request didn’t get through. Check your connection and try again. ({failure.detail})
+            </p>
+            <div {...sx(a.rowWrap)}>
+              <button type="button" {...sx(a.btn, a.btnPrimary)} onClick={() => {
+                  setFailure(null)
+                  setAttempt((n) => n + 1)
+                }}
+              >
+                <RotateCw size={16} strokeWidth={1.75} aria-hidden />
+                Try again
+              </button>
+              <Link to="/trips" {...sx(a.btn, a.btnGhost)}>
+                Go to your trips
+              </Link>
+            </div>
           </>
         ) : (
           <p {...sx(a.row, a.body)} role="status">
