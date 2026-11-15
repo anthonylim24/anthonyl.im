@@ -29,7 +29,6 @@ describe('completeSession persistence bridge', () => {
     const gamification = useGamificationStore.getState()
     expect(gamification.xp).toBe(result.xpEarned)
     expect(gamification.earnedBadges).toContain('first_session')
-    expect(gamification.dailySessionCount).toBe(1)
   })
 
   it('records hold stats and personal bests', () => {

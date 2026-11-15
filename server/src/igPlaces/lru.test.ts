@@ -2,6 +2,15 @@ import { test, expect, describe } from 'bun:test';
 import { LRU, memoLRU } from './lru';
 
 describe('LRU', () => {
+  test('clear drops every entry', () => {
+    const c = new LRU<string, number>({ max: 10, ttlMs: 1000 });
+    c.set('a', 1);
+    c.set('b', 2);
+    c.clear();
+    expect(c.size).toBe(0);
+    expect(c.get('a')).toBeUndefined();
+  });
+
   test('get returns undefined for missing keys', () => {
     const lru = new LRU<string, number>({ max: 10, ttlMs: 1000 });
     expect(lru.get('missing')).toBeUndefined();

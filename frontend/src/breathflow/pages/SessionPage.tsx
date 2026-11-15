@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Ref } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -19,17 +19,32 @@ import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { usePracticeStore } from '@/stores/practiceStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { playCue } from '../engine/audio'
-import { phaseHaptic, vibrate } from '../engine/haptics'
-import type { EngineEvent } from '../engine/sessionEngine'
-import { useSessionEngine } from '../engine/useSessionEngine'
+import { playCue, unlockAudio } from '../engine/audio'
+import { vibrate } from '../engine/haptics'
+import {
+  elapsedSessionSeconds,
+  getCurrentPhase,
+  getCurrentPhaseSeconds,
+  type EngineConfig,
+} from '../engine/sessionEngine'
+import {
+  freshLeadIn,
+  sessionClock,
+  SETUP,
+  type Completion,
+  type Saved,
+  type Session,
+  type SessionEvent,
+} from '../engine/sessionMachine'
+import { useSessionEngine, type OutputEffect } from '../engine/useSessionEngine'
 import { useSoundscape } from '../engine/useSoundscape'
-import { phasePhrase, speak, stopSpeaking } from '../engine/voice'
+import { speak, stopSpeaking } from '../engine/voice'
 import { levelForXP } from '../gamify/levels'
-import { buildSessionInsight, type SessionInsight } from '../gamify/insights'
+import { buildSessionInsight } from '../gamify/insights'
 import { resolveOrbTheme } from '../gamify/orbThemes'
 import { getJourney, nextStepIndex } from '../journeys/catalog'
 import { useConstrainedViewport } from '../platform/constrainedViewport'
+import { useImmersive } from '../platform/immersive'
 import { useReducedMotion } from '../platform/useReducedMotion'
 import { useScrollLock } from '../platform/useScrollLock'
 import { useWakeLock } from '../platform/useWakeLock'
@@ -41,11 +56,12 @@ import {
   plannedSessionSeconds,
   type CustomPhaseDurations,
 } from '../protocols/cadence'
-import { ADVANCED_SAFETY_CUE, getCoachingCue, LEAD_IN_CUE, LEAD_IN_SECONDS, READY_CUE } from '../protocols/coaching'
+import { ADVANCED_SAFETY_CUE, getCoachingCue, LEAD_IN_CUE, READY_CUE } from '../protocols/coaching'
 import type { BreathingProtocol } from '../protocols/types'
 import { CONSTRAINED_VIEWPORT_MESSAGE, SAFETY_DISCLOSURE } from '../safety/disclosure'
 import { useRecoveryStatus } from '../safety/useRecoveryStatus'
-import { completeSession, type CompletionResult } from '../session/completeSession'
+import { completeSession } from '../session/completeSession'
+import { earnsJourneyStep, type JourneyOutcome } from '../session/journeyStep'
 import { buildSessionSearch, parseSessionSearch } from '../session/urlParams'
 import { CadenceEditor } from '../components/CadenceEditor'
 import { LiveAnnouncer } from '../components/LiveAnnouncer'
@@ -53,7 +69,7 @@ import { MoodPicker } from '../components/MoodPicker'
 import { PaintSplash } from '../components/PaintSplash'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { SafetyChecklist } from '../components/SafetyChecklist'
-import { SessionSummary, type JourneyOutcome } from '../components/SessionSummary'
+import { SessionSummary } from '../components/SessionSummary'
 import { btn } from '../components/buttonStyles.stylex'
 import { sx } from '@/styles/merge'
 import { bf } from '../styles/breathflow.stylex'
@@ -75,11 +91,11 @@ const CONTROLS_HIDE_MS = 3000
 const REST_BREATH: BreathSample = { amplitude: 0, progress: 0, hold: false, cycle: 0 }
 const readRest = () => REST_BREATH
 
-interface SummaryState {
-  result: CompletionResult
-  insight: SessionInsight
-  protocol: BreathingProtocol
-  journey: JourneyOutcome | null
+type ActiveTag = 'leadIn' | 'running' | 'paused'
+type ActiveSessionState = Extract<Session, { tag: ActiveTag }>
+
+function isActive(session: Session): session is ActiveSessionState {
+  return session.tag === 'leadIn' || session.tag === 'running' || session.tag === 'paused'
 }
 
 export function SessionPage() {
@@ -97,14 +113,7 @@ export function SessionPage() {
   const [moodBefore, setMoodBefore] = useState<MoodValue | undefined>(undefined)
   const [moodAfter, setMoodAfter] = useState<MoodValue | undefined>(undefined)
   const [checkedSafety, setCheckedSafety] = useState<ReadonlySet<number>>(new Set())
-  const [summary, setSummary] = useState<SummaryState | null>(null)
   const [announcement, setAnnouncement] = useState('')
-  /** Seconds left of "get ready", or null when no lead-in is counting. */
-  // A deep link with autostart=1 begins counting at once, except for
-  // safety-gated protocols, which always pass through their checklist.
-  const [leadIn, setLeadIn] = useState<number | null>(() =>
-    !advanced && new URLSearchParams(location.search).get('autostart') === '1' ? LEAD_IN_SECONDS : null,
-  )
 
   const reducedMotion = useReducedMotion()
   const constrained = useConstrainedViewport()
@@ -116,164 +125,123 @@ export function SessionPage() {
   const orbTheme = resolveOrbTheme(selectedTheme, levelForXP(xp))
   const pigment = sessionPigment(protocol.id, orbTheme)
 
-  const completedRef = useRef(false)
-
-  const engineConfig = useMemo(
+  const engineConfig = useMemo<EngineConfig>(
     () => ({ protocol, rounds, customDurations }),
     [protocol, rounds, customDurations],
   )
 
-  const handleEngineEvent = useCallback(
-    (event: EngineEvent | { type: 'start' | 'pause' | 'resume' | 'stop' | 'restart' }) => {
-      const settings = useSettingsStore.getState()
-      const audio = { enabled: settings.soundEnabled, volume: settings.soundVolume }
-      const haptics = settings.hapticsEnabled
-      const voice = { enabled: settings.soundEnabled && settings.voiceGuidance, volume: settings.soundVolume }
-      const firstPhase = protocol.phases[0].phase
-      const firstSeconds = getPhaseSecondsForRound(protocol, firstPhase, 0, customDurations)
-
-      switch (event.type) {
-        case 'start':
-          playCue('start', audio)
-          speak(phasePhrase(firstPhase, firstSeconds), voice)
-          vibrate('success', haptics)
-          setAnnouncement(
-            `${protocol.name} started. Round 1 of ${rounds}. ${PHASE_LABELS[protocol.phases[0].phase]} for ${formatPhaseSeconds(getPhaseSecondsForRound(protocol, protocol.phases[0].phase, 0, customDurations))}.`,
-          )
-          break
-        case 'restart':
-          playCue('start', audio)
-          speak(phasePhrase(firstPhase, firstSeconds), voice)
-          vibrate('light', haptics)
-          setAnnouncement(`Restarted. Round 1 of ${rounds}.`)
-          break
-        case 'phase': {
-          playCue(event.phase, audio)
-          vibrate(phaseHaptic(event.phase), haptics)
-          const cue = getCoachingCue(protocol.id, event.phase)
-          const seconds = getPhaseSecondsForRound(protocol, event.phase, event.roundIndex, customDurations)
-          speak(phasePhrase(event.phase, seconds), voice)
-          setAnnouncement(
-            `Round ${event.roundIndex + 1} of ${rounds}. ${PHASE_LABELS[event.phase]} for ${formatPhaseSeconds(seconds)}. ${cue}`,
-          )
-          break
-        }
-        case 'pause':
-          stopSpeaking()
-          vibrate('light', haptics)
-          setAnnouncement('Paused.')
-          break
-        case 'resume':
-          vibrate('light', haptics)
-          setAnnouncement('Resumed.')
-          break
-        case 'stop':
-          stopSpeaking()
-          vibrate('error', haptics)
-          setAnnouncement('Ended before the first round finished. Nothing was saved.')
-          break
-        case 'complete': {
-          if (completedRef.current) break
-          completedRef.current = true
-          playCue('complete', audio)
-          speak(event.roundsCompleted < rounds ? 'Session ended' : 'Session complete', voice)
-
-          let journeyOutcome: JourneyOutcome | null = null
-          if (journey && journeyRef) {
-            const practice = usePracticeStore.getState()
-            const finished = practice.completeJourneyStep(journeyRef.id, journeyRef.step)
-            const done = usePracticeStore.getState().journeys[journeyRef.id]?.done ?? []
-            const next = nextStepIndex(journey, done)
-            journeyOutcome = {
-              name: journey.name,
-              day: journeyRef.step + 1,
-              total: journey.steps.length,
-              finished,
-              next: next === null ? null : journey.steps[next].title,
-            }
-          }
-
-          const result = completeSession({
-            techniqueId: protocol.id,
-            rounds: event.roundsCompleted,
-            plannedRounds: rounds,
-            customDurations,
-            holdTimes: event.holdTimes,
-            moodBefore,
-            journeyFinished: journeyOutcome?.finished === true,
-          })
-          const insight = buildSessionInsight({
-            protocol,
-            rounds: event.roundsCompleted,
-            durationSeconds: result.session.durationSeconds,
-            holdTimes: result.session.holdTimes,
-            isPersonalBest: result.isPersonalBest,
-            newBadgeCount: result.newBadgeIds.length,
-          })
-          vibrate(result.isPersonalBest || result.newBadgeIds.length > 0 ? 'celebration' : 'success', haptics)
-          setSummary({ result, insight, protocol, journey: journeyOutcome })
-          setAnnouncement(
-            event.roundsCompleted < rounds
-              ? `Ended early. ${protocol.name}, ${event.roundsCompleted} of ${rounds} rounds kept. ${result.xpEarned} XP earned.`
-              : `Session complete. ${protocol.name}, ${rounds} rounds. ${result.xpEarned} XP earned.`,
-          )
-          break
-        }
-      }
-    },
-    [protocol, rounds, customDurations, moodBefore, journey, journeyRef],
-  )
-
-  const engine = useSessionEngine(engineConfig, handleEngineEvent)
-  const isActive = engine.status === 'running' || engine.status === 'paused'
-  const inSession = isActive || leadIn !== null
-
-  function beginLeadIn() {
-    completedRef.current = false
-    setMoodAfter(undefined)
-    setSummary(null)
-    setLeadIn(LEAD_IN_SECONDS)
+  function perform(effect: OutputEffect) {
     const settings = useSettingsStore.getState()
-    speak('Get ready', { enabled: settings.soundEnabled && settings.voiceGuidance, volume: settings.soundVolume })
-    setAnnouncement(`Get ready. ${protocol.name} starts in ${LEAD_IN_SECONDS} seconds. ${LEAD_IN_CUE}`)
+    switch (effect.type) {
+      case 'cue':
+        playCue(effect.kind, { enabled: settings.soundEnabled, volume: settings.soundVolume })
+        break
+      case 'speak':
+        speak(effect.text, { enabled: settings.soundEnabled && settings.voiceGuidance, volume: settings.soundVolume })
+        break
+      case 'hush':
+        stopSpeaking()
+        break
+      case 'vibrate':
+        vibrate(effect.kind, settings.hapticsEnabled)
+        break
+      case 'announce':
+        setAnnouncement(effect.text)
+        break
+    }
   }
 
-  // The lead-in counts down once a second, then hands over to the engine.
-  const { status: engineStatus, start: startEngine, restart: restartEngine } = engine
-  useEffect(() => {
-    if (leadIn === null) return
-    const timeout = setTimeout(() => {
-      if (leadIn > 1) {
-        setLeadIn(leadIn - 1)
-        return
+  function persist({ roundsCompleted, plannedRounds, holdTimes }: Completion): Saved {
+    let journeyOutcome: JourneyOutcome | null = null
+    if (journey && journeyRef) {
+      const done = usePracticeStore.getState().journeys[journeyRef.id]?.done ?? []
+      if (earnsJourneyStep({ journey, step: journeyRef.step, done, roundsCompleted, plannedRounds })) {
+        const finished = usePracticeStore.getState().completeJourneyStep(journeyRef.id, journeyRef.step)
+        const next = nextStepIndex(journey, usePracticeStore.getState().journeys[journeyRef.id]?.done ?? [])
+        journeyOutcome = {
+          name: journey.name,
+          day: journeyRef.step + 1,
+          total: journey.steps.length,
+          finished,
+          next: next === null ? null : journey.steps[next].title,
+        }
       }
-      setLeadIn(null)
-      if (engineStatus === 'idle') startEngine()
-      else restartEngine()
-    }, 1000)
-    return () => clearTimeout(timeout)
-  }, [leadIn, engineStatus, startEngine, restartEngine])
+    }
+    const result = completeSession({
+      techniqueId: protocol.id,
+      rounds: roundsCompleted,
+      plannedRounds,
+      customDurations,
+      holdTimes,
+      moodBefore,
+      journeyFinished: journeyOutcome?.finished === true,
+    })
+    return { result, journey: journeyOutcome }
+  }
 
-  // Home's Begin CTA deep-links with autostart=1; the lead-in state above
-  // already started counting, so only the flag is left to drop from the URL.
+  // Home's Begin CTA deep-links with autostart=1 and the lead-in begins at
+  // once, except for safety-gated protocols, which always pass their checklist.
   const autostart = useMemo(
     () => new URLSearchParams(location.search).get('autostart') === '1',
     [location.search],
   )
+  const { session, send } = useSessionEngine(
+    engineConfig,
+    { perform, persist },
+    autostart && !advanced ? freshLeadIn() : SETUP,
+  )
+  const inSession = isActive(session)
+
+  /** The last URL this page navigated to itself (setting changes, dropping autostart). */
+  const ownNavigation = useRef<string | null>(null)
+  const navigateHere = useCallback((search: string) => {
+    const path = `/breathwork/session?${search}`
+    ownNavigation.current = path
+    navigate(path, { replace: true })
+  }, [navigate])
+
+  // Only the flag is left to drop from the URL; the lead-in is already counting.
   useEffect(() => {
-    if (autostart) navigate(`/breathwork/session?${buildSessionSearch(params)}`, { replace: true })
-  }, [autostart, navigate, params])
+    if (autostart) navigateHere(buildSessionSearch(params))
+  }, [autostart, navigateHere, params])
+
+  // Any other navigation to this page (the "Breathe" link from a summary,
+  // back / forward) is a fresh visit: leave whatever was showing.
+  const lastKey = useRef(location.key)
+  useEffect(() => {
+    if (lastKey.current === location.key) return
+    lastKey.current = location.key
+    if (ownNavigation.current === location.pathname + location.search) return
+    send({ type: 'LEAVE' })
+    setMoodBefore(undefined)
+    setMoodAfter(undefined)
+    setCheckedSafety(new Set())
+  }, [location.key, location.pathname, location.search, send])
 
   useWakeLock(inSession)
   useScrollLock(inSession)
+  useImmersive(inSession)
 
   // Advanced-session safety reminder joins the announcements once at start.
+  const breathing = session.tag === 'running' || session.tag === 'paused'
   useEffect(() => {
-    if (isActive && advanced) {
+    if (breathing && advanced) {
       const timeout = setTimeout(() => setAnnouncement(ADVANCED_SAFETY_CUE), 4000)
       return () => clearTimeout(timeout)
     }
-  }, [isActive, advanced])
+  }, [breathing, advanced])
+
+  // Focus follows the session out of the fullscreen view, never falling to the page body.
+  const summaryHeadingRef = useRef<HTMLHeadingElement>(null)
+  const startRef = useRef<HTMLButtonElement>(null)
+  const previousTag = useRef(session.tag)
+  useEffect(() => {
+    const previous = previousTag.current
+    previousTag.current = session.tag
+    if (previous === session.tag) return
+    if (session.tag === 'summary') summaryHeadingRef.current?.focus({ preventScroll: true })
+    if (session.tag === 'setup' && previous !== 'summary') startRef.current?.focus({ preventScroll: true })
+  }, [session.tag])
 
   function updateParams(next: {
     techniqueId?: typeof protocol.id
@@ -283,7 +251,7 @@ export function SessionPage() {
     const techniqueId = next.techniqueId ?? protocol.id
     const nextProtocol = getProtocol(techniqueId)
     const isSwitch = techniqueId !== protocol.id
-    const search = buildSessionSearch({
+    navigateHere(buildSessionSearch({
       techniqueId,
       rounds: isSwitch ? nextProtocol.defaultRounds : (next.rounds ?? rounds),
       customDurations: isSwitch
@@ -291,8 +259,7 @@ export function SessionPage() {
         : ('customDurations' in next ? next.customDurations : customDurations),
       // A journey step is a technique; choosing another one leaves the journey.
       journey: isSwitch ? undefined : journeyRef,
-    })
-    navigate(`/breathwork/session?${search}`, { replace: true })
+    }))
     if (isSwitch) setCheckedSafety(new Set())
   }
 
@@ -303,26 +270,41 @@ export function SessionPage() {
 
   function handleStart() {
     if (startDisabled) return
-    beginLeadIn()
+    // Inside the tap, so iOS lets the first cue sound.
+    unlockAudio()
+    setMoodAfter(undefined)
+    send({ type: 'START' })
   }
 
   function handleRepeat() {
     // Only reachable for non-advanced protocols (summary hides Repeat otherwise).
+    unlockAudio()
     setMoodBefore(undefined)
-    beginLeadIn()
+    setMoodAfter(undefined)
+    send({ type: 'REPEAT' })
   }
 
   function handleMoodAfter(value: MoodValue | undefined) {
     setMoodAfter(value)
-    if (summary) {
-      useHistoryStore.getState().setSessionMood(summary.result.session.id, { moodAfter: value })
+    if (session.tag === 'summary') {
+      useHistoryStore.getState().setSessionMood(session.result.session.id, { moodAfter: value })
     }
   }
+
+  const summary = session.tag === 'summary' ? session : null
+  const insight = useMemo(() => summary && buildSessionInsight({
+    protocol,
+    rounds: summary.result.session.rounds,
+    durationSeconds: summary.result.session.durationSeconds,
+    holdTimes: summary.result.session.holdTimes,
+    isPersonalBest: summary.result.isPersonalBest,
+    newBadgeCount: summary.result.newBadgeIds.length,
+  }), [summary, protocol])
 
   return (
     <>
       <LiveAnnouncer message={announcement} />
-      {summary ? (
+      {summary && insight ? (
         <div {...sx(ss.summaryWrap)}>
           <PaintSplash
             pigment={pigment}
@@ -330,33 +312,29 @@ export function SessionPage() {
             reducedMotion={reducedMotion}
           />
           <SessionSummary
-            protocol={summary.protocol}
+            protocol={protocol}
             result={summary.result}
-            insight={summary.insight}
+            insight={insight}
             journey={summary.journey}
             pigment={pigment}
             moodAfter={moodAfter}
             onMoodAfter={handleMoodAfter}
             onRepeat={handleRepeat}
+            headingRef={summaryHeadingRef}
           />
         </div>
-      ) : inSession ? (
+      ) : isActive(session) ? (
         <ActiveSession
-          protocol={protocol}
-          engine={engine}
+          session={session}
+          config={engineConfig}
+          send={send}
           totalSeconds={plannedSessionSeconds(protocol, rounds, customDurations)}
-          leadIn={leadIn}
-          onCancelLeadIn={() => {
-            setLeadIn(null)
-            stopSpeaking()
-            setAnnouncement('Cancelled.')
-          }}
           advanced={advanced}
           reducedMotion={reducedMotion}
           pigment={pigment}
           soundEnabled={soundEnabled}
         />
-      ) : (
+      ) : session.tag === 'setup' ? (
         <div>
           <SessionSetup
             protocol={protocol}
@@ -379,6 +357,7 @@ export function SessionPage() {
             startDisabled={startDisabled}
             onUpdate={updateParams}
             onStart={handleStart}
+            startRef={startRef}
             reducedMotion={reducedMotion}
             pigment={pigment}
             journeyLabel={journey && journeyRef
@@ -387,7 +366,7 @@ export function SessionPage() {
             journeyNote={journey && journeyRef ? journey.steps[journeyRef.step].note : null}
           />
         </div>
-      )}
+      ) : null}
     </>
   )
 }
@@ -414,6 +393,8 @@ interface SessionSetupProps {
     customDurations?: CustomPhaseDurations | undefined
   }) => void
   onStart: () => void
+  /** Start takes focus back when a session is cancelled or discarded. */
+  startRef: Ref<HTMLButtonElement>
   reducedMotion: boolean
   pigment: Pigment
   /** "First week · day 3 of 7" when this session is a journey step. */
@@ -435,6 +416,7 @@ function SessionSetup({
   startDisabled,
   onUpdate,
   onStart,
+  startRef,
   reducedMotion,
   pigment,
   journeyLabel,
@@ -658,6 +640,7 @@ function SessionSetup({
         <div {...sx(bf.startBlock)}>
           <p {...sx(bf.startCue)}>{READY_CUE}</p>
           <motion.button
+            ref={startRef}
             type="button"
             {...sx(btn.base, btn.primary, btn.wFull)}
             disabled={startDisabled}
@@ -714,73 +697,136 @@ function cadencePreview(
   }
 }
 
+
 // ─────────────────────────────────────────────────────────────────
 // Active session (fullscreen)
 // ─────────────────────────────────────────────────────────────────
 
 interface ActiveSessionProps {
-  protocol: BreathingProtocol
-  engine: ReturnType<typeof useSessionEngine>
+  session: ActiveSessionState
+  config: EngineConfig
+  send: (event: SessionEvent) => void
   /** Planned length of the whole session. */
   totalSeconds: number
-  /** Seconds left of "get ready", or null once the engine is breathing. */
-  leadIn: number | null
-  onCancelLeadIn: () => void
   advanced: boolean
   reducedMotion: boolean
   pigment: Pigment
   soundEnabled: boolean
 }
 
+/** What the fullscreen view is showing; `welcome` is the return from a background pause. */
+type Mode = 'leadIn' | 'running' | 'paused' | 'welcome'
+
+function modeOf(session: ActiveSessionState): Mode {
+  if (session.tag === 'paused' && session.reason === 'background') return 'welcome'
+  return session.tag
+}
+
 function ActiveSession({
-  protocol,
-  engine,
+  session,
+  config,
+  send,
   totalSeconds,
-  leadIn,
-  onCancelLeadIn,
   advanced,
   reducedMotion,
   pigment,
   soundEnabled,
 }: ActiveSessionProps) {
+  const { protocol } = config
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled)
   const anchorRef = useRef<HTMLDivElement>(null)
   const bloomRef = useRef<BloomCanvasHandle>(null)
+  const bloomButtonRef = useRef<HTMLButtonElement>(null)
+  const dockRef = useRef<HTMLDivElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const primaryRef = useRef<HTMLButtonElement>(null)
   const [live, setLive] = useState(false)
 
-  const running = engine.status === 'running'
-  const paused = engine.status === 'paused'
-  // Controls stay visible when paused, focused, or under reduced motion.
-  const [hidden, setHidden] = useState(false)
-  const [focusWithin, setFocusWithin] = useState(false)
-  const [interactionStamp, setInteractionStamp] = useState(0)
-  const preparing = leadIn !== null
-  const alwaysVisible = paused || preparing || reducedMotion || focusWithin
-  const controlsVisible = alwaysVisible || !hidden
+  const mode = modeOf(session)
+  const running = mode === 'running'
+  const leadIn = session.tag === 'leadIn' ? session : null
 
-  const showControls = useCallback(() => {
-    setHidden(false)
-    setInteractionStamp(Date.now())
+  const clock = sessionClock(session)
+  const cursor = clock?.cursor ?? null
+  const phaseIndex = cursor?.phaseIndex ?? 0
+  const phase = getCurrentPhase(config, { phaseIndex })
+  const phaseSeconds = cursor ? getCurrentPhaseSeconds(config, cursor) : 0
+  const seconds = cursor?.secondsLeftInPhase ?? 0
+  const elapsed = cursor ? elapsedSessionSeconds(config, cursor) : 0
+  const roundNumber = (cursor?.roundIndex ?? 0) + 1
+  const roundsKept = roundNumber - 1
+  const phaseLabel = PHASE_LABELS[phase]
+
+  // Controls hide after a few seconds of breathing without interaction, and
+  // stay while paused, under reduced motion, or while a keyboard user is in
+  // the dock. Pointer moves only touch state when the dock is actually hidden.
+  const [hidden, setHidden] = useState(false)
+  const hiddenRef = useRef(false)
+  const [keyboardInDock, setKeyboardInDock] = useState(false)
+  const keyboardModality = useRef(false)
+  const alwaysVisible = !running || reducedMotion || keyboardInDock
+  const alwaysVisibleRef = useRef(alwaysVisible)
+  const controlsVisible = alwaysVisible || !hidden
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const setHiddenState = useCallback((next: boolean) => {
+    if (hiddenRef.current === next) return
+    hiddenRef.current = next
+    setHidden(next)
   }, [])
 
-  // Auto-hide after 3s of running without interaction. The timeout callback
-  // is the only place hiding happens, so pausing/focus never races it.
+  const armHide = useCallback(() => {
+    if (hideTimer.current !== null) clearTimeout(hideTimer.current)
+    hideTimer.current = null
+    if (alwaysVisibleRef.current) return
+    hideTimer.current = setTimeout(() => {
+      hideTimer.current = null
+      // The dock is about to go inert: keep focus on the page, not the body.
+      if (dockRef.current?.contains(document.activeElement)) bloomButtonRef.current?.focus({ preventScroll: true })
+      setHiddenState(true)
+    }, CONTROLS_HIDE_MS)
+  }, [setHiddenState])
+
   useEffect(() => {
-    if (alwaysVisible) return
-    const timeout = setTimeout(() => setHidden(true), CONTROLS_HIDE_MS)
-    return () => clearTimeout(timeout)
-  }, [alwaysVisible, interactionStamp])
+    alwaysVisibleRef.current = alwaysVisible
+    armHide()
+    return () => {
+      if (hideTimer.current !== null) clearTimeout(hideTimer.current)
+    }
+  }, [alwaysVisible, armHide])
+
+  const showControls = useCallback(() => {
+    setHiddenState(false)
+    armHide()
+  }, [armHide, setHiddenState])
+
+  // Focus moves with the session: Cancel through a lead-in, then the primary
+  // control once breathing starts (Start and Cancel unmount under the focus).
+  const previousMode = useRef<Mode | null>(null)
+  useEffect(() => {
+    const previous = previousMode.current
+    previousMode.current = mode
+    if (previous === mode) return
+    if (mode === 'leadIn') cancelRef.current?.focus({ preventScroll: true })
+    else if (previous === null || previous === 'leadIn') primaryRef.current?.focus({ preventScroll: true })
+  }, [mode])
+
+  const pause = useCallback(() => send({ type: 'PAUSE', now: performance.now() }), [send])
+  const resume = useCallback(() => send({ type: 'RESUME', now: performance.now() }), [send])
+  const restart = useCallback(() => send({ type: 'RESTART', now: performance.now() }), [send])
+  const finish = useCallback(() => send({ type: 'FINISH' }), [send])
+  const cancel = useCallback(() => send({ type: 'CANCEL' }), [send])
 
   // Space pauses and resumes from anywhere except a focused control, which
   // keeps its own native Space behaviour. Escape ends (or cancels the
   // lead-in) and M mutes.
-  const { pause, resume, finish } = engine
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      keyboardModality.current = true
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
       if (event.key === 'Escape') {
         event.preventDefault()
-        if (preparing) onCancelLeadIn()
+        if (mode === 'leadIn') cancel()
         else finish()
         return
       }
@@ -789,7 +835,7 @@ function ActiveSession({
         setSoundEnabled(!useSettingsStore.getState().soundEnabled)
         return
       }
-      if (event.code !== 'Space' || preparing) return
+      if (event.code !== 'Space' || mode === 'leadIn') return
       const target = event.target as Element | null
       // The bloom is a button too, but Space on it should still pause.
       const control = target?.closest('button, a, input, textarea, select, summary, [contenteditable="true"]')
@@ -797,30 +843,40 @@ function ActiveSession({
       event.preventDefault()
       showControls()
       if (running) pause()
-      else if (paused) resume()
+      else resume()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [running, paused, preparing, pause, resume, finish, onCancelLeadIn, setSoundEnabled, showControls])
+  }, [mode, running, pause, resume, finish, cancel, setSoundEnabled, showControls])
 
   const engineRead = useBreathReader({
     phases: protocol.phases,
-    phaseIndex: engine.phaseIndex,
-    phaseSeconds: engine.phaseSeconds,
-    secondsLeftInPhase: engine.secondsLeftInPhase,
-    status: engine.status,
+    phaseIndex,
+    phaseSeconds,
+    secondsLeftInPhase: seconds,
+    status: clock?.status ?? 'idle',
+    secondStartMs: clock?.secondStartMs ?? 0,
+    carryMs: clock?.carryMs ?? 0,
   })
-  const read = preparing ? readRest : engineRead
+  const read = clock ? engineRead : readRest
   // The ambience fades in through the lead-in and rests while paused.
-  useSoundscape(preparing || running, read)
-  const tick = preparing ? `ready:${leadIn}` : `${engine.phaseIndex}:${engine.secondsLeftInPhase}:${engine.status}`
-  const progress = preparing || totalSeconds <= 0 ? 0 : Math.min(1, engine.elapsedSeconds / totalSeconds)
-  const secondsLeft = Math.max(0, totalSeconds - engine.elapsedSeconds)
-  const roundsKept = engine.roundNumber - 1
-  const cue = getCoachingCue(protocol.id, engine.phase)
+  useSoundscape(mode === 'leadIn' || running, read)
+  const tick = leadIn ? `ready:${leadIn.secondsLeft}` : `${phaseIndex}:${seconds}:${mode}`
+  const progress = leadIn || totalSeconds <= 0 ? 0 : Math.min(1, elapsed / totalSeconds)
+  const secondsLeft = Math.max(0, totalSeconds - elapsed)
+  const cue = getCoachingCue(protocol.id, phase)
   const isBox = protocol.id === TECHNIQUE_IDS.BOX_BREATHING
-  const seconds = engine.secondsLeftInPhase
   const vars = { '--bf-ink': pigment.mass, '--bf-mass': pigment.mass, '--bf-glaze': pigment.glaze } as CSSProperties
+  const returning = leadIn?.resumeAt != null
+
+  const word = leadIn ? 'Get ready' : mode === 'welcome' ? 'Welcome back' : mode === 'paused' ? 'Paused' : phaseLabel
+  const count = leadIn ? leadIn.secondsLeft : mode === 'welcome' ? null : seconds >= 60 ? formatClock(seconds) : seconds
+  const line = leadIn
+    ? (returning ? `${phaseLabel} again, from the beginning.` : LEAD_IN_CUE)
+    : mode === 'welcome'
+      ? `You stepped away, so we paused. ${phaseLabel} starts again from the beginning.`
+      : mode === 'paused' ? 'Press Space or Resume when you are ready.' : cue
+  const primaryLabel = running ? 'Pause' : mode === 'welcome' ? 'Continue' : 'Resume'
 
   return (
     <motion.div
@@ -830,7 +886,12 @@ function ActiveSession({
       animate={{ opacity: 1 }}
       transition={{ duration: 0.7, ease: EASE_SETTLE }}
       onPointerMove={showControls}
-      onPointerDown={showControls}
+      onPointerDown={() => {
+        keyboardModality.current = false
+        // A touch is a gesture iOS accepts for waking audio.
+        unlockAudio()
+        showControls()
+      }}
     >
       <BloomCanvas
         ref={bloomRef}
@@ -852,7 +913,7 @@ function ActiveSession({
         {...sx(ss.progress)}
       >
         <div
-          {...sx(ss.progressFill, (reducedMotion || paused || preparing) && ss.progressFillStill)}
+          {...sx(ss.progressFill, (reducedMotion || !running) && ss.progressFillStill)}
           style={{ transform: `scaleX(${progress})` }}
         />
       </div>
@@ -860,9 +921,9 @@ function ActiveSession({
       {/* Round counter */}
       <div {...sx(bf.safeAreaTop, ss.top)}>
         <p {...sx('bf-display', ss.round)}>
-          {preparing ? protocol.name : (
+          {leadIn && !returning ? protocol.name : (
             <>
-              Round {engine.roundNumber} of {engine.totalRounds}
+              Round {roundNumber} of {config.rounds}
               <span {...sx(ss.timeLeft)}> · {formatClock(secondsLeft)} left</span>
             </>
           )}
@@ -877,6 +938,7 @@ function ActiveSession({
       {/* The bloom + phase state */}
       <div {...sx(ss.centre)}>
         <button
+          ref={bloomButtonRef}
           type="button"
           data-bloom=""
           aria-label={`${protocol.name} visualization`}
@@ -898,32 +960,31 @@ function ActiveSession({
 
         <div {...sx(ss.phaseBlock)}>
           <motion.p
-            key={preparing ? 'ready' : paused ? 'paused' : `${engine.phaseIndex}-${engine.phase}`}
+            key={leadIn ? 'ready' : mode === 'running' ? `${phaseIndex}-${phase}` : mode}
             initial={reducedMotion ? false : { opacity: 0, y: 8, filter: 'blur(4px)' }}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 0.6, ease: EASE_SETTLE }}
             {...sx('bf-display', wc.italic, ss.phaseWord)}
           >
-            {preparing ? 'Get ready' : paused ? 'Paused' : PHASE_LABELS[engine.phase]}
+            {word}
             {/* The cat's face is the centrepiece, so the count sits beside the word. */}
-            <span aria-hidden="true" {...sx(ss.count)}>
-              {preparing ? leadIn : seconds >= 60 ? formatClock(seconds) : seconds}
-            </span>
+            {count !== null && <span aria-hidden="true" {...sx(ss.count)}>{count}</span>}
           </motion.p>
           <motion.p
-            key={`${preparing ? 'ready' : paused ? 'paused' : engine.phase}-cue`}
+            key={`${leadIn ? 'ready' : mode === 'running' ? phase : mode}-cue`}
             initial={reducedMotion ? false : { opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={chromeTransition}
             {...sx(bf.phaseCue)}
           >
-            {preparing ? LEAD_IN_CUE : paused ? 'Press Space or Resume when you are ready.' : cue}
+            {line}
           </motion.p>
         </div>
       </div>
 
       {/* Controls dock */}
       <motion.div
+        ref={dockRef}
         id="session-controls"
         data-testid="session-controls"
         initial={false}
@@ -936,16 +997,18 @@ function ActiveSession({
         inert={!controlsVisible ? true : undefined}
         {...sx(bf.safeAreaBottom, ss.dockWrap)}
         style={{ pointerEvents: controlsVisible ? 'auto' : 'none' }}
-        onFocus={() => setFocusWithin(true)}
+        onFocus={() => {
+          if (keyboardModality.current) setKeyboardInDock(true)
+        }}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            setFocusWithin(false)
+            setKeyboardInDock(false)
           }
         }}
       >
-        {preparing ? (
+        {leadIn ? (
           <div {...sx(ss.dock)}>
-            <button type="button" {...sx(btn.base, btn.secondary, btn.flex1)} onClick={onCancelLeadIn}>
+            <button ref={cancelRef} type="button" {...sx(btn.base, btn.secondary, btn.flex1)} onClick={cancel}>
               <X size={16} strokeWidth={1.75} aria-hidden="true" />
               Cancel
             </button>
@@ -957,32 +1020,30 @@ function ActiveSession({
             {...sx(btn.icon)}
             aria-label={soundEnabled ? 'Mute sound' : 'Unmute sound'}
             onClick={() => setSoundEnabled(!soundEnabled)}
-            tabIndex={controlsVisible ? 0 : -1}
           >
             {soundEnabled
               ? <Volume2 size={18} strokeWidth={1.75} aria-hidden="true" />
               : <VolumeX size={18} strokeWidth={1.75} aria-hidden="true" />}
           </button>
           <motion.button
+            ref={primaryRef}
             type="button"
             {...sx(btn.base, btn.primary, btn.flex1)}
-            onClick={running ? engine.pause : engine.resume}
+            onClick={running ? pause : resume}
             whileTap={reducedMotion ? undefined : { scale: 0.98 }}
             transition={pressSpring}
-            tabIndex={controlsVisible ? 0 : -1}
             aria-keyshortcuts="Space"
           >
             {running
               ? <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
               : <Play size={16} strokeWidth={1.75} aria-hidden="true" />}
-            {running ? 'Pause' : 'Resume'}
+            {primaryLabel}
           </motion.button>
           <button
             type="button"
             {...sx(btn.icon)}
             aria-label="Restart session"
-            onClick={engine.restart}
-            tabIndex={controlsVisible ? 0 : -1}
+            onClick={restart}
           >
             <RotateCcw size={18} strokeWidth={1.75} aria-hidden="true" />
           </button>
@@ -993,23 +1054,18 @@ function ActiveSession({
               ? `End session and keep ${roundsKept} ${roundsKept === 1 ? 'round' : 'rounds'}`
               : 'End session'}
             aria-keyshortcuts="Escape"
-            onClick={engine.finish}
-            tabIndex={controlsVisible ? 0 : -1}
+            onClick={finish}
           >
             <Square size={18} strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
         )}
         <p aria-hidden="true" {...sx(ss.keyHint)}>
-          {preparing ? 'Esc to cancel' : 'Space to pause · M to mute · Esc to end'}
+          {leadIn ? 'Esc to cancel' : mode === 'welcome' ? 'Space to continue · Esc to end' : 'Space to pause · M to mute · Esc to end'}
         </p>
       </motion.div>
     </motion.div>
   )
-}
-
-function formatPhaseSeconds(seconds: number): string {
-  return seconds === 1 ? '1 second' : `${seconds} seconds`
 }
 
 function DetailsChevron() {
@@ -1022,4 +1078,3 @@ function DetailsChevron() {
     />
   )
 }
-

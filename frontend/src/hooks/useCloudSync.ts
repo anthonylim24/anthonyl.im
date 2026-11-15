@@ -1,448 +1,184 @@
-import { useEffect, useEffectEvent, useRef, useCallback } from 'react'
-import { useAuth, useUser, useSession } from '@clerk/clerk-react'
-import { createClerkSupabaseClient } from '@/lib/supabase'
-import { useHistoryStore, type CompletedSession, type PersonalBest } from '@/stores/historyStore'
-import { useGamificationStore } from '@/stores/gamificationStore'
-import {
-  DEFAULT_SETTINGS_STATE,
-  migratePersistedSettingsState,
-  pickPersistedSettings,
-  useSettingsStore,
-  type PersistedSettingsState,
-} from '@/stores/settingsStore'
-import { STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
-import { isMoodValue } from '@/lib/mood'
-import {
-  isDefaultPractice,
-  migratePersistedPracticeState,
-  pickPersistedPractice,
-  usePracticeStore,
-} from '@/stores/practiceStore'
+import { useEffect, useEffectEvent, useRef } from 'react'
+import { useAuth, useSession, useUser } from '@clerk/clerk-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { createClerkSupabaseClient } from '@/lib/supabase'
+import { reportClientEvent } from '@/lib/telemetry'
+import { mergeSnapshots } from '@/lib/cloudSync/merge'
+import { markSyncMetaDirty, readSyncMeta, writeSyncMeta } from '@/lib/cloudSync/meta'
+import { pullCloud, pushCloud, sessionsToPush, upsertProfile } from '@/lib/cloudSync/remote'
+import { applySnapshot, readLocalSnapshot, resetLocalStores, subscribeToStores } from '@/lib/cloudSync/snapshot'
+import { dispatchSync, setSyncClient, useSyncStore } from '@/lib/cloudSync/store'
 
-// ─── Merge utilities (exported for testing) ───────────────────────
+/** A burst of changes (a finished session writes three stores) goes up as one push. */
+const PUSH_DELAY_MS = 2000
 
-interface CloudUserState {
-  xp: number
-  earned_badges: string[]
-  selected_theme: string
-  personal_bests: Record<string, { techniqueId: string; maxHoldTime: number; date: string }>
-  settings: Record<string, unknown>
-  /** Daily goal and journey progress (`PersistedPracticeState`), untrusted until cleaned. */
-  practice?: unknown
-  [key: string]: unknown
+function isStill(userId: string, seq: number): boolean {
+  const state = useSyncStore.getState().state
+  return state.tag !== 'signedOut' && state.userId === userId && state.seq === seq
 }
 
-export function mergeUserState(local: CloudUserState, cloud: CloudUserState): CloudUserState {
-  // XP: take higher
-  const xp = Math.max(local.xp ?? 0, cloud.xp ?? 0)
+function report(step: 'pull' | 'push', error: unknown) {
+  console.error(`[CloudSync] ${step} failed:`, error)
+  reportClientEvent('cloud-sync', `${step} failed`, { message: error instanceof Error ? error.message : String(error) })
+}
 
-  // Badges: union
-  const allBadges = new Set([...(local.earned_badges ?? []), ...(cloud.earned_badges ?? [])])
-  const earned_badges = Array.from(allBadges)
+/**
+ * Pulls the cloud copy and merges it into the stores. Runs once per `seq`.
+ * The local copy is read after the network answers and written back in the
+ * same tick, so a change made while the request was out is merged, not lost.
+ */
+async function pull(client: SupabaseClient, userId: string, seq: number): Promise<Set<string> | null> {
+  try {
+    const cloud = await pullCloud(client, userId)
+    if (!isStill(userId, seq)) return null
 
-  // Personal bests: best per technique
-  const personal_bests: CloudUserState['personal_bests'] = { ...cloud.personal_bests }
-  for (const [technique, localBest] of Object.entries(local.personal_bests ?? {})) {
-    const cloudBest = personal_bests[technique]
-    if (!cloudBest || localBest.maxHoldTime > cloudBest.maxHoldTime) {
-      personal_bests[technique] = localBest
-    }
+    const meta = readSyncMeta()
+    // This device's data belongs to another account: start this one clean.
+    if (meta && meta.ownerId !== userId) resetLocalStores(null)
+    const own = meta !== null && meta.ownerId === userId
+    const merged = mergeSnapshots(readLocalSnapshot(), cloud.snapshot, {
+      xpBase: meta === null ? null : own ? meta.xpBase : 0,
+      prefer: own && meta.dirty ? 'local' : 'cloud',
+      localIsOwn: own,
+    })
+    applySnapshot(merged)
+    writeSyncMeta({
+      ownerId: userId,
+      xpBase: cloud.snapshot.gamification.xp,
+      dirty: true,
+      pushedResetAt: cloud.snapshot.history.resetAt,
+    })
+    dispatchSync({ type: 'PULL_OK', seq })
+    return cloud.sessionIds
+  } catch (error) {
+    report('pull', error)
+    if (isStill(userId, seq)) dispatchSync({ type: 'PULL_FAIL', seq, now: Date.now() })
+    return null
   }
+}
 
-  // Settings and theme: prefer local (user's current device)
-  const settings = Object.keys(local.settings ?? {}).length > 0
-    ? local.settings
-    : cloud.settings
-  const selected_theme = local.selected_theme !== 'default'
-    ? local.selected_theme
-    : cloud.selected_theme
+async function push(client: SupabaseClient, userId: string, seq: number, cloudIds: Set<string>): Promise<void> {
+  const before = useSyncStore.getState().state
+  if (before.tag !== 'ready' || !before.dirty || before.pushing) return
+  dispatchSync({ type: 'PUSH_START' })
 
-  // Practice: this device's goal and journeys win once it has any; otherwise the cloud's.
-  const localPractice = migratePersistedPracticeState(local.practice)
-  const practice = isDefaultPractice(localPractice) ? migratePersistedPracticeState(cloud.practice) : localPractice
-
-  return {
-    ...cloud,
-    xp,
-    earned_badges,
-    selected_theme,
-    personal_bests,
-    settings,
-    practice,
+  const snapshot = readLocalSnapshot()
+  const meta = readSyncMeta()
+  const resetAt = snapshot.history.resetAt
+  const sessions = sessionsToPush(snapshot.history.sessions, cloudIds)
+  try {
+    await pushCloud(client, userId, {
+      snapshot,
+      sessions,
+      eraseSessionsUpTo: resetAt !== null && resetAt !== meta?.pushedResetAt ? resetAt : null,
+    })
+    if (!isStill(userId, seq)) return
+    for (const session of sessions) cloudIds.add(session.id)
+    const after = dispatchSync({ type: 'PUSH_OK' })
+    writeSyncMeta({
+      ownerId: userId,
+      xpBase: snapshot.gamification.xp,
+      dirty: after.tag === 'ready' && after.dirty,
+      pushedResetAt: resetAt,
+    })
+  } catch (error) {
+    report('push', error)
+    if (isStill(userId, seq)) dispatchSync({ type: 'PUSH_FAIL', now: Date.now() })
   }
 }
 
-export function mergeSessionHistory(
-  local: CompletedSession[],
-  cloud: CompletedSession[],
-): CompletedSession[] {
-  const seen = new Map<string, CompletedSession>()
-  for (const s of [...cloud, ...local]) {
-    if (!seen.has(s.id)) {
-      seen.set(s.id, s)
-    }
-  }
-  return Array.from(seen.values()).sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-  )
-}
-
-/** Cloud settings are untrusted: every field is checked, and anything missing takes its default. */
-export function normalizeCloudSettings(settings: Record<string, unknown>): PersistedSettingsState {
-  return migratePersistedSettingsState(settings)
-}
-
-export function hasNonDefaultSettings(settings: PersistedSettingsState): boolean {
-  const stored = pickPersistedSettings(settings)
-  return (Object.keys(stored) as (keyof PersistedSettingsState)[])
-    .some((key) => stored[key] !== DEFAULT_SETTINGS_STATE[key])
-}
-
-// ─── Cloud sync hook ──────────────────────────────────────────────
-
-const DEBOUNCE_MS = 2000
-
+/**
+ * Keeps the BreathFlow stores and the signed-in person's cloud copy in step.
+ * The lifecycle is `lib/cloudSync/machine.ts`; this hook only feeds it events
+ * and performs the pull or push its state calls for. localStorage stays the
+ * offline cache throughout: nothing here deletes it.
+ */
 export function useCloudSync() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const { session } = useSession()
-  const supabaseRef = useRef<SupabaseClient | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isSyncingRef = useRef(false)
-  const pendingSyncRef = useRef(false)
-  const mergedUserIdRef = useRef<string | null>(null)
+  const sync = useSyncStore((store) => store.state)
+  const client = useSyncStore((store) => store.client)
+  const cloudIdsRef = useRef<Set<string>>(new Set())
+  const pulledSeqRef = useRef(-1)
 
-  const attachSession = useEffectEvent((next: typeof session) => {
-    supabaseRef.current = next ? createClerkSupabaseClient(next) : null
-  })
-
-  // Create Supabase client when session is available
   useEffect(() => {
-    attachSession(session)
+    setSyncClient(session ? createClerkSupabaseClient(session) : null)
   }, [session])
 
-  // ─── Upsert profile ──────────────────────────────────────────
-  const upsertProfile = useCallback(async () => {
-    const supabase = supabaseRef.current
-    if (!supabase || !user) return
-
-    try {
-      const { error } = await supabase.from('profiles').upsert({
-        user_id: user.id,
-        email: user.primaryEmailAddress?.emailAddress ?? null,
-        name: user.fullName ?? null,
-        avatar_url: user.imageUrl ?? null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-      assertNoSupabaseError(error)
-    } catch (err) {
-      console.error('[CloudSync] Failed to upsert profile:', err)
-    }
-  }, [user])
-
-  // ─── Fetch cloud data and hydrate stores ──────────────────────
-  const fetchAndHydrate = useCallback(async () => {
-    const supabase = supabaseRef.current
-    if (!supabase || !user) return
-
-    try {
-      // Fetch user state
-      const { data: cloudState, error: cloudStateError } = await supabase
-        .from('user_state')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      assertNoSupabaseError(cloudStateError)
-
-      // Fetch sessions
-      const { data: cloudSessions, error: cloudSessionsError } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-      assertNoSupabaseError(cloudSessionsError)
-
-      // Get local data from stores
-      const localHistory = useHistoryStore.getState()
-      const localGamification = useGamificationStore.getState()
-      const localSettings = useSettingsStore.getState()
-
-      const hasLocalData =
-        localHistory.sessions.length > 0 ||
-        localGamification.xp > 0 ||
-        localGamification.earnedBadges.length > 0 ||
-        hasNonDefaultSettings(localSettings) ||
-        !isDefaultPractice(usePracticeStore.getState())
-      const hasMergedCurrentUser = mergedUserIdRef.current === user.id
-
-      if (hasLocalData && !hasMergedCurrentUser) {
-        // First-login merge: merge local into cloud
-        const localState: CloudUserState = {
-          xp: localGamification.xp,
-          earned_badges: localGamification.earnedBadges,
-          selected_theme: localGamification.selectedTheme,
-          daily_session_count: localGamification.dailySessionCount,
-          weekly_session_count: localGamification.weeklySessionCount,
-          last_daily_reset: localGamification.lastDailyReset,
-          last_weekly_reset: localGamification.lastWeeklyReset,
-          personal_bests: localHistory.personalBests as CloudUserState['personal_bests'],
-          vo2_max_manual: localHistory.vo2MaxManual,
-          vo2_max_history: localHistory.vo2MaxHistory,
-          settings: pickPersistedSettings(localSettings),
-          practice: pickPersistedPractice(usePracticeStore.getState()),
-        }
-
-        const cloudStateData: CloudUserState = cloudState ?? {
-          xp: 0,
-          earned_badges: [],
-          selected_theme: 'default',
-          personal_bests: {},
-          settings: {},
-        }
-
-        const merged = mergeUserState(localState, cloudStateData)
-
-        // Upsert merged state to cloud
-        const { error: mergedStateError } = await supabase.from('user_state').upsert({
-          user_id: user.id,
-          ...merged,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
-        assertNoSupabaseError(mergedStateError)
-
-        // Insert local sessions that aren't in cloud
-        const cloudSessionMap = new Map(
-          (cloudSessions ?? []).map((s: CompletedSession) => [s.id, true]),
-        )
-        const newSessions = localHistory.sessions.filter(s => !cloudSessionMap.has(s.id))
-        if (newSessions.length > 0) {
-          const { error: newSessionsError } = await supabase.from('sessions').insert(
-            newSessions.map(s => mapSessionToCloudRow(s, user.id)),
-          )
-          assertNoSupabaseError(newSessionsError)
-        }
-
-        // Merge session lists for store hydration
-        const allSessions = mergeSessionHistory(
-          localHistory.sessions,
-          (cloudSessions ?? []).map(mapCloudSession),
-        )
-
-        // Hydrate stores with merged data
-        hydrateStores(merged, allSessions)
-
-        // Mark merge complete before clearing localStorage to prevent
-        // re-merge with empty data if a subsequent error occurs
-        mergedUserIdRef.current = user.id
-
-        // Clear localStorage now that cloud has the merged data
-        localStorage.removeItem(STORAGE_KEYS.SESSION_HISTORY)
-        localStorage.removeItem(STORAGE_KEYS.GAMIFICATION)
-        localStorage.removeItem(STORAGE_KEYS.SETTINGS)
-        localStorage.removeItem(STORAGE_KEYS.PRACTICE)
-      } else if (cloudState) {
-        // Subsequent login: hydrate from cloud
-        const sessions = (cloudSessions ?? []).map(mapCloudSession)
-        hydrateStores(cloudState, sessions)
-      }
-    } catch (err) {
-      console.error('[CloudSync] Failed to fetch/hydrate:', err)
-    }
-  }, [user])
-
+  // Without a client (Supabase not configured) there is nothing to sync with.
+  const userId = isSignedIn && user && client ? user.id : null
   useEffect(() => {
-    if (!isSignedIn) {
-      mergedUserIdRef.current = null
-    }
-  }, [isSignedIn])
+    dispatchSync(userId ? { type: 'SIGNED_IN', userId } : { type: 'SIGNED_OUT' })
+  }, [userId])
 
-  // ─── Write stores back to Supabase (debounced) ────────────────
-  const syncToCloud = useCallback(async () => {
-    const supabase = supabaseRef.current
-    if (!supabase || !user || isSyncingRef.current) return
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-      debounceRef.current = null
-    }
-
-    isSyncingRef.current = true
-    try {
-      const history = useHistoryStore.getState()
-      const gamification = useGamificationStore.getState()
-      const settings = useSettingsStore.getState()
-
-      const { error: stateError } = await supabase.from('user_state').upsert({
-        user_id: user.id,
-        xp: gamification.xp,
-        earned_badges: gamification.earnedBadges,
-        selected_theme: gamification.selectedTheme,
-        daily_session_count: gamification.dailySessionCount,
-        weekly_session_count: gamification.weeklySessionCount,
-        last_daily_reset: gamification.lastDailyReset,
-        last_weekly_reset: gamification.lastWeeklyReset,
-        personal_bests: history.personalBests,
-        vo2_max_manual: history.vo2MaxManual,
-        vo2_max_history: history.vo2MaxHistory,
-        settings: pickPersistedSettings(settings),
-        practice: pickPersistedPractice(usePracticeStore.getState()),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-      assertNoSupabaseError(stateError)
-
-      // Upsert recent sessions (idempotent via ON CONFLICT)
-      const recentSessions = history.sessions.slice(0, 50)
-      if (recentSessions.length > 0) {
-        const { error: sessionsError } = await supabase.from('sessions').upsert(
-          recentSessions.map(s => mapSessionToCloudRow(s, user.id)),
-          { onConflict: 'id' },
-        )
-        assertNoSupabaseError(sessionsError)
-      }
-      pendingSyncRef.current = false
-    } catch (err) {
-      console.error('[CloudSync] Failed to sync to cloud:', err)
-    } finally {
-      isSyncingRef.current = false
-    }
-  }, [user])
-
-  const debouncedSync = useCallback(() => {
-    pendingSyncRef.current = true
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null
-      void syncToCloud()
-    }, DEBOUNCE_MS)
-  }, [syncToCloud])
-
-  const flushPendingSync = useCallback(() => {
-    if (!pendingSyncRef.current) return
-    void syncToCloud()
-  }, [syncToCloud])
-
-  // ─── Initial fetch on sign-in ─────────────────────────────────
+  const saveProfile = useEffectEvent(() => {
+    if (!client || !user) return
+    upsertProfile(client, {
+      id: user.id,
+      email: user.primaryEmailAddress?.emailAddress ?? null,
+      name: user.fullName ?? null,
+      avatarUrl: user.imageUrl ?? null,
+    }).catch((error: unknown) => console.error('[CloudSync] Failed to save profile:', error))
+  })
   useEffect(() => {
-    if (isSignedIn && supabaseRef.current && user) {
-      upsertProfile()
-      fetchAndHydrate()
-    }
-  }, [isSignedIn, session, user, upsertProfile, fetchAndHydrate])
+    if (userId) saveProfile()
+  }, [userId])
 
-  // ─── Subscribe to store changes for sync ──────────────────────
+  // Pull when the machine asks for one.
   useEffect(() => {
-    if (!isSignedIn) return
+    if (sync.tag !== 'pulling' || !client || pulledSeqRef.current === sync.seq) return
+    pulledSeqRef.current = sync.seq
+    void pull(client, sync.userId, sync.seq).then((ids) => {
+      if (ids) cloudIdsRef.current = ids
+    })
+  }, [sync, client])
 
-    const unsubHistory = useHistoryStore.subscribe(debouncedSync)
-    const unsubGamification = useGamificationStore.subscribe(debouncedSync)
-    const unsubSettings = useSettingsStore.subscribe(debouncedSync)
-    const unsubPractice = usePracticeStore.subscribe(debouncedSync)
-
-    return () => {
-      unsubHistory()
-      unsubGamification()
-      unsubSettings()
-      unsubPractice()
-      flushPendingSync()
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [isSignedIn, debouncedSync, flushPendingSync])
-
-  useEffect(() => {
-    if (!isSignedIn) return
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        flushPendingSync()
-      }
-    }
-
-    window.addEventListener('pagehide', flushPendingSync)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      window.removeEventListener('pagehide', flushPendingSync)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [isSignedIn, flushPendingSync])
-}
-
-// ─── Helpers ────────────────────────────────────────────────────
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function mapSessionToCloudRow(session: CompletedSession, userId: string) {
-  return {
-    id: session.id,
-    user_id: userId,
-    technique_id: session.techniqueId,
-    date: session.date,
-    duration_seconds: session.durationSeconds,
-    rounds: session.rounds,
-    hold_times: session.holdTimes,
-    custom_phase_durations: session.customPhaseDurations ?? null,
-    max_hold_time: session.maxHoldTime,
-    avg_hold_time: session.avgHoldTime,
-    mood_before: session.moodBefore ?? null,
-    mood_after: session.moodAfter ?? null,
-  }
-}
-
-export function mapCloudSession(row: Record<string, unknown>): CompletedSession {
-  const customPhaseDurations = isRecord(row.custom_phase_durations)
-    ? { customPhaseDurations: row.custom_phase_durations as CompletedSession['customPhaseDurations'] }
-    : {}
-
-  return {
-    id: row.id as string,
-    techniqueId: row.technique_id as CompletedSession['techniqueId'],
-    date: row.date as string,
-    durationSeconds: row.duration_seconds as number,
-    rounds: row.rounds as number,
-    holdTimes: (row.hold_times as number[]) ?? [],
-    ...customPhaseDurations,
-    ...(isMoodValue(row.mood_before) ? { moodBefore: row.mood_before } : {}),
-    ...(isMoodValue(row.mood_after) ? { moodAfter: row.mood_after } : {}),
-    maxHoldTime: row.max_hold_time as number,
-    avgHoldTime: row.avg_hold_time as number,
-  }
-}
-
-function assertNoSupabaseError(error: unknown): void {
-  if (error) {
-    throw error
-  }
-}
-
-function hydrateStores(state: CloudUserState, sessions: CompletedSession[]) {
-  useHistoryStore.setState({
-    sessions,
-    personalBests: (state.personal_bests ?? {}) as Record<TechniqueId, PersonalBest | undefined>,
-    vo2MaxManual: (state.vo2_max_manual as number) ?? null,
-    vo2MaxHistory: (state.vo2_max_history as { value: number; date: string }[]) ?? [],
+  const pushNow = useEffectEvent(() => {
+    const state = useSyncStore.getState().state
+    if (state.tag !== 'ready' || !state.dirty || state.pushing || !client) return
+    void push(client, state.userId, state.seq, cloudIdsRef.current)
   })
 
-  // Hydrate gamification store
-  useGamificationStore.setState({
-    xp: state.xp ?? 0,
-    earnedBadges: (state.earned_badges as string[]) ?? [],
-    selectedTheme: (state.selected_theme as string) ?? 'default',
-    dailySessionCount: (state.daily_session_count as number) ?? 0,
-    weeklySessionCount: (state.weekly_session_count as number) ?? 0,
-    lastDailyReset: (state.last_daily_reset as string) ?? '',
-    lastWeeklyReset: (state.last_weekly_reset as string) ?? '',
-  })
+  // Push once the stores have unsynced changes and nothing else is in flight.
+  useEffect(() => {
+    if (sync.tag !== 'ready' || !sync.dirty || sync.pushing) return
+    const timer = setTimeout(() => pushNow(), PUSH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [sync])
 
-  if (state.practice !== undefined && state.practice !== null) {
-    usePracticeStore.setState(migratePersistedPracticeState(state.practice))
-  }
+  // Retry after the backoff, or as soon as the browser is back online.
+  useEffect(() => {
+    if (sync.tag !== 'error') return
+    const timer = setTimeout(() => dispatchSync({ type: 'RETRY', now: Date.now() }), Math.max(0, sync.retryAt - Date.now()))
+    return () => clearTimeout(timer)
+  }, [sync])
 
-  // Hydrate settings store
-  const settings = (state.settings ?? {}) as Record<string, unknown>
-  if (Object.keys(settings).length > 0) {
-    useSettingsStore.setState(normalizeCloudSettings(settings))
-  }
+  useEffect(() => {
+    const online = () => dispatchSync({ type: 'ONLINE' })
+    window.addEventListener('online', online)
+    return () => window.removeEventListener('online', online)
+  }, [])
+
+  // Every store change is a local change. Signed out, it is still remembered
+  // as unsynced for the account that owns this device's data.
+  useEffect(() => subscribeToStores(() => {
+    markSyncMetaDirty()
+    dispatchSync({ type: 'LOCAL_CHANGE' })
+  }), [])
+
+  // Leaving the page (or this hook unmounting) sends what is waiting rather than dropping it.
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') pushNow()
+    }
+    const onPageHide = () => pushNow()
+    window.addEventListener('pagehide', onPageHide)
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      window.removeEventListener('pagehide', onPageHide)
+      document.removeEventListener('visibilitychange', onHidden)
+      pushNow()
+    }
+  }, [])
 }

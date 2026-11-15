@@ -3,6 +3,7 @@ import { LayoutGroup, motion } from 'motion/react'
 import { Lock } from 'lucide-react'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { TECHNIQUE_IDS } from '@/lib/constants'
+import { eraseAllData, useSyncStore } from '@/lib/cloudSync/store'
 import {
   buildBreathFlowExportData,
   parseBreathFlowImportData,
@@ -11,7 +12,6 @@ import {
 import { sx } from '@/styles/merge'
 import { layout } from '@/styles/common.stylex'
 import { useGamificationStore } from '@/stores/gamificationStore'
-import { useHistoryStore } from '@/stores/historyStore'
 import { DAILY_GOAL_OPTIONS, usePracticeStore } from '@/stores/practiceStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { btn } from '../components/buttonStyles.stylex'
@@ -143,6 +143,8 @@ export function SettingsPage() {
 
   const [importError, setImportError] = useState<string | null>(null)
   const [confirmingClear, setConfirmingClear] = useState(false)
+  const [clearState, setClearState] = useState<'idle' | 'erasing' | 'failed'>('idle')
+  const syncedCopy = useSyncStore((store) => store.state.tag !== 'signedOut')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const confirmClearRef = useRef<HTMLButtonElement>(null)
 
@@ -151,7 +153,7 @@ export function SettingsPage() {
   }, [confirmingClear])
 
   function handleExport() {
-    const data = buildBreathFlowExportData(localStorage)
+    const data = buildBreathFlowExportData()
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -173,12 +175,16 @@ export function SettingsPage() {
     }
   }
 
-  function handleClearAll() {
-    useHistoryStore.getState().clearHistory()
-    useGamificationStore.getState().resetProgress()
-    useSettingsStore.getState().resetSettings()
-    usePracticeStore.getState().resetPractice()
-    setConfirmingClear(false)
+  async function handleClearAll() {
+    setClearState('erasing')
+    try {
+      await eraseAllData()
+      setClearState('idle')
+      setConfirmingClear(false)
+    } catch (error) {
+      console.error('[Settings] Clear all data failed:', error)
+      setClearState('failed')
+    }
   }
 
   return (
@@ -348,8 +354,10 @@ export function SettingsPage() {
 
       <Section title="Your data">
         <p {...sx(st.hint)}>
-          Everything lives on this device: history, progress, and settings.
-          Export a JSON backup, or restore one.
+          {syncedCopy
+            ? 'History, progress, and settings live on this device and in your account.'
+            : 'Everything lives on this device: history, progress, and settings.'}
+          {' '}Export a JSON backup, or restore one.
         </p>
         <div {...sx(bf.mt3, bf.flexWrapGap2)}>
           <button type="button" {...sx(btn.base, btn.secondary)} onClick={handleExport}>
@@ -381,13 +389,29 @@ export function SettingsPage() {
           {confirmingClear ? (
             <div {...sx(bf.flexColGap2SmRow)}>
               <p role="status" aria-live="polite" aria-atomic="true" {...sx(bf.flex1, bf.textSm, bf.textSecondary)}>
-                Erase history, progress, badges, and settings from this device?
+                {syncedCopy
+                  ? 'Erase history, progress, badges, and settings from this device and from your account? Your other devices lose them too.'
+                  : 'Erase history, progress, badges, and settings from this device?'}
               </p>
               <div {...sx(bf.flexItemsCenterGap2)}>
-                <button ref={confirmClearRef} type="button" {...sx(btn.base, btn.destructive)} onClick={handleClearAll}>
-                  Erase everything
+                <button
+                  ref={confirmClearRef}
+                  type="button"
+                  disabled={clearState === 'erasing'}
+                  {...sx(btn.base, btn.destructive)}
+                  onClick={() => void handleClearAll()}
+                >
+                  {clearState === 'erasing' ? 'Erasing…' : 'Erase everything'}
                 </button>
-                <button type="button" {...sx(btn.base, btn.secondary)} onClick={() => setConfirmingClear(false)}>
+                <button
+                  type="button"
+                  disabled={clearState === 'erasing'}
+                  {...sx(btn.base, btn.secondary)}
+                  onClick={() => {
+                    setConfirmingClear(false)
+                    setClearState('idle')
+                  }}
+                >
                   Cancel
                 </button>
               </div>
@@ -396,6 +420,11 @@ export function SettingsPage() {
             <button type="button" {...sx(btn.base, btn.destructive)} onClick={() => setConfirmingClear(true)}>
               Clear all data
             </button>
+          )}
+          {clearState === 'failed' && (
+            <p role="alert" {...sx(bf.mt2, bf.textXs, bf.leadingRelaxed, bf.textDestructive)}>
+              Couldn&rsquo;t reach your account, so nothing was erased. Check your connection and try again.
+            </p>
           )}
         </div>
       </Section>

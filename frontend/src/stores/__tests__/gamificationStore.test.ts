@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest'
-import { formatLocalDateKey, getLocalWeekStartKey } from '@/lib/localDates'
 import {
   GAMIFICATION_STORAGE_VERSION,
   migratePersistedGamificationState,
@@ -9,16 +8,7 @@ import {
 
 describe('gamificationStore', () => {
   beforeEach(() => {
-    // Reset store state before each test
-    useGamificationStore.setState({
-      xp: 0,
-      earnedBadges: [],
-      selectedTheme: 'default',
-      dailySessionCount: 0,
-      weeklySessionCount: 0,
-      lastDailyReset: formatLocalDateKey(new Date()),
-      lastWeeklyReset: getWeekStart(),
-    })
+    useGamificationStore.setState({ xp: 0, earnedBadges: [], selectedTheme: 'default' })
   })
 
   it('starts at 0 XP', () => {
@@ -51,67 +41,24 @@ describe('gamificationStore', () => {
     ])
   })
 
-  it('increments daily and weekly session counts', () => {
-    const { recordSession } = useGamificationStore.getState()
-    recordSession()
-    recordSession()
-    const state = useGamificationStore.getState()
-    expect(state.dailySessionCount).toBe(2)
-    expect(state.weeklySessionCount).toBe(2)
-  })
-
   it('sets selected theme', () => {
     const { setSelectedTheme } = useGamificationStore.getState()
     setSelectedTheme('aurora')
     expect(useGamificationStore.getState().selectedTheme).toBe('aurora')
   })
 
-  it('resets daily and weekly counters using local calendar keys', () => {
-    useGamificationStore.setState({
-      dailySessionCount: 3,
-      weeklySessionCount: 8,
-      lastDailyReset: '2026-04-01',
-      lastWeeklyReset: '2026-03-30',
-    })
-
-    useGamificationStore.getState().checkResets()
-
-    expect(useGamificationStore.getState()).toMatchObject({
-      dailySessionCount: 0,
-      weeklySessionCount: 0,
-      lastDailyReset: formatLocalDateKey(new Date()),
-      lastWeeklyReset: getWeekStart(),
-    })
-  })
-
   it('resets progress and theme unlock state to defaults', () => {
-    useGamificationStore.setState({
-      xp: 420,
-      earnedBadges: ['first_session'],
-      selectedTheme: 'tidal',
-      dailySessionCount: 3,
-      weeklySessionCount: 5,
-      lastDailyReset: '2026-04-01',
-      lastWeeklyReset: '2026-03-30',
-    })
+    useGamificationStore.setState({ xp: 420, earnedBadges: ['first_session'], selectedTheme: 'tidal' })
 
     useGamificationStore.getState().resetProgress()
 
-    expect(useGamificationStore.getState()).toMatchObject({
-      xp: 0,
-      earnedBadges: [],
-      selectedTheme: 'default',
-      dailySessionCount: 0,
-      weeklySessionCount: 0,
-      lastDailyReset: formatLocalDateKey(new Date()),
-      lastWeeklyReset: getWeekStart(),
-    })
+    expect(useGamificationStore.getState()).toMatchObject({ xp: 0, earnedBadges: [], selectedTheme: 'default' })
   })
 
-  it('versions and migrates persisted gamification state', () => {
+  it('versions and migrates persisted gamification state, ignoring the retired session counters', () => {
     const migrated = migratePersistedGamificationState({
       xp: 240,
-      earnedBadges: ['first_session'],
+      earnedBadges: ['first_session', 7, 'first_session'],
       selectedTheme: 'tidal',
       dailySessionCount: 2,
       weeklySessionCount: 5,
@@ -120,23 +67,8 @@ describe('gamificationStore', () => {
     })
 
     expect(GAMIFICATION_STORAGE_VERSION).toBeGreaterThan(0)
-    expect(migrated).toMatchObject({
-      xp: 240,
-      earnedBadges: ['first_session'],
-      selectedTheme: 'tidal',
-      dailySessionCount: 2,
-      weeklySessionCount: 5,
-      lastDailyReset: '2026-05-01',
-      lastWeeklyReset: getWeekStart(),
-    })
-    expect(migratePersistedGamificationState(null)).toMatchObject({
-      xp: 0,
-      earnedBadges: [],
-      selectedTheme: 'default',
-    })
+    expect(migrated).toEqual({ xp: 240, earnedBadges: ['first_session'], selectedTheme: 'tidal' })
+    expect(migratePersistedGamificationState(null)).toEqual({ xp: 0, earnedBadges: [], selectedTheme: 'default' })
+    expect(migratePersistedGamificationState({ xp: '120' }).xp).toBe(0)
   })
 })
-
-function getWeekStart(): string {
-  return getLocalWeekStartKey()
-}

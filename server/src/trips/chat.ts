@@ -33,6 +33,7 @@ import { sourcesFromGrounding, type ConciergeSource, type GeminiGrounding, type 
 import { mergeGeminiGrounding, readGeminiAgentRound, type GeminiFunctionCall } from "../geminiStream"
 import { fetchGeminiWithTransientRetry } from "../geminiTools"
 import { fetchGeminiModel, GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
+import { LRU } from "../igPlaces/lru"
 import { withSsePings } from "../ssePing"
 import { fetchOpenMeteoWeather, type WeatherFetcher } from "./ai"
 import {
@@ -65,6 +66,16 @@ const MAX_NOTE = 400
 const MAX_TITLE = 80
 const MAX_ITEMS_PER_OVERVIEW_DAY = 8
 const MAX_ROUNDS = 5
+/** Paid lookups (find_places, get_directions) run per model round. */
+export const MAX_LOOKUPS_PER_ROUND = 4
+const LOOKUP_SKIPPED_RESPONSE = {
+  error: `Skipped: only ${MAX_LOOKUPS_PER_ROUND} lookups run at once. Answer with what you have, or look this up in a later step if it still matters.`,
+}
+
+/** The lookups a round may run, in the model's order, and the ones it may not. */
+export function capLookups<T>(lookups: T[]): { run: T[]; skipped: T[] } {
+  return { run: lookups.slice(0, MAX_LOOKUPS_PER_ROUND), skipped: lookups.slice(MAX_LOOKUPS_PER_ROUND) }
+}
 
 /** A place card the client showed under an earlier reply. */
 export interface TripChatPriorPlace {
@@ -502,9 +513,11 @@ export function placesMentioned(text: string, places: ConciergeCardPlace[], limi
 
 // ── Forecast (best effort, cached) ───────────────────────────────────────
 
-const forecastCache = new Map<string, { at: number; data: DayForecast[] }>()
-const forecastPending = new Map<string, Promise<DayForecast[]>>()
 const FORECAST_TTL_MS = 60 * 60_000
+/** One entry per trip area and date span; bounded so a long-lived process
+ *  with many trips does not grow it without limit. */
+const forecastCache = new LRU<string, { at: number; data: DayForecast[] }>({ max: 500, ttlMs: FORECAST_TTL_MS })
+const forecastPending = new Map<string, Promise<DayForecast[]>>()
 /** A failed lookup is not retried for this long (the API may be down). */
 const FORECAST_RETRY_MS = 5 * 60_000
 
@@ -831,9 +844,14 @@ export async function streamTripChat(c: Context, args: StreamTripChatArgs): Prom
             const lookups = result.functionCalls.filter((call) => call.name !== "propose_changes")
             const proposals = result.functionCalls.filter((call) => call.name === "propose_changes")
             const responses = new Map<GeminiFunctionCall, Record<string, unknown>>()
-            for (const call of lookups.slice(0, 1)) await send({ status: describeToolCall(call.name, call.args, args.trip) })
+            // Each lookup is a paid Places / Routes call; a model that fans
+            // out gets the first few and is told the rest were skipped (every
+            // call still needs a response for the next round).
+            const { run: lookupsToRun, skipped: lookupsSkipped } = capLookups(lookups)
+            for (const call of lookupsSkipped) responses.set(call, LOOKUP_SKIPPED_RESPONSE)
+            for (const call of lookupsToRun.slice(0, 1)) await send({ status: describeToolCall(call.name, call.args, args.trip) })
             await Promise.all(
-              lookups.map(async (call) => {
+              lookupsToRun.map(async (call) => {
                 used.push(call.name)
                 if (call.name === "find_places") responses.set(call, await runFindPlaces(call.args, ctx))
                 else if (call.name === "get_directions") responses.set(call, await runGetDirections(call.args, ctx))

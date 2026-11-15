@@ -1,4 +1,4 @@
-import { getAudioContext } from './audio'
+import { getAudioContext, holdAudio, releaseAudio } from './audio'
 
 /**
  * Generative ambience for a session, synthesised with Web Audio (no audio
@@ -138,6 +138,7 @@ export function startSoundscape(id: ActiveSoundscapeId, volume: number): Soundsc
       air = layer(noiseSource(), 'lowpass', 190)
     }
     for (const source of sources) source.start(now)
+    holdAudio()
 
     const apply = (amplitude: number, glide: number) => {
       const mix = breathMix(id, amplitude)
@@ -162,6 +163,7 @@ export function startSoundscape(id: ActiveSoundscapeId, volume: number): Soundsc
         for (const source of sources) source.stop(at + FADE_SECONDS)
         setTimeout(() => {
           for (const node of nodes) node.disconnect()
+          releaseAudio()
         }, FADE_SECONDS * 1000 + 100)
       },
     }

@@ -19,6 +19,11 @@ export interface AudioSettings {
 type AudioContextCtor = typeof AudioContext
 
 let sharedContext: AudioContext | null = null
+/** Soundscapes currently playing; the context stays awake while any are. */
+let holds = 0
+/** Context time at which the last cue's tail has rung out. */
+let quietAt = 0
+let suspendTimer: ReturnType<typeof setTimeout> | null = null
 
 /** The one AudioContext BreathFlow shares between cues and the soundscape. */
 export function getAudioContext(): AudioContext | null {
@@ -34,14 +39,67 @@ export function getAudioContext(): AudioContext | null {
   }
 }
 
-/** Test seam. */
-export function resetAudioContextForTests(): void {
-  try {
-    void sharedContext?.close()
-  } catch {
-    // Ignore — the context may already be closed or be a stub.
-  }
+/**
+ * Wake the context from inside a tap. iOS only lets audio start from a user
+ * gesture, so Start, Repeat and the first touch in a session call this
+ * before any timer-driven cue needs the speaker.
+ */
+export function unlockAudio(): void {
+  const context = getAudioContext()
+  if (!context || context.state !== 'suspended') return
+  void context.resume().catch(() => undefined)
+}
+
+/** A soundscape is playing: keep the context awake until `releaseAudio`. */
+export function holdAudio(): void {
+  holds += 1
+  cancelSuspend()
+}
+
+/** A soundscape has faded out and released its nodes. */
+export function releaseAudio(): void {
+  holds = Math.max(0, holds - 1)
+  scheduleSuspend()
+}
+
+function cancelSuspend() {
+  if (suspendTimer !== null) clearTimeout(suspendTimer)
+  suspendTimer = null
+}
+
+/**
+ * Suspend the context once nothing is sounding (no soundscape, last cue tail
+ * rung out), so an idle tab does not keep the audio hardware running. The
+ * next cue resumes it.
+ */
+function scheduleSuspend() {
+  cancelSuspend()
+  const context = sharedContext
+  if (!context || holds > 0) return
+  const waitMs = Math.max(0, quietAt - context.currentTime) * 1000 + 250
+  suspendTimer = setTimeout(() => {
+    suspendTimer = null
+    if (holds > 0 || sharedContext !== context || context.state !== 'running') return
+    if (context.currentTime < quietAt) {
+      scheduleSuspend()
+      return
+    }
+    void context.suspend().catch(() => undefined)
+  }, waitMs)
+}
+
+/** Release the audio hardware for good (leaving BreathFlow). The next cue builds a new context. */
+export function closeAudioContext(): void {
+  cancelSuspend()
+  const context = sharedContext
   sharedContext = null
+  holds = 0
+  quietAt = 0
+  try {
+    void context?.close().catch(() => undefined)
+  } catch {
+    // Already closed, or a stub without close().
+  }
 }
 
 interface Tone {
@@ -104,6 +162,7 @@ export function playCue(kind: CueKind, settings: AudioSettings): void {
 
     for (const tone of cueTones(kind)) {
       const startAt = now + (tone.delay ?? 0)
+      quietAt = Math.max(quietAt, startAt + tone.duration + 0.1)
       const peak = volume * (tone.peak ?? 0.5)
       // The octave partial gives the strike its brightness and is gone in under half the note.
       for (const partial of BELL_PARTIALS) {
@@ -130,6 +189,7 @@ export function playCue(kind: CueKind, settings: AudioSettings): void {
         oscillator.stop(endAt + 0.05)
       }
     }
+    scheduleSuspend()
   } catch {
     // Silent fallback — audio is an enhancement, never a requirement.
   }

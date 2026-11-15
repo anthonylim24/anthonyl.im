@@ -5,7 +5,7 @@ import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
 import { plannedSessionSeconds, type CustomPhaseDurations } from '../protocols/cadence'
 import { getProtocol } from '../protocols/catalog'
 import { checkBadgeUnlocks } from '../gamify/badges'
-import { calculateXP } from '../gamify/xp'
+import { calculateXP, plannedLengthShare } from '../gamify/xp'
 
 export interface CompletionInput {
   techniqueId: TechniqueId
@@ -34,7 +34,7 @@ export interface CompletionResult {
 
 /**
  * The single persistence bridge for a *completed* session: writes history,
- * awards XP and badges, and updates daily/weekly counts. A session ended
+ * and awards XP and badges. A session ended
  * early arrives with the rounds it finished; one discarded inside its first
  * round must never reach this function.
  */
@@ -72,9 +72,14 @@ export function completeSession(input: CompletionInput): CompletionResult {
   const session = updatedHistory.sessions[0]
   const streak = updatedHistory.getStreak()
 
-  const xpEarned = calculateXP(protocol.id, input.rounds, streak, input.rounds / Math.max(1, plannedRounds))
+  const xpEarned = calculateXP(
+    protocol.id,
+    input.rounds,
+    streak,
+    input.rounds / Math.max(1, plannedRounds),
+    plannedLengthShare(protocol.id, plannedRounds, input.customDurations),
+  )
   gamification.addXP(xpEarned)
-  gamification.recordSession()
 
   const newBadgeIds = checkBadgeUnlocks({
     sessions: updatedHistory.sessions,

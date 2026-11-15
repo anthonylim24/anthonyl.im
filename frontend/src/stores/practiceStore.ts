@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/lib/constants'
-import { createBrowserJSONStorage } from '@/lib/persistStorage'
+import { createBrowserJSONStorage, followOtherTabs } from '@/lib/persistStorage'
 import { getJourney, isJourneyId, type JourneyId } from '@/breathflow/journeys/catalog'
 
 /** Minutes a day a person can aim for. The first is the default. */
@@ -19,6 +19,9 @@ interface PracticeState {
   /** The journey Home offers to continue, or null when none is under way. */
   activeJourneyId: JourneyId | null
   journeys: Partial<Record<JourneyId, JourneyProgress>>
+  /** When the goal / the active journey last changed here (ms since epoch), 0 for never. The newer copy wins a sync. */
+  goalUpdatedAt: number
+  activeJourneyUpdatedAt: number
 
   setDailyGoalMinutes: (minutes: number) => void
   startJourney: (id: JourneyId) => void
@@ -28,16 +31,29 @@ interface PracticeState {
   resetPractice: () => void
 }
 
-export type PersistedPracticeState = Pick<PracticeState, 'dailyGoalMinutes' | 'activeJourneyId' | 'journeys'>
+export type PersistedPracticeState = Pick<
+  PracticeState,
+  'dailyGoalMinutes' | 'activeJourneyId' | 'journeys' | 'goalUpdatedAt' | 'activeJourneyUpdatedAt'
+>
 
 export const PRACTICE_STORAGE_VERSION = 1
 
 export function getDefaultPracticeState(): PersistedPracticeState {
-  return { dailyGoalMinutes: DEFAULT_DAILY_GOAL_MINUTES, activeJourneyId: null, journeys: {} }
+  return {
+    dailyGoalMinutes: DEFAULT_DAILY_GOAL_MINUTES,
+    activeJourneyId: null,
+    journeys: {},
+    goalUpdatedAt: 0,
+    activeJourneyUpdatedAt: 0,
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function readStamp(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 }
 
 /** Cleans practice state from localStorage, an import file or the cloud. */
@@ -64,6 +80,8 @@ export function migratePersistedPracticeState(persisted: unknown): PersistedPrac
   if (isJourneyId(persisted.activeJourneyId) && state.journeys[persisted.activeJourneyId]) {
     state.activeJourneyId = persisted.activeJourneyId
   }
+  state.goalUpdatedAt = readStamp(persisted.goalUpdatedAt)
+  state.activeJourneyUpdatedAt = readStamp(persisted.activeJourneyUpdatedAt)
   return state
 }
 
@@ -72,6 +90,8 @@ export function pickPersistedPractice(state: PersistedPracticeState): PersistedP
     dailyGoalMinutes: state.dailyGoalMinutes,
     activeJourneyId: state.activeJourneyId,
     journeys: state.journeys,
+    goalUpdatedAt: state.goalUpdatedAt,
+    activeJourneyUpdatedAt: state.activeJourneyUpdatedAt,
   }
 }
 
@@ -87,7 +107,9 @@ export const usePracticeStore = create<PracticeState>()(
       ...getDefaultPracticeState(),
 
       setDailyGoalMinutes: (minutes) => {
-        if ((DAILY_GOAL_OPTIONS as readonly number[]).includes(minutes)) set({ dailyGoalMinutes: minutes })
+        if ((DAILY_GOAL_OPTIONS as readonly number[]).includes(minutes)) {
+          set({ dailyGoalMinutes: minutes, goalUpdatedAt: Date.now() })
+        }
       },
 
       // Starting a finished journey again begins it afresh; an unfinished one resumes.
@@ -97,6 +119,7 @@ export const usePracticeStore = create<PracticeState>()(
           const finished = existing && existing.done.length >= getJourney(id).steps.length
           return {
             activeJourneyId: id,
+            activeJourneyUpdatedAt: Date.now(),
             journeys: existing && !finished
               ? state.journeys
               : { ...state.journeys, [id]: { startedAt: new Date().toISOString(), done: [] } },
@@ -105,7 +128,7 @@ export const usePracticeStore = create<PracticeState>()(
       },
 
       leaveJourney: () => {
-        set({ activeJourneyId: null })
+        set({ activeJourneyId: null, activeJourneyUpdatedAt: Date.now() })
       },
 
       completeJourneyStep: (id, step) => {
@@ -128,6 +151,11 @@ export const usePracticeStore = create<PracticeState>()(
       version: PRACTICE_STORAGE_VERSION,
       partialize: (state): PersistedPracticeState => pickPersistedPractice(state),
       migrate: (persisted) => migratePersistedPracticeState(persisted),
+      // zustand calls `migrate` only on a version change; same-version data is cleaned here.
+      merge: (persisted, current) =>
+        persisted === undefined ? current : { ...current, ...migratePersistedPracticeState(persisted) },
     },
   ),
 )
+
+followOtherTabs(usePracticeStore, STORAGE_KEYS.PRACTICE)

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { BreathPhase, TechniqueId } from '@/lib/constants'
+import type { TechniqueId } from '@/lib/constants'
 import { STORAGE_KEYS } from '@/lib/constants'
 import type { MoodValue } from '@/lib/mood'
 import {
@@ -8,90 +8,72 @@ import {
   formatLocalDateKey,
   getLocalDateKey,
   getLocalDayStart,
+  getSessionDayKey,
 } from '@/lib/localDates'
-import { createBrowserJSONStorage } from '@/lib/persistStorage'
+import { createBrowserJSONStorage, followOtherTabs } from '@/lib/persistStorage'
+import { mergeHistoryStates, type PersistedHistoryState } from './historyMerge'
+import {
+  isDateString,
+  isNonNegativeNumber,
+  isRecord,
+  parsePersonalBests,
+  parseSessions,
+  parseVO2History,
+  type CompletedSession,
+  type PersonalBest,
+} from './sessionRecord'
 
-export interface CompletedSession {
-  id: string
-  techniqueId: TechniqueId
-  date: string // ISO string
-  durationSeconds: number
-  rounds: number
-  customPhaseDurations?: Partial<Record<BreathPhase, number>>
-  holdTimes: number[]
-  maxHoldTime: number
-  avgHoldTime: number
-  /** Optional 1–5 calm rating captured before the session (local-first reflection). */
-  moodBefore?: MoodValue
-  /** Optional 1–5 calm rating captured after the session. */
-  moodAfter?: MoodValue
-}
+export type { CompletedSession, PersonalBest } from './sessionRecord'
+export type { PersistedHistoryState } from './historyMerge'
 
-export interface PersonalBest {
-  techniqueId: TechniqueId
-  maxHoldTime: number
-  date: string
-}
-
-interface HistoryState {
-  sessions: CompletedSession[]
-  personalBests: Record<TechniqueId, PersonalBest | undefined>
-  vo2MaxManual: number | null
-  vo2MaxHistory: { value: number; date: string }[]
-  addSession: (session: Omit<CompletedSession, 'id'>) => void
+interface HistoryState extends PersistedHistoryState {
+  addSession: (session: Omit<CompletedSession, 'id' | 'localDay'>) => void
+  /** A key passed as `undefined` clears that rating; a key left out is untouched. */
   setSessionMood: (id: string, mood: { moodBefore?: MoodValue; moodAfter?: MoodValue }) => void
-  clearHistory: () => void
+  /** Forgets everything. `resetAt` lets a caller share one instant with the cloud copy. */
+  clearHistory: (resetAt?: string) => void
   setVO2Max: (value: number) => void
   getSessionsByTechnique: (techniqueId: TechniqueId) => CompletedSession[]
   getRecentSessions: (count: number) => CompletedSession[]
   getStreak: () => number
 }
 
-export type PersistedHistoryState = Pick<
-  HistoryState,
-  'sessions' | 'personalBests' | 'vo2MaxManual' | 'vo2MaxHistory'
->
-
 export const HISTORY_STORAGE_VERSION = 1
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isNonNegativeNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function getEmptyHistoryState(): Pick<
-  HistoryState,
-  'sessions' | 'personalBests' | 'vo2MaxManual' | 'vo2MaxHistory'
-> {
+export function getEmptyHistoryState(): PersistedHistoryState {
   return {
     sessions: [],
     personalBests: {} as Record<TechniqueId, PersonalBest | undefined>,
     vo2MaxManual: null,
     vo2MaxHistory: [],
+    resetAt: null,
   }
 }
 
+/** Cleans history from localStorage, an import file or the cloud; bad sessions are dropped one by one. */
 export function migratePersistedHistoryState(persistedState: unknown): PersistedHistoryState {
   if (!isRecord(persistedState)) {
     return getEmptyHistoryState()
   }
 
   return {
-    sessions: Array.isArray(persistedState.sessions)
-      ? (persistedState.sessions as CompletedSession[])
-      : [],
-    personalBests: isRecord(persistedState.personalBests)
-      ? (persistedState.personalBests as Record<TechniqueId, PersonalBest | undefined>)
-      : ({} as Record<TechniqueId, PersonalBest | undefined>),
+    sessions: parseSessions(persistedState.sessions),
+    personalBests: parsePersonalBests(persistedState.personalBests) as Record<TechniqueId, PersonalBest | undefined>,
     vo2MaxManual: isNonNegativeNumber(persistedState.vo2MaxManual)
       ? persistedState.vo2MaxManual
       : null,
-    vo2MaxHistory: Array.isArray(persistedState.vo2MaxHistory)
-      ? (persistedState.vo2MaxHistory as { value: number; date: string }[])
-      : [],
+    vo2MaxHistory: parseVO2History(persistedState.vo2MaxHistory),
+    resetAt: isDateString(persistedState.resetAt) ? persistedState.resetAt : null,
+  }
+}
+
+export function pickPersistedHistory(state: PersistedHistoryState): PersistedHistoryState {
+  return {
+    sessions: state.sessions,
+    personalBests: state.personalBests,
+    vo2MaxManual: state.vo2MaxManual,
+    vo2MaxHistory: state.vo2MaxHistory,
+    resetAt: state.resetAt,
   }
 }
 
@@ -101,8 +83,10 @@ export const useHistoryStore = create<HistoryState>()(
       ...getEmptyHistoryState(),
 
       addSession: (sessionData) => {
+        const localDay = getLocalDateKey(sessionData.date)
         const session: CompletedSession = {
           ...sessionData,
+          ...(localDay ? { localDay } : {}),
           id: crypto.randomUUID(),
         }
 
@@ -132,15 +116,19 @@ export const useHistoryStore = create<HistoryState>()(
             if (session.id !== id) return session
 
             const next = { ...session }
-            if (mood.moodBefore !== undefined) next.moodBefore = mood.moodBefore
-            if (mood.moodAfter !== undefined) next.moodAfter = mood.moodAfter
+            for (const key of ['moodBefore', 'moodAfter'] as const) {
+              if (!(key in mood)) continue
+              const value = mood[key]
+              if (value === undefined) delete next[key]
+              else next[key] = value
+            }
             return next
           }),
         }))
       },
 
-      clearHistory: () => {
-        set(getEmptyHistoryState())
+      clearHistory: (resetAt = new Date().toISOString()) => {
+        set({ ...getEmptyHistoryState(), resetAt })
       },
 
       setVO2Max: (value) => {
@@ -167,7 +155,7 @@ export const useHistoryStore = create<HistoryState>()(
 
         const sessionDays = new Set(
           sessions
-            .map((session) => getLocalDateKey(session.date))
+            .map(getSessionDayKey)
             .filter((dateKey): dateKey is string => Boolean(dateKey))
         )
         let streak = 0
@@ -198,13 +186,17 @@ export const useHistoryStore = create<HistoryState>()(
       name: STORAGE_KEYS.SESSION_HISTORY,
       storage: createBrowserJSONStorage<PersistedHistoryState>(),
       version: HISTORY_STORAGE_VERSION,
-      partialize: (state): PersistedHistoryState => ({
-        sessions: state.sessions,
-        personalBests: state.personalBests,
-        vo2MaxManual: state.vo2MaxManual,
-        vo2MaxHistory: state.vo2MaxHistory,
-      }),
+      partialize: (state) => pickPersistedHistory(state),
       migrate: (persistedState) => migratePersistedHistoryState(persistedState),
+      // zustand calls `migrate` only on a version change, so same-version data
+      // is cleaned here too. On a rehydrate from another tab's write the two
+      // logs are merged by id, so neither tab's new session is lost.
+      merge: (persisted, current) =>
+        persisted === undefined
+          ? current
+          : { ...current, ...mergeHistoryStates(migratePersistedHistoryState(persisted), pickPersistedHistory(current)) },
     }
   )
 )
+
+followOtherTabs(useHistoryStore, STORAGE_KEYS.SESSION_HISTORY)

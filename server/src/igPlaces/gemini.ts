@@ -17,7 +17,7 @@
 import type { ExtractionBundle, IgPlaceCategory, IgSignalSource, PostPayload, RawExtractedPlace, VotedPlace } from './types';
 import { RetryableError } from './types';
 import { renderBundle, SYSTEM_PROMPT } from './extractPlaces';
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 
 // ─── Enum coercion ────────────────────────────────────────────────────
 //
@@ -537,8 +537,9 @@ async function uploadFile(
   const uploadUrl = initR.headers.get('x-goog-upload-url');
   if (!uploadUrl) throw new Error('gemini upload: no upload URL returned');
 
-  // Step 2: stream the bytes.
-  const bytes = await readFile(filePath);
+  // Step 2: stream the bytes straight from disk (a BunFile body is sent
+  // without being read into memory; the old readFile + Uint8Array copy held
+  // the video twice).
   const upR = await f(uploadUrl, {
     method: 'POST',
     headers: {
@@ -546,7 +547,7 @@ async function uploadFile(
       'X-Goog-Upload-Offset': '0',
       'X-Goog-Upload-Command': 'upload, finalize',
     },
-    body: new Uint8Array(bytes),
+    body: Bun.file(filePath),
     signal,
   });
   if (!upR.ok) throw new Error(`gemini upload ${upR.status}: ${(await upR.text()).slice(0, 200)}`);

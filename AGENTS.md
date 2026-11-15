@@ -273,7 +273,7 @@ All stores use **Zustand v5**. Persisted stores write to `localStorage` under th
 
 Active breath session is **not** Zustand — `frontend/src/breathflow/engine/useSessionEngine.ts` (React state).
 
-Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticated users sync settings, history (with mood ratings) and practice (daily goal, journeys). Keep those on Promise/Supabase, not Effect.
+Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticated users sync settings, history (with mood ratings) and practice (daily goal, journeys). Keep those on Promise/Supabase, not Effect. The lifecycle is the pure reducer in `lib/cloudSync/machine.ts` (push only after a successful pull; retry with backoff); merges are `lib/cloudSync/merge.ts` + `stores/historyMerge.ts` (always merge, never replace). localStorage stays the offline cache; `breathwork-sync` remembers which account owns it, so another account's data is never merged in. Every store cleans persisted state in its `merge` and follows other tabs (`followOtherTabs`).
 
 ---
 

@@ -94,6 +94,18 @@ describe("small helpers", () => {
     expect(zonedToUtc("2026-07-10", "09:00", "Asia/Tokyo")?.toISOString()).toBe("2026-07-10T00:00:00.000Z")
     expect(zonedToUtc("2026-11-13", "16:30", "Europe/Lisbon")?.toISOString()).toBe("2026-11-13T16:30:00.000Z")
   })
+
+  it("is right on the day the clocks change, either side of the change", () => {
+    // New York springs forward at 02:00 on 2026-03-08 (EST -5 → EDT -4).
+    expect(zonedToUtc("2026-03-08", "01:30", "America/New_York")?.toISOString()).toBe("2026-03-08T06:30:00.000Z")
+    expect(zonedToUtc("2026-03-08", "03:30", "America/New_York")?.toISOString()).toBe("2026-03-08T07:30:00.000Z")
+    expect(zonedToUtc("2026-03-08", "09:00", "America/New_York")?.toISOString()).toBe("2026-03-08T13:00:00.000Z")
+    // And falls back at 02:00 on 2026-11-01 (EDT -4 → EST -5).
+    expect(zonedToUtc("2026-11-01", "00:30", "America/New_York")?.toISOString()).toBe("2026-11-01T04:30:00.000Z")
+    expect(zonedToUtc("2026-11-01", "09:00", "America/New_York")?.toISOString()).toBe("2026-11-01T14:00:00.000Z")
+    // Sydney springs forward at 02:00 on 2026-10-04 (+10 → +11).
+    expect(zonedToUtc("2026-10-04", "09:00", "Australia/Sydney")?.toISOString()).toBe("2026-10-03T22:00:00.000Z")
+  })
 })
 
 describe("opening hours", () => {

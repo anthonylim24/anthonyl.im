@@ -17,6 +17,8 @@ import { createProcessor } from './process';
 import { createWorkerLoop } from './worker';
 import { createCommentsFetcher } from './fetchComments';
 import { createBusynessFetcher } from './fetchBusyness';
+import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, saveBodyToFile, YT_DLP_MAX_FILESIZE } from './download';
+import type { LookupQuery } from './geocode';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -32,18 +34,14 @@ const CDN_FETCH_HEADERS = {
   Referer: 'https://www.instagram.com/',
 };
 
-// Bun 1.3.0 quirk: `Bun.write(out, response)` deadlocks when `response` came
-// from a fetch started with an AbortSignal — the writer never gets a body
-// chunk and the call hangs forever (observed: 14-parallel IG image fetches
-// all "timing out" at exactly 120s with the worker pegged at ~100% CPU).
-// Materialising the body via `arrayBuffer()` first avoids the streaming
-// path entirely and writes complete in ~1s for a ~150 KB image.
+// Media is streamed to disk under a hard size cap (see download.ts): reading
+// a whole video into memory, then copying it, took the 1 GB droplet down.
 async function downloadVideo(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-video-'));
   const out = join(dir, 'video.mp4');
   const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
   if (!r.ok) throw new Error(`video download ${r.status}`);
-  await Bun.write(out, await r.arrayBuffer());
+  await saveBodyToFile(r, out, MAX_VIDEO_BYTES);
   return out;
 }
 
@@ -52,7 +50,7 @@ async function downloadImage(url: string, signal?: AbortSignal): Promise<string>
   const out = join(dir, 'image.jpg');
   const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
   if (!r.ok) throw new Error(`image download ${r.status}`);
-  await Bun.write(out, await r.arrayBuffer());
+  await saveBodyToFile(r, out, MAX_IMAGE_BYTES);
   return out;
 }
 
@@ -127,6 +125,8 @@ async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<
     '--retry-sleep', 'extractor:exp=1:16:2',
     '--sleep-requests', '1',
     '--throttled-rate', '50K',
+    // Same cap as the direct download; a larger file is skipped (no output).
+    '--max-filesize', YT_DLP_MAX_FILESIZE,
     ...(cookiesFile ? ['--cookies', cookiesFile] : []),
     igUrl,
   ];
@@ -234,9 +234,7 @@ try {
     const outPath = join(dir, 'video.mp4');
     const dl = await fetch(videoSrc, { signal, headers: CDN_FETCH_HEADERS });
     if (!dl.ok) throw new Error(`headless CDN stream ${dl.status}`);
-    // arrayBuffer() avoids the Bun.write-with-aborted-signal deadlock —
-    // see comment on downloadImage above.
-    await Bun.write(outPath, await dl.arrayBuffer());
+    await saveBodyToFile(dl, outPath, MAX_VIDEO_BYTES);
     return outPath;
   } finally {
     signal?.removeEventListener('abort', onAbort);
@@ -306,7 +304,7 @@ export function buildWorld() {
   // timescales — wrap with an in-process LRU. 7-day TTL is conservative
   // (closures are rare). null misses get a shorter TTL (default 1/10) so
   // transient API failures reattempt within minutes.
-  const lookupKey = (q: { name: string; nameRomanized?: string | null; city: string | null; address: string | null }) =>
+  const lookupKey = (q: LookupQuery) =>
     `${q.name}|${q.nameRomanized ?? ''}|${q.city ?? ''}|${q.address ?? ''}`.toLowerCase();
   const googleLookupRaw = realGoogleLookup(config.googleMapsApiKey ?? '');
   const kakaoLookupRaw = config.kakaoRestApiKey ? realKakaoLookup(config.kakaoRestApiKey) : async () => null;
