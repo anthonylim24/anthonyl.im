@@ -1,7 +1,36 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getProtocol } from '../../protocols/catalog'
-import { useSessionEngine } from '../useSessionEngine'
+import type { CompletionResult } from '../../session/completeSession'
+import type { Completion, Saved, SessionEvent } from '../sessionMachine'
+import { useSessionEngine, type OutputEffect } from '../useSessionEngine'
+
+const config = { protocol: getProtocol('box_breathing'), rounds: 1 }
+
+function setup(rounds = 1) {
+  const performed: OutputEffect[] = []
+  const persisted: Completion[] = []
+  const persist = (completion: Completion): Saved => {
+    persisted.push(completion)
+    const result = { session: { id: 'x', rounds: completion.roundsCompleted }, plannedRounds: completion.plannedRounds, xpEarned: 1, newBadgeIds: [], isPersonalBest: false, streak: 1 }
+    return { result: result as unknown as CompletionResult, journey: null }
+  }
+  const hook = renderHook(() => useSessionEngine({ ...config, rounds }, { perform: (effect) => performed.push(effect), persist }))
+  const send = (event: SessionEvent) => act(() => hook.result.current.send(event))
+  const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms))
+  const startBreathing = () => {
+    send({ type: 'START' })
+    advance(3000)
+  }
+  return { hook, performed, persisted, send, advance, startBreathing }
+}
+
+function setVisibility(state: DocumentVisibilityState) {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+}
 
 describe('useSessionEngine', () => {
   beforeEach(() => {
@@ -9,113 +38,81 @@ describe('useSessionEngine', () => {
   })
 
   afterEach(() => {
+    setVisibility('visible')
     vi.useRealTimers()
   })
 
-  const config = { protocol: getProtocol('box_breathing'), rounds: 1 }
+  it('starts in setup and breathes after a three-second lead-in', () => {
+    const { hook, send, advance } = setup()
+    expect(hook.result.current.session.tag).toBe('setup')
 
-  it('is idle until started', () => {
-    const { result } = renderHook(() => useSessionEngine(config))
-    expect(result.current.status).toBe('idle')
-
-    act(() => result.current.start())
-    expect(result.current.status).toBe('running')
-    expect(result.current.roundNumber).toBe(1)
-    expect(result.current.phase).toBe('inhale')
-    expect(result.current.secondsLeftInPhase).toBe(4)
+    send({ type: 'START' })
+    expect(hook.result.current.session).toMatchObject({ tag: 'leadIn', secondsLeft: 3 })
+    advance(2000)
+    expect(hook.result.current.session).toMatchObject({ tag: 'leadIn', secondsLeft: 1 })
+    advance(1000)
+    expect(hook.result.current.session).toMatchObject({ tag: 'running', cursor: { phaseIndex: 0, secondsLeftInPhase: 4 } })
   })
 
-  it('counts down at 1 Hz and advances phases', () => {
-    const { result } = renderHook(() => useSessionEngine(config))
-    act(() => result.current.start())
+  it('ticks at 1 Hz and voices each phase change', () => {
+    const { hook, performed, startBreathing, advance } = setup()
+    startBreathing()
+    performed.length = 0
 
-    act(() => vi.advanceTimersByTime(1000))
-    expect(result.current.secondsLeftInPhase).toBe(3)
-
-    act(() => vi.advanceTimersByTime(3000))
-    expect(result.current.phase).toBe('hold_in')
+    advance(1000)
+    expect(hook.result.current.session).toMatchObject({ cursor: { secondsLeftInPhase: 3 } })
+    advance(3000)
+    expect(hook.result.current.session).toMatchObject({ cursor: { phaseIndex: 1 } })
+    expect(performed.filter((effect) => effect.type === 'cue')).toEqual([{ type: 'cue', kind: 'hold_in' }])
   })
 
-  it('pause freezes the clock; resume continues; hold capture is pause-aware', () => {
-    const { result } = renderHook(() => useSessionEngine(config))
-    act(() => result.current.start())
-    act(() => vi.advanceTimersByTime(5000)) // 1s into hold_in
+  it('pause freezes the clock and resume continues; holds count breathed seconds only', () => {
+    const { hook, send, advance, startBreathing } = setup()
+    startBreathing()
+    advance(5000) // 1 s into hold_in
+    send({ type: 'PAUSE', now: performance.now() })
+    advance(10_000)
+    expect(hook.result.current.session).toMatchObject({ tag: 'paused', cursor: { phaseIndex: 1, secondsLeftInPhase: 3 } })
 
-    act(() => result.current.pause())
-    act(() => vi.advanceTimersByTime(10_000))
-    expect(result.current.status).toBe('paused')
-    expect(result.current.phase).toBe('hold_in')
-    expect(result.current.secondsLeftInPhase).toBe(3)
-
-    act(() => result.current.resume())
-    act(() => vi.advanceTimersByTime(3000))
-    expect(result.current.phase).toBe('exhale')
-    expect(result.current.holdTimes).toEqual([4]) // actual held seconds, not wall clock
+    send({ type: 'RESUME', now: performance.now() })
+    advance(3000)
+    expect(hook.result.current.session).toMatchObject({ tag: 'running', cursor: { phaseIndex: 2, holdTimes: [4] } })
   })
 
-  it('finish inside the first round discards the session back to idle', () => {
-    const events: string[] = []
-    const { result } = renderHook(() => useSessionEngine(config, (e) => events.push(e.type)))
-    act(() => result.current.start())
-    act(() => vi.advanceTimersByTime(6000))
+  it('persists exactly once when the last second ends, then stops the clock', () => {
+    const { hook, persisted, startBreathing, advance } = setup()
+    startBreathing()
+    advance(16_000)
+    expect(hook.result.current.session.tag).toBe('summary')
+    expect(persisted).toEqual([{ roundsCompleted: 1, plannedRounds: 1, holdTimes: [4, 4] }])
 
-    act(() => result.current.finish())
-    expect(result.current.status).toBe('idle')
-    expect(result.current.holdTimes).toEqual([])
-    expect(events).toContain('stop')
-    expect(events).not.toContain('complete')
+    advance(30_000)
+    expect(persisted).toHaveLength(1)
   })
 
-  it('finish after a whole round completes with the rounds breathed', () => {
-    const completed: number[] = []
-    const { result } = renderHook(() => useSessionEngine({ ...config, rounds: 3 }, (e) => {
-      if (e.type === 'complete') completed.push(e.roundsCompleted)
-    }))
-    act(() => result.current.start())
-    act(() => vi.advanceTimersByTime(18_000)) // one 16 s round, 2 s into the next
-    expect(result.current.elapsedSeconds).toBe(18)
+  it('a page hidden past the grace window pauses instead of finishing unseen', () => {
+    const { hook, persisted, performed, startBreathing, advance } = setup()
+    startBreathing()
+    advance(1000)
+    performed.length = 0
 
-    act(() => result.current.finish())
-    expect(result.current.status).toBe('complete')
-    expect(completed).toEqual([1])
+    setVisibility('hidden')
+    advance(60_000)
+    expect(hook.result.current.session).toMatchObject({ tag: 'paused', reason: 'background' })
+    expect(persisted).toEqual([])
+    // At most one phase change could happen inside the grace window, and the pause itself is silent.
+    expect(performed.filter((effect) => effect.type === 'cue').length).toBeLessThanOrEqual(1)
+
+    setVisibility('visible')
+    expect(performed[performed.length - 1]).toMatchObject({ type: 'announce', text: expect.stringMatching(/^Welcome back/) })
   })
 
-  it('restart returns to round 1 phase 1 running', () => {
-    const { result } = renderHook(() => useSessionEngine(config))
-    act(() => result.current.start())
-    act(() => vi.advanceTimersByTime(9000))
-    expect(result.current.phase).toBe('exhale')
-
-    act(() => result.current.restart())
-    expect(result.current.status).toBe('running')
-    expect(result.current.phase).toBe('inhale')
-    expect(result.current.secondsLeftInPhase).toBe(4)
-    expect(result.current.holdTimes).toEqual([])
-  })
-
-  it('replays missed seconds when the interval fires late', () => {
-    const { result } = renderHook(() => useSessionEngine(config))
-    act(() => result.current.start())
-
-    const origin = performance.now()
-    vi.spyOn(performance, 'now').mockImplementation(() => origin + 5000)
-    act(() => vi.advanceTimersByTime(1000))
-
-    expect(result.current.phase).toBe('hold_in')
-    expect(result.current.secondsLeftInPhase).toBe(3)
-  })
-
-  it('completes after the final round and emits complete exactly once', () => {
-    const events: string[] = []
-    const { result } = renderHook(() => useSessionEngine(config, (e) => events.push(e.type)))
-    act(() => result.current.start())
-    act(() => vi.advanceTimersByTime(16_000))
-
-    expect(result.current.status).toBe('complete')
-    expect(events.filter((type) => type === 'complete')).toHaveLength(1)
-
-    // Clock stops after complete.
-    act(() => vi.advanceTimersByTime(10_000))
-    expect(events.filter((type) => type === 'complete')).toHaveLength(1)
+  it('a page frozen in the background (no timers at all) pauses on return', () => {
+    const { hook, send, startBreathing } = setup(3)
+    startBreathing()
+    const hiddenAt = performance.now()
+    send({ type: 'HIDDEN', now: hiddenAt })
+    send({ type: 'VISIBLE', now: hiddenAt + 10 * 60_000 })
+    expect(hook.result.current.session).toMatchObject({ tag: 'paused', reason: 'background', cursor: { roundIndex: 0 } })
   })
 })

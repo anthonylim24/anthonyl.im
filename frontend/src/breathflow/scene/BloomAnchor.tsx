@@ -23,7 +23,9 @@ interface BloomAnchorProps {
  * The square the bloom lives in. Holds the painted CSS wash (first paint and
  * no-GPU fallback), the brush-stroke progress ring, and centred content. One
  * rAF loop writes `--bf-amp` and the stroke offset straight to the DOM, so
- * the 1 Hz engine never re-renders React mid-breath.
+ * the 1 Hz engine never re-renders React mid-breath. The loop runs only
+ * while there is something to paint (the wash before the live scene takes
+ * over, or a stroke) and while the anchor is on screen.
  */
 export function BloomAnchor({ ref, pigment, read, stroke = null, live, reducedMotion, tick, children, style }: BloomAnchorProps) {
   const boxRef = useRef<HTMLDivElement>(null)
@@ -31,21 +33,40 @@ export function BloomAnchor({ ref, pigment, read, stroke = null, live, reducedMo
 
   useEffect(() => {
     const el = boxRef.current
-    if (!el) return
+    // The live scene hides the wash, so without a stroke nothing here moves.
+    if (!el || (live && !stroke)) return
     const apply = () => {
       const s = read()
-      el.style.setProperty('--bf-amp', s.amplitude.toFixed(3))
+      if (!live) el.style.setProperty('--bf-amp', s.amplitude.toFixed(3))
       const path = strokeRef.current
       if (path) path.style.strokeDashoffset = String(1 - (stroke === 'box' ? s.cycle : s.progress))
     }
     apply()
     if (reducedMotion) return
-    let raf = requestAnimationFrame(function loop() {
+
+    let raf = 0
+    const loop = () => {
       apply()
       raf = requestAnimationFrame(loop)
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [read, reducedMotion, stroke, tick])
+    }
+    const run = (visible: boolean) => {
+      if (visible && raf === 0) raf = requestAnimationFrame(loop)
+      if (!visible && raf !== 0) {
+        cancelAnimationFrame(raf)
+        raf = 0
+      }
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+      run(true)
+      return () => run(false)
+    }
+    const observer = new IntersectionObserver((entries) => run(entries.some((entry) => entry.isIntersecting)))
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      run(false)
+    }
+  }, [read, reducedMotion, stroke, tick, live])
 
   const setRefs = (node: HTMLDivElement | null) => {
     boxRef.current = node
