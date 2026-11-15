@@ -274,18 +274,24 @@ export function AiSheet({
 }
 
 /** Progress for a long AI run: the copy steps forward so it never looks stuck. */
-export function AiBusy({ steps }: { steps: readonly string[] }) {
+/** An AI run in progress. `onStop` stops waiting for it and unlocks editing. */
+export function AiBusy({ steps, onStop }: { steps: readonly string[]; onStop?: () => void }) {
   const [at, setAt] = useState(0)
   useEffect(() => {
     const timer = setInterval(() => setAt((i) => Math.min(i + 1, steps.length - 1)), 7000)
     return () => clearInterval(timer)
   }, [steps.length])
   return (
-    <div {...sx(s.aiBusy)} role="status">
+    <div {...sx(s.aiBusy)}>
       <Spinner />
-      <span>
+      <span {...sx(a.grow)} role="status">
         {steps[at]} <span {...sx(a.muted)}>This usually takes about a minute.</span>
       </span>
+      {onStop && (
+        <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} onClick={onStop}>
+          Stop
+        </button>
+      )}
     </div>
   )
 }

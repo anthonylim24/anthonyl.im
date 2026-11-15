@@ -5,6 +5,8 @@ import type { PlaceResult } from "../geocode"
 import type { AtlasMapProps } from "../map/AtlasMap"
 import type { Trip, TripAccess, TripDay } from "../types"
 import { makeItem, makeTrip, stubMatchMedia } from "./tripFixtures"
+import { TripConflictError } from "../tripConflict"
+import { emitTripChanged } from "../tripsEvents"
 
 const { mockGetToken } = vi.hoisted(() => ({
   mockGetToken: vi.fn().mockResolvedValue("test-token"),
@@ -313,10 +315,11 @@ describe("TripWorkspace", () => {
       fireEvent.click(screen.getByRole("button", { name: "Draft itinerary" }))
 
       await waitFor(() => expect(mockGenerateItinerary).toHaveBeenCalledTimes(1))
-      expect(mockGenerateItinerary.mock.calls[0]!.slice(1)).toEqual([
+      expect(mockGenerateItinerary.mock.calls[0]!.slice(1, 3)).toEqual([
         "lisbon",
         { prompt: undefined, preferences: { pace: "packed", interests: "Coffee" }, replaceExisting: false },
       ])
+      expect(mockGenerateItinerary.mock.calls[0]![3]).toBeInstanceOf(AbortSignal)
 
       // The drafted trip replaces the empty one and the summary is announced.
       expect(await screen.findByText("Drafted a food-first weekend.")).toBeInTheDocument()
@@ -565,6 +568,8 @@ describe("TripWorkspace", () => {
 
       fireEvent.click(views.getByRole("radio", { name: "Itinerary" }))
       expect(screen.queryByRole("region", { name: /^Map of day 1/ })).toBeNull()
+      // Hidden, not torn down: MapLibre is costly to build again.
+      expect(screen.getByRole("region", { name: /^Map of day 1/, hidden: true })).toBeInTheDocument()
 
       // Locating a stop from the list jumps to the map with its card open.
       fireEvent.click(screen.getByRole("button", { name: "Show Fado dinner on the map" }))
@@ -582,6 +587,32 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon/day/day-1#item-it-fado")
       const card = within(await screen.findByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
+    })
+
+    it("shows the stop named in the URL hash on the map on a phone", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1#item-it-fado")
+      const card = within(await screen.findByRole("complementary", { name: "Selected place" }))
+      expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
+      expect(screen.getByRole("radio", { name: "Map" })).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("moves the Itinerary / Map choice with the arrow keys", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1")
+      await screen.findByRole("textbox", { name: "Day title" })
+      const list = screen.getByRole("radio", { name: "Itinerary" })
+      const map = screen.getByRole("radio", { name: "Map" })
+      expect(list).toHaveAttribute("tabindex", "0")
+      expect(map).toHaveAttribute("tabindex", "-1")
+
+      fireEvent.keyDown(list, { key: "ArrowRight" })
+      expect(map).toHaveAttribute("aria-checked", "true")
+      expect(map).toHaveFocus()
+      expect(map).toHaveAttribute("tabindex", "0")
+      fireEvent.keyDown(map, { key: "ArrowLeft" })
+      expect(list).toHaveAttribute("aria-checked", "true")
+      expect(list).toHaveFocus()
     })
 
     it("adds a searched place as a pinned stop and saves it after the debounce", async () => {
@@ -685,6 +716,40 @@ describe("TripWorkspace", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Not now" }))
       expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
       expect(mockEnhanceTrip).not.toHaveBeenCalled()
+    })
+
+    it("waits for the search when Enter is pressed before results arrive", async () => {
+      let answer: (places: PlaceResult[]) => void = () => {}
+      mockSearchPlaces.mockImplementation(() => new Promise<PlaceResult[]>((resolve) => (answer = resolve)))
+      renderWorkspace("/trips/lisbon/day/day-2")
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      fireEvent.change(input, { target: { value: "belem" } })
+      fireEvent.keyDown(input, { key: "Enter" })
+      // Not added "without a pin" while the search is out.
+      expect(screen.getByText("Nothing planned yet")).toBeInTheDocument()
+
+      await waitFor(() => expect(mockSearchPlaces).toHaveBeenCalled())
+      await act(async () => answer([belem]))
+      expect(await screen.findByRole("button", { name: "Show Belém Tower on the map" })).toBeInTheDocument()
+    })
+
+    it("keeps an arrowed-to option highlighted when results arrive", async () => {
+      let answer: (places: PlaceResult[]) => void = () => {}
+      mockSearchPlaces.mockImplementation(() => new Promise<PlaceResult[]>((resolve) => (answer = resolve)))
+      renderWorkspace("/trips/lisbon/day/day-2")
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      fireEvent.change(input, { target: { value: "belem" } })
+      fireEvent.keyDown(input, { key: "ArrowDown" })
+      expect(screen.getByRole("option", { name: "Add as a note" })).toHaveAttribute("aria-selected", "true")
+
+      await waitFor(() => expect(mockSearchPlaces).toHaveBeenCalled())
+      await act(async () => answer([belem]))
+      await screen.findByRole("option", { name: /Belém Tower/ })
+      expect(screen.getByRole("option", { name: "Add as a note" })).toHaveAttribute("aria-selected", "true")
+      fireEvent.keyDown(input, { key: "Enter" })
+      const plan = within(screen.getByRole("region", { name: "Day 2 plan" }))
+      expect(await plan.findByText("belem")).toBeInTheDocument()
+      expect(plan.queryByRole("button", { name: /on the map$/ })).toBeNull()
     })
 
     it("adds typed text as a note without a pin", async () => {
@@ -856,6 +921,68 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("button", { name: "Show Fado dinner on the map" })).toHaveTextContent("1")
       expect(screen.getByRole("button", { name: "Pin 1: Fado dinner" })).toBeInTheDocument()
       expect(screen.getByText("Removed “Time Out Market”")).toBeInTheDocument()
+    })
+
+    it("moves focus to the next stop after a delete", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      fireEvent.click(await screen.findByRole("button", { name: "Bring cash" }))
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+      expect(document.activeElement).toHaveTextContent("Mystery cafe")
+    })
+
+    it("undoes with Cmd/Ctrl+Z and redoes with Shift, but leaves a text field's own undo alone", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      const plan = () => within(screen.getByRole("region", { name: "Day 1 plan" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Bring cash" }))
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+      expect(plan().queryByText("Bring cash")).toBeNull()
+
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Day title" }), { key: "z", metaKey: true })
+      expect(plan().queryByText("Bring cash")).toBeNull()
+
+      fireEvent.keyDown(document.body, { key: "z", metaKey: true })
+      expect(plan().getByText("Bring cash")).toBeInTheDocument()
+      expect(screen.getByText("Undone: Removed “Bring cash”")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull()
+
+      fireEvent.keyDown(document.body, { key: "Z", ctrlKey: true, shiftKey: true })
+      expect(plan().queryByText("Bring cash")).toBeNull()
+      expect(screen.getByText("Redone: Removed “Bring cash”")).toBeInTheDocument()
+    })
+
+    it("offers Undo after clearing a day", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      fireEvent.click(await screen.findByRole("button", { name: "More for day 1" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Clear this day" }))
+      fireEvent.click(within(await screen.findByRole("dialog", { name: "Clear day 1?" })).getByRole("button", { name: "Clear day" }))
+      expect(await screen.findByText("Nothing planned yet")).toBeInTheDocument()
+
+      const toast = screen.getByText("Cleared day 1").closest('[role="status"]') as HTMLElement
+      fireEvent.click(within(toast).getByRole("button", { name: "Undo" }))
+      expect(within(screen.getByRole("region", { name: "Day 1 plan" })).getAllByRole("listitem")).toHaveLength(4)
+    })
+
+    it("keeps the Undo toast for 12 seconds, and while the pointer is on it", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      renderWorkspace("/trips/lisbon/day/day-1")
+      fireEvent.click(await screen.findByRole("button", { name: "Bring cash" }))
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+      const toast = () => screen.queryByText("Removed “Bring cash”")
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(11_000)
+      })
+      expect(toast()).toBeInTheDocument()
+      fireEvent.mouseEnter(toast()!.closest('[role="status"]')!)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
+      expect(toast()).toBeInTheDocument()
+      fireEvent.mouseLeave(toast()!.closest('[role="status"]')!)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(12_500)
+      })
+      expect(toast()).toBeNull()
     })
 
     it("says so when the day isn't on this trip", async () => {
@@ -1118,6 +1245,92 @@ describe("TripWorkspace", () => {
     })
   })
 
+  describe("saving alongside other writers", () => {
+    const later = "2026-01-02T00:00:00Z"
+    const ichiran = makeItem({ id: "it-ichiran", title: "Ichiran", createdBy: "ai" })
+    /** The server's copy after the concierge added a stop to day 2. */
+    const withConcierge = () => {
+      const theirs = planned({ updatedAt: later })
+      theirs.days[1] = { ...theirs.days[1]!, items: [ichiran] }
+      return theirs
+    }
+
+    it("keeps the concierge's stop when the traveller has unsaved edits", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      fireEvent.change(await screen.findByRole("textbox", { name: "Day title" }), { target: { value: "Landing day" } })
+      act(() => emitTripChanged(withConcierge()))
+
+      await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(1), { timeout: 3000 })
+      const patch = mockUpdateTrip.mock.calls[0]![2] as { days: TripDay[]; baseUpdatedAt: string }
+      expect(patch.baseUpdatedAt).toBe(later)
+      expect(patch.days[0]!.title).toBe("Landing day")
+      expect(patch.days[1]!.items.map((i) => i.id)).toEqual(["it-ichiran"])
+    })
+
+    it("replays the traveller's edit over a newer copy when the server says 409", async () => {
+      mockUpdateTrip
+        .mockRejectedValueOnce(new TripConflictError({ message: "conflict", trip: withConcierge() }))
+        .mockImplementation(async (_t: unknown, _id: string, patch: Partial<Trip>) => ({ ...planned(), ...patch, updatedAt: "2026-01-03T00:00:00Z" }))
+      renderWorkspace("/trips/lisbon/day/day-1")
+      fireEvent.change(await screen.findByRole("textbox", { name: "Day title" }), { target: { value: "Landing day" } })
+
+      await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(2), { timeout: 3000 })
+      const [first, second] = mockUpdateTrip.mock.calls.map((call) => call[2] as { days: TripDay[]; baseUpdatedAt: string })
+      expect(first!.baseUpdatedAt).toBe("2026-01-01T00:00:00Z")
+      expect(second!.baseUpdatedAt).toBe(later)
+      expect(second!.days[0]!.title).toBe("Landing day")
+      expect(second!.days[1]!.items.map((i) => i.id)).toEqual(["it-ichiran"])
+      await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument())
+    })
+
+    it("asks whose version to keep when both changed the same thing", async () => {
+      mockUpdateTrip.mockRejectedValueOnce(new TripConflictError({ message: "conflict", trip: planned({ updatedAt: later, name: "Their name" }) }))
+      renderWorkspace("/trips/lisbon")
+      fireEvent.change(await screen.findByRole("textbox", { name: "Trip name" }), { target: { value: "My name" } })
+
+      const alert = await screen.findByText(/Someone else changed the same part of this trip/, {}, { timeout: 3000 })
+      expect(screen.getByText("Not saved")).toBeInTheDocument()
+      fireEvent.click(within(alert.closest('[role="alert"]') as HTMLElement).getByRole("button", { name: "Use theirs" }))
+      expect(screen.getByRole("textbox", { name: "Trip name" })).toHaveValue("Their name")
+      expect(screen.getByText("Saved")).toBeInTheDocument()
+      expect(mockUpdateTrip).toHaveBeenCalledTimes(1)
+    })
+
+    it("writes the traveller's version over theirs on “Keep mine”", async () => {
+      mockUpdateTrip.mockRejectedValueOnce(new TripConflictError({ message: "conflict", trip: planned({ updatedAt: later, name: "Their name" }) }))
+      renderWorkspace("/trips/lisbon")
+      fireEvent.change(await screen.findByRole("textbox", { name: "Trip name" }), { target: { value: "My name" } })
+      fireEvent.click(await screen.findByRole("button", { name: "Keep mine" }, { timeout: 3000 }))
+
+      await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(2))
+      expect(mockUpdateTrip.mock.calls[1]![2]).toMatchObject({ name: "My name", baseUpdatedAt: later })
+    })
+  })
+
+  describe("stopping an AI run", () => {
+    it("unlocks editing and drops the late answer", async () => {
+      const review = deferred<{ run: typeof reviewRun; trip: Trip; applied: string[] }>()
+      mockEnhanceTrip.mockReturnValue(review.promise)
+      renderWorkspace("/trips/lisbon/day/day-1")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Ideas for this day" }))
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Suggest stops" }))
+      await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalledTimes(1))
+      expect(screen.getByRole("textbox", { name: "Day title" })).toBeDisabled()
+      const signal = mockEnhanceTrip.mock.calls[0]![5] as AbortSignal
+
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }))
+      expect(signal.aborted).toBe(true)
+      expect(screen.getByRole("textbox", { name: "Day title" })).toBeEnabled()
+
+      await act(async () => {
+        review.resolve({ run: { ...reviewRun, outcomeReason: "Added two stops." } as typeof reviewRun, trip: planned({ name: "Late answer", updatedAt: "2026-01-02T00:00:00Z" }), applied: [] })
+      })
+      expect(screen.queryByText("Added two stops.")).toBeNull()
+      expect(screen.getByRole("link", { name: "Lisbon Long Weekend" })).toBeInTheDocument()
+    })
+  })
+
   describe("load failures", () => {
     it("renders the not-found page for a missing trip", async () => {
       mockGetTrip.mockRejectedValue(new Error("trip not found"))
@@ -1161,6 +1374,10 @@ describe("TripWorkspace", () => {
         "Couldn’t open this trip. Check your connection, then try again. (Failed to fetch)",
       )
       expect(screen.queryByText("404 · Off the map")).toBeNull()
+
+      mockGetTrip.mockResolvedValue({ trip: planned(), access: "owner" })
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+      expect(await screen.findByRole("textbox", { name: "Trip name" })).toHaveValue("Lisbon Long Weekend")
     })
   })
 })

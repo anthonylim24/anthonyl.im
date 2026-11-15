@@ -105,5 +105,20 @@ export const requestJson = <T>(
     return yield* parseJson<T>(res)
   })
 
-export const sleep = (ms: number): Effect.Effect<void> =>
-  Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+/** Wait `ms`. With a `signal`, an abort ends the wait at once (the caller
+ *  checks `signal.aborted` next), and an interrupted fiber clears the timer. */
+export const sleep = (ms: number, signal?: AbortSignal): Effect.Effect<void> =>
+  Effect.async<void>((resume) => {
+    if (signal?.aborted) return resume(Effect.void)
+    const done = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", done)
+      resume(Effect.void)
+    }
+    const timer = setTimeout(done, ms)
+    signal?.addEventListener("abort", done)
+    return Effect.sync(() => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", done)
+    })
+  })
