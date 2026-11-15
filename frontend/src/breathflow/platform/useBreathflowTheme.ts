@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { syncThemeColor } from '@/lib/themeColor'
 
-/** BreathFlow "Forest" canvas colors for the browser chrome. */
-const BREATHFLOW_THEME_COLORS = { light: '#EFEDE6', dark: '#101613' }
+/** The paper (`--bw-canvas` in index.css) for the browser chrome, so the toolbar meets the page without a seam. */
+export const BREATHFLOW_THEME_COLORS = { light: '#F7F1E6', dark: '#15161C' }
 
 /** Applies the persisted theme to <html> and paints the browser chrome. */
 export function useBreathflowTheme() {

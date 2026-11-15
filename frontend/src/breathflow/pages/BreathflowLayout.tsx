@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { NavLink, useLocation, useOutlet } from 'react-router-dom'
 import { CLERK_ENABLED } from '@/lib/clerk'
@@ -9,6 +9,8 @@ import { sx } from '@/styles/merge'
 import { WatercolorDefs } from '../components/WatercolorDefs'
 import { SelectionInk } from '../motion/SelectionInk'
 import { EASE_SETTLE, inkSpring } from '../motion/tokens'
+import { closeAudioContext } from '../engine/audio'
+import { ImmersiveContext } from '../platform/immersive'
 import { useBreathflowTheme } from '../platform/useBreathflowTheme'
 import { useReducedMotion } from '../platform/useReducedMotion'
 import { releaseBloomScene } from '../scene/BloomCanvas'
@@ -31,8 +33,12 @@ export function BreathflowLayout() {
   const location = useLocation()
   const outlet = useOutlet()
   const reducedMotion = useReducedMotion()
-  // The cat scene is shared across BreathFlow's pages; free it on the way out.
-  useEffect(() => releaseBloomScene, [])
+  const [immersive, setImmersive] = useState(false)
+  // The cat scene and the audio context are shared across BreathFlow's pages; free them on the way out.
+  useEffect(() => () => {
+    releaseBloomScene()
+    closeAudioContext()
+  }, [])
   useBreathflowTheme()
   useFavicon()
   useDocumentMetadata({
@@ -51,11 +57,11 @@ export function BreathflowLayout() {
         </Suspense>
       )}
 
-      <a href="#bf-main" {...sx(bf.skipLink)}>
+      <a href="#bf-main" inert={immersive || undefined} {...sx(bf.skipLink)}>
         Skip to content
       </a>
 
-      <header {...sx(wc.header)}>
+      <header inert={immersive || undefined} {...sx(wc.header)}>
         <NavLink to="/breathwork" end {...sx(wc.brand)}>
           <span aria-hidden="true" {...sx('bf-ragged', wc.brandDot)} />
           <span {...sx('bf-display', wc.brandWord)}>BreathFlow</span>
@@ -89,11 +95,11 @@ export function BreathflowLayout() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.45, ease: EASE_SETTLE }}
         >
-          {outlet}
+          <ImmersiveContext value={setImmersive}>{outlet}</ImmersiveContext>
         </motion.div>
       </main>
 
-      <nav aria-label="Primary" {...sx(wc.mobileNav)}>
+      <nav aria-label="Primary" inert={immersive || undefined} {...sx(wc.mobileNav)}>
         <LayoutGroup id="bf-nav-mobile">
           <div {...sx(wc.mobileNavInner)}>
             {NAV_ITEMS.map(({ to, label, end }) => (
