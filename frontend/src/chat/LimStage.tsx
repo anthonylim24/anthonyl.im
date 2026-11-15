@@ -149,6 +149,7 @@ export function LimStage({
     if (!host || !slot || !canRender3D()) return
     let disposed = false
     let created: LimScene | null = null
+    let painted = false
     const gl = document.createElement('canvas')
     gl.setAttribute('aria-hidden', 'true')
     Object.assign(gl.style, { width: '100%', height: '100%', display: 'block' })
@@ -193,6 +194,8 @@ export function LimStage({
           a.style.setProperty('--u', `${unit.toFixed(1)}px`)
         },
         onFirstFrame: () => {
+          // The first frame can land before `createLimScene` resolves.
+          painted = true
           const now = stageRef.current
           if (!disposed && now.kind === 'ready') setStage({ kind: 'live', scene: now.scene })
         },
@@ -208,7 +211,7 @@ export function LimStage({
         return
       }
       created = next
-      setStage({ kind: 'ready', scene: next })
+      setStage({ kind: painted ? 'live' : 'ready', scene: next })
       next.setMood(initial.current.mood)
       next.setNight(initial.current.night)
       setScore(next.world().score ?? null)
