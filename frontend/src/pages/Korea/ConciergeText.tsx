@@ -135,8 +135,8 @@ const ConciergeMarkdown = memo(function ConciergeMarkdown({
 
 export function ConciergeText({
   text,
-  bulletStyle = conciergeText.markerDotRose,
-  numberStyle = conciergeText.markerNumRose,
+  bulletStyle = conciergeText.markerDotAccent,
+  numberStyle = conciergeText.markerNumAccent,
 }: {
   text: string
   bulletStyle?: StyleXStyles
@@ -146,19 +146,5 @@ export function ConciergeText({
     <div {...sx(conciergeText.sd79dc566, 'concierge-text')}>
       <ConciergeMarkdown text={text} bulletStyle={bulletStyle} numberStyle={numberStyle} />
     </div>
-  )
-}
-
-/** Stream failures sit outside the transcript so token updates stay silent. */
-export function ConciergeStreamStatus({ error }: { error?: string }) {
-  if (!error) return null
-  return (
-    <p
-      role="status"
-      aria-live="polite"
-      {...sx(conciergeText.sdc9eac6a)}
-    >
-      ⚠️ {error}
-    </p>
   )
 }

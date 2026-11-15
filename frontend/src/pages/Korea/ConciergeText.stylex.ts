@@ -115,13 +115,6 @@ export const conciergeText = stylex.create({
     "fontSize": "15px",
     "lineHeight": 1.625,
   },
-  sdc9eac6a: {
-    "marginTop": "0.5rem",
-    "overflowWrap": "anywhere",
-    "wordBreak": "break-word",
-    "color": "var(--trips-ink-secondary, inherit)",
-    "lineHeight": 1.625,
-  },
   link: {
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
@@ -145,21 +138,6 @@ export const conciergeText = stylex.create({
   taskListItem: {
     display: 'flex',
     gap: '0.5rem',
-  },
-  markerDotRose: {
-    marginTop: '7px',
-    height: '0.375rem',
-    width: '0.375rem',
-    flexShrink: 0,
-    borderRadius: '9999px',
-    backgroundColor: '#fb7185',
-  },
-  markerNumRose: {
-    marginTop: '1px',
-    flexShrink: 0,
-    fontWeight: 600,
-    fontVariantNumeric: 'tabular-nums',
-    color: '#f43f5e',
   },
   markerDotAccent: {
     marginTop: '7px',
