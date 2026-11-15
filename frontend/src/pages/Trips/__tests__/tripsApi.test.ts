@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { enhanceTrip } from "../tripsApi"
+import { enhanceTrip, generateItinerary, updateTrip } from "../tripsApi"
+import { isTripConflict } from "../tripConflict"
 import type { EnhancementRun } from "../types"
+import { makeTrip } from "./tripFixtures"
 
 const getToken = async () => "test-token"
 
@@ -125,5 +127,56 @@ describe("enhanceTrip", () => {
       )
 
     await expect(enhanceTrip(getToken, "trip-1", "trip")).rejects.toThrow(/sign in again/i)
+  })
+})
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
+
+describe("updateTrip", () => {
+  it("sends the base it was made against and returns the saved trip", async () => {
+    const saved = makeTrip({ updatedAt: "2026-01-02T00:00:00Z" })
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ trip: saved }))
+    await expect(updateTrip(getToken, "lisbon", { name: "New", baseUpdatedAt: "2026-01-01T00:00:00Z" })).resolves.toEqual(saved)
+    const init = spy.mock.calls[0]![1] as RequestInit
+    expect(init.method).toBe("PATCH")
+    expect(JSON.parse(init.body as string)).toEqual({ name: "New", baseUpdatedAt: "2026-01-01T00:00:00Z" })
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer test-token")
+  })
+
+  it("rejects with the server's copy when someone else wrote first", async () => {
+    const theirs = makeTrip({ name: "Theirs", updatedAt: "2026-01-02T00:00:00Z" })
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ error: "conflict", trip: theirs }, 409))
+    const err = await updateTrip(getToken, "lisbon", { name: "Mine" }).catch((e: unknown) => e)
+    expect(isTripConflict(err)).toBe(true)
+    expect(isTripConflict(err) && err.trip).toEqual(theirs)
+  })
+
+  it("keeps other 409s (a taken link name) as plain errors with their message", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ error: "slug_taken", message: "The permalink “x” is already in use." }, 409))
+    const err = await updateTrip(getToken, "lisbon", { slug: "x" }).catch((e: unknown) => e)
+    expect(isTripConflict(err)).toBe(false)
+    expect((err as Error).message).toMatch(/already in use/)
+  })
+})
+
+describe("cancelling AI calls", () => {
+  it("stops polling an enhancement when its signal is aborted", async () => {
+    const running = makeRun({ status: "running", outcome: undefined, outcomeReason: undefined, error: undefined })
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ run: running }, 202))
+    const ac = new AbortController()
+    const pending = enhanceTrip(getToken, "trip-1", "trip", undefined, undefined, ac.signal)
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    ac.abort()
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect((spy.mock.calls[0]![1] as RequestInit).signal).toBe(ac.signal)
+  })
+
+  it("passes the draft's signal to fetch", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ trip: makeTrip() }))
+    const ac = new AbortController()
+    await generateItinerary(getToken, "lisbon", {}, ac.signal)
+    expect((spy.mock.calls[0]![1] as RequestInit).signal).toBe(ac.signal)
   })
 })

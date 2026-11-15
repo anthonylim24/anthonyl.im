@@ -11,6 +11,7 @@ import type { ItineraryItem } from "../types"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { Spinner } from "../components/kit"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 
 // One input adds anything to a day. Typing searches real places (pinned on
 // the map the moment you pick one); the same text can instead become a note,
@@ -76,6 +77,10 @@ type Option =
   | { type: "place"; place: PlaceResult }
   | { type: "plain"; kind: "place" | "note" | "reservation" | "section"; label: string }
 
+/** Identity of an option across renders, so the highlight stays put when results arrive. */
+const optionKey = (option: Option) =>
+  option.type === "place" ? `place:${option.place.id}` : option.type === "plain" ? `plain:${option.kind}` : "instagram"
+
 export function AddStop({
   near,
   disabled,
@@ -90,7 +95,10 @@ export function AddStop({
 }) {
   const [text, setText] = useState("")
   const [open, setOpen] = useState(false)
-  const [cursor, setCursor] = useState(0)
+  /** The highlighted option; null means the first. */
+  const [cursorKey, setCursorKey] = useState<string | null>(null)
+  /** Enter was pressed before the search answered: add once it does. */
+  const [enterPending, setEnterPending] = useState(false)
   const igUrls = onInstagram ? extractInstagramUrls(text) : []
   const { results, loading } = usePlaceSearch(igUrls.length > 0 ? "" : text, near)
   const listId = useId()
@@ -110,9 +118,15 @@ export function AddStop({
       ]
     : []
 
-  useEffect(() => {
-    setCursor(0)
-  }, [typed, results.length])
+  // New text, new list: back to the first option.
+  const [cursorFor, setCursorFor] = useState(typed)
+  if (cursorFor !== typed) {
+    setCursorFor(typed)
+    setCursorKey(null)
+    setEnterPending(false)
+  }
+  const cursor = Math.max(0, options.findIndex((option) => optionKey(option) === cursorKey))
+  const setCursor = (index: number) => setCursorKey(options[index] ? optionKey(options[index]) : null)
 
   useEffect(() => {
     if (!open) return
@@ -141,6 +155,21 @@ export function AddStop({
     inputRef.current?.focus()
   }
 
+  // The default pick is the first search result, so while the search is out
+  // Enter waits for it rather than adding the text "without a pin". An
+  // option the traveller arrowed to is theirs already.
+  const submit = () => {
+    const wait = loading && cursorKey === null && igUrls.length === 0
+    setEnterPending(wait)
+    if (wait) return
+    const pick = options[cursor]
+    if (pick) commit(pick)
+  }
+  const submitLatest = useLatestCallback(submit)
+  useEffect(() => {
+    if (enterPending && !loading) submitLatest()
+  }, [enterPending, loading, submitLatest])
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       if (open) event.stopPropagation()
@@ -151,11 +180,10 @@ export function AddStop({
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault()
       setOpen(true)
-      setCursor((c) => (c + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length)
+      setCursor((cursor + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length)
     } else if (event.key === "Enter") {
       event.preventDefault()
-      const pick = options[cursor]
-      if (pick) commit(pick)
+      submit()
     }
   }
 
@@ -277,10 +305,7 @@ export function AddStop({
           {...sx(a.iconBtn, a.iconBtnSm)}
           aria-label="Add"
           disabled={disabled || !typed}
-          onClick={() => {
-            const pick = options[cursor]
-            if (pick) commit(pick)
-          }}
+          onClick={submit}
         >
           <Plus size={18} strokeWidth={1.75} aria-hidden />
         </button>

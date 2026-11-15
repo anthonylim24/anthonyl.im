@@ -156,6 +156,16 @@ export function dayRoute(day: TripDay): LngLat[] {
   return locatedItems(day).map((item) => ({ lat: item.location!.lat!, lng: item.location!.lng! }))
 }
 
+/** Everything a pin draws, as one string: equal keys need no map update. */
+export function pinsKey(pins: readonly AtlasPin[]): string {
+  return pins.map((p) => `${p.id}|${p.lat}|${p.lng}|${p.label ?? ""}|${p.title}|${p.variant ?? ""}|${p.accent ?? ""}|${p.fresh ? 1 : 0}`).join("\n")
+}
+
+/** Route geometry as one string, for the same purpose. */
+export function routesKey(routes: readonly (readonly LngLat[])[]): string {
+  return routes.map((route) => route.map((p) => `${p.lat},${p.lng}`).join(";")).join("|")
+}
+
 /** Straight-line length of a day's route, in metres. */
 export function routeMeters(points: readonly LngLat[]): number {
   let total = 0

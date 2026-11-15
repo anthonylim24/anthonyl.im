@@ -538,6 +538,8 @@ export const ws = stylex.create({
     transitionTimingFunction: "var(--trips-spring)",
     ":focus-visible": { boxShadow: ring },
     [HOVER]: { ":hover": { transform: "scale(1.15)" } },
+    // A 28px dot with a 44px target.
+    "::after": { content: '""', position: "absolute", inset: "-8px" },
   },
   markerActive: { backgroundColor: "var(--trips-ink)", color: "var(--trips-canvas)", transform: "scale(1.15)" },
   card: {
@@ -874,6 +876,7 @@ export const ws = stylex.create({
     [REDUCE]: { animationName: "none" },
   },
   dockBtn: {
+    position: "relative",
     flexShrink: 0,
     minHeight: "2.25rem",
     paddingInline: "0.75rem",
@@ -885,6 +888,7 @@ export const ws = stylex.create({
     cursor: "pointer",
     outline: "none",
     ":focus-visible": { boxShadow: "0 0 0 2px var(--trips-canvas)" },
+    "::after": { content: '""', position: "absolute", inset: "-4px 0" },
   },
 
   // ── Pager / misc ──────────────────────────────────────

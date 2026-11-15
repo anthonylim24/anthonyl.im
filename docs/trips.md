@@ -24,7 +24,7 @@ env is missing).
 | Enhancement runs | `server/src/trips/types.ts` (`EnhancementRun`, `finishRun`), `routes/trips.ts` | `running` → `complete { outcome, outcomeReason }` or `error { error, outcomeReason }`, always through `finishRun`; every variant keeps `suggestions` and `appliedSuggestionIds`. The work runs in memory, so a run still `running` after 10 min (`STALE_RUN_MS`) reads as `error`. One live run per trip: a second `/enhance` gets `409 { error: "enhancement_running", run }` with the run in flight (the client then polls it). `/apply` needs a `complete` run and runs under a per-run lock (one process), so a suggestion lands once |
 | Sharing | `server/src/routes/trips.ts`, `components/ShareDialog.tsx`, `TripJoin.tsx` | Link-first. `POST /:id/invites` (owner; role viewer/editor), `POST /join/:token` (any signed-in user joins with that role), `DELETE /:id/invites/:token` (turn a link off), `POST /:id/leave` (collaborator). `invites` are stripped from trip payloads for non-owners. Collaborators carry an optional display `name` |
 | Frontend geocoding | `frontend/src/pages/Trips/geocode.ts` | Keyless, via `fetchExternal` (Effect): Open-Meteo geocoding for cities (`searchCities`; supplies the IANA time zone for new trips) and Photon/OpenStreetMap for places (`searchPlaces`, biased to the day) |
-| Frontend | `frontend/src/pages/Trips/` | `TripsLayout`, `TripsIndex`, `TripCreate`, **`TripWorkspace`** (`/:tripId` overview and `/:tripId/day/:dayId`; itinerary pane + sticky map), `TripJoin`, `TripChat` FAB, `workspace/*` (panels, item editor, AI sheets, details dialog + `resizeDays`), `components/*` (`kit`, `ShareDialog`, `CityField`, `DateRange`, `TripCover`), `map/*` (`AtlasMap`, lazy MapLibre `engine` incl. `renderStills` for card covers, `mapStyle`, `geo`), `useTripEditor.ts` (document state + debounced autosave + AI runs), `tripEdits.ts`, `meta.ts`, `geocode.ts` |
+| Frontend | `frontend/src/pages/Trips/` | `TripsLayout`, `TripsIndex`, `TripCreate`, **`TripWorkspace`** (`/:tripId` overview and `/:tripId/day/:dayId`; itinerary pane + sticky map), `TripJoin`, `TripChat` FAB, `workspace/*` (panels, item editor, AI sheets, details dialog + `resizeDays`), `components/*` (`kit`, `ShareDialog`, `CityField`, `DateRange`, `TripCover`), `map/*` (`AtlasMap`, lazy MapLibre `engine` incl. `renderStills` for card covers, `mapStyle`, `geo`), `editorMachine.ts` (the editor as a pure reducer: sync, AI run, undo history) + `useTripEditor.ts` (its I/O shell), `tripMerge.ts` (three-way rebase), `tripEdits.ts`, `meta.ts`, `geocode.ts` |
 
 **Maps:** every Trips map is MapLibre GL JS v6 over OpenFreeMap vector tiles
 (no API key; `map/mapStyle.ts`). The photoreal 3D view ("Fly the day",
@@ -40,6 +40,21 @@ engine: created once per open, driven by methods (`select`, `fitAll`,
 renders on demand. `GET /api/trips/:id/days/:dayId/places` stays for
 compatibility but the client no longer calls it. AI-added places must always
 carry structured locations — never prose only.
+
+**Saving and other writers:** the workspace autosaves 900 ms after the last
+edit. Saves are serialised and never aborted; each PATCH carries
+`baseUpdatedAt`, and a server with a newer copy answers `409 { error:
+"conflict", trip }` and writes nothing (older servers ignore the field). On a
+409, on the concierge's `trip-changed` event, or on a refetch when the tab
+comes back into view, the editor replays the traveller's unsaved changes onto
+the newer copy (`rebaseTrip`: per day, items merged by id, the traveller's
+edit to an item wins) and asks "Keep mine / Use theirs" only when two sides
+changed the same field. The concierge's `saveDays` sends `baseUpdatedAt` too
+and, on 409, re-reads and re-applies its change once. Undo keeps the last 30
+plan snapshots (`days` + dates; Cmd/Ctrl+Z, Shift for Redo, outside text
+fields) and replays them the same way, so Undo never erases a newer change
+on another day. AI runs take an `AbortSignal`: Stop (or leaving) drops the
+answer; the server may still finish, and its change arrives like any other.
 
 **Permissions:** owner > editor/viewer collaborators > `sharedWithAllUsers`
 (legacy Korea behavior: all signed-in users can view/edit). Only owners delete,

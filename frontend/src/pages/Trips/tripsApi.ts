@@ -1,7 +1,8 @@
 import { Effect } from "effect"
 import { AuthError, HttpStatusError, PollTimeoutError } from "../../effect/errors"
-import { fetchApi, parseJson, readAuthToken, requestJson, sleep } from "../../effect/http"
+import { bearerHeaders, fetchApi, parseJson, readAuthToken, requestJson, requireOk, sleep } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
+import { TripConflictError } from "./tripConflict"
 import type {
   EnhancementRun,
   GeneratePreferences,
@@ -59,19 +60,52 @@ export type UpdateTripPatch = {
   appearance?: TripAppearance
   description?: string | null
   center?: TripCenter
+  /** The `updatedAt` this change was made against; see `updateTrip`. */
+  baseUpdatedAt?: string
 }
 
+const updateTripEffect = Effect.fn("TripsService.update")(function* (
+  getToken: GetToken,
+  id: string,
+  patch: UpdateTripPatch,
+  signal?: AbortSignal,
+) {
+  const token = yield* readAuthToken(getToken)
+  const res = yield* fetchApi(`/api/trips/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: bearerHeaders(token, { "Content-Type": "application/json" }),
+    cache: "no-store",
+    body: JSON.stringify(patch),
+    signal,
+  })
+  if (res.status === 409) {
+    const body = yield* parseJson<{ error?: string; message?: string; trip?: Trip }>(res).pipe(
+      Effect.orElseSucceed(() => ({}) as { error?: string; message?: string; trip?: Trip }),
+    )
+    if (body.error === "conflict" && body.trip) {
+      return yield* Effect.fail(
+        new TripConflictError({ message: "Someone else changed this trip since it was opened.", trip: body.trip }),
+      )
+    }
+    return yield* Effect.fail(new HttpStatusError({ status: 409, message: body.message || body.error || "HTTP 409" }))
+  }
+  yield* requireOk(res)
+  const body = yield* parseJson<{ trip: Trip }>(res)
+  return body.trip
+})
+
+/**
+ * Write trip fields. With `baseUpdatedAt` (the `updatedAt` the change was
+ * made against) a server that has a newer copy writes nothing and this
+ * rejects with `TripConflictError` carrying that copy. Servers that predate
+ * the check ignore the field and write as before.
+ */
 export const updateTrip = (
   getToken: GetToken,
   id: string,
   patch: UpdateTripPatch,
   init?: Pick<RequestInit, "signal">,
-) =>
-  request<{ trip: Trip }>(getToken, `/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    body: JSON.stringify(patch),
-    signal: init?.signal,
-  }).then((r) => r.trip)
+): Promise<Trip> => runPromise(updateTripEffect(getToken, id, patch, init?.signal ?? undefined))
 
 export const deleteTrip = (getToken: GetToken, id: string) =>
   request<{ ok: boolean }>(getToken, `/${encodeURIComponent(id)}`, { method: "DELETE" })
@@ -125,12 +159,14 @@ export const generateItinerary = (
   getToken: GetToken,
   id: string,
   input: { prompt?: string; preferences?: GeneratePreferences; replaceExisting?: boolean },
+  signal?: AbortSignal,
 ) =>
   // A slow draft answers 200 with a heartbeat body, so a late failure
   // arrives as `{ error, message }` rather than a status code.
   request<{ trip?: Trip; summary?: string; incompleteDays?: number[]; error?: string; message?: string }>(getToken, `/${encodeURIComponent(id)}/generate`, {
     method: "POST",
     body: JSON.stringify(input),
+    signal,
   }).then((body) => {
     if (!body.trip) throw new Error(body.message ?? body.error ?? "The draft did not finish.")
     return { trip: body.trip, summary: body.summary, incompleteDays: body.incompleteDays ?? [] }
@@ -145,6 +181,9 @@ export interface EnhanceTripResult {
 }
 
 const ENHANCE_POLL_MS = 180_000
+
+/** What `fetch` rejects with on abort, so callers test one shape. */
+const abortError = () => Object.assign(new Error("The AI run was stopped."), { name: "AbortError" })
 
 const readEnhanceBody = (res: Response): Effect.Effect<EnhanceTripResult, Error> =>
   parseJson<EnhanceTripResult>(res).pipe(
@@ -161,11 +200,13 @@ const pollEnhancement = Effect.fn("TripsService.pollEnhancement")(function* (
   getToken: GetToken,
   id: string,
   runId: string,
+  signal?: AbortSignal,
 ) {
   const deadline = Date.now() + ENHANCE_POLL_MS
   let wait = 400
   while (Date.now() < deadline) {
-    yield* sleep(wait)
+    yield* sleep(wait, signal)
+    if (signal?.aborted) return yield* Effect.fail(abortError())
     wait = Math.min(Math.round(wait * 1.35), 2000)
     const token = yield* readAuthToken(getToken)
     const res = yield* fetchApi(
@@ -173,6 +214,7 @@ const pollEnhancement = Effect.fn("TripsService.pollEnhancement")(function* (
       {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         cache: "no-store",
+        signal,
       },
     )
     if (res.status === 401 || res.status === 403) {
@@ -200,6 +242,7 @@ const enhanceTripEffect = Effect.fn("TripsService.enhanceTrip")(function* (
   scope: "day" | "trip",
   dayId?: string,
   prompt?: string,
+  signal?: AbortSignal,
 ) {
   const token = yield* readAuthToken(getToken)
   const headers: Record<string, string> = {
@@ -211,9 +254,10 @@ const enhanceTripEffect = Effect.fn("TripsService.enhanceTrip")(function* (
     headers,
     cache: "no-store",
     body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
+    signal,
   })
   const body = yield* readEnhanceBody(res)
-  if (body.run?.status === "running") return yield* pollEnhancement(getToken, id, body.run.id)
+  if (body.run?.status === "running") return yield* pollEnhancement(getToken, id, body.run.id, signal)
   if (res.ok) return body
   if (res.status === 502 && body.run) return body
   return yield* Effect.fail(
@@ -225,15 +269,18 @@ const enhanceTripEffect = Effect.fn("TripsService.enhanceTrip")(function* (
 })
 
 /** Starts a run (202) and polls until it leaves `running`. A legacy 502
- *  with a `{ run }` body is still accepted so older servers keep working. */
+ *  with a `{ run }` body is still accepted so older servers keep working.
+ *  Aborting `signal` stops the wait (it rejects with an `AbortError`); the
+ *  server may still finish the run, and its changes arrive like any other. */
 export function enhanceTrip(
   getToken: GetToken,
   id: string,
   scope: "day" | "trip",
   dayId?: string,
   prompt?: string,
+  signal?: AbortSignal,
 ): Promise<EnhanceTripResult> {
-  return runPromise(enhanceTripEffect(getToken, id, scope, dayId, prompt))
+  return runPromise(enhanceTripEffect(getToken, id, scope, dayId, prompt, signal))
 }
 
 export const applySuggestions = (getToken: GetToken, id: string, runId: string, suggestionIds: string[]) =>

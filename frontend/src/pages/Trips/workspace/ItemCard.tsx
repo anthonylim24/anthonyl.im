@@ -8,6 +8,8 @@ import type { LngLat } from "../map/geo"
 import { duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
+import type { UndoMark } from "../editorMachine"
+import { scrollBehavior } from "./scroll"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
@@ -28,8 +30,10 @@ export interface ItemCardProps {
   flash: boolean
   near: LngLat | null
   dayOptions: DayOption[]
-  onChange: (fn: (days: TripDay[]) => TripDay[]) => void
+  onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
+  /** The item left this day (moved to another): the list moves focus on. */
+  onGone?: (index: number) => void
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
   onGrip?: (event: ReactPointerEvent) => void
@@ -63,6 +67,7 @@ export const ItemCard = memo(function ItemCard({
   onLocate,
   onGrip,
   onAnnounce,
+  onGone,
 }: ItemCardProps) {
   const [open, setOpen] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
@@ -70,15 +75,17 @@ export const ItemCard = memo(function ItemCard({
   const rowRef = useRef<HTMLDivElement>(null)
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
   const canEdit = editable && !locked
+  const name = `“${item.title || "Untitled"}”`
+  const move = (step: -1 | 1) => onChange((days) => moveItem(days, dayId, item.id, step), { label: `Moved ${name}`, key: `move:${item.id}` })
 
   useEffect(() => {
-    if (active) rowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    if (active) rowRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
   }, [active])
 
   useEffect(() => {
     if (!expand) return
     setOpen(true)
-    rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" })
+    rowRef.current?.scrollIntoView({ block: "center", behavior: scrollBehavior() })
   }, [expand])
 
   // A just-added, untitled item opens ready to type.
@@ -108,6 +115,7 @@ export const ItemCard = memo(function ItemCard({
         {editable ? (
           <input
             aria-label="Heading"
+            data-card-row=""
             value={item.title}
             placeholder="Heading"
             disabled={locked}
@@ -165,6 +173,7 @@ export const ItemCard = memo(function ItemCard({
         <button
           type="button"
           {...sx(s.cardRow)}
+          data-card-row=""
           aria-expanded={open}
           aria-controls={panelId}
           aria-keyshortcuts={editable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
@@ -175,7 +184,7 @@ export const ItemCard = memo(function ItemCard({
             event.preventDefault()
             const step = event.key === "ArrowUp" ? -1 : 1
             if (index + step < 0 || index + step >= count) return
-            onChange((days) => moveItem(days, dayId, item.id, step))
+            move(step)
             onAnnounce?.(`${item.title || "Stop"} moved ${step < 0 ? "up" : "down"}, now ${index + step + 1} of ${count}.`)
           }}
         >
@@ -347,7 +356,12 @@ export const ItemCard = memo(function ItemCard({
                       value={dayId}
                       disabled={locked}
                       {...sx(a.field)}
-                      onChange={(event) => onChange((days) => moveItemToDay(days, dayId, item.id, event.target.value))}
+                      onChange={(event) => {
+                        const to = event.target.value
+                        const label = dayOptions.find((option) => option.id === to)?.label.split(" · ")[0] ?? "another day"
+                        onChange((days) => moveItemToDay(days, dayId, item.id, to), { label: `Moved ${name} to ${label}`, toast: true })
+                        onGone?.(index)
+                      }}
                     >
                       {dayOptions.map((option) => (
                         <option key={option.id} value={option.id}>
@@ -363,7 +377,7 @@ export const ItemCard = memo(function ItemCard({
                     {...sx(a.iconBtn, a.iconBtnSm)}
                     aria-label="Move up"
                     disabled={locked || index === 0}
-                    onClick={() => onChange((days) => moveItem(days, dayId, item.id, -1))}
+                    onClick={() => move(-1)}
                   >
                     <ArrowUp size={16} strokeWidth={1.75} aria-hidden />
                   </button>
@@ -372,7 +386,7 @@ export const ItemCard = memo(function ItemCard({
                     {...sx(a.iconBtn, a.iconBtnSm)}
                     aria-label="Move down"
                     disabled={locked || index === count - 1}
-                    onClick={() => onChange((days) => moveItem(days, dayId, item.id, 1))}
+                    onClick={() => move(1)}
                   >
                     <ArrowDown size={16} strokeWidth={1.75} aria-hidden />
                   </button>
@@ -381,7 +395,7 @@ export const ItemCard = memo(function ItemCard({
                     {...sx(a.iconBtn, a.iconBtnSm)}
                     aria-label="Duplicate"
                     disabled={locked}
-                    onClick={() => onChange((days) => duplicateItem(days, dayId, item.id))}
+                    onClick={() => onChange((days) => duplicateItem(days, dayId, item.id), { label: `Duplicated ${name}` })}
                   >
                     <Copy size={16} strokeWidth={1.75} aria-hidden />
                   </button>

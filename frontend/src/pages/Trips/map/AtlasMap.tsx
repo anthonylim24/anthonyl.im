@@ -3,7 +3,7 @@ import { Box, Minus, Plus, Scan } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { projectToBox, type AtlasPin, type LngLat } from "./geo"
+import { pinsKey, projectToBox, routesKey, type AtlasPin, type LngLat } from "./geo"
 import type { AtlasMapHandle, FrameOptions } from "./engine"
 import { mapStyles as s } from "./map.stylex"
 
@@ -160,15 +160,20 @@ export function AtlasMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ambient, reducedMotion])
 
+  // Pages rebuild pins on every edit (a keystroke in a stop's notes makes a
+  // new array). MapLibre is only told when what it draws has changed.
+  const pinKey = pinsKey(pins)
+  const routeKey = routesKey(routes ?? [])
+  const dotKey = routesKey([dots ?? []])
   useEffect(() => {
-    handleRef.current?.setPins(pins)
-  }, [pins])
+    handleRef.current?.setPins(latest.current.pins)
+  }, [pinKey])
   useEffect(() => {
-    handleRef.current?.setRoute(routes ?? [])
-  }, [routes])
+    handleRef.current?.setRoute(latest.current.routes ?? [])
+  }, [routeKey])
   useEffect(() => {
-    handleRef.current?.setDots(dots ?? [])
-  }, [dots])
+    handleRef.current?.setDots(latest.current.dots ?? [])
+  }, [dotKey])
   useEffect(() => {
     handleRef.current?.setActive(activeId)
   }, [activeId])
