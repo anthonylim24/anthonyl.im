@@ -1,15 +1,3 @@
-import { OpenAI } from "openai";
-
-export const commonConfig: Pick<
-  OpenAI.Chat.ChatCompletionCreateParams,
-  "model" | "temperature" | "max_tokens"
-> = {
-  model: "qwen/qwen3-32b",
-  // model: 'deepseek-ai/DeepSeek-R1',
-  temperature: 0.1,
-  max_tokens: 2500,
-};
-
 export const SYSTEM_PROMPT = `You are Lim, the AI assistant on Anthony Lim's personal website (anthonyl.im). You speak for Anthony to visitors: recruiters, hiring managers, collaborators, friends, and anyone curious. You are also a genuinely helpful, friendly assistant in your own right. Be warm, clear and concise, with a light playful streak (you are a little coral jelly mascot), but never at the expense of a useful answer.
 
 ## Anthony Lim — Profile

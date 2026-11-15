@@ -13,6 +13,9 @@ function fakeGroqStream(contents: string[]) {
 }
 
 let lastGroqMessages: { role: string; content: string }[] = [];
+let groqCalls = 0;
+let groqFails = false;
+let lastGroqSignal: AbortSignal | undefined;
 
 // We mock groq-sdk before importing invoke so the module picks up the mock.
 mock.module("groq-sdk", () => {
@@ -20,7 +23,10 @@ mock.module("groq-sdk", () => {
     default: class MockGroq {
       chat = {
         completions: {
-          create: async (args: { messages: { role: string; content: string }[] }) => {
+          create: async (args: { messages: { role: string; content: string }[] }, opts?: { signal?: AbortSignal }) => {
+            groqCalls++;
+            lastGroqSignal = opts?.signal;
+            if (groqFails) throw new Error("groq 503");
             lastGroqMessages = args.messages;
             return fakeGroqStream(["Hello", " world"]);
           },
@@ -96,5 +102,44 @@ describe("POST /api/invoke", () => {
     expect((await systemFor({ prompt: "x", world: { items: Array(9).fill("a"), place: "studio" } })).status).toBe(400);
     expect((await systemFor({ prompt: "x", world: { items: ["a".repeat(33)], place: "studio" } })).status).toBe(400);
     expect((await systemFor({ prompt: "x", world: { items: [], place: "p".repeat(33) } })).status).toBe(400);
+  });
+
+  test("a Groq open failure is an SSE error event, not a JSON 500", async () => {
+    groqFails = true;
+    try {
+      const res = await makeApp().request("/api/invoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: "say hi" }),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/event-stream");
+      const text = await res.text();
+      expect(text).toContain('data: {"error":');
+      expect(text).not.toContain("[DONE]");
+    } finally {
+      groqFails = false;
+    }
+  });
+
+  test("passes the request's abort signal to Groq", async () => {
+    await (await makeApp().request("/api/invoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "say hi" }),
+    })).text();
+    expect(lastGroqSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  test("does not fall back to Groq when the visitor already left", async () => {
+    const before = groqCalls;
+    const res = await makeApp().request("/api/invoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "say hi" }),
+      signal: AbortSignal.abort(),
+    });
+    await res.text().catch(() => "");
+    expect(groqCalls).toBe(before);
   });
 });

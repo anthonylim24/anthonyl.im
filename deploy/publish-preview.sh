@@ -89,16 +89,37 @@ release_lock() {
   exec 9>&-
 }
 
+# True when $1 is a live process running the preview sidecar entry
+# (server/src/previewApi.ts). This runs as root, and a pid file can outlive
+# its process (droplet reboot, crash) until the kernel hands that pid to
+# something else, so never signal a pid without checking what it is.
+is_preview_api_pid() {
+  local pid="$1"
+  case "$pid" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  local cmdline
+  cmdline="$(tr '\0' ' ' 2>/dev/null <"/proc/$pid/cmdline" || true)"
+  case "$cmdline" in
+    *previewApi*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 stop_preview_api() {
   local dir="$1"
   [ -d "$dir" ] || return 0
   if [ -f "$dir/api.pid" ]; then
     local pid
     pid="$(cat "$dir/api.pid" 2>/dev/null || true)"
-    if [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
+    if is_preview_api_pid "$pid"; then
       kill "$pid" 2>/dev/null || true
       sleep 0.3
-      kill -9 "$pid" 2>/dev/null || true
+      if is_preview_api_pid "$pid"; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    elif [ -n "$pid" ]; then
+      log "stale api.pid in $dir (pid $pid is not the preview API); removing it"
     fi
   fi
   rm -f "$dir/api.pid" "$dir/api.json"
@@ -184,14 +205,20 @@ start_preview_api() {
   printf '{"port":%s,"pid":%s}\n' "$port" "$pid" >"$live/api.json"
 
   local attempt
-  for attempt in 1 2 3 4 5 6 7 8; do
+  for attempt in $(seq 1 20); do
     if curl -fsS --max-time 2 "http://127.0.0.1:${port}/health" | grep -q '"previewApi":true'; then
       log "preview API for PR $pr on 127.0.0.1:$port (pid $pid)"
       return 0
     fi
+    # Exited during boot (bad import, missing env): no point waiting.
+    is_preview_api_pid "$pid" || break
     sleep 1
   done
-  log "preview API did not become healthy — see $live/api.log"
+  # Never leave api.json pointing at a port nothing healthy listens on, or
+  # Hono proxies /preview/pr/<n>/api/* to it until the next publish. With no
+  # api.json the proxy answers 404 preview_api_not_published instead.
+  log "preview API did not become healthy — stopping it; see $live/api.log"
+  stop_preview_api "$live"
   return 0
 }
 

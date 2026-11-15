@@ -1,5 +1,7 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono";
+import { getConnInfo } from "hono/bun";
 import { z } from "zod";
+import { secretsEqual } from "./agentTasks";
 
 // Request ids, a one-line access log, in-memory counters, deep health checks
 // and the browser error beacon. Everything here is process-local: a restart
@@ -77,6 +79,35 @@ export function metricsSnapshot() {
 export function resetMetrics(): void {
   groups.clear();
   counters.clear();
+}
+
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+/**
+ * A request made on the droplet itself (`curl localhost:3000/...`). The
+ * socket alone cannot tell: nginx also connects from 127.0.0.1. Anything
+ * that came through Cloudflare carries `CF-Connecting-IP` and
+ * `X-Forwarded-For`, so a loopback peer without either is local.
+ */
+export function isLocalRequest(c: Context): boolean {
+  if (c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || c.req.header("x-real-ip")) {
+    return false;
+  }
+  try {
+    return LOOPBACK.has(getConnInfo(c).remote.address ?? "");
+  } catch {
+    // No Bun server in the env (app.request in tests): not a socket at all.
+    return false;
+  }
+}
+
+/** `/health/metrics`: a local request, or `Authorization: Bearer $METRICS_TOKEN`. */
+export function canReadMetrics(c: Context, token: string | undefined): boolean {
+  const header = c.req.header("Authorization");
+  if (token && header?.startsWith("Bearer ") && secretsEqual(token, header.slice("Bearer ".length).trim())) {
+    return true;
+  }
+  return isLocalRequest(c);
 }
 
 const QUIET = /^\/(assets\/|health$|favicon|icons\/|cf-fonts\/)/;

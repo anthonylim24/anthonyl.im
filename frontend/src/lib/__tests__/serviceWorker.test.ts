@@ -177,6 +177,9 @@ describe('service worker registration', () => {
     expect(worker).toContain("'/breathwork'")
     expect(worker).toContain("request.mode === 'navigate'")
     expect(worker).toContain("url.pathname.startsWith('/api/')")
+    // The Korea snapshot GETs are gone; no /api route is cached any more.
+    expect(worker).not.toContain('/api/korea')
+    expect(worker).not.toContain('KOREA_API_CACHE')
     expect(worker).toContain("url.pathname.startsWith('/preview/')")
     expect(worker).toContain('Promise.allSettled')
     expect(worker).toContain("fetch(url, { cache: 'reload' })")

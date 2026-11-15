@@ -13,21 +13,12 @@ Read the matching skill before writing code. Effect I/O rules win when they conf
 | **effect-ts** | Any frontend `/api`, SSE, or third-party HTTP | [`.agents/skills/effect-ts/SKILL.md`](./effect-ts/SKILL.md) (symlinked from `.claude/skills/`) |
 | **stylex** | UI styling, layout, tokens, visual parity, `*.stylex.ts`, `index.css` semantic classes | [`.agents/skills/stylex/SKILL.md`](./stylex/SKILL.md) (symlinked from `.claude/skills/`) |
 | **vercel-react-best-practices** | React 19 render/bundle only. Translate Next.js examples to Vite `React.lazy` + Hono. Effect wins on I/O. Never hide the photoreal 3D view / WebGL with React `Activity`. | [`.agents/skills/vercel-react-best-practices/SKILL.md`](./vercel-react-best-practices/SKILL.md) |
-| **clerk** + **clerk-react-patterns** | Clerk auth changes. This repo uses `@clerk/clerk-react` ^5 (Core 2) in a Vite SPA. Gate: `TripsAuthGate` (`KoreaAuthGate` belongs to the unrouted legacy Korea pages). Tokens: `frontend/src/lib/safeAuth.ts` (`useGetToken`, `useAuthReady`). Server JWT: `server/src/middleware/clerkAuth.ts`. Preview login: `scripts/clerk-agent-login.ts` (applies in Chrome; do not paste tickets). | [`.agents/skills/clerk/SKILL.md`](./clerk/SKILL.md), [`.agents/skills/clerk-react-patterns/SKILL.md`](./clerk-react-patterns/SKILL.md) |
+| **clerk** + **clerk-react-patterns** | Clerk auth changes. This repo uses `@clerk/clerk-react` ^5 (Core 2) in a Vite SPA. Gate: `TripsAuthGate`. Tokens: `frontend/src/lib/safeAuth.ts` (`useGetToken`, `useAuthReady`). Server JWT: `server/src/middleware/clerkAuth.ts`. Preview login: `scripts/clerk-agent-login.ts` (applies in Chrome; do not paste tickets). | [`.agents/skills/clerk/SKILL.md`](./clerk/SKILL.md), [`.agents/skills/clerk-react-patterns/SKILL.md`](./clerk-react-patterns/SKILL.md) |
 | **clerk-testing** | Playwright / Clerk test helpers if needed | [`.agents/skills/clerk-testing/SKILL.md`](./clerk-testing/SKILL.md) |
 | **clerk-cli** | Dashboard/CLI ops only — do not invent a new Clerk app | [`.agents/skills/clerk-cli/SKILL.md`](./clerk-cli/SKILL.md) |
 
-## Do not apply (wrong stack)
+## Not vendored (wrong stack)
 
-These vendor skills are present for completeness. Do **not** apply them here:
-
-- `clerk-nextjs-patterns`
-- `clerk-react-router-patterns` — this is a Vite + `react-router-dom` SPA, **not** `@clerk/react-router` SSR
-- `clerk-vue-patterns`, `clerk-nuxt-patterns`, `clerk-astro-patterns`, `clerk-tanstack-patterns`
-- `clerk-expo`
-- `clerk-android`, `clerk-swift`
-- `clerk-chrome-extension-patterns`
-- `clerk-billing`, `clerk-orgs`
-- `clerk-webhooks` — no Clerk webhooks in this repo
+The upstream `clerk/skills` pack also ships Next.js, React Router SSR (`@clerk/react-router`), Vue, Nuxt, Astro, TanStack, Expo, Android, Swift, Chrome extension, billing, orgs and webhooks skills. None of them fits this repo, and their template `package.json` files raised Dependabot alerts, so they are not vendored. Do not re-add them. `clerk-setup`, `clerk-custom-ui` and `clerk-backend-api` are vendored for reference; reach for them only when the skills above do not cover the task.
 
 Short pointers: [`.agents/memory/effect-ts.md`](../memory/effect-ts.md), [`.agents/memory/stylex.md`](../memory/stylex.md), [`.agents/memory/clerk.md`](../memory/clerk.md).
