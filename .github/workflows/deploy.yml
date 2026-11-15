@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -65,6 +65,16 @@ jobs:
       # passed, but a force-push or protection misconfig must not ship red
       # tests. The two share the runner's cores instead of running in series.
       - name: Server tests + frontend build
+        # Secrets and vars reach the shell as environment variables, never as
+        # text spliced into the script (a `$` or quote in a value would be
+        # expanded or break the line). The names carry no VITE_ prefix on
+        # purpose: Vite gives process env priority over .env, so an empty
+        # VITE_* here would blank the value FRONTEND_ENV supplies.
+        env:
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
+          IN_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          IN_CLERK_PROXY_URL: ${{ vars.VITE_CLERK_PROXY_URL }}
+          IN_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
         run: |
           set -euo pipefail
           bun test --parallel --bail server/src > server-tests.log 2>&1 &
@@ -72,22 +82,22 @@ jobs:
 
           # The Clerk publishable key has its own secret so the production
           # instance can be swapped without rewriting the whole FRONTEND_ENV.
-          printf '%s\n' "${{ secrets.FRONTEND_ENV }}" \
+          printf '%s\n' "$FRONTEND_ENV" \
             | sed '/^[[:space:]]*VITE_CLERK_PUBLISHABLE_KEY=/d' > frontend/.env
-          if [ -n "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" ]; then
-            echo "VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" >> frontend/.env
+          if [ -n "$IN_CLERK_PUBLISHABLE_KEY" ]; then
+            printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\n' "$IN_CLERK_PUBLISHABLE_KEY" >> frontend/.env
           else
             echo "::error::VITE_CLERK_PUBLISHABLE_KEY secret is missing."
             exit 1
           fi
-          if [ -n "${{ vars.VITE_CLERK_PROXY_URL }}" ]; then
-            echo "VITE_CLERK_PROXY_URL=${{ vars.VITE_CLERK_PROXY_URL }}" >> frontend/.env
+          if [ -n "$IN_CLERK_PROXY_URL" ]; then
+            printf 'VITE_CLERK_PROXY_URL=%s\n' "$IN_CLERK_PROXY_URL" >> frontend/.env
           fi
           # Public Supabase key for BreathFlow cloud sync. Without it the
           # client is silently null and sync never runs.
-          if [ -n "${{ vars.VITE_SUPABASE_ANON_KEY }}" ]; then
+          if [ -n "$IN_SUPABASE_ANON_KEY" ]; then
             sed -i '/^[[:space:]]*VITE_SUPABASE_ANON_KEY=/d' frontend/.env
-            echo "VITE_SUPABASE_ANON_KEY=${{ vars.VITE_SUPABASE_ANON_KEY }}" >> frontend/.env
+            printf 'VITE_SUPABASE_ANON_KEY=%s\n' "$IN_SUPABASE_ANON_KEY" >> frontend/.env
           fi
           (cd frontend && bun run build)
 
@@ -101,7 +111,7 @@ jobs:
       # Stage the next release under ~/anthonyl.im.next (does not touch the
       # live tree yet). System tools install is idempotent + non-fatal.
       - name: Stage backend on droplet
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
@@ -208,7 +218,7 @@ jobs:
       # scp-action preserves source path, so "frontend/dist" + target
       # "anthonyl.im.next" lands at ~/anthonyl.im.next/frontend/dist.
       - name: Upload frontend build to staging
-        uses: appleboy/scp-action@v1.0.0
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
@@ -217,7 +227,7 @@ jobs:
           target: "anthonyl.im.next"
 
       - name: Atomic swap + PM2 restart
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
@@ -272,10 +282,15 @@ jobs:
             # --max-memory-restart: the app idles near 70 MB; a runaway
             # process is restarted before it can push the 1 GB droplet into
             # swap or the OOM killer.
+            # NODE_ENV=production turns off the local-dev bearer bridge
+            # (server/src/config.ts) and is what /health reports. PM2 stores
+            # it with the process, so the watchdog's `pm2 restart` and a
+            # `pm2 resurrect` after reboot keep it. The rollback path below
+            # goes through this function too.
             start_app() {
               pm2 delete anthonyl.im 2>/dev/null || true
               cd "$LIVE"
-              pm2 start bun --name anthonyl.im --update-env \
+              NODE_ENV=production pm2 start bun --name anthonyl.im --update-env \
                 --max-memory-restart 700M -- run index.ts
             }
             # Healthy means the new process answers /health, not just that

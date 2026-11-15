@@ -1,8 +1,7 @@
 // Korea is now the only installable PWA — bump cache version so iOS
 // clients drop the previously-precached BreathFlow manifest.
-const CACHE_VERSION = 'korea-offline-v14'
+const CACHE_VERSION = 'korea-offline-v15'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
-const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
   '/',
   '/breathwork',
@@ -66,8 +65,7 @@ self.addEventListener('activate', (event) => {
                 (key.startsWith('breathflow-offline-') ||
                   key.startsWith('korea-offline-')) &&
                 key !== CACHE_VERSION &&
-                key !== RUNTIME_CACHE &&
-                key !== KOREA_API_CACHE,
+                key !== RUNTIME_CACHE,
             )
             .map((key) => caches.delete(key))
         )
@@ -89,21 +87,6 @@ self.addEventListener('activate', (event) => {
       })
   )
 })
-
-// Stale-while-revalidate for Korea data. Lets the page render instantly from
-// cache while a fresh copy is fetched in the background; falls back to the
-// cached copy when offline.
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(KOREA_API_CACHE)
-  const cached = await cache.match(request)
-  const networked = fetch(request)
-    .then((response) => {
-      if (response.ok) cachePutSafe(cache, request, response.clone())
-      return response
-    })
-    .catch(() => cached || Response.error())
-  return cached || networked
-}
 
 async function networkFirstNavigation(request) {
   const cache = await caches.open(CACHE_VERSION)
@@ -160,16 +143,6 @@ self.addEventListener('fetch', (event) => {
   // Never intercept the SW script itself — the browser uses a special update
   // path that bypasses the existing SW, but we belt-and-suspender it.
   if (url.pathname === '/sw.js') {
-    return
-  }
-
-  // Korea API gets a stale-while-revalidate strategy so /korea works offline.
-  if (url.pathname.startsWith('/api/korea')) {
-    // Honor `cache: 'no-store'` on the client side — used by the Places
-    // page to force a live read of /extracted on navigation so newly-
-    // extracted places appear without a manual reload.
-    if (request.cache === 'no-store') return
-    event.respondWith(staleWhileRevalidate(request))
     return
   }
 
