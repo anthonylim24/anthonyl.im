@@ -34,7 +34,7 @@ export interface CompletionResult {
 
 /**
  * The single persistence bridge for a *completed* session: writes history,
- * awards XP and badges, and updates daily/weekly counts. A session ended
+ * and awards XP and badges. A session ended
  * early arrives with the rounds it finished; one discarded inside its first
  * round must never reach this function.
  */
@@ -80,7 +80,6 @@ export function completeSession(input: CompletionInput): CompletionResult {
     plannedLengthShare(protocol.id, plannedRounds, input.customDurations),
   )
   gamification.addXP(xpEarned)
-  gamification.recordSession()
 
   const newBadgeIds = checkBadgeUnlocks({
     sessions: updatedHistory.sessions,

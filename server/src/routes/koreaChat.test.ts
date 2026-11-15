@@ -274,4 +274,31 @@ describe("POST /api/korea/chat", () => {
     expect(text).toContain("unavailable")
     expect(text).toContain("data: [DONE]")
   })
+
+  test("a network failure mid-request is one error event, then [DONE]", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () => {
+      throw new TypeError("socket hang up")
+    }) as unknown as typeof fetch
+
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hi" }),
+    })
+    const text = await res.text()
+    expect(text.match(/"error"/g)?.length).toBe(1)
+    expect(text).toContain("unavailable")
+    expect(text.trimEnd().endsWith("data: [DONE]")).toBe(true)
+  })
+
+  test("400 when a prior turn is longer than 8000 characters", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hi", messages: [{ role: "user", content: "x".repeat(8001) }] }),
+    })
+    expect(res.status).toBe(400)
+  })
 })

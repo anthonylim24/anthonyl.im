@@ -37,6 +37,17 @@ export function getLocalDateKey(input: Date | string | number): string | null {
   return formatLocalDateKey(date)
 }
 
+/**
+ * The calendar day a session belongs to: the local day recorded when it was
+ * finished, so a later change of timezone cannot move it, or (for sessions
+ * saved before that was recorded) the day its timestamp falls on here.
+ */
+export function getSessionDayKey(session: { date: string; localDay?: string }): string | null {
+  return session.localDay && DATE_KEY_PATTERN.test(session.localDay)
+    ? session.localDay
+    : getLocalDateKey(session.date)
+}
+
 export function getLocalDayStart(input: Date | string | number = new Date()): Date {
   const date = toLocalDate(input)
   if (Number.isNaN(date.getTime())) {

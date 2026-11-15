@@ -6,7 +6,21 @@ import {
   getLocalDateKey,
   getLocalDayStart,
   getLocalWeekStartKey,
+  getSessionDayKey,
 } from '../localDates'
+
+describe('getSessionDayKey', () => {
+  it('prefers the day recorded where the session was finished, so a timezone change cannot move it', () => {
+    // Finished late on 1 May in Los Angeles: the timestamp is already 2 May in UTC and further east.
+    expect(getSessionDayKey({ date: '2026-05-02T06:30:00.000Z', localDay: '2026-05-01' })).toBe('2026-05-01')
+  })
+
+  it('falls back to the timestamp for sessions saved before the day was recorded', () => {
+    const date = new Date(2026, 4, 1, 12).toISOString()
+    expect(getSessionDayKey({ date })).toBe('2026-05-01')
+    expect(getSessionDayKey({ date, localDay: 'yesterday' })).toBe('2026-05-01')
+  })
+})
 
 describe('local date helpers', () => {
   it('formats keys from local calendar components', () => {

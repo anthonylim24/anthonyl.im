@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEY, useChat } from '../useChat'
+import { HttpStatusError } from '../../effect/errors'
 
 type Invoke = (
   prompt: string,
@@ -56,18 +57,18 @@ describe('useChat', () => {
       expect(result.current.send('  Who is Anthony?  ')).toBe(true)
     })
     expect(events.onSend).toHaveBeenCalledOnce()
-    expect(result.current.status).toBe('thinking')
+    expect(result.current.turn.phase).toBe('waiting')
     expect(invoke.mock.calls[0][0]).toBe('Who is Anthony?')
 
     reply.chunk('A staff')
     reply.chunk('A staff engineer.')
-    expect(result.current.status).toBe('streaming')
+    expect(result.current.turn.phase).toBe('streaming')
     expect(events.onChunk).toHaveBeenCalledTimes(2)
     expect(last(result.current.messages)).toMatchObject({ role: 'assistant', content: 'A staff engineer.', status: 'streaming' })
 
     await reply.finish()
-    expect(result.current.status).toBe('idle')
-    expect(last(result.current.messages)?.status).toBe('done')
+    expect(result.current.turn.phase).toBe('idle')
+    expect(last(result.current.messages)).toMatchObject({ status: 'done' })
     expect(events.onDone).toHaveBeenCalledWith(true, false)
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
     expect(stored).toHaveLength(2)
@@ -97,7 +98,7 @@ describe('useChat', () => {
       result.current.stop()
     })
     expect(reply.signal()?.aborted).toBe(true)
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(last(result.current.messages)).toMatchObject({ content: 'Well, first', status: 'stopped' })
     expect(onError).not.toHaveBeenCalled()
   })
@@ -110,10 +111,10 @@ describe('useChat', () => {
     act(() => {
       result.current.send('Where has he worked?')
     })
-    await first.fail(new Error('HTTP error! status: 500'))
+    await first.fail(new HttpStatusError({ status: 500, message: 'My insides went wobbly.' }))
     expect(onError).toHaveBeenCalledOnce()
     expect(last(result.current.messages)).toMatchObject({ status: 'error' })
-    expect(last(result.current.messages)?.content).toContain('HTTP error! status: 500')
+    expect(last(result.current.messages)).toMatchObject({ content: '', error: 'My insides went wobbly.' })
 
     const second = deferredReply()
     act(() => result.current.regenerate())
@@ -133,7 +134,7 @@ describe('useChat', () => {
 
     intercept.mockResolvedValueOnce('One ball, coming up!')
     act(() => void result.current.send('give Lim a ball'))
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(invoke).not.toHaveBeenCalled()
     expect(last(result.current.messages)).toMatchObject({ role: 'assistant', content: 'One ball, coming up!', status: 'done' })
     expect(onDone).toHaveBeenLastCalledWith(true, true)
@@ -145,7 +146,7 @@ describe('useChat', () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledOnce())
     reply.chunk('An engineer.')
     await reply.finish()
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(last(result.current.messages)).toMatchObject({ content: 'An engineer.', status: 'done' })
 
     // Broken: same.
@@ -154,7 +155,7 @@ describe('useChat', () => {
     act(() => void result.current.send('And his skills?'))
     await waitFor(() => expect(invoke).toHaveBeenCalledTimes(2))
     await again.finish()
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
   })
 
   it('stop during an intercept leaves a stopped reply and never calls the model', async () => {
@@ -164,7 +165,7 @@ describe('useChat', () => {
     act(() => void result.current.send('give him a kite'))
     act(() => result.current.stop())
     await act(async () => release('Here you go!'))
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(invoke).not.toHaveBeenCalled()
     expect(last(result.current.messages)).toMatchObject({ role: 'assistant', status: 'stopped' })
   })
@@ -184,7 +185,7 @@ describe('useChat', () => {
     expect(events.onChunk).not.toHaveBeenCalled()
     reply.chunk('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}')
     await reply.finish()
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(events.onWorld).toHaveBeenCalledWith('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}', false)
     expect(last(result.current.messages)).toMatchObject({ content: 'A kite!', status: 'done' })
     expect(events.onDone).toHaveBeenCalledWith(true, true)
@@ -205,7 +206,7 @@ describe('useChat', () => {
     const { result } = renderHook(() => useChat({ intercept }))
     intercept.mockResolvedValueOnce('A ball, coming up!')
     act(() => void result.current.send('give him a ball'))
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     intercept.mockResolvedValueOnce(null)
     const reply = deferredReply()
     act(() => void result.current.send('Who is Anthony?'))
@@ -224,7 +225,7 @@ describe('useChat', () => {
     reply.chunk('@anthony on GitHub.')
     expect(last(result.current.messages).content).toBe('@anthony on GitHub.')
     await reply.finish()
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(events.onWorldStart).not.toHaveBeenCalled()
     expect(events.onWorld).not.toHaveBeenCalled()
     expect(last(result.current.messages).content).toBe('@anthony on GitHub.')
@@ -244,7 +245,7 @@ describe('useChat', () => {
     expect(events.onChunk).not.toHaveBeenCalled()
     fenced.chunk('```json\n@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}\n```')
     await fenced.finish()
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(last(result.current.messages).content).toBe('A kite!')
 
     // Prefaced: the preface is withdrawn the moment the marker turns up.
@@ -255,7 +256,7 @@ describe('useChat', () => {
     prefaced.chunk('Sure!\n@@world {"ops":[')
     expect(last(result.current.messages).content).toBe('')
     act(() => result.current.stop())
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     // Stopped mid-order: no JSON is left on screen.
     expect(last(result.current.messages).content).not.toContain('@@world')
   })
@@ -267,7 +268,7 @@ describe('useChat', () => {
     act(() => void result.current.send('Who is Anthony?'))
     reply.chunk('An engineer. The docs mention @@world orders.')
     await reply.finish()
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(events.onWorldStart).not.toHaveBeenCalled()
     expect(last(result.current.messages).content).toBe('An engineer. The docs mention @@world orders.')
   })
@@ -281,15 +282,15 @@ describe('useChat', () => {
     act(() => void result.current.send('give him a kite'))
     stopped.chunk('@@world {"ops":[')
     act(() => result.current.stop())
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(events.onWorld).toHaveBeenLastCalledWith(null, false)
-    expect(last(result.current.messages).status).toBe('stopped')
+    expect(last(result.current.messages)).toMatchObject({ status: 'stopped' })
 
     const failed = deferredReply()
     act(() => void result.current.send('give him a boat'))
     failed.chunk('@@world {"ops":[')
     await failed.fail(new Error('boom'))
-    await waitFor(() => expect(result.current.status).toBe('idle'))
+    await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
     expect(events.onWorld).toHaveBeenLastCalledWith(null, true)
     // Lim owns up to it; it is not shown as a chat error.
     expect(last(result.current.messages)).toMatchObject({ content: "I couldn't make that.", status: 'done' })
@@ -313,7 +314,7 @@ describe('useChat', () => {
     )
     const { result } = renderHook(() => useChat())
     expect(result.current.messages).toHaveLength(2)
-    expect(result.current.messages[1].status).toBe('stopped')
+    expect(result.current.messages[1]).toMatchObject({ status: 'stopped' })
 
     act(() => result.current.newChat())
     expect(result.current.messages).toEqual([])
@@ -334,13 +335,67 @@ describe('useChat', () => {
       result.current.send('two')
     })
     await act(async () => {})
-    expect(result.current.status).toBe('thinking')
+    expect(result.current.turn.phase).toBe('waiting')
     expect(result.current.messages.map((m) => m.content)).toEqual(['two', ''])
 
     second.chunk('New words')
     expect(last(result.current.messages)).toMatchObject({ content: 'New words', status: 'streaming' })
     await second.finish()
-    expect(result.current.status).toBe('idle')
+    expect(result.current.turn.phase).toBe('idle')
     expect(last(result.current.messages)).toMatchObject({ content: 'New words', status: 'done' })
+  })
+
+  it('saves the question as soon as it is asked, and a partial reply on pagehide', async () => {
+    const reply = deferredReply()
+    const { result } = renderHook(() => useChat())
+    act(() => void result.current.send('Tell me a long story'))
+    const stored = () => JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
+    // A reload right now still has the question.
+    expect(stored().map((m: { content: string }) => m.content)).toEqual(['Tell me a long story', ''])
+    reply.chunk('Once upon')
+    // Not written per chunk...
+    expect(stored()[1].content).toBe('')
+    // ...but when the page goes away, with the reply kept as stopped.
+    act(() => void window.dispatchEvent(new Event('pagehide')))
+    expect(stored()[1]).toMatchObject({ content: 'Once upon', status: 'stopped' })
+    await reply.finish()
+    expect(stored()[1]).toMatchObject({ content: 'Once upon', status: 'done' })
+  })
+
+  it('also saves when the tab is hidden (mobile browsers may skip pagehide)', () => {
+    const reply = deferredReply()
+    const { result } = renderHook(() => useChat())
+    act(() => void result.current.send('hi'))
+    reply.chunk('Hel')
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    act(() => void document.dispatchEvent(new Event('visibilitychange')))
+    visibility.mockRestore()
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')[1]).toMatchObject({ content: 'Hel', status: 'stopped' })
+  })
+
+  it("keeps a failure out of the text and in the reply's error", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const reply = deferredReply()
+    const onError = vi.fn()
+    const { result } = renderHook(() => useChat({ onError }))
+    act(() => void result.current.send('hi'))
+    reply.chunk('Half')
+    await reply.fail(Object.assign(new Error('I lost the connection part-way through. Try again.'), { partialContent: 'Half an' }))
+    expect(last(result.current.messages)).toMatchObject({ content: 'Half an', status: 'error', error: 'I lost the connection part-way through. Try again.' })
+    expect(result.current.lastOutcome).toBe('failed')
+    expect(onError).toHaveBeenCalledOnce()
+  })
+
+  it('sends a long reply back clamped, so the next question is not rejected', async () => {
+    const first = deferredReply()
+    const { result } = renderHook(() => useChat())
+    act(() => void result.current.send('Write a lot'))
+    first.chunk('w'.repeat(12_000))
+    await first.finish()
+    const next = deferredReply()
+    act(() => void result.current.send('And?'))
+    const history = invoke.mock.calls[1][1]
+    expect(history.every((turn) => turn.content.length <= 8_000)).toBe(true)
+    await next.finish()
   })
 })

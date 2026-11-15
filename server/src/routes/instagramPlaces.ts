@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type MiddlewareHandler } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { isInstagramUrl } from '../igPlaces/normalizeUrl';
@@ -16,7 +16,19 @@ export interface InstagramPlacesDeps {
   setIgPlaceDays: (opts: { userId: string; placeId: number; days: number[] }) => Promise<void>;
   /** Hide a place from the user's library. Resolves false when it isn't theirs. */
   removeExtractedPlace?: (opts: { userId: string; placeId: number }) => Promise<boolean>;
+  /** Runs before an enqueue (after auth, so it can key on the user). Each
+   *  enqueued post costs a scrape plus model calls. */
+  enqueueRateLimit?: MiddlewareHandler;
 }
+
+/** A whole-number query value clamped to [min, max]; `fallback` when absent or not a number. */
+export function intQuery(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const n = raw === undefined || raw.trim() === '' ? NaN : Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(n)));
+}
+
+const passThrough: MiddlewareHandler = (_c, next) => next();
 
 const igUrl = z.string().refine(isInstagramUrl, 'not an instagram url');
 
@@ -28,7 +40,7 @@ const submitSchema = z.union([
 export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
   const r = new Hono();
 
-  r.post('/', zValidator('json', submitSchema), async (c) => {
+  r.post('/', deps.enqueueRateLimit ?? passThrough, zValidator('json', submitSchema), async (c) => {
     const userId = c.get('userId' as never) as string;
     const body = (await c.req.json()) as z.infer<typeof submitSchema>;
     const urls = 'url' in body ? [body.url] : body.urls;
@@ -48,8 +60,7 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
 
   r.get('/jobs', async (c) => {
     const userId = c.get('userId' as never) as string;
-    const limitParam = c.req.query('limit');
-    const limit = limitParam ? Math.min(500, Math.max(1, Number(limitParam))) : 20;
+    const limit = intQuery(c.req.query('limit'), 20, 1, 500);
     // `logs=0`: the trips import sheet polls this and never shows pipeline logs.
     const data = await deps.listJobs(userId, limit, { logs: c.req.query('logs') !== '0' });
     return c.json(data);
@@ -79,8 +90,8 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
 
   r.get('/extracted', async (c) => {
     const userId = c.get('userId' as never) as string;
-    const limit = Math.min(Math.max(1, Number(c.req.query('limit') ?? 50)), 200);
-    const offset = Math.max(0, Number(c.req.query('offset') ?? 0));
+    const limit = intQuery(c.req.query('limit'), 50, 1, 200);
+    const offset = intQuery(c.req.query('offset'), 0, 0, Number.MAX_SAFE_INTEGER);
     const category = c.req.query('category');
     const band = c.req.query('band');
     const busyness = c.req.query('busyness');

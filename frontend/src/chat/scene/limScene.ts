@@ -67,6 +67,8 @@ export type LimSceneOptions = {
   /** Top of Lim's head in host px, plus px per world unit. */
   onAnchor?: (x: number, y: number, unit: number) => void
   onFirstFrame?: () => void
+  /** The GPU context was lost: nothing will draw again. Dispose and show the drawing. */
+  onLost?: (reason: string) => void
   /** The world to start in (restored from a previous visit). */
   world?: LimWorld
   /** The items or the place changed. */
@@ -325,6 +327,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const scenery = new SceneryStage(u, pu, { reducedMotion })
   scene.add(scenery.group)
   stage.onStruggle(() => scenery.thin())
+  stage.onLost((reason) => opts.onLost?.(reason))
 
   const flat = new THREE.PlaneGeometry(1, 1)
   const makeShadow = (tint: string | null) => {
