@@ -1,4 +1,4 @@
-import { getLocalDateKey, formatLocalDateKey } from '@/lib/localDates'
+import { getSessionDayKey, formatLocalDateKey } from '@/lib/localDates'
 import type { CompletedSession } from '@/stores/historyStore'
 
 export interface DailyGoalStatus {
@@ -19,7 +19,7 @@ export function getDailyGoalStatus(
   const today = formatLocalDateKey(now)
   let seconds = 0
   for (const session of sessions) {
-    if (getLocalDateKey(session.date) === today) seconds += session.durationSeconds
+    if (getSessionDayKey(session) === today) seconds += session.durationSeconds
   }
   const goalSeconds = Math.max(60, goalMinutes * 60)
   return { seconds, goalSeconds, progress: Math.min(1, seconds / goalSeconds), met: seconds >= goalSeconds }

@@ -4,13 +4,9 @@ import {
   parseBreathFlowImportData,
   replaceBreathFlowStorageData,
 } from '../dataExport'
-import { STORAGE_KEYS, TECHNIQUE_IDS } from '../constants'
-
-function storageWith(values: Record<string, string>) {
-  return {
-    getItem: (key: string) => values[key] ?? null,
-  }
-}
+import { useGamificationStore } from '@/stores/gamificationStore'
+import { getEmptyHistoryState, HISTORY_STORAGE_VERSION, useHistoryStore } from '@/stores/historyStore'
+import { BREATHFLOW_STORAGE_KEYS, STORAGE_KEYS, TECHNIQUE_IDS } from '../constants'
 
 function mutableStorageWith(values: Record<string, string>) {
   const storage = new Map(Object.entries(values))
@@ -28,24 +24,28 @@ function mutableStorageWith(values: Record<string, string>) {
 }
 
 describe('buildBreathFlowExportData', () => {
-  it('exports only BreathFlow-owned localStorage keys', () => {
-    const data = buildBreathFlowExportData(
-      storageWith({
-        [STORAGE_KEYS.SESSION_HISTORY]: '{"state":{"sessions":[]}}',
-        [STORAGE_KEYS.SETTINGS]: '{"state":{"theme":"light"}}',
-        'third-party-token': 'do-not-export',
-      }),
-    )
-
-    expect(data).toEqual({
-      [STORAGE_KEYS.SESSION_HISTORY]: '{"state":{"sessions":[]}}',
-      [STORAGE_KEYS.SETTINGS]: '{"state":{"theme":"light"}}',
+  it('exports the live stores, not what localStorage happens to hold', () => {
+    localStorage.clear()
+    useHistoryStore.setState({ ...getEmptyHistoryState(), sessions: [] })
+    useHistoryStore.getState().addSession({
+      techniqueId: TECHNIQUE_IDS.BOX_BREATHING, date: '2026-05-01T10:00:00.000Z', durationSeconds: 120, rounds: 3,
+      holdTimes: [], maxHoldTime: 0, avgHoldTime: 0,
     })
-    expect(data).not.toHaveProperty('third-party-token')
+    useGamificationStore.setState({ xp: 75, earnedBadges: ['first_session'], selectedTheme: 'default' })
+    // A signed-in device's localStorage can lag the stores (or, before, be emptied by sync).
+    localStorage.clear()
+
+    const data = buildBreathFlowExportData()
+
+    expect(Object.keys(data).sort()).toEqual([...BREATHFLOW_STORAGE_KEYS].sort())
+    const history = JSON.parse(data[STORAGE_KEYS.SESSION_HISTORY])
+    expect(history.version).toBe(HISTORY_STORAGE_VERSION)
+    expect(history.state.sessions).toHaveLength(1)
+    expect(JSON.parse(data[STORAGE_KEYS.GAMIFICATION]).state).toEqual({ xp: 75, earnedBadges: ['first_session'], selectedTheme: 'default' })
   })
 
-  it('omits BreathFlow keys that are not present locally', () => {
-    expect(buildBreathFlowExportData(storageWith({}))).toEqual({})
+  it('round-trips through the importer', () => {
+    expect(() => parseBreathFlowImportData(buildBreathFlowExportData())).not.toThrow()
   })
 })
 

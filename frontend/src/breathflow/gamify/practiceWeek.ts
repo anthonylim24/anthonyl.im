@@ -1,5 +1,5 @@
 import type { TechniqueId } from '@/lib/constants'
-import { addLocalDays, formatLocalDateKey, getLocalDateKey, getLocalDayStart } from '@/lib/localDates'
+import { addLocalDays, formatLocalDateKey, getSessionDayKey, getLocalDayStart } from '@/lib/localDates'
 import type { CompletedSession } from '@/stores/historyStore'
 import { getProtocol } from '../protocols/catalog'
 import type { ProtocolCategory } from '../protocols/types'
@@ -34,7 +34,7 @@ export function getWeekSummary(
   }
 
   const weekSessions = sessions.filter((session) => {
-    const key = getLocalDateKey(session.date)
+    const key = getSessionDayKey(session)
     return key !== null && windowKeys.has(key)
   })
 
@@ -44,7 +44,7 @@ export function getWeekSummary(
   let totalSeconds = 0
 
   for (const session of weekSessions) {
-    const key = getLocalDateKey(session.date)
+    const key = getSessionDayKey(session)
     if (key) activeDayKeys.add(key)
     totalSeconds += session.durationSeconds
     techniqueCounts.set(session.techniqueId, (techniqueCounts.get(session.techniqueId) ?? 0) + 1)
