@@ -36,6 +36,9 @@ const styles = stylex.create({
     letterSpacing: '-0.025em',
     color: 'var(--bw-text)',
     textShadow: '0 0 24px var(--bw-canvas), 0 0 8px var(--bw-canvas)',
+    // Focused by script when the summary appears (never by Tab), so a ring
+    // around the heading would only read as a stray box.
+    outlineStyle: 'none',
   },
   // The splash paints behind the heading; lift the small caps off it.
   eyebrow: {
