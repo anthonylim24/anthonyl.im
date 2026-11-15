@@ -1,6 +1,7 @@
 import { test, expect, describe, mock } from 'bun:test';
 import { Hono } from 'hono';
-import { createInstagramPlacesRouter } from './instagramPlaces';
+import { createInstagramPlacesRouter, intQuery } from './instagramPlaces';
+import { createRateLimit, userOrClientKey } from '../middleware/rateLimit';
 
 function withAuth(userId: string) {
   return async (c: any, next: any) => { c.set('userId', userId); await next(); };
@@ -161,6 +162,47 @@ describe('GET /jobs', () => {
     // no limit defaults to 20
     await app.request('/jobs');
     expect(capturedLimit).toBe(20);
+
+    // garbage falls back to the default instead of NaN
+    await app.request('/jobs?limit=abc');
+    expect(capturedLimit).toBe(20);
+    await app.request('/jobs?limit=2.7');
+    expect(capturedLimit).toBe(2);
+  });
+});
+
+describe('intQuery', () => {
+  test('never returns NaN', () => {
+    expect(intQuery(undefined, 50, 1, 200)).toBe(50);
+    expect(intQuery('', 50, 1, 200)).toBe(50);
+    expect(intQuery('abc', 50, 1, 200)).toBe(50);
+    expect(intQuery('Infinity', 50, 1, 200)).toBe(50);
+    expect(intQuery('-5', 0, 0, 100)).toBe(0);
+    expect(intQuery('999', 50, 1, 200)).toBe(200);
+  });
+});
+
+describe('enqueue rate limit', () => {
+  test('runs after auth, keyed per user, before the queue is touched', async () => {
+    const enqueue = mock(async () => ({ jobId: 1, dedupeKey: 'd', status: 'pending', reused: false }));
+    const router = createInstagramPlacesRouter({
+      enqueue, statsHandler: () => ({}), listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob,
+      listExtractedPlaces: noopListExtractedPlaces, listIgPlaceDays: noopListIgPlaceDays, setIgPlaceDays: noopSetIgPlaceDays,
+      enqueueRateLimit: createRateLimit({ windowMs: 60_000, max: 1, keyPrefix: 'ig-enqueue-test', key: userOrClientKey }),
+    });
+    const post = (app: Hono) => app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.instagram.com/p/ABC' }),
+    });
+    const alice = new Hono().use('*', withAuth('rl-alice')).route('/', router);
+    const bob = new Hono().use('*', withAuth('rl-bob')).route('/', router);
+    expect((await post(alice)).status).toBe(202);
+    expect((await post(alice)).status).toBe(429);
+    expect((await post(bob)).status).toBe(202);
+    expect(enqueue).toHaveBeenCalledTimes(2);
+    // Reads are not limited by the enqueue bucket.
+    expect((await alice.request('/jobs')).status).toBe(200);
   });
 });
 

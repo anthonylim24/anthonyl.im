@@ -72,10 +72,7 @@ anthonyl.im/
 │       ├── config.ts            # Env schema
 │       ├── routes/
 │       │   ├── invoke.ts        # POST /api/invoke — chatbot SSE
-│       │   ├── korea.ts         # GET /api/korea/* snapshot
-│       │   ├── koreaChat.ts     # POST /api/korea/chat — concierge SSE
-│       │   ├── koreaPlaces.ts   # day places / dongs / entities
-│       │   ├── entity.ts        # POST /api/entity/about
+│       │   ├── koreaChat.ts     # POST /api/korea/chat — concierge SSE (the only /api/korea route)
 │       │   ├── trips.ts         # /api/trips/* (Clerk required)
 │       │   ├── instagramPlaces.ts
 │       │   └── agentSession.ts  # POST /api/agent/session
@@ -284,10 +281,10 @@ Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticat
 
 Full list: [`docs/env.md`](docs/env.md). Schema: `server/src/config.ts`; frontend: `frontend/.env.example`.
 
-- The server refuses to boot without `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL`.
+- No variable is required at boot; a missing key degrades its feature. `KLUSTER_API_*` are unread leftovers.
 - `CLERK_SECRET_KEY` is required in production; without it every Clerk-gated route answers 401.
 - `GEMINI_API_KEY` is the primary model everywhere (Gemini 4 Hydrogen); `GROQ_API_KEY` is the backup.
-- `IG_DEV_BEARER` / `VITE_DEV_BEARER` are a local-only Clerk bypass. **Never** set them in production or PR previews.
+- `IG_DEV_BEARER` / `VITE_DEV_BEARER` are a local-only Clerk bypass, ignored (with a loud warning) when `NODE_ENV=production`. **Never** set them in production or PR previews.
 
 ---
 

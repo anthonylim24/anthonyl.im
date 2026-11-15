@@ -4,20 +4,20 @@ import { cors } from "hono/cors";
 import { prettyJSON } from "hono/pretty-json";
 import { config } from "./src/config";
 import invokeRouter from "./src/routes/invoke";
-import koreaRouter from "./src/routes/korea";
-import entityRouter from "./src/routes/entity";
+import koreaChatRouter from "./src/routes/koreaChat";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
 import { getTripStore } from "./src/trips/store";
 import { createGoogleGeocoder, createPhotonGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
-import { createRateLimit, trustedProxyClientAddress } from "./src/middleware/rateLimit";
+import { createRateLimit, trustedProxyClientAddress, userOrClientKey } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays, removeExtractedPlace } from "./src/igPlaces/wire";
 import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
 import { createAgentSessionRouter } from "./src/routes/agentSession";
 import { parseAgentOnBehalfOf, parseAllowedRedirectHosts } from "./src/agentTasks";
 import { CLERK_FRONTEND_API, CLERK_PROXY_PATH, clerkProxyHeaders, createClerkProxy } from "./src/clerkProxy";
 import {
+  canReadMetrics,
   createReadiness,
   createTelemetryRouter,
   httpCheck,
@@ -28,6 +28,8 @@ import {
 } from "./src/observability";
 import { join, resolve } from "path";
 import { BUN_IDLE_TIMEOUT_SEC } from "./src/httpIdleTimeout";
+import { securityHeaders } from "./src/securityHeaders";
+import { createBoundedMemo, createDistReader } from "./src/distFiles";
 
 const app = new Hono();
 const siteUrl = (process.env.SITE_URL || "https://anthonyl.im").replace(/\/+$/, "");
@@ -123,7 +125,8 @@ const stripExistingPreviewMeta = (html: string): string =>
     .replace(/<meta\s+name=["']apple-mobile-web-app-title["'][^>]*>\s*/gi, "")
     .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/i, "");
 
-const injectPreviewMeta = (html: string, pathname: string): string => {
+/** `template` is index.html already through `stripExistingPreviewMeta`. */
+const injectPreviewMeta = (template: string, pathname: string): string => {
   const preview = getPreviewMetaForPath(pathname);
   const pageUrl = `${siteUrl}${pathname || "/"}`;
   const imageUrl = resolveImageUrl(preview.imagePathOrUrl);
@@ -148,12 +151,15 @@ const injectPreviewMeta = (html: string, pathname: string): string => {
     <meta name="apple-mobile-web-app-title" content="${escapeHtml(preview.title)}" />
     <link rel="canonical" href="${escapeHtml(pageUrl)}" />`;
 
-  return stripExistingPreviewMeta(html).replace("</head>", `${metaTags}\n  </head>`);
+  // A replacer function: a string replacement would expand `$&` / `$'` that
+  // arrive in the request path (og:url, canonical).
+  return template.replace("</head>", () => `${metaTags}\n  </head>`);
 };
 
 // Group middleware by functionality
 const commonMiddleware = [
   requestLog(),
+  ...securityHeaders,
   prettyJSON(),
   cors({
     origin: config.corsOrigin,
@@ -201,26 +207,24 @@ app.use("/api/trips/:id/chat", async (c, next) => {
 });
 
 // Rate limiting for public LLM endpoints
-const invokeRateLimit = createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "invoke" });
-const entityRateLimit = createRateLimit({ windowMs: 60_000, max: 30, keyPrefix: "entity" });
-app.use("/api/invoke/*", invokeRateLimit);
-app.use("/api/entity/*", entityRateLimit);
+app.use("/api/invoke/*", createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "invoke" }));
+// The concierge fallback for trips without their own chat. The client sends
+// no Clerk bearer, so this is keyed on the address (userOrClientKey falls
+// back to it) until it does.
+app.use("/api/korea/chat", createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "korea-chat", key: userOrClientKey }));
 
 // API Routes
 app.route("/api/invoke", invokeRouter);
-app.route("/api/korea", koreaRouter);
-app.route("/api/entity", entityRouter);
+app.route("/api/korea/chat", koreaChatRouter);
 
 // Multi-trip travel planner — Clerk-authenticated CRUD + AI generation /
 // enhancement + per-day Map Mode places. The Korea trip is seeded into the
 // store on first request and appears as a normal trip.
-const tripsRateLimit = createRateLimit({ windowMs: 60_000, max: 60, keyPrefix: "trips" });
-app.use("/api/trips/*", tripsRateLimit);
-app.use("/api/trips/:id/*", tripsRateLimit);
 app.route(
   "/api/trips",
   createTripsRouter({
     store: getTripStore(),
+    rateLimit: createRateLimit({ windowMs: 60_000, max: 60, keyPrefix: "trips", key: userOrClientKey }),
     verifyAuth: (authHeader) =>
       verifyClerkOptional(authHeader, {
         secretKey: config.clerkSecretKey,
@@ -267,6 +271,7 @@ if (clerkAuth) {
     listIgPlaceDays,
     setIgPlaceDays,
     removeExtractedPlace,
+    enqueueRateLimit: createRateLimit({ windowMs: 60_000, max: 10, keyPrefix: "ig-enqueue", key: userOrClientKey }),
   });
   // `/api/instagram` is the path the trips planner uses; the Korea path is
   // the same router, kept for older clients.
@@ -367,8 +372,11 @@ app.get("/health/ready", async (c) => {
   c.header("Cache-Control", "no-store");
   return c.json(report, report.status === "ok" ? 200 : 503);
 });
+// Request counts and memory are not for the public: a shell on the droplet,
+// or a bearer matching METRICS_TOKEN.
 app.get("/health/metrics", (c) => {
   c.header("Cache-Control", "no-store");
+  if (!canReadMetrics(c, config.metricsToken)) return c.json({ error: "forbidden" }, 403);
   return c.json(metricsSnapshot());
 });
 
@@ -376,17 +384,24 @@ app.get("/health/metrics", (c) => {
 app.use("/api/telemetry", createRateLimit({ windowMs: 60_000, max: 30, keyPrefix: "telemetry" }));
 app.route("/api/telemetry", createTelemetryRouter());
 
+// An API path nobody serves is a JSON 404, never the SPA shell with a 200.
+app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
+
+// In production dist/ only changes on a deploy, which restarts the process,
+// so each file is read once. In development every request reads the disk.
+const memoiseDist = process.env.NODE_ENV === "production";
+const readDist = createDistReader(distPath, { memoise: memoiseDist });
+
 // `/sw.js` MUST be served fresh on every request — the browser only updates
 // the service worker when it detects a byte-difference in the SW script, so
 // a cached SW means deploys never roll out. We route it explicitly before the
 // static-asset middleware so we can set our own headers.
 app.get("/sw.js", async (c) => {
-  const file = Bun.file(join(distPath, "sw.js"));
   c.header("Cache-Control", "no-cache, no-store, must-revalidate");
   c.header("Pragma", "no-cache");
   c.header("Service-Worker-Allowed", "/");
   c.header("Content-Type", "application/javascript; charset=utf-8");
-  return c.body(await file.text());
+  return c.body(await readDist("sw.js"));
 });
 
 // Twilio SMS proof-of-consent page — static HTML (no SPA shell) so compliance
@@ -426,13 +441,16 @@ app.all("/assets/*", (c) => {
 // The SPA shell, with per-route title / description / preview card. The HTML
 // itself must never be long-cached — it references hashed asset filenames that
 // change on every build, so a stale index.html would point at deleted bundles.
+// Rendered shells are memoised per path (og:url and canonical carry it); the
+// cap bounds what random paths can make it hold.
+const renderedShells = createBoundedMemo<string>(256, { enabled: memoiseDist });
 const spaShell = async (c: Context) => {
-  const baseHtml = await Bun.file(join(distPath, "index.html")).text();
-  const withMeta = injectPreviewMeta(baseHtml, c.req.path);
+  const template = await readDist("index.html", stripExistingPreviewMeta);
+  const html = renderedShells.get(c.req.path, () => injectPreviewMeta(template, c.req.path));
   c.header("Cache-Control", "no-cache, no-store, must-revalidate");
   c.header("Pragma", "no-cache");
   c.header("Expires", "0");
-  return c.html(withMeta);
+  return c.html(html);
 };
 // Plain HTML, readable without JavaScript, because Google's OAuth branding
 // review fetches these URLs and does not run the SPA.
@@ -444,7 +462,7 @@ const staticPages: Record<string, string> = {
 for (const [path, file] of Object.entries(staticPages)) {
   app.get(path, async (c) => {
     c.header("Cache-Control", "no-cache");
-    return c.html(await Bun.file(join(distPath, file)).text());
+    return c.html(await readDist(file));
   });
 }
 // "/" is Lim. Registered ahead of serveStatic, which would otherwise answer

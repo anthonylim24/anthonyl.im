@@ -1,4 +1,4 @@
-import { Hono, type Context } from "hono"
+import { Hono, type Context, type MiddlewareHandler } from "hono"
 import { categoryColor, categoryIcon, formatDistance, haversineMeters, type PlaceCategory } from "../data/koreaPlaces"
 import {
   applySuggestions,
@@ -51,6 +51,8 @@ export interface TripsRouterDeps {
   fetchWeather?: WeatherFetcher
   /** How long /generate waits before switching to a heartbeat body (tests shorten it). */
   generateGraceMs?: number
+  /** Runs after the auth gate, so it can key on the signed-in user. */
+  rateLimit?: MiddlewareHandler
 }
 
 const MAX_SUMMARY_POINTS = 48
@@ -245,6 +247,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     c.set("userId" as never, userId as never)
     await next()
   })
+  if (deps.rateLimit) trips.use("*", deps.rateLimit)
 
   const userIdOf = (c: Context) => c.get("userId" as never) as string
 

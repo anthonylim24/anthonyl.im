@@ -41,8 +41,10 @@ carry structured locations — never prose only.
 
 **Permissions:** owner > editor/viewer collaborators > `sharedWithAllUsers`
 (legacy Korea behavior: all signed-in users can view/edit). Only owners delete,
-create or revoke invite links, and change collaborators; collaborators can leave. Legacy `/api/korea/*` routes still serve snapshot
-data (backward compat). Frontend `/korea*` redirects to `/trips/korea-2026`.
+create or revoke invite links, and change collaborators; collaborators can leave. Of the legacy `/api/korea/*` API only `POST /api/korea/chat` remains
+(the concierge fallback; rate limited per address, and public because the client sends no bearer):
+the snapshot, day, reservation, dong and entity endpoints and `/api/entity/about` are gone, since
+they served reservation details to anyone. Frontend `/korea*` redirects to `/trips/korea-2026`.
 The snapshot is data, and the trips system is the path for all new
 destination work. Do not add new destination-specific routes or logic.
 

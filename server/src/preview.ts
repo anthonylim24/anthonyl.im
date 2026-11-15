@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { homedir } from "node:os";
-import { extname, join, resolve, sep } from "node:path";
+import { extname, join, relative, resolve, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
 /** URL prefix every remote PR preview is published under. */
@@ -126,6 +126,22 @@ export function resolvePreviewPath(
   const target = resolve(prRoot, rest);
   if (target !== prRoot && !target.startsWith(prRoot + sep)) return null;
   return target;
+}
+
+/**
+ * Files `deploy/publish-preview.sh` writes beside the build for the API
+ * sidecar: its log (request bodies, stack traces), pid, port, and a copy of
+ * the server source. None of them is part of the site.
+ */
+const SIDECAR_FILES = new Set(["api.log", "api.pid", "api.json"]);
+const SIDECAR_SOURCE_DIR = "api-src";
+
+/** True for a path (relative to the PR directory) that must never be served. */
+export function isPrivatePreviewPath(relPath: string): boolean {
+  const parts = relPath.split(sep).filter(Boolean).map((part) => part.toLowerCase());
+  if (parts.some((part) => part.startsWith("."))) return true;
+  if (parts[0] === SIDECAR_SOURCE_DIR) return true;
+  return parts.length === 1 && SIDECAR_FILES.has(parts[0]!);
 }
 
 export function shouldSpaFallback(rest: string): boolean {
@@ -266,12 +282,13 @@ export function stampPreviewHtml(html: string, meta: PreviewMeta): string {
 
   let next = without;
   if (next.includes("</head>")) {
-    next = next.replace("</head>", `${headBlock}\n  </head>`);
+    // A replacer function, so `$&` / `$'` in the meta are inserted literally.
+    next = next.replace("</head>", () => `${headBlock}\n  </head>`);
   } else {
     next = headBlock + next;
   }
   if (next.includes("</body>")) {
-    next = next.replace("</body>", `${bodyBlock}\n  </body>`);
+    next = next.replace("</body>", () => `${bodyBlock}\n  </body>`);
   } else {
     next += bodyBlock;
   }
@@ -436,6 +453,12 @@ async function servePreviewFile(c: Context, root: string, siteUrl: string) {
   const target = resolvePreviewPath(root, parsed.pr, rest);
   if (!target) {
     return c.json({ error: "invalid_path" }, 400);
+  }
+  // Checked on the resolved path, so `assets/../api.log` is caught too, and
+  // before the SPA fallback, so a refused file is a 404 rather than the shell.
+  if (isPrivatePreviewPath(relative(prRoot, target))) {
+    for (const [key, value] of Object.entries(previewHeaders())) c.header(key, value);
+    return c.json({ error: "not_found" }, 404);
   }
 
   let filePath = target;

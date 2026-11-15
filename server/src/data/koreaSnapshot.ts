@@ -1,7 +1,7 @@
 // Static snapshot of the Seoul + Busan itinerary from the source Notion
-// workspace. Kept in code so the /korea route renders instantly without a
-// Notion API token; the route will prefer live Notion data when NOTION_TOKEN
-// is set, falling back to this snapshot.
+// workspace. It seeds the `korea-2026` trip (trips/koreaTrip.ts) and briefs
+// the Korea concierge (routes/koreaChat.ts). Nothing serves it directly: it
+// holds reservation details, and the old public /api/korea endpoints are gone.
 //
 // Generated from the May 17, 2026 (T-9) state of the Notion pages.
 
