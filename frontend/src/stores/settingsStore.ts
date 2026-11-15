@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/lib/constants'
-import { createBrowserJSONStorage } from '@/lib/persistStorage'
+import { createBrowserJSONStorage, followOtherTabs } from '@/lib/persistStorage'
 import { isSoundscapeId, type SoundscapeId } from '@/breathflow/engine/soundscape'
 
 export interface SettingsState {
@@ -13,6 +13,8 @@ export interface SettingsState {
   soundscape: SoundscapeId
   /** Speak each phase aloud. */
   voiceGuidance: boolean
+  /** When a preference was last changed here (ms since epoch), 0 for never. The newer copy wins a sync. */
+  updatedAt: number
 
   setTheme: (theme: 'dark' | 'light') => void
   setSoundEnabled: (enabled: boolean) => void
@@ -25,8 +27,13 @@ export interface SettingsState {
 
 export type PersistedSettingsState = Pick<
   SettingsState,
-  'theme' | 'soundEnabled' | 'soundVolume' | 'hapticsEnabled' | 'soundscape' | 'voiceGuidance'
+  'theme' | 'soundEnabled' | 'soundVolume' | 'hapticsEnabled' | 'soundscape' | 'voiceGuidance' | 'updatedAt'
 >
+
+/** The preferences themselves, without bookkeeping. */
+export const SETTINGS_PREFERENCE_KEYS = [
+  'theme', 'soundEnabled', 'soundVolume', 'hapticsEnabled', 'soundscape', 'voiceGuidance',
+] as const satisfies readonly (keyof PersistedSettingsState)[]
 
 export const DEFAULT_SETTINGS_STATE: PersistedSettingsState = {
   theme: 'light',
@@ -35,6 +42,7 @@ export const DEFAULT_SETTINGS_STATE: PersistedSettingsState = {
   hapticsEnabled: true,
   soundscape: 'off',
   voiceGuidance: false,
+  updatedAt: 0,
 }
 
 export const SETTINGS_STORAGE_VERSION = 1
@@ -71,6 +79,9 @@ export function migratePersistedSettingsState(persistedState: unknown): Persiste
     hapticsEnabled: readBoolean(persistedState.hapticsEnabled, DEFAULT_SETTINGS_STATE.hapticsEnabled),
     soundscape: isSoundscapeId(persistedState.soundscape) ? persistedState.soundscape : DEFAULT_SETTINGS_STATE.soundscape,
     voiceGuidance: readBoolean(persistedState.voiceGuidance, DEFAULT_SETTINGS_STATE.voiceGuidance),
+    updatedAt: typeof persistedState.updatedAt === 'number' && Number.isFinite(persistedState.updatedAt) && persistedState.updatedAt > 0
+      ? persistedState.updatedAt
+      : 0,
   }
 }
 
@@ -83,7 +94,12 @@ export function pickPersistedSettings(state: PersistedSettingsState): PersistedS
     hapticsEnabled: state.hapticsEnabled,
     soundscape: state.soundscape,
     voiceGuidance: state.voiceGuidance,
+    updatedAt: state.updatedAt,
   }
+}
+
+export function hasNonDefaultSettings(settings: PersistedSettingsState): boolean {
+  return SETTINGS_PREFERENCE_KEYS.some((key) => settings[key] !== DEFAULT_SETTINGS_STATE[key])
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -92,27 +108,27 @@ export const useSettingsStore = create<SettingsState>()(
       ...DEFAULT_SETTINGS_STATE,
 
       setTheme: (theme) => {
-        set({ theme })
+        set({ theme, updatedAt: Date.now() })
       },
 
       setSoundEnabled: (enabled) => {
-        set({ soundEnabled: enabled })
+        set({ soundEnabled: enabled, updatedAt: Date.now() })
       },
 
       setSoundVolume: (volume) => {
-        set({ soundVolume: Math.max(0, Math.min(1, volume)) })
+        set({ soundVolume: Math.max(0, Math.min(1, volume)), updatedAt: Date.now() })
       },
 
       setHapticsEnabled: (enabled) => {
-        set({ hapticsEnabled: enabled })
+        set({ hapticsEnabled: enabled, updatedAt: Date.now() })
       },
 
       setSoundscape: (soundscape) => {
-        set({ soundscape })
+        set({ soundscape, updatedAt: Date.now() })
       },
 
       setVoiceGuidance: (enabled) => {
-        set({ voiceGuidance: enabled })
+        set({ voiceGuidance: enabled, updatedAt: Date.now() })
       },
 
       resetSettings: () => {
@@ -125,6 +141,11 @@ export const useSettingsStore = create<SettingsState>()(
       version: SETTINGS_STORAGE_VERSION,
       partialize: (state): PersistedSettingsState => pickPersistedSettings(state),
       migrate: (persistedState) => migratePersistedSettingsState(persistedState),
+      // zustand calls `migrate` only on a version change; same-version data is cleaned here.
+      merge: (persisted, current) =>
+        persisted === undefined ? current : { ...current, ...migratePersistedSettingsState(persisted) },
     },
   ),
 )
+
+followOtherTabs(useSettingsStore, STORAGE_KEYS.SETTINGS)

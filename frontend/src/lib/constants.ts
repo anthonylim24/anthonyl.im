@@ -38,6 +38,8 @@ export const STORAGE_KEYS = {
   GAMIFICATION: 'breathwork-gamification',
   SETTINGS: 'breathwork-settings',
   PRACTICE: 'breathwork-practice',
+  /** Cloud-sync bookkeeping (`lib/cloudSync/meta.ts`); deliberately not exported with the data. */
+  SYNC_META: 'breathwork-sync',
 }
 
 export const BREATHFLOW_STORAGE_KEYS = [

@@ -1,5 +1,5 @@
 import type { TechniqueId } from '@/lib/constants'
-import { addLocalDays, formatLocalDateKey, getLocalDateKey, getLocalDayStart, getLocalWeekStartKey } from '@/lib/localDates'
+import { addLocalDays, formatLocalDateKey, getSessionDayKey, getLocalDayStart, getLocalWeekStartKey } from '@/lib/localDates'
 import { getMoodDelta } from '@/lib/mood'
 import type { CompletedSession } from '@/stores/historyStore'
 
@@ -118,7 +118,7 @@ export function getLifetime(sessions: readonly CompletedSession[]): Lifetime {
   let seconds = 0
   for (const session of sessions) {
     seconds += session.durationSeconds
-    const key = getLocalDateKey(session.date)
+    const key = getSessionDayKey(session)
     if (key) dayKeys.add(key)
   }
   let longestStreak = 0
@@ -145,7 +145,7 @@ export function getLastSevenDays(sessions: readonly CompletedSession[], now: Dat
   const today = getLocalDayStart(now)
   const seconds = new Map<string, number>()
   for (const session of sessions) {
-    const key = getLocalDateKey(session.date)
+    const key = getSessionDayKey(session)
     if (key) seconds.set(key, (seconds.get(key) ?? 0) + session.durationSeconds)
   }
   const days: WeekDay[] = []

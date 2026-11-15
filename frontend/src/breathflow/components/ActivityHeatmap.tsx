@@ -1,6 +1,6 @@
 import { useMemo, type CSSProperties } from 'react'
 import { sx } from '@/styles/merge'
-import { addLocalDays, formatLocalDateKey, getLocalDateKey, getLocalDayStart } from '@/lib/localDates'
+import { addLocalDays, formatLocalDateKey, getSessionDayKey, getLocalDayStart } from '@/lib/localDates'
 import type { TechniqueId } from '@/lib/constants'
 import type { CompletedSession } from '@/stores/historyStore'
 import { techniquePigment } from '../pigments'
@@ -29,7 +29,7 @@ export function ActivityHeatmap({ sessions, weeks = 12 }: ActivityHeatmapProps) 
   const { rows, monthLabels } = useMemo(() => {
     const days = new Map<string, Map<TechniqueId, number>>()
     for (const session of sessions) {
-      const key = getLocalDateKey(session.date)
+      const key = getSessionDayKey(session)
       if (!key) continue
       const day = days.get(key) ?? new Map<TechniqueId, number>()
       day.set(session.techniqueId, (day.get(session.techniqueId) ?? 0) + 1)
