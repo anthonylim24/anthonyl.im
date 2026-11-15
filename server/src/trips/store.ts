@@ -11,6 +11,10 @@ import type { EnhancementRun, Trip } from "./types"
 export interface TripStore {
   list(): Promise<Trip[]>
   get(id: string): Promise<Trip | null>
+  /** The trip whose permalink is `slug`, without loading every trip. */
+  getBySlug(slug: string): Promise<Trip | null>
+  /** The trip holding an invite link with this token, if any. */
+  findByInviteToken(token: string): Promise<Trip | null>
   create(trip: Trip): Promise<void>
   update(trip: Trip): Promise<void>
   /** Persist `trip` only if the stored row still has `expectedUpdatedAt`. */
@@ -30,6 +34,14 @@ export class MemoryTripStore implements TripStore {
   }
   async get(id: string) {
     return this.trips.get(id) ?? null
+  }
+  async getBySlug(slug: string) {
+    for (const trip of this.trips.values()) if (trip.slug === slug) return trip
+    return null
+  }
+  async findByInviteToken(token: string) {
+    for (const trip of this.trips.values()) if (trip.invites?.some((i) => i.token === token)) return trip
+    return null
   }
   async create(trip: Trip) {
     this.trips.set(trip.id, structuredClone(trip))
@@ -83,6 +95,20 @@ export class SupabaseTripStore implements TripStore {
   }
   async get(id: string) {
     const rows = await this.sb.select<TripRow>("trips", { select: "doc", eq: { id } })
+    return rows[0]?.doc ?? null
+  }
+  async getBySlug(slug: string) {
+    // A JSON path filter on the document: no column or index needed at this size.
+    const rows = await this.sb.select<TripRow>("trips", { select: "doc", eq: { "doc->>slug": slug }, limit: 1 })
+    return rows[0]?.doc ?? null
+  }
+  async findByInviteToken(token: string) {
+    // jsonb containment: some element of doc.invites has this token.
+    const rows = await this.sb.select<TripRow>("trips", {
+      select: "doc",
+      filters: { "doc->invites": `cs.${JSON.stringify([{ token }])}` },
+      limit: 1,
+    })
     return rows[0]?.doc ?? null
   }
   async create(trip: Trip) {

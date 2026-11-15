@@ -1,11 +1,11 @@
-import type { IgJob, IgJobStep } from './types';
+import { transition, type IgJob, type IgJobStatus, type IgJobStep } from './types';
 import type { SupabaseClient } from './supabase';
 import { normalizeInstagramUrl } from './normalizeUrl';
 
 export interface EnqueueResult {
   jobId: number;
   dedupeKey: string;
-  status: IgJob['status'];
+  status: IgJobStatus;
   reused: boolean;
   shared_from_other_user?: number;
 }
@@ -13,7 +13,9 @@ export interface EnqueueResult {
 export interface Queue {
   enqueue(userId: string, url: string, opts?: { skipVideo?: boolean }): Promise<EnqueueResult>;
   claim(workerId: string): Promise<IgJob | null>;
-  complete(jobId: number, postId: number): Promise<void>;
+  /** Mark a running job done. A job that is no longer running (reaped,
+   *  retried) is left alone: a late worker must not finish someone else's run. */
+  complete(job: IgJob, postId: number): Promise<void>;
   fail(jobId: number, error: Error, retryable: boolean): Promise<void>;
   reapStale(thresholdSec: number): Promise<number>;
   setStep(jobId: number, step: IgJobStep): Promise<void>;
@@ -28,45 +30,79 @@ export interface QueueDeps {
   normalize?: (url: string) => string;
 }
 
+/** Status as stored. 'failed' is a legacy enum value nothing writes any more. */
+type StoredStatus = IgJobStatus | 'failed';
+
 interface JobRow {
   id: number; user_id: string; url: string; dedupe_key: string;
-  status: IgJob['status']; step: IgJobStep; step_started_at: string | null;
+  status: StoredStatus; step: IgJobStep; step_started_at: string | null;
   attempts: number; max_attempts: number;
   last_error: string | null; scheduled_for: string;
   locked_at: string | null; locked_by: string | null; post_id: number | null;
   skip_video: boolean;
 }
 
-function fromRow(r: JobRow): IgJob {
-  return {
+/** Read a row into the job union. Rows the union cannot describe (a legacy
+ *  'failed', a done row without a post) are read as the nearest real state. */
+export function fromRow(r: JobRow): IgJob {
+  const fields = {
     id: r.id, userId: r.user_id, url: r.url, dedupeKey: r.dedupe_key,
-    status: r.status, step: r.step, stepStartedAt: r.step_started_at,
+    step: r.step, stepStartedAt: r.step_started_at,
     attempts: r.attempts, maxAttempts: r.max_attempts,
     lastError: r.last_error, scheduledFor: r.scheduled_for,
-    lockedAt: r.locked_at, lockedBy: r.locked_by, postId: r.post_id,
+    postId: r.post_id,
     skipVideo: r.skip_video ?? false,
   };
+  const unlocked = { lockedAt: null, lockedBy: null } as const;
+  switch (r.status) {
+    case 'running':
+      return { ...fields, status: 'running', lockedAt: r.locked_at ?? '', lockedBy: r.locked_by ?? '' };
+    case 'done':
+      return r.post_id != null
+        ? { ...fields, ...unlocked, status: 'done', postId: r.post_id }
+        : { ...fields, ...unlocked, status: 'dead' };
+    case 'pending':
+      return { ...fields, ...unlocked, status: 'pending' };
+    case 'dead':
+    case 'failed':
+      return { ...fields, ...unlocked, status: 'dead' };
+  }
 }
 
 export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
   const normalize = deps.normalize ?? normalizeInstagramUrl;
 
+  async function shareFromOtherUser(userId: string, dedupeKey: string): Promise<number> {
+    const result = await sb.rpc<number>('ig_share_places_from_other_user', {
+      p_user_id: userId, p_dedupe_key: dedupeKey,
+    });
+    return typeof result === 'number' ? result : 0;
+  }
+
   return {
     async enqueue(userId, url, opts = {}) {
       const dedupeKey = normalize(url);
-      const rows = await sb.rpc<Array<{ id: number; status: IgJob['status']; inserted: boolean }>>(
+      const rows = await sb.rpc<Array<{ id: number; status: StoredStatus; inserted: boolean }>>(
         'ig_enqueue_job', { p_user_id: userId, p_url: url, p_dedupe_key: dedupeKey, p_skip_video: opts.skipVideo ?? false });
       const row = rows[0];
       const reused = !row.inserted;
-      const result: EnqueueResult = { jobId: row.id, dedupeKey, status: row.status, reused };
+      const status: IgJobStatus = row.status === 'failed' ? 'dead' : row.status;
+      const result: EnqueueResult = { jobId: row.id, dedupeKey, status, reused };
 
       // For a brand-new job (not a re-use), check if another user already
-      // has done this URL and copy their places instantly.
+      // has done this URL and copy their places instantly. Sharing is a
+      // shortcut: when it fails, the job simply runs the normal pipeline,
+      // and the rest of the caller's batch carries on.
       if (!reused) {
-        const shared = await this.shareFromOtherUser(userId, dedupeKey);
-        if (shared > 0) {
-          result.status = 'done';
-          result.shared_from_other_user = shared;
+        try {
+          const shared = await shareFromOtherUser(userId, dedupeKey);
+          if (shared > 0) {
+            result.status = 'done';
+            result.shared_from_other_user = shared;
+          }
+        } catch (err) {
+          console.warn(`[ig-queue] share failed for job ${row.id}; running the pipeline instead:`,
+            err instanceof Error ? err.message : err);
         }
       }
 
@@ -78,11 +114,16 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
       return rows.length ? fromRow(rows[0]) : null;
     },
 
-    async complete(jobId, postId) {
+    async complete(job, postId) {
+      const done = transition(job, { type: 'complete', postId });
+      if (!done) {
+        console.warn(`[ig-queue] complete ignored for job ${job.id} in state ${job.status}`);
+        return;
+      }
       await sb.update('instagram_jobs',
-        { status: 'done', step: 'done', post_id: postId, locked_at: null, locked_by: null,
-          last_error: null, updated_at: new Date().toISOString() },
-        { id: jobId });
+        { status: done.status, step: done.step, post_id: done.postId, locked_at: done.lockedAt,
+          locked_by: done.lockedBy, last_error: done.lastError, updated_at: new Date().toISOString() },
+        { id: job.id, status: 'running' });
     },
 
     async setStep(jobId, step) {
@@ -129,11 +170,6 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
       return Boolean(result);
     },
 
-    async shareFromOtherUser(userId, dedupeKey) {
-      const result = await sb.rpc<number>('ig_share_places_from_other_user', {
-        p_user_id: userId, p_dedupe_key: dedupeKey,
-      });
-      return typeof result === 'number' ? result : 0;
-    },
+    shareFromOtherUser,
   };
 }

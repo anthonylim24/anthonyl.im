@@ -74,7 +74,10 @@ export interface GeocodeOpts {
   log?: GeocodeLog;
 }
 
-export type Geocoder = (place: VotedPlace, tag: LocationTag | undefined, opts?: GeocodeOpts) => Promise<EnrichedPlace>;
+/** A geocoded place before busyness is looked up (process.ts adds it). */
+export type GeocodedPlace = Omit<EnrichedPlace, 'busyness' | 'busyness_source' | 'busyness_confidence'>;
+
+export type Geocoder = (place: VotedPlace, tag: LocationTag | undefined, opts?: GeocodeOpts) => Promise<GeocodedPlace>;
 
 export function withinKoreaBbox(lat: number, lng: number): boolean {
   return lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;

@@ -41,7 +41,7 @@ describe('process', () => {
     expect(fetchPost).toHaveBeenCalled();
     expect(upsertPost).toHaveBeenCalled();
     expect(savePlaces).toHaveBeenCalledWith(99, 'u', [enriched]);
-    expect(complete).toHaveBeenCalledWith(1, 99);
+    expect(complete).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), 99);
     expect(fail).not.toHaveBeenCalled();
     expect(stepLog).toEqual(['fetching', 'bundling', 'extracting', 'geocoding', 'saving']);
     expect(log).toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe('process', () => {
     expect(extract).toHaveBeenCalledTimes(2);
     // Final result: the comment-path voted place was saved
     expect(savePlaces).toHaveBeenCalledWith(99, 'u', [enriched]);
-    expect(complete).toHaveBeenCalledWith(1, 99);
+    expect(complete).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), 99);
     expect(fail).not.toHaveBeenCalled();
   });
 
@@ -314,5 +314,55 @@ describe('process', () => {
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd', skipVideo: false } as any);
     expect(geminiPrimaryExtract).toHaveBeenCalledTimes(1);
     expect(extract).not.toHaveBeenCalled();
+  });
+});
+
+describe('process: deadlines and failures', () => {
+  function deps(overrides: Record<string, unknown> = {}) {
+    return {
+      fetchPost: mock(async () => payload),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract: mock(async () => [voted]),
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+      ...overrides,
+    };
+  }
+
+  test('a job past its deadline is failed (retryable) at once and never completes', async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    const d = deps({ extract: mock(async () => { await hold; return [voted]; }) });
+    const proc = createProcessor(d as any);
+    const ctrl = new AbortController();
+    const running = proc({ id: 5, userId: 'u', url: 'x', dedupeKey: 'd' } as any, ctrl.signal);
+    await Bun.sleep(5);
+    ctrl.abort(new Error('job timed out after 1s'));
+    await running;
+    expect(d.fail).toHaveBeenCalledTimes(1);
+    const [id, err, retryable] = (d.fail as any).mock.calls[0];
+    expect(id).toBe(5);
+    expect(err.message).toMatch(/timed out/);
+    expect(retryable).toBe(true);
+    // The pipeline wakes up later and must stop instead of writing.
+    release();
+    await Bun.sleep(5);
+    expect(d.savePlaces).not.toHaveBeenCalled();
+    expect(d.complete).not.toHaveBeenCalled();
+  });
+
+  test('a failing fail() is logged, not thrown', async () => {
+    const d = deps({
+      fetchPost: mock(async () => { throw new Error('fetch down'); }),
+      fail: mock(async () => { throw new Error('db down'); }),
+    });
+    const proc = createProcessor(d as any);
+    await proc({ id: 6, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
+    expect(d.fail).toHaveBeenCalledTimes(1);
   });
 });

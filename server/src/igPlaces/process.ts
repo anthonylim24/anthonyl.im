@@ -1,6 +1,8 @@
 // server/src/igPlaces/process.ts
 import type { IgJob, IgJobStep, PostPayload, ExtractionBundle, VotedPlace, EnrichedPlace, LocationTag } from './types';
-import { NonRetryableError } from './types';
+import { NonRetryableError, RetryableError } from './types';
+import type { BundleOpts } from './buildBundle';
+import type { Geocoder } from './geocode';
 import type { Queue } from './queue';
 import type { IgComment } from './fetchComments';
 import { renderCommentsForBundle } from './fetchComments';
@@ -9,11 +11,11 @@ import type { BusynessFetcher } from './fetchBusyness';
 export interface ProcessorDeps {
   fetchPost:   (url: string, cached: PostPayload | null) => Promise<PostPayload>;
   upsertPost:  (dedupeKey: string, url: string, p: PostPayload, transcript: string | undefined, ocr: string | undefined) => Promise<number>;
-  buildBundle: (p: PostPayload, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<ExtractionBundle>;
+  buildBundle: (p: PostPayload, opts?: BundleOpts) => Promise<ExtractionBundle>;
   extract:     (b: ExtractionBundle, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<VotedPlace[]>;
-  geocode:     (p: VotedPlace, tag: LocationTag | undefined, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<EnrichedPlace>;
+  geocode:     Geocoder;
   savePlaces:  (postId: number, userId: string, places: EnrichedPlace[]) => Promise<void>;
-  complete:    (jobId: number, postId: number) => Promise<void>;
+  complete:    (job: IgJob, postId: number) => Promise<void>;
   fail:        (jobId: number, error: Error, retryable: boolean) => Promise<void>;
   setStep:     (jobId: number, step: IgJobStep) => Promise<void>;
   log:         Queue['log'];
@@ -45,11 +47,41 @@ export interface ProcessorDeps {
 }
 
 export function createProcessor(deps: ProcessorDeps) {
-  return async function process(job: IgJob): Promise<void> {
+  return async function process(job: IgJob, signal?: AbortSignal): Promise<void> {
     let lastStep: IgJobStep = 'queued';
+    // Once the worker's deadline passes, the job is failed right away and the
+    // pipeline stops at its next step instead of writing to a job it no
+    // longer owns.
+    const step = async (next: IgJobStep) => {
+      signal?.throwIfAborted();
+      lastStep = next;
+      await deps.setStep(job.id, next);
+    };
+    const aborted = new Promise<never>((_, reject) => {
+      if (!signal) return;
+      const onAbort = () => reject(new RetryableError(signal.reason instanceof Error ? signal.reason.message : 'job timed out'));
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    });
+    aborted.catch(() => {});
     try {
-      lastStep = 'fetching';
-      await deps.setStep(job.id, 'fetching');
+      await Promise.race([pipeline(), aborted]);
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      const retryable = !(err instanceof NonRetryableError);
+      console.warn(`[ig-worker] fail id=${job.id} retryable=${retryable} err=${e.message}`);
+      await deps.log(job.id, lastStep, 'error', e.message).catch(() => {});
+      try {
+        await deps.fail(job.id, e, retryable);
+      } catch (failErr) {
+        // The row stays `running`; the stale reaper re-queues (or buries) it.
+        console.warn(`[ig-worker] could not record failure for id=${job.id}:`,
+          failErr instanceof Error ? failErr.message : failErr);
+      }
+    }
+
+    async function pipeline(): Promise<void> {
+      await step('fetching');
       await deps.log(job.id, 'fetching', 'info', 'starting fetch').catch(() => {});
       // Short-circuit when we've already scraped this URL: the
       // instagram_posts table is keyed on dedupe_key and already holds
@@ -65,8 +97,7 @@ export function createProcessor(deps: ProcessorDeps) {
         (payload.locationTag ? `; location_tag="${payload.locationTag.name}"` : ''))
         .catch(() => {});
 
-      lastStep = 'bundling';
-      await deps.setStep(job.id, 'bundling');
+      await step('bundling');
       await deps.log(job.id, 'bundling', 'info', 'building extraction bundle').catch(() => {});
       const bundle = await deps.buildBundle(payload, {
         log: (level, message) => deps.log(job.id, 'bundling', level, message).catch(() => {}),
@@ -82,8 +113,7 @@ export function createProcessor(deps: ProcessorDeps) {
       // Supabase round-trip (~200-500ms) with the extract LLM call.
       const postIdPromise = deps.upsertPost(job.dedupeKey, job.url, payload, bundle.transcript, bundle.ocr);
 
-      lastStep = 'extracting';
-      await deps.setStep(job.id, 'extracting');
+      await step('extracting');
 
       // If Gemini's primary video analyzer already produced places, skip the
       // Groq 3-vote extractor — the analyzer's output is what we'd ask the
@@ -205,8 +235,7 @@ export function createProcessor(deps: ProcessorDeps) {
           .catch(() => {});
       }
 
-      lastStep = 'geocoding';
-      await deps.setStep(job.id, 'geocoding');
+      await step('geocoding');
       await deps.log(job.id, 'geocoding', 'info', 'querying Google Places + Kakao in parallel').catch(() => {});
       const geocoded = await Promise.all(voted.map(v => deps.geocode(v, payload.locationTag, {
         log: (level, message) => deps.log(job.id, 'geocoding', level, message).catch(() => {}),
@@ -222,7 +251,7 @@ export function createProcessor(deps: ProcessorDeps) {
 
       // Best-effort busyness enrichment — runs in parallel across places.
       // Failures are logged but never block saving.
-      let enriched = geocoded;
+      let enriched: EnrichedPlace[];
       if (deps.fetchBusyness && geocoded.length > 0) {
         await deps.log(job.id, 'geocoding', 'info', 'fetching busyness data in parallel').catch(() => {});
         const busynessResults = await Promise.allSettled(
@@ -253,24 +282,19 @@ export function createProcessor(deps: ProcessorDeps) {
         }));
       }
 
-      lastStep = 'saving';
-      await deps.setStep(job.id, 'saving');
+      await step('saving');
       // postIdPromise was kicked off in parallel with extraction — await
       // it here. If the extract phase took longer than the upsert (the
       // common case), this resolves instantly.
       const postId = await postIdPromise;
       await deps.log(job.id, 'saving', 'info', `saving ${enriched.length} place(s) to post #${postId}`).catch(() => {});
+      signal?.throwIfAborted();
       await deps.savePlaces(postId, job.userId, enriched);
 
-      await deps.complete(job.id, postId);
+      signal?.throwIfAborted();
+      await deps.complete(job, postId);
       await deps.log(job.id, 'done', 'info', 'done').catch(() => {});
       console.log(`[ig-worker] complete id=${job.id} places=${enriched.length} source=${payload.source}`);
-    } catch (err) {
-      const e = err instanceof Error ? err : new Error(String(err));
-      const retryable = !(err instanceof NonRetryableError);
-      console.warn(`[ig-worker] fail id=${job.id} retryable=${retryable} err=${e.message}`);
-      await deps.log(job.id, lastStep, 'error', e.message).catch(() => {});
-      await deps.fail(job.id, e, retryable);
     }
   };
 }

@@ -52,6 +52,11 @@ export class LRU<K, V> {
     this.store.delete(key);
   }
 
+  /** Drop every entry, for a change that touches keys the caller cannot list. */
+  clear(): void {
+    this.store.clear();
+  }
+
   /** For tests / observability. */
   get size(): number {
     return this.store.size;

@@ -144,7 +144,7 @@ export function zonedToUtc(date: string, time: string, timeZone: string): Date |
   const guess = new Date(`${date}T${time}:00Z`)
   if (Number.isNaN(guess.getTime())) return null
   try {
-    const parts = new Intl.DateTimeFormat("en-CA", {
+    const format = new Intl.DateTimeFormat("en-CA", {
       timeZone,
       year: "numeric",
       month: "2-digit",
@@ -152,10 +152,19 @@ export function zonedToUtc(date: string, time: string, timeZone: string): Date |
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
-    }).formatToParts(guess)
-    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00"
-    const shown = Date.parse(`${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:00Z`)
-    return new Date(guess.getTime() - (shown - guess.getTime()))
+    })
+    /** The zone's UTC offset (ms) in force at `instant`. */
+    const offsetAt = (instant: number) => {
+      const parts = format.formatToParts(new Date(instant))
+      const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00"
+      return Date.parse(`${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:00Z`) - instant
+    }
+    // The first pass uses the offset at the naive instant, which is wrong
+    // when a DST change falls between it and the real one (a morning after
+    // the spring change in New York came out an hour late). The second pass
+    // re-reads the offset at the first answer, which settles it.
+    const first = guess.getTime() - offsetAt(guess.getTime())
+    return new Date(guess.getTime() - offsetAt(first))
   } catch {
     return guess
   }

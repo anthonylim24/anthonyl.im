@@ -4,11 +4,11 @@ import {
   fetchGeminiWithTransientRetry,
   GEMINI_TOOLS_MAPS,
   GEMINI_TOOLS_SEARCH,
-  GEMINI_TOOLS_SEARCH_AND_MAPS,
   mapsRetrievalConfig,
   toolsIncludeMaps,
   type GeminiToolList,
 } from "../geminiTools"
+import { memoLRU } from "../igPlaces/lru"
 import { tripLatLngHint } from "./latLngHint"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
@@ -24,12 +24,15 @@ import {
   aiItinerarySchema,
   aiSuggestionSchema,
   DEFAULT_ITINERARY_PROMPT,
+  finishRun,
   newId,
   nowIso,
   tripDates,
+  type CompleteEnhancementRun,
   type EnhancementOutcome,
-  type EnhancementRun,
+  type EnhancementRunBase,
   type EnhancementSuggestion,
+  type FailedEnhancementRun,
   type ItineraryItem,
   type Trip,
   type TripDay,
@@ -73,7 +76,6 @@ const GEMINI_MODES = ["maps", "search", "json"] as const
 type GeminiMode = (typeof GEMINI_MODES)[number]
 
 function toolsForGeminiMode(mode: GeminiMode): GeminiToolList | undefined {
-  if (mode === "search+maps") return GEMINI_TOOLS_SEARCH_AND_MAPS
   if (mode === "maps") return GEMINI_TOOLS_MAPS
   if (mode === "search") return GEMINI_TOOLS_SEARCH
   return undefined
@@ -273,8 +275,20 @@ export function createTripsLlm(args: {
   return gemini && groq ? withLlmFallback(gemini, groq) : pickTripsLlm(gemini, groq)
 }
 
+/** Geocoding a venue name is deterministic over days, and a draft or review
+ *  asks for the same names again and again: remember answers in process.
+ *  A miss is remembered briefly so a flaky lookup is retried soon. */
+function cachedGeocoder(lookup: Geocoder): Geocoder {
+  return memoLRU(lookup, {
+    keyFn: (query) => query.trim().toLowerCase(),
+    max: 2000,
+    ttlMs: 7 * 24 * 60 * 60_000,
+    nullTtlMs: 5 * 60_000,
+  })
+}
+
 export function createGoogleGeocoder(apiKey: string): Geocoder {
-  return async (query) => {
+  return cachedGeocoder(async (query) => {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`
     const res = await fetch(url, { signal: AbortSignal.timeout(8_000) })
     if (!res.ok) return null
@@ -289,14 +303,14 @@ export function createGoogleGeocoder(apiKey: string): Geocoder {
       address: first.formatted_address,
       placeId: first.place_id,
     }
-  }
+  })
 }
 
 /** Keyless fallback geocoder (Photon / OpenStreetMap). Same contract as the
  *  Google geocoder: null on a miss. Never throws — a failed lookup just
  *  leaves the place without coordinates. */
 export function createPhotonGeocoder(fetchImpl: typeof fetch = fetch): Geocoder {
-  return async (query) => {
+  return cachedGeocoder(async (query) => {
     const q = query.trim()
     if (!q) return null
     try {
@@ -326,7 +340,7 @@ export function createPhotonGeocoder(fetchImpl: typeof fetch = fetch): Geocoder 
     } catch {
       return null
     }
-  }
+  })
 }
 
 /** Open-Meteo daily forecast — free, no API key. Returns [] outside the
@@ -942,26 +956,26 @@ export async function enhanceTrip(args: {
   llm: LlmCall
   fetchWeather?: WeatherFetcher
   geocode?: Geocoder | null
-}): Promise<EnhancementRun> {
+}): Promise<CompleteEnhancementRun | FailedEnhancementRun> {
   const { trip, scope, dayId, llm } = args
   const days = scope === "day" ? trip.days.filter((d) => d.id === dayId) : trip.days
-  const run: EnhancementRun = {
+  // Filled in as the review goes; `finishRun` stamps the end state once.
+  const run: EnhancementRunBase = {
     id: newId("run"),
     tripId: trip.id,
     scope,
     dayId: scope === "day" ? dayId : undefined,
-    status: "complete",
     suggestions: [],
     appliedSuggestionIds: [],
     createdAt: nowIso(),
   }
 
   if (days.length === 0) {
-    run.status = "error"
-    run.error = "day not found"
-    run.outcome = "no_adds_possible"
-    run.outcomeReason = "That day is not on this trip, so nothing was added."
-    return run
+    return finishRun(run, {
+      status: "error",
+      error: "day not found",
+      outcomeReason: "That day is not on this trip, so nothing was added.",
+    })
   }
 
   const legs = computeTravelLegs(days)
@@ -1139,15 +1153,10 @@ export async function enhanceTrip(args: {
       // Route auto-applies these next; stamp the outcome the traveler will see.
       appliedAddCount: addableCount,
     })
-    run.outcome = resolved.outcome
-    run.outcomeReason = resolved.outcomeReason
+    return finishRun(run, { status: "complete", ...resolved })
   } catch (err) {
-    run.status = "error"
-    run.error = travelerFacingLlmError(err)
-    run.outcome = "no_adds_possible"
-    run.outcomeReason = "The AI review failed before it could add places."
+    return finishRun(run, { status: "error", error: travelerFacingLlmError(err) })
   }
-  return run
 }
 
 /** Adds safe to land on the itinerary: real day + a mapped place (or a titled note). */
@@ -1164,7 +1173,7 @@ export function isAddableSuggestion(s: EnhancementSuggestion): boolean {
   return Boolean(s.proposedItem.title.trim())
 }
 
-export function addableSuggestionIds(run: EnhancementRun): string[] {
+export function addableSuggestionIds(run: Pick<EnhancementRunBase, "suggestions">): string[] {
   return run.suggestions.filter(isAddableSuggestion).map((s) => s.id)
 }
 
@@ -1211,40 +1220,36 @@ export function resolveEnhancementOutcome(args: {
   }
 }
 
-/** Apply every valid add suggestion and stamp the run with the final outcome. */
+/** Apply every valid add suggestion and stamp the run with the final outcome.
+ *  `run.outcome` / `outcomeReason` are read as the model's view, then
+ *  re-resolved against what actually landed. */
 export function autoApplyAddSuggestions(
   trip: Trip,
-  run: EnhancementRun,
-): { trip: Trip; run: EnhancementRun; applied: string[]; skipped: string[] } {
+  run: EnhancementRunBase & { outcome?: EnhancementOutcome; outcomeReason?: string },
+): { trip: Trip; run: CompleteEnhancementRun; applied: string[]; skipped: string[] } {
   const ids = addableSuggestionIds(run)
-  if (ids.length === 0) {
-    const resolved = resolveEnhancementOutcome({
-      suggestions: run.suggestions,
-      summary: run.summary,
-      modelOutcome: run.outcome,
-      modelReason: run.outcomeReason,
-      appliedAddCount: 0,
-    })
-    return { trip, run: { ...run, ...resolved }, applied: [], skipped: [] }
-  }
-  const result = applySuggestions(trip, run, ids)
-  const nextRun: EnhancementRun = {
-    ...run,
-    appliedSuggestionIds: [...run.appliedSuggestionIds, ...result.applied],
-    ...resolveEnhancementOutcome({
-      suggestions: run.suggestions,
-      summary: run.summary,
-      modelOutcome: run.outcome,
-      modelReason: run.outcomeReason,
-      appliedAddCount: result.applied.length,
-    }),
-  }
+  const result = ids.length > 0 ? applySuggestions(trip, run, ids) : { trip, applied: [], skipped: [] }
+  const resolved = resolveEnhancementOutcome({
+    suggestions: run.suggestions,
+    summary: run.summary,
+    modelOutcome: run.outcome,
+    modelReason: run.outcomeReason,
+    appliedAddCount: result.applied.length,
+  })
+  const nextRun = finishRun(
+    { ...run, appliedSuggestionIds: [...run.appliedSuggestionIds, ...result.applied] },
+    { status: "complete", ...resolved },
+  )
   return { trip: result.trip, run: nextRun, applied: result.applied, skipped: result.skipped }
 }
 
 // ── Applying accepted suggestions ────────────────────────────────────────
 
-export function applySuggestions(trip: Trip, run: EnhancementRun, suggestionIds: string[]): {
+export function applySuggestions(
+  trip: Trip,
+  run: Pick<EnhancementRunBase, "suggestions" | "appliedSuggestionIds">,
+  suggestionIds: string[],
+): {
   trip: Trip
   applied: string[]
   skipped: string[]
@@ -1263,7 +1268,9 @@ export function applySuggestions(trip: Trip, run: EnhancementRun, suggestionIds:
     let ok = false
     switch (s.kind) {
       case "add":
-        if (s.proposedItem && day) {
+        // The proposed item keeps its id when it lands, so finding it on the
+        // trip means this add already happened (a retried or repeated apply).
+        if (s.proposedItem && day && !days.some((d) => d.items.some((i) => i.id === s.proposedItem!.id))) {
           // Timed adds land where the clock says, not at the bottom.
           day.items = insertByTime(day.items, structuredClone(s.proposedItem))
           ok = true
