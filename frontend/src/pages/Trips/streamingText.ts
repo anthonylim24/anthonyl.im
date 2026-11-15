@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 // Two things make streamed markdown look broken: half-finished syntax
 // ("**Bloc" shows literal asterisks until the closing pair arrives) and text
@@ -38,7 +38,9 @@ export function useSmoothText(text: string, active: boolean): string {
   const [shown, setShown] = useState(active ? 0 : text.length)
   const shownRef = useRef(shown)
   const targetRef = useRef(text.length)
-  targetRef.current = text.length
+  useLayoutEffect(() => {
+    targetRef.current = text.length
+  })
 
   useEffect(() => {
     if (!active) {

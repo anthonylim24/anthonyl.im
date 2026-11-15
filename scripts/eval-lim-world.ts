@@ -18,8 +18,6 @@
  * checked: a conversation with earlier orders in it, and a page with no 3D
  * scene. Exits non-zero on any miss.
  */
-process.env.KLUSTER_API_KEY ||= "eval";
-process.env.KLUSTER_API_BASE_URL ||= "https://example.invalid";
 const { geminiText } = await import("../server/src/geminiText");
 const { SYSTEM_PROMPT } = await import("../server/src/routes/constants");
 const { WORLD_MARK, worldPrompt } = await import("../server/src/lim/world");

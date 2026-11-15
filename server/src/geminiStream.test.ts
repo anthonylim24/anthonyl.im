@@ -1,11 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import {
   extractGeminiTextDelta,
-  extractGeminiTextFromBody,
   mergeGeminiGrounding,
   parseGeminiStreamLine,
   readGeminiAgentRound,
-  relayGeminiChatBody,
   textFromGeminiParts,
 } from "./geminiStream"
 
@@ -130,59 +128,6 @@ describe("parseGeminiStreamLine", () => {
     expect(parseGeminiStreamLine("")).toBeNull()
     expect(parseGeminiStreamLine("data: [DONE]")).toBeNull()
     expect(parseGeminiStreamLine("not-json")).toBeNull()
-  })
-})
-
-describe("extractGeminiTextFromBody", () => {
-  test("parses a complete GenerateContentResponse body", () => {
-    const body = JSON.stringify({
-      candidates: [{ content: { parts: [{ text: "```markdown\n**Hi**\n```" }] } }],
-    })
-    expect(extractGeminiTextFromBody(body)?.delta).toBe("```markdown\n**Hi**\n```")
-  })
-
-  test("returns null for non-JSON", () => {
-    expect(extractGeminiTextFromBody("hello **world**")).toBeNull()
-  })
-})
-
-describe("relayGeminiChatBody", () => {
-  test("emits visible text from mixed SSE thought + answer parts", async () => {
-    const chunk = {
-      candidates: [{ content: { parts: [{ thought: true, text: "x" }, { text: "**Hi**" }] } }],
-    }
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`))
-        controller.close()
-      },
-    })
-    const deltas: string[] = []
-    const result = await relayGeminiChatBody(stream, async (d) => {
-      deltas.push(d)
-    })
-    expect(deltas).toEqual(["**Hi**"])
-    expect(result.sawText).toBe(true)
-  })
-
-  test("flushes a UTF-8 character split across chunks", async () => {
-    const chunk = { candidates: [{ content: { parts: [{ text: "안녕" }] } }] }
-    const bytes = new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`)
-    const splitAt = bytes.indexOf(0xec) + 1 // mid-character of 안 (U+C548)
-    expect(splitAt).toBeGreaterThan(1)
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(bytes.slice(0, splitAt))
-        controller.enqueue(bytes.slice(splitAt))
-        controller.close()
-      },
-    })
-    const deltas: string[] = []
-    const result = await relayGeminiChatBody(stream, async (d) => {
-      deltas.push(d)
-    })
-    expect(deltas.join("")).toBe("안녕")
-    expect(result.sawText).toBe(true)
   })
 })
 

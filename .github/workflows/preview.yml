@@ -41,8 +41,6 @@ permissions:
   deployments: write
 
 env:
-  KLUSTER_API_KEY: ci-stub
-  KLUSTER_API_BASE_URL: https://example.invalid
   IG_WORKER_ENABLED: "false"
   PREVIEW_SITE_URL: https://anthonyl.im
   PR_NUMBER: ${{ github.event.pull_request.number }}

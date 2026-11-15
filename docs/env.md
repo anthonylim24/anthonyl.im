@@ -2,7 +2,7 @@
 
 Source of truth: `server/src/config.ts` (server) and `frontend/.env.example` (frontend).
 
-Nothing is required at boot: a missing key degrades its feature and is logged. `KLUSTER_API_KEY` / `KLUSTER_API_BASE_URL` (the old Deepseek chatbot) have no reader any more; CI and the droplet may still set them, which is harmless.
+Nothing is required at boot: a missing key degrades its feature and is logged.
 
 Required for Clerk-gated **production** (`/trips`, `/trips/korea-2026`, IG ingest). Without it, JWT verification fails and `/api/trips` (and other gated routes) return 401:
 - `CLERK_SECRET_KEY` — Clerk JWT verification (`server/src/middleware/clerkAuth.ts`). Also mounts the Clerk Frontend API proxy at `/__clerk/*` (`server/src/clerkProxy.ts`), which forwards to Clerk with `CLERK_PROXY_URL` (default `https://anthonyl.im/__clerk`). The browser uses it only when the build sets `VITE_CLERK_PROXY_URL` (GitHub Actions variable), and the production instance's domain must have the same proxy URL set in Clerk. Google sign-in finishes at `/sign-in#/sso-callback`: the sign-in modal takes that base from the instance's display config, not from `ClerkProvider`'s `signInUrl`, so the production instance's `paths.sign_in` / `paths.sign_up` must stay `/sign-in` / `/sign-up` (otherwise Clerk falls back to the `accounts.` Account Portal, which some networks block)

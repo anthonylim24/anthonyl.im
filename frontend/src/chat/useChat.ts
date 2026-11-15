@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { errorMessage } from "../effect/errors"
 import { invokeDeepseek } from "../lib/apiService"
+import { useReloadBlock } from "@/hooks/useReloadBlock"
 import { chatReducer, initialChat, isBusy, type ChatEvent, type ChatState } from "./chatMachine"
 import { FALLBACK_ERROR, loadChat, saveChat, toHistory, toPrompt } from "./conversation"
 
@@ -68,6 +69,9 @@ export function useChat(events: ChatEvents = {}) {
     if (next.messages !== prev.messages && (next.turn.phase === "idle" || prev.turn.phase === "idle")) saveChat(next.messages)
     return next
   }, [])
+
+  // An update must not reload the page under a reply that is still coming.
+  useReloadBlock("lim-turn", state.turn.phase !== "idle")
 
   useEffect(() => {
     const flush = () => saveChat(stateRef.current.messages)

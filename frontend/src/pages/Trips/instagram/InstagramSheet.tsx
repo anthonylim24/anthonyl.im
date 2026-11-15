@@ -9,7 +9,8 @@ import { a } from "../atlas.stylex"
 import { Spinner } from "../components/kit"
 import { AtlasMap } from "../map/AtlasMap"
 import { centroid, corePoints, distanceMeters, isLocated, type AtlasPin, type LngLat } from "../map/geo"
-import { itemIcon, plural, resolveAccent } from "../meta"
+import { plural, resolveAccent } from "../meta"
+import { ItemIcon } from "../ItemIcon"
 import type { ItineraryItem, Trip } from "../types"
 import { bestDayFor, dayWithPlace, extractInstagramUrls, jobProgress, placeCategory, placeWhere, postLabel, stopFromPlace } from "./instagram"
 import { IgGlyph } from "./IgGlyph"
@@ -94,9 +95,13 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
   const urls = extractInstagramUrls(text)
   const accent = resolveAccent(trip.appearance?.accent)
 
-  useEffect(() => {
-    if (open) setTarget(dayId ?? "auto")
-  }, [open, dayId])
+  // Each opening (or a new day while open) aims at the day it was opened from.
+  const openTarget = open ? (dayId ?? "auto") : null
+  const [seenOpenTarget, setSeenOpenTarget] = useState(openTarget)
+  if (openTarget !== seenOpenTarget) {
+    setSeenOpenTarget(openTarget)
+    if (openTarget !== null) setTarget(openTarget)
+  }
 
   // Links from the composer start reading as the sheet opens.
   const handoff = (initialUrls ?? []).join(" ")
@@ -185,11 +190,11 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
     })
   })
 
-  const removeFromSaved = (place: SavedPlace) => {
+  const removeFromSaved = useLatestCallback((place: SavedPlace) => {
     commitRemoval()
     removal.current = { place, timer: setTimeout(commitRemoval, REMOVE_UNDO_MS) }
     setRemoving(place)
-  }
+  })
 
   const undoRemoval = () => {
     const pending = removal.current
@@ -276,6 +281,9 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
   const savedNear = savedPlaces.filter(isNear)
   const savedFar = savedPlaces.filter((place) => !isNear(place))
   const shown: IgPlace[] = tab === "posts" ? jobs.flatMap((job) => job.places) : savedNear.length > 0 ? savedNear : savedFar
+  // Keyed on the ids: a poll that rebuilds the same places keeps the pins,
+  // and so the map's framing, where they are.
+  const shownIds = shown.map((p) => p.id).join(",")
   const pins = useMemo<AtlasPin[]>(() => {
     const seen = new Set<number>()
     const out: AtlasPin[] = []
@@ -294,7 +302,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
     }
     return out.slice(0, 80)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shown.map((p) => p.id).join(","), trip.days])
+  }, [shownIds, trip.days])
 
   const context = useMemo<LngLat[]>(() => {
     if (pins.length === 0 || pins.length > 2) return []
@@ -598,7 +606,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                                           hot={hot === pinId(place)}
                                           onHover={setHot}
                                           onAdd={() => add([place], place.post?.url)}
-                                          onRemove={() => void removeFromSaved(place)}
+                                          onRemove={() => removeFromSaved(place)}
                                         />
                                       ))}
                                     </div>
@@ -856,7 +864,6 @@ function PlaceRow({
   onAdd: () => void
   onRemove?: () => void
 }) {
-  const Icon = itemIcon("place", placeCategory(place.category))
   const where = placeWhere(place)
   const romanized = place.name_romanized?.trim()
   const pinned = place.lat != null && place.lng != null
@@ -872,7 +879,7 @@ function PlaceRow({
       onMouseLeave={() => onHover(null)}
     >
       <span {...sx(s.tile)} aria-hidden>
-        <Icon size={17} strokeWidth={1.75} />
+        <ItemIcon kind="place" category={placeCategory(place.category)} size={17} strokeWidth={1.75} />
       </span>
       <div {...sx(a.grow)} style={{ minWidth: 0 }}>
         <p {...sx(s.placeName, a.wrap)}>

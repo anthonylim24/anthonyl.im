@@ -43,7 +43,7 @@ export const bearerHeaders = (token: string | null, extra?: Record<string, strin
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 })
 
-export type ErrorMessageMode = "message-first" | "error-first" | "error-only" | "message-only"
+export type ErrorMessageMode = "message-first" | "error-first" | "error-only"
 
 /** Pull `error` / `message` off a JSON error body. Falls back to `HTTP <status>`.
  *  Mode matches each legacy API's field priority so UI copy stays identical. */
@@ -65,8 +65,6 @@ export const readErrorMessage = (
     switch (mode) {
       case "error-only":
         return errorStr ?? fallback
-      case "message-only":
-        return messageStr ?? fallback
       case "error-first":
         return errorStr ?? messageStr ?? fallback
       default:

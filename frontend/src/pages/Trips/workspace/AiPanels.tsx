@@ -151,12 +151,17 @@ export function AiSheet({
   const [mode, setMode] = useState<"improve" | "draft">("improve")
   const [confirmReplace, setConfirmReplace] = useState(false)
 
-  useEffect(() => {
-    if (!open) return
-    setText("")
-    setConfirmReplace(false)
-    setMode(scope === "trip" && !hasItems ? "draft" : "improve")
-  }, [open, scope, hasItems])
+  // Each opening starts clean (adjusted during render, not in an effect).
+  const openAs = open ? `${scope}|${hasItems}` : null
+  const [seenOpenAs, setSeenOpenAs] = useState<string | null>(null)
+  if (openAs !== seenOpenAs) {
+    setSeenOpenAs(openAs)
+    if (open) {
+      setText("")
+      setConfirmReplace(false)
+      setMode(scope === "trip" && !hasItems ? "draft" : "improve")
+    }
+  }
 
   const ideas = scope === "day" ? DAY_IDEAS : TRIP_IDEAS
   const drafting = scope === "trip" && mode === "draft"
@@ -336,9 +341,12 @@ export function SuggestionsReview({
   const [picked, setPicked] = useState<Set<string>>(() => new Set(pending.map((sg) => sg.id)))
   const dayLabel = (id?: string) => dayOptions.find((d) => d.id === id)?.label.split(" · ")[0]
 
-  useEffect(() => {
-    setPicked(new Set(run.suggestions.filter((sg) => !run.appliedSuggestionIds.includes(sg.id) && actionable(sg)).map((sg) => sg.id)))
-  }, [run])
+  // A new run picks everything it can still add.
+  const [pickedFor, setPickedFor] = useState(run)
+  if (pickedFor !== run) {
+    setPickedFor(run)
+    setPicked(new Set(pending.map((sg) => sg.id)))
+  }
 
   return (
     <section {...sx(s.aiCard)} aria-label="AI suggestions">

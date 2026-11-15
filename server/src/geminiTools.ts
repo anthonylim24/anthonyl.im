@@ -1,27 +1,16 @@
-/** Gemini built-in grounding tools + a 400-fallback fetch for chat streams.
+/** Gemini built-in grounding tools, and a fetch that retries one transient 5xx.
  *
- *  Gemini 3.x accepted Search and Maps together; Gemini 4 Hydrogen answers
- *  400 ("'google_maps' and 'google_search' cannot be combined"), as does its
- *  backup, so the pair is no longer tried. Chat steps down
- *  Maps → Search → no tools rather than failing the turn,
- *  and remembers the first rung that worked so later turns start there.
- *  (The trips concierge has its own tool loop: see trips/chat.ts.)
+ *  Gemini 4 Hydrogen answers 400 to Search and Maps together ("'google_maps'
+ *  and 'google_search' cannot be combined"), as does its backup, so callers
+ *  send one or the other. (The trips concierge has its own tool loop: see
+ *  trips/chat.ts.)
  */
-import { fetchGeminiModel, GEMINI_BASE, GEMINI_MODEL } from "./igPlaces/gemini"
+import { fetchGeminiModel } from "./igPlaces/gemini"
 
 export type GeminiToolList = Array<Record<string, unknown>>
 
-export const GEMINI_TOOLS_SEARCH_AND_MAPS: GeminiToolList = [{ googleSearch: {} }, { googleMaps: {} }]
 export const GEMINI_TOOLS_MAPS: GeminiToolList = [{ googleMaps: {} }]
 export const GEMINI_TOOLS_SEARCH: GeminiToolList = [{ googleSearch: {} }]
-
-/** Chat tries Maps grounding first, then degrades. Search and Maps are never
- *  sent together: Gemini 4 Hydrogen and its backup both reject the pair. */
-export const CHAT_TOOL_ATTEMPTS: Array<GeminiToolList | undefined> = [
-  GEMINI_TOOLS_MAPS,
-  GEMINI_TOOLS_SEARCH,
-  undefined,
-]
 
 const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
 
@@ -44,13 +33,6 @@ export function mapsRetrievalConfig(
     return undefined
   }
   return { retrievalConfig: { latLng } }
-}
-
-export function describeGeminiTools(tools: GeminiToolList | undefined): string {
-  if (!tools?.length) return "none"
-  return tools
-    .map((t) => ("googleSearch" in t ? "search" : "googleMaps" in t ? "maps" : "other"))
-    .join("+")
 }
 
 export async function fetchGeminiWithTransientRetry(
@@ -81,53 +63,4 @@ function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
     }
     signal?.addEventListener("abort", onAbort, { once: true })
   })
-}
-
-/** First rung of CHAT_TOOL_ATTEMPTS this process has seen work. Gemini 4
- *  Hydrogen rejects Search and Maps together, so without this every chat
- *  turn paid for a failed request before stepping down. */
-let firstWorkingAttempt = 0
-
-/** Test seam: start from the richest tool set again. */
-export function resetGeminiToolFallback(): void {
-  firstWorkingAttempt = 0
-}
-
-export async function fetchGeminiStreamWithToolFallback(args: {
-  apiKey: string
-  baseBody: Record<string, unknown>
-  toolConfig?: Record<string, unknown>
-  signal: AbortSignal
-  logLabel: string
-  fetchImpl?: typeof fetch
-}): Promise<Response> {
-  const f = args.fetchImpl ?? fetch
-  const url = `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`
-
-  for (let attempt = firstWorkingAttempt; attempt < CHAT_TOOL_ATTEMPTS.length; attempt++) {
-    const tools = CHAT_TOOL_ATTEMPTS[attempt]
-    const body: Record<string, unknown> = { ...args.baseBody }
-    if (tools) body.tools = tools
-    if (args.toolConfig && toolsIncludeMaps(tools)) body.toolConfig = args.toolConfig
-
-    const res = await fetchGeminiWithTransientRetry(
-      url,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": args.apiKey },
-        body: JSON.stringify(body),
-        signal: args.signal,
-      },
-      f,
-    )
-    if (res.ok) {
-      firstWorkingAttempt = attempt
-      return res
-    }
-    if (res.status !== 400) return res
-    await res.text().catch(() => {})
-    console.warn(`[${args.logLabel}] Gemini 400 with tools=${describeGeminiTools(tools)}; retrying`)
-  }
-
-  return new Response("gemini tool fallback exhausted", { status: 400 })
 }

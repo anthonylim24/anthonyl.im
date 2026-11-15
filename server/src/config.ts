@@ -113,8 +113,6 @@ export const config = {
 
 // Warn about keys for features that are enabled. Nothing is required at boot:
 // a missing key degrades that feature, it does not take the site down.
-// (KLUSTER_API_KEY / KLUSTER_API_BASE_URL were once required; nothing reads
-// them now, and a deploy that still sets them is fine.)
 if (config.igWorkerEnabled) {
   const required = ['GOOGLE_MAPS_API_KEY', 'GROQ_API_KEY', 'CLERK_SECRET_KEY',
                     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const;

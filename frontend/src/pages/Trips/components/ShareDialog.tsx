@@ -56,12 +56,21 @@ export function ShareDialog({
   const [error, setError] = useState<string | null>(null)
   const roleRefs = useRef<Partial<Record<CollaboratorRole, HTMLButtonElement | null>>>({})
 
+  // Each opening (or another trip) starts from a fresh read.
+  const openFor = open ? tripId : null
+  const [seenOpenFor, setSeenOpenFor] = useState(openFor)
+  if (openFor !== seenOpenFor) {
+    setSeenOpenFor(openFor)
+    if (openFor !== null) {
+      setLoad({ status: "loading" })
+      setError(null)
+      setCopied(null)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setLoad({ status: "loading" })
-    setError(null)
-    setCopied(null)
     getTrip(getToken, tripId).then(
       ({ trip, access }) => !cancelled && setLoad({ status: "ready", trip, access }),
       (err: unknown) => !cancelled && setLoad({ status: "error", message: err instanceof Error ? err.message : String(err) }),

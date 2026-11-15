@@ -49,11 +49,11 @@ export function ConciergePhotoThumb({
   onOpen: (url: string | null) => void
 }) {
   const [url, setUrl] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
+  // The photo that failed to load; a new lookup result gets its own try.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    setFailed(false)
     void lookupConciergePhoto({ name, city, lat, lng, size: 640 })
       .then((found) => {
         if (!cancelled) setUrl(found)
@@ -66,7 +66,7 @@ export function ConciergePhotoThumb({
     }
   }, [name, city, lat, lng])
 
-  const showImage = url && !failed
+  const showImage = url && url !== failedUrl
 
   return (
     <button
@@ -82,7 +82,7 @@ export function ConciergePhotoThumb({
           loading="lazy"
           decoding="async"
           {...sx(c.thumbImg)}
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(url)}
         />
       ) : (
         <span {...sx(fallback ? c.thumbIcon : c.thumbFallback)} aria-hidden>

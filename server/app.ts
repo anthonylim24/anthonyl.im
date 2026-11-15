@@ -4,7 +4,6 @@ import { cors } from "hono/cors";
 import { prettyJSON } from "hono/pretty-json";
 import { config } from "./src/config";
 import invokeRouter from "./src/routes/invoke";
-import koreaChatRouter from "./src/routes/koreaChat";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
 import { getTripStore } from "./src/trips/store";
@@ -30,131 +29,11 @@ import { join, resolve } from "path";
 import { BUN_IDLE_TIMEOUT_SEC } from "./src/httpIdleTimeout";
 import { securityHeaders } from "./src/securityHeaders";
 import { createBoundedMemo, createDistReader } from "./src/distFiles";
+import { injectPreviewMeta, stripExistingPreviewMeta } from "./src/shellMeta";
+import { STATIC_PAGES } from "./src/staticPages";
 
 const app = new Hono();
 const siteUrl = (process.env.SITE_URL || "https://anthonyl.im").replace(/\/+$/, "");
-
-type AppPreviewMeta = {
-  title: string;
-  description: string;
-  imagePathOrUrl: string;
-  imageAlt: string;
-};
-
-// Preview cards are 1200×630 JPEGs in frontend/public, each the app's own
-// scene with its title. Bump OG_VERSION when a card changes so social caches
-// fetch the new one.
-const OG_VERSION = "3";
-const card = (name: string) => `/og-${name}.jpg?v=${OG_VERSION}`;
-
-const appPreviews = {
-  landing: {
-    title: "anthonyl.im — Applied intelligence lab",
-    description:
-      "Frontier models and the agents that put them to work — they plan before they act, stay inside the bounds you set, and verify every step.",
-    imagePathOrUrl: card("landing"),
-    imageAlt: "“Intelligence you can hold to account.” beside a glass droplet in ultramarine brush strokes",
-  },
-  chatbot: {
-    title: "Lim — Ask Anthony Lim's AI",
-    description:
-      "Meet Lim, a squishy jelly who answers for Anthony Lim. Ask about his work, projects, and engineering background.",
-    imagePathOrUrl: card("chatbot"),
-    imageAlt: "Lim, a glossy coral jelly with big eyes, sitting on a mint rug beside jelly beans",
-  },
-  breathwork: {
-    title: "BreathFlow — Guided breathing with a watercolour cat",
-    description:
-      "Research-backed breathing — box breathing, cyclic sighing, 4-7-8, resonance and more — paced by a hand-painted cat that breathes with you.",
-    imagePathOrUrl: card("breathwork"),
-    imageAlt: "A violet watercolour cat sitting in splashes of paint beside the BreathFlow wordmark",
-  },
-  korea: {
-    title: "Seoul + Busan — Korea 2026 trip dossier",
-    description:
-      "A 12-day Seoul + Busan trip (May 26 – Jun 6, 2026): reservations, neighbourhoods, the places worth a detour, and a 3D Map Mode.",
-    imagePathOrUrl: card("korea"),
-    imageAlt: "A toy clay planet covered in trees and colourful place pins on a pink cover",
-  },
-  trips: {
-    title: "Trips — plan a trip, pin by pin",
-    description:
-      "Plan trips on a live 3D map: let AI draft the days, pin every stop, and share the plan with whoever is coming.",
-    imagePathOrUrl: card("trips"),
-    imageAlt: "A squishy toy globe with a trip pin and a paper plane, under puffy clouds",
-  },
-} as const satisfies Record<string, AppPreviewMeta>;
-
-const escapeHtml = (value: string): string =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
-const resolveImageUrl = (imagePathOrUrl: string): string =>
-  imagePathOrUrl.startsWith("http")
-    ? imagePathOrUrl
-    : `${siteUrl}${imagePathOrUrl.startsWith("/") ? imagePathOrUrl : `/${imagePathOrUrl}`}`;
-
-/** BreathFlow's pages share a card; each gets its own title. */
-const breathworkPages: Record<string, string> = {
-  "/breathwork/session": "Breathe",
-  "/breathwork/progress": "Progress",
-  "/breathwork/settings": "Settings",
-};
-
-const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
-  if (pathname.startsWith("/breathwork")) {
-    const page = breathworkPages[pathname.replace(/\/+$/, "")];
-    return page ? { ...appPreviews.breathwork, title: `${page} · BreathFlow` } : appPreviews.breathwork;
-  }
-  if (pathname.startsWith("/korea") || pathname.startsWith("/trips/korea-2026")) return appPreviews.korea;
-  if (pathname.startsWith("/trips")) return appPreviews.trips;
-  if (pathname === "/lab") return appPreviews.landing;
-  return appPreviews.chatbot;
-};
-
-const stripExistingPreviewMeta = (html: string): string =>
-  html
-    .replace(/<title>[\s\S]*?<\/title>\s*/i, "")
-    .replace(/<meta\s+name=["']description["'][^>]*>\s*/i, "")
-    .replace(/<meta\s+property=["']og:[^>]*>\s*/gi, "")
-    .replace(/<meta\s+name=["']twitter:[^>]*>\s*/gi, "")
-    .replace(/<meta\s+name=["']apple-mobile-web-app-title["'][^>]*>\s*/gi, "")
-    .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/i, "");
-
-/** `template` is index.html already through `stripExistingPreviewMeta`. */
-const injectPreviewMeta = (template: string, pathname: string): string => {
-  const preview = getPreviewMetaForPath(pathname);
-  const pageUrl = `${siteUrl}${pathname || "/"}`;
-  const imageUrl = resolveImageUrl(preview.imagePathOrUrl);
-  const metaTags = `
-    <title>${escapeHtml(preview.title)}</title>
-    <meta name="description" content="${escapeHtml(preview.description)}" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Anthony Lim" />
-    <meta property="og:title" content="${escapeHtml(preview.title)}" />
-    <meta property="og:description" content="${escapeHtml(preview.description)}" />
-    <meta property="og:url" content="${escapeHtml(pageUrl)}" />
-    <meta property="og:image" content="${escapeHtml(imageUrl)}" />
-    <meta property="og:image:type" content="image/jpeg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="${escapeHtml(preview.imageAlt)}" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${escapeHtml(preview.title)}" />
-    <meta name="twitter:description" content="${escapeHtml(preview.description)}" />
-    <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
-    <meta name="twitter:image:alt" content="${escapeHtml(preview.imageAlt)}" />
-    <meta name="apple-mobile-web-app-title" content="${escapeHtml(preview.title)}" />
-    <link rel="canonical" href="${escapeHtml(pageUrl)}" />`;
-
-  // A replacer function: a string replacement would expand `$&` / `$'` that
-  // arrive in the request path (og:url, canonical).
-  return template.replace("</head>", () => `${metaTags}\n  </head>`);
-};
 
 // Group middleware by functionality
 const commonMiddleware = [
@@ -190,14 +69,6 @@ app.use("/api/invoke/*", async (c, next) => {
   await next();
 });
 
-// Korea concierge chat is also SSE-streamed (Gemini relay).
-app.use("/api/korea/chat", async (c, next) => {
-  Object.entries(sseHeaders).forEach(([key, value]) => {
-    c.header(key, value);
-  });
-  await next();
-});
-
 // Trip concierge chat — same SSE shape, scoped to a trip document.
 app.use("/api/trips/:id/chat", async (c, next) => {
   Object.entries(sseHeaders).forEach(([key, value]) => {
@@ -208,14 +79,9 @@ app.use("/api/trips/:id/chat", async (c, next) => {
 
 // Rate limiting for public LLM endpoints
 app.use("/api/invoke/*", createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "invoke" }));
-// The concierge fallback for trips without their own chat. The client sends
-// no Clerk bearer, so this is keyed on the address (userOrClientKey falls
-// back to it) until it does.
-app.use("/api/korea/chat", createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "korea-chat", key: userOrClientKey }));
 
 // API Routes
 app.route("/api/invoke", invokeRouter);
-app.route("/api/korea/chat", koreaChatRouter);
 
 // Multi-trip travel planner — Clerk-authenticated CRUD + AI generation /
 // enhancement + per-day Map Mode places. The Korea trip is seeded into the
@@ -407,7 +273,7 @@ app.get("/sw.js", async (c) => {
 // Twilio SMS proof-of-consent page — static HTML (no SPA shell) so compliance
 // crawlers that do not execute JS still see the full opt-in disclosure.
 app.get("/sms-consent", async (c) => {
-  const file = Bun.file(join(distPath, "sms-consent.html"));
+  const file = Bun.file(join(distPath, STATIC_PAGES["/sms-consent"]));
   if (!(await file.exists())) {
     return c.text("SMS consent page not found", 404);
   }
@@ -446,20 +312,17 @@ app.all("/assets/*", (c) => {
 const renderedShells = createBoundedMemo<string>(256, { enabled: memoiseDist });
 const spaShell = async (c: Context) => {
   const template = await readDist("index.html", stripExistingPreviewMeta);
-  const html = renderedShells.get(c.req.path, () => injectPreviewMeta(template, c.req.path));
+  const html = renderedShells.get(c.req.path, () => injectPreviewMeta(template, c.req.path, siteUrl));
   c.header("Cache-Control", "no-cache, no-store, must-revalidate");
   c.header("Pragma", "no-cache");
   c.header("Expires", "0");
   return c.html(html);
 };
 // Plain HTML, readable without JavaScript, because Google's OAuth branding
-// review fetches these URLs and does not run the SPA.
-const staticPages: Record<string, string> = {
-  "/home": "home.html",
-  "/privacy": "privacy.html",
-  "/terms": "terms.html",
-};
-for (const [path, file] of Object.entries(staticPages)) {
+// review fetches these URLs and does not run the SPA. (/sms-consent has its
+// own no-store route above.)
+for (const [path, file] of Object.entries(STATIC_PAGES)) {
+  if (path === "/sms-consent") continue;
   app.get(path, async (c) => {
     c.header("Cache-Control", "no-cache");
     return c.html(await readDist(file));

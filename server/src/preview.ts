@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { homedir } from "node:os";
 import { extname, join, relative, resolve, sep } from "node:path";
+import type { Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 
 /** URL prefix every remote PR preview is published under. */
@@ -82,8 +83,8 @@ export type PreviewRequest = {
   rest: string;
 };
 
-export function isPreviewPrId(value: string): boolean {
-  return PR_ID_RE.test(value);
+export function isPreviewPrId(value: string | undefined): value is string {
+  return value !== undefined && PR_ID_RE.test(value);
 }
 
 export function previewBasePath(pr: string | number): string {
@@ -331,7 +332,7 @@ export async function readPreviewMeta(dir: string): Promise<PreviewMeta | null> 
 }
 
 export async function listPreviewMetas(root: string): Promise<PreviewMeta[]> {
-  let entries: Awaited<ReturnType<typeof readdir>>;
+  let entries: Dirent[];
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch {

@@ -80,7 +80,7 @@ export function TripCreate() {
   const readToken = useLatestCallback(getToken)
   const wide = useWide()
   const formId = useId()
-  const today = useMemo(localToday, [])
+  const [today] = useState(localToday)
   const [places, setPlaces] = useState<Place[]>([])
   const [startDate, setStartDate] = useState(() => addDays(today, 21))
   const [endDate, setEndDate] = useState(() => addDays(today, 25))

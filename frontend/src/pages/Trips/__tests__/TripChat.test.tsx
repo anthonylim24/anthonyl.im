@@ -708,9 +708,8 @@ describe("TripChat conversation", () => {
 
     loadKyoto({ trip: kyoto, access: "owner" })
     await waitFor(() => expect(mockStreamTripChat).toHaveBeenCalledTimes(1))
-    const request = mockStreamTripChat.mock.calls[0]![0] as Request & { tripId: string; trip?: Trip }
+    const request = mockStreamTripChat.mock.calls[0]![0] as { tripId: string }
     expect(request.tripId).toBe("kyoto")
-    expect(request.trip?.id).toBe("kyoto")
   })
 })
 
@@ -885,8 +884,8 @@ describe("TripChat loading", () => {
   })
 
   it("keeps a newer document the page announced over a slower fetch", async () => {
-    const older = makeTrip({ name: "Old name", updatedAt: "2026-01-01T00:00:00Z" })
-    const newer = makeTrip({ name: "New name", updatedAt: "2026-03-01T00:00:00Z" })
+    const older = makeTrip({ destinations: ["Kyoto"], updatedAt: "2026-01-01T00:00:00Z" })
+    const newer = makeTrip({ destinations: ["Osaka"], updatedAt: "2026-03-01T00:00:00Z" })
     let resolveFetch: (value: { trip: Trip; access: "owner" }) => void = () => {}
     mockGetTrip.mockImplementation(() => new Promise((resolve) => (resolveFetch = resolve)))
     renderChat()
@@ -894,10 +893,7 @@ describe("TripChat loading", () => {
     act(() => emitTripChanged(newer))
     await act(async () => resolveFetch({ trip: older, access: "owner" }))
 
-    const box = within(dialog).getByRole("textbox", { name: "Message the concierge" })
-    fireEvent.change(box, { target: { value: "hi" } })
-    fireEvent.keyDown(box, { key: "Enter" })
-    await waitFor(() => expect(mockStreamTripChat).toHaveBeenCalled())
-    expect((mockStreamTripChat.mock.calls[0]![0] as { trip?: Trip }).trip?.name).toBe("New name")
+    expect(within(dialog).getByText("Osaka", { selector: "em" })).toBeInTheDocument()
+    expect(within(dialog).queryByText("Kyoto", { selector: "em" })).toBeNull()
   })
 })

@@ -19,8 +19,6 @@ if [ -f "$ROOT_DIR/.nvmrc" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
   fi
 fi
 
-export KLUSTER_API_KEY="${KLUSTER_API_KEY:-codex-stub}"
-export KLUSTER_API_BASE_URL="${KLUSTER_API_BASE_URL:-https://example.invalid}"
 export IG_WORKER_ENABLED="${IG_WORKER_ENABLED:-false}"
 
 if ! command -v bun >/dev/null 2>&1; then
@@ -42,6 +40,9 @@ ensure_dependencies
 verify_frontend_typescript
 
 cd "$ROOT_DIR"
+echo "[codex-check] running server typecheck (tsconfig.server.json)"
+bun run typecheck:server
+
 echo "[codex-check] running server tests (includes appLoad module-load smoke)"
 # --parallel (Bun 1.4+) runs test files across worker processes; older Bun
 # in a stale cloud image runs them in one process, just slower.

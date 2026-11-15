@@ -108,8 +108,6 @@ GEMINI_API_KEY=AIza...
 # (server/src/lim/jev.ts). Optional; without it Lim uses the date default.
 JEV_API_KEY=...
 IG_DEV_BEARER=...                       # alt auth path for curl testing
-KLUSTER_API_KEY=...
-KLUSTER_API_BASE_URL=...
 ```
 
 Permissions: `chmod 600 ~/.env`.
@@ -208,7 +206,7 @@ The IG-places routes and the Korea auth gate normally require a Clerk session. F
    ```
    VITE_DEV_BEARER=<same value as IG_DEV_BEARER>
    ```
-   When set, `useGetToken()` returns the dev bearer and `KoreaAuthGate` is a pass-through. Dev bearer takes precedence over Clerk — leave `VITE_CLERK_PUBLISHABLE_KEY` untouched.
+   When set, `useGetToken()` returns the dev bearer and `TripsAuthGate` (`pages/Trips/TripsLayout.tsx`) is a pass-through. Dev bearer takes precedence over Clerk — leave `VITE_CLERK_PUBLISHABLE_KEY` untouched.
 
 3. Build the frontend and run the server:
    ```bash
@@ -361,7 +359,7 @@ To roll back a bad *merged* commit: revert on `main`, push, and the workflow re-
 
 `bash deploy/install-droplet.sh` (as root on the droplet, from a checkout; safe to run again) installs:
 
-- **nginx site** (`deploy/nginx/anthonyl.im.conf` → `/etc/nginx/sites-available/anthonyl.im`). Large proxy buffers for Clerk's cookies, a 5 s connect timeout, 300 s read timeout for streams. The previous file is copied to `/root/nginx-anthonyl.im.bak-<time>` and restored if `nginx -t` rejects the new one.
+- **nginx site** (`deploy/nginx/anthonyl.im.conf` → `/etc/nginx/sites-available/anthonyl.im`). Large proxy buffers for Clerk's cookies, a 5 s connect timeout, 300 s read timeout for streams, and `X-Forwarded-For` / `X-Real-IP` on every proxied request (the `/health/metrics` loopback gate and the rate limiter's fallback key depend on them). The previous file is copied to `/root/nginx-anthonyl.im.bak-<time>` and restored if `nginx -t` rejects the new one.
 - **Outage page** (`deploy/nginx/unavailable.html` → `/var/www/anthonyl.im/__unavailable.html`). nginx serves it for 502 / 503 / 504, so a restart shows "Back in a moment" and the page reloads itself once `/health` answers.
 - **Watchdog** (`deploy/watchdog/*` → `anthonyl-watchdog.timer`). Every minute it asks `http://127.0.0.1:3000/health`; three failures in a row run `pm2 restart anthonyl.im`. It stands down while `~/anthonyl.im.next` is fresh (a deploy in progress). Logs: `journalctl -u anthonyl-watchdog`.
 

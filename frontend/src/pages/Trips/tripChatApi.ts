@@ -14,9 +14,6 @@ import { AuthError, HttpStatusError, StreamError } from "../../effect/errors"
 import { fetchApi, readAuthToken } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
 import { readSse } from "../../effect/sse"
-import { streamKoreaChat } from "../Korea/koreaChatApi"
-import { isKoreaSeedTrip, wrapTripChatPrompt } from "./tripChatFallback"
-import type { Trip } from "./types"
 
 /** A card the traveller saw under an earlier reply, sent back so the
  *  concierge can resolve "the second one". */
@@ -64,33 +61,7 @@ export interface TripChatRequest {
   dayId?: string
   /** Only when the traveller chose to share it with this message. */
   location?: { lat: number; lng: number }
-  trip?: Trip
   signal?: AbortSignal
-}
-
-function isMissingChatRoute(status: number, error: string): boolean {
-  if (status !== 404) return false
-  return error !== "day not found" && error !== "trip not found"
-}
-
-function streamKoreaAsTripChat(
-  prompt: string,
-  messages: TripChatMessage[],
-  slug: string | undefined,
-  onUpdate: (content: string) => void,
-  signal?: AbortSignal,
-): Promise<TripChatResult> {
-  return streamKoreaChat(
-    prompt,
-    messages,
-    slug,
-    (content) => onUpdate(visibleConciergeText(content)),
-    signal,
-  ).then((result) => ({
-    content: visibleConciergeText(result.content),
-    error: result.error,
-    sources: result.sources,
-  }))
 }
 
 const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
@@ -98,7 +69,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
   getToken: () => Promise<string | null>,
   handlers: TripChatHandlers,
 ) {
-  const { tripId, prompt, messages, dayId, location, trip, signal } = request
+  const { tripId, prompt, messages, dayId, location, signal } = request
   const onUpdate = handlers.onText
   const token = yield* readAuthToken(getToken).pipe(Effect.mapError(remapChatFailure))
   const response = yield* fetchApi(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
@@ -123,7 +94,6 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
   }
 
   if (!response.ok) {
-    let error = ""
     let message = `Request failed (${response.status})`
     const raw: unknown = yield* Effect.tryPromise({
       try: () => response.json() as Promise<unknown>,
@@ -132,7 +102,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
 
     if (raw && typeof raw === "object") {
       const body = raw as { error?: unknown; message?: unknown }
-      error = typeof body.error === "string" ? body.error : ""
+      const error = typeof body.error === "string" ? body.error : ""
       if (response.status === 404) {
         if (error === "day not found") message = "This day is no longer on the trip."
         else if (error === "trip not found") message = "This trip could not be found."
@@ -143,22 +113,6 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
       message = "Concierge is not available on this server yet."
     }
 
-    if (isMissingChatRoute(response.status, error)) {
-      const plain = messages.map((m) => ({ role: m.role, content: m.content }))
-      if ((trip && isKoreaSeedTrip(trip)) || tripId === "korea-2026") {
-        return yield* Effect.tryPromise({
-          try: () => streamKoreaAsTripChat(prompt, plain, dayId, onUpdate, signal),
-          catch: remapChatFailure,
-        })
-      }
-      if (trip) {
-        return yield* Effect.tryPromise({
-          try: () =>
-            streamKoreaAsTripChat(wrapTripChatPrompt(trip, prompt, dayId), plain, undefined, onUpdate, signal),
-          catch: remapChatFailure,
-        })
-      }
-    }
     if (response.status === 401) {
       return yield* Effect.fail(new AuthError({ message: "Please sign in again to use the concierge." }))
     }

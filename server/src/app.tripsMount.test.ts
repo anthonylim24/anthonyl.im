@@ -6,8 +6,6 @@ import { test, expect } from "bun:test"
 // router-only unit test would miss.
 
 async function loadApp() {
-  process.env.KLUSTER_API_KEY ||= "load-test-stub"
-  process.env.KLUSTER_API_BASE_URL ||= "https://example.invalid"
   process.env.IG_WORKER_ENABLED ||= "false"
   const mod = await import("../app")
   return mod.default

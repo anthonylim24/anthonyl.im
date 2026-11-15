@@ -25,8 +25,8 @@ export function useStopPhoto(
 
   useEffect(() => {
     if (!stop || !key || settled.has(key)) return
+    // Until this key's answer lands, the render below reads "loading".
     let cancelled = false
-    setState({ key, photo: { status: "loading" } })
     void find(stop.title, city, stop.lat, stop.lng, size)
       .catch(() => null)
       .then((url) => {

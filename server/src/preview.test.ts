@@ -77,7 +77,7 @@ describe("shouldSpaFallback", () => {
     expect(shouldSpaFallback("assets/index-hash.js")).toBe(false);
     expect(shouldSpaFallback("favicon-chat.svg")).toBe(false);
     expect(shouldSpaFallback("preview.json")).toBe(false);
-    expect(shouldSpaFallback("api/korea/chat")).toBe(false);
+    expect(shouldSpaFallback("api/trips/x/chat")).toBe(false);
     expect(shouldSpaFallback("api")).toBe(false);
   });
 });
@@ -312,7 +312,7 @@ describe("createPreviewRouter", () => {
     const proxied = new Hono();
     proxied.route("/", createPreviewRouter({ root, siteUrl: "https://anthonyl.im", fetchImpl }));
 
-    const res = await proxied.request("https://anthonyl.im/preview/pr/42/api/korea/chat", {
+    const res = await proxied.request("https://anthonyl.im/preview/pr/42/api/trips/x/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: "hi" }),
@@ -320,13 +320,13 @@ describe("createPreviewRouter", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("x-preview-api")).toBe("1");
     expect(await res.json()).toEqual({ from: "preview-api" });
-    expect(capturedUrl).toBe("http://127.0.0.1:4123/api/korea/chat");
+    expect(capturedUrl).toBe("http://127.0.0.1:4123/api/trips/x/chat");
     expect(capturedMethod).toBe("POST");
   });
 
   test("404s JSON when the preview API is not published", async () => {
     const { app } = await seededApp();
-    const res = await app.request("https://anthonyl.im/preview/pr/42/api/korea/chat", {
+    const res = await app.request("https://anthonyl.im/preview/pr/42/api/trips/x/chat", {
       method: "POST",
       body: "{}",
     });
@@ -337,10 +337,8 @@ describe("createPreviewRouter", () => {
 
 describe("previewApiUpstreamPath", () => {
   test("strips the preview mount so the sidecar sees /api/...", () => {
-    expect(previewApiUpstreamPath("42", "/preview/pr/42/api/korea/chat")).toBe("/api/korea/chat");
-    expect(previewApiUpstreamPath("42", "/preview/pr/42/api/trips/x/chat")).toBe(
-      "/api/trips/x/chat",
-    );
+    expect(previewApiUpstreamPath("42", "/preview/pr/42/api/trips/x/chat")).toBe("/api/trips/x/chat");
+    expect(previewApiUpstreamPath("42", "/preview/pr/42/api/invoke")).toBe("/api/invoke");
   });
 });
 

@@ -8,8 +8,6 @@ import { resolve } from 'path';
 const built = existsSync(resolve(import.meta.dir, '../../frontend/dist/index.html'));
 
 test.skipIf(!built)('each app shell gets its own preview metadata', async () => {
-  process.env.KLUSTER_API_KEY ||= 'load-test-stub';
-  process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
   process.env.IG_WORKER_ENABLED ||= 'false';
   const app = (await import('../app')).default;
   const cases: [string, string, string][] = [
@@ -31,8 +29,6 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
 });
 
 test.skipIf(!built)('home and legal pages are plain HTML, and both homes link the policy', async () => {
-  process.env.KLUSTER_API_KEY ||= 'load-test-stub';
-  process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
   process.env.IG_WORKER_ENABLED ||= 'false';
   const app = (await import('../app')).default;
   for (const [path, title] of [
@@ -57,8 +53,6 @@ test.skipIf(!built)('home and legal pages are plain HTML, and both homes link th
 });
 
 test.skipIf(!built)('a missing hashed asset is a 404, not the SPA shell', async () => {
-  process.env.KLUSTER_API_KEY ||= 'load-test-stub';
-  process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
   process.env.IG_WORKER_ENABLED ||= 'false';
   const app = (await import('../app')).default;
   const res = await app.fetch(new Request('http://localhost/assets/photoreal-GONE1234.js'));

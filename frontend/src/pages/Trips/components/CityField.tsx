@@ -30,35 +30,31 @@ export function CityField({
   invalid?: boolean
 }) {
   const [text, setText] = useState("")
-  const [results, setResults] = useState<CityResult[]>([])
-  const [loading, setLoading] = useState(false)
+  /** The last answer and the query it answers; loading is "no answer for this query yet". */
+  const [search, setSearch] = useState<{ query: string; results: CityResult[] }>({ query: "", results: [] })
   const [open, setOpen] = useState(false)
   const [cursor, setCursor] = useState(0)
   const listId = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const typed = text.trim()
+  const searching = typed.length >= 2
+  const results = searching ? search.results : []
+  const loading = searching && search.query !== typed
 
   useEffect(() => {
-    if (typed.length < 2) {
-      setResults([])
-      setLoading(false)
-      return
-    }
+    if (typed.length < 2) return
     const controller = new AbortController()
-    setLoading(true)
     const timer = setTimeout(() => {
       searchCities(typed, controller.signal)
         .then((found) => {
           if (controller.signal.aborted) return
-          setResults(found)
+          setSearch({ query: typed, results: found })
           setCursor(0)
-          setLoading(false)
         })
         .catch(() => {
           if (controller.signal.aborted) return
-          setResults([])
-          setLoading(false)
+          setSearch({ query: typed, results: [] })
         })
     }, 180)
     return () => {
@@ -81,7 +77,7 @@ export function CityField({
     if (!name) return
     if (!values.some((v) => v.toLowerCase() === name.toLowerCase())) onAdd(name, city)
     setText("")
-    setResults([])
+    setSearch({ query: "", results: [] })
     setOpen(false)
     inputRef.current?.focus()
   }

@@ -157,7 +157,7 @@ The March 2025 audit is historical: BreathFlow was rebuilt in `frontend/src/brea
 
 The Korea trip is the seeded trip `korea-2026` (rose accent). It renders in the atlas workspace like any other trip; there is no separate rose / amber parchment dossier any more. Page design: the "Design Context: `/trips/*`" section below. Legacy `/korea*` frontend routes redirect here. `/api/korea/*` remains. Do not add new destination-specific routes.
 
-What stays Korea-specific is data (snapshot seed, `/api/korea/chat` concierge fallback) and the Korea-scoped PWA.
+What stays Korea-specific is data (the snapshot seed) and the Korea-scoped PWA.
 
 ### Users
 Anthony (primary) and his partner, planning and executing a 12-day Seoul + Busan trip in late May / early June 2026. Phones for in-trip lookups, desktop for planning.

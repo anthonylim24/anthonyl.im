@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { createPortal } from "react-dom"
 import { Box, ChevronLeft, ChevronRight, ExternalLink, Footprints, LocateFixed, Pause, Pencil, Play, Route, Scan, Square, X } from "lucide-react"
 import { sx } from "@/styles/merge"
@@ -128,14 +128,22 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   const selected = selectedIndex >= 0 ? stops[selectedIndex]! : ((selectedId && parked.find((s) => s.id === selectedId)) || null)
   // The tour only ever plays on a stop that is on the route right now.
   const playing = touring && selectedIndex >= 0
-  playingRef.current = playing
+  // The day can change under the open view: a stop that left takes its
+  // selection and the tour with it (adjusted during render).
+  if (selectedId && !selected) {
+    setSelectedId(null)
+    setTouring(false)
+  }
   const sceneStops = useMemo<SceneStop[]>(
     () =>
       [...stops, ...parked].map((s) => ({ id: s.id, label: s.label, title: s.title, lat: s.lat, lng: s.lng, time: s.item.time, parked: s.parked })),
     [stops, parked],
   )
   const latest = useRef({ sceneStops, selectedId, wide })
-  latest.current = { sceneStops, selectedId, wide }
+  useLayoutEffect(() => {
+    playingRef.current = playing
+    latest.current = { sceneStops, selectedId, wide }
+  })
 
   const close = useLatestCallback(onClose)
   const pick = useCallback((id: string | null, keepTour = false) => {
@@ -272,13 +280,6 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   useEffect(() => {
     sceneRef.current?.setTheme()
   }, [dark, accent])
-  useEffect(() => {
-    // The day can change under the open view: a stop that left takes its selection and the tour with it.
-    if (selectedId && ![...stops, ...parked].some((s) => s.id === selectedId)) {
-      setSelectedId(null)
-      setTouring(false)
-    }
-  }, [parked, selectedId, stops])
 
   useEffect(() => {
     const apply = () => sceneRef.current?.setInsets(measure())

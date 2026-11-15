@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { Box, Minus, Plus, Scan } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
@@ -85,14 +85,17 @@ export function AtlasMap({
 }: AtlasMapProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<AtlasMapHandle | null>(null)
-  const [status, setStatus] = useState<"loading" | "ready" | "static">("loading")
+  // No WebGL 2 means the static picture from the first paint.
+  const [status, setStatus] = useState<"loading" | "ready" | "static">(() => (canRenderMap() ? "loading" : "static"))
   const [tilted, setTilted] = useState(!flat)
   const reducedMotion = useReducedMotion()
   const dark = useIsDark()
   const select = useLatestCallback((id: string) => onSelect?.(id))
   const hover = useLatestCallback((id: string | null) => onHover?.(id))
   const latest = useRef({ pins, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
-  latest.current = { pins, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
+  useLayoutEffect(() => {
+    latest.current = { pins, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
+  })
   const framedRef = useRef(false)
 
   const frame = (animate: boolean) => {
@@ -106,11 +109,7 @@ export function AtlasMap({
 
   useEffect(() => {
     const host = hostRef.current
-    if (!host) return
-    if (!canRenderMap()) {
-      setStatus("static")
-      return
-    }
+    if (!host || status === "static") return
     let cancelled = false
     let handle: AtlasMapHandle | null = null
     let observer: ResizeObserver | null = null
@@ -186,7 +185,6 @@ export function AtlasMap({
   useEffect(() => {
     if (!framedRef.current) return
     frame(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameKey])
 
   return (
