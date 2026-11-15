@@ -61,7 +61,7 @@ jobs:
       github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -76,15 +76,17 @@ jobs:
         env:
           VITE_BASE: /preview/pr/${{ github.event.pull_request.number }}/
           VITE_API_BASE: /preview/pr/${{ github.event.pull_request.number }}
+          # Passed as env, never spliced into the script text.
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
         run: |
           set -euo pipefail
           umask 077
-          if [ -z "${{ secrets.FRONTEND_ENV }}" ]; then
+          if [ -z "$FRONTEND_ENV" ]; then
             echo "::error::FRONTEND_ENV secret is missing — cannot bake Clerk/Supabase keys into the preview."
             exit 1
           fi
           # Never bake the local-dev Clerk bypass into a public preview.
-          printf '%s\n' "${{ secrets.FRONTEND_ENV }}" | sed '/^[[:space:]]*VITE_DEV_BEARER=/d' > .env
+          printf '%s\n' "$FRONTEND_ENV" | sed '/^[[:space:]]*VITE_DEV_BEARER=/d' > .env
           printf '\nVITE_ENABLE_SERVICE_WORKER=false\n' >> .env
           printf 'VITE_API_BASE=/preview/pr/%s\n' "$PR_NUMBER" >> .env
           bun run build
@@ -112,7 +114,7 @@ jobs:
           tar -czf preview-api.tar.gz server/src
 
       - name: Upload preview tarball
-        uses: appleboy/scp-action@v1.0.0
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
@@ -123,7 +125,7 @@ jobs:
           target: "previews/.incoming/${{ github.event.pull_request.number }}"
 
       - name: Publish on droplet
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
@@ -264,7 +266,7 @@ jobs:
       github.actor != 'dependabot[bot]'
     steps:
       - name: Remove preview tree
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
@@ -272,8 +274,22 @@ jobs:
           script: |
             set -euo pipefail
             PR="${{ github.event.pull_request.number }}"
-            if [ -f "$HOME/previews/$PR/api.pid" ]; then
-              kill "$(cat "$HOME/previews/$PR/api.pid")" 2>/dev/null || true
+            # Signal the pid only if it is still the preview sidecar
+            # (server/src/previewApi.ts); a stale pid file may now name an
+            # unrelated process, and this runs as root.
+            PID_FILE="$HOME/previews/$PR/api.pid"
+            if [ -f "$PID_FILE" ]; then
+              PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+              case "$PID" in
+                '' | *[!0-9]*) ;;
+                *)
+                  CMDLINE="$(tr '\0' ' ' 2>/dev/null <"/proc/$PID/cmdline" || true)"
+                  case "$CMDLINE" in
+                    *previewApi*) kill "$PID" 2>/dev/null || true ;;
+                    *) echo "[preview] stale api.pid ($PID is not the preview API); not signalling" ;;
+                  esac
+                  ;;
+              esac
             fi
             rm -rf "$HOME/previews/$PR" "$HOME/previews/.staging/$PR" "$HOME/previews/.incoming/$PR"
             echo "[preview] removed PR $PR"
