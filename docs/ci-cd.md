@@ -33,7 +33,7 @@ merge to main → .github/workflows/deploy.yml
 
 `pr.yml` also triggers on `merge_group` (merge queue).
 
-`pr-cloud-setup` runs both `.codex/cloud-setup.test.sh` and `.claude/cloud/cloud-setup.test.sh`.
+`pr-cloud-setup` runs both `.codex/cloud-setup.test.sh` and `.claude/cloud/cloud-setup.test.sh`. It restores only the Bun package tarball cache (restore-only, same key `setup-ci` saves); `node_modules` stays uncached so `.codex/setup.sh` still links both trees from scratch.
 
 Branch protection config: `.github/branch-protection.json` (`contexts` + GitHub Actions `checks`: `pr-gate`, `enforce_admins: true`).
 
@@ -49,6 +49,12 @@ Branch protection config: `.github/branch-protection.json` (`contexts` + GitHub 
 Inputs: `install-root`, `install-frontend` (`"true"` / `"false"`).
 
 Always use `--frozen-lockfile` in CI. Never `bun install` without it on the runner or droplet.
+
+## Workflow hygiene
+
+- **Every `uses:` is pinned to a full commit SHA** with the release as a trailing comment (`actions/checkout@<sha> # v7.0.1`). The appleboy SSH/SCP actions receive the droplet key, so a moved tag must not change what runs. Dependabot's `github-actions` entry bumps the SHA and the comment together; pin new actions the same way (`gh api repos/<owner>/<repo>/git/ref/tags/<tag>`, then `git/tags/<sha>` for an annotated tag).
+- **No `${{ secrets.* }}` / `${{ vars.* }}` inside `run:` text.** Pass them through the step's `env:` and quote the shell variable. Give them names without the `VITE_` prefix in a step that runs Vite: Vite lets process env override `.env`, so an empty `VITE_*` would blank the value from `FRONTEND_ENV`.
+- **Dependabot auto-merge** keys on the PR author (`pull_request.user.login == 'dependabot[bot]'`) and a same-repo head, not `github.actor`, and only approves when `fetch-metadata` reports a non-empty, non-major `update-type`.
 
 ## Lockfiles (critical)
 
@@ -78,7 +84,7 @@ cd frontend && bun run build && bun run test:run
 
 1. **Never build the frontend on the droplet** — 1 GB RAM OOMs Vite. CI builds; SCP ships `frontend/dist`.
 2. **Atomic swap** — prepare `~/anthonyl.im.next`, verify `frontend/dist/index.html`, then `mv live→prev`, `mv next→live`, PM2 restart. On PM2 failure, roll back `prev→live`.
-3. **PATH for PM2 children** — export `$HOME/.bun/bin:/usr/local/bin:...` and `pm2 start --update-env` so yt-dlp / ffmpeg / dev-browser resolve.
+3. **PATH for PM2 children** — export `$HOME/.bun/bin:/usr/local/bin:...` and `pm2 start --update-env` so yt-dlp / ffmpeg / dev-browser resolve. The app starts with `NODE_ENV=production` (also on rollback), which disables the dev-bearer bridge in `server/src/config.ts`; PM2 keeps it across `pm2 restart` and `pm2 resurrect`.
 4. **Smoke is mandatory** — `/health` must return `"status":"ok"`; SPA routes must contain `<div id="root">`.
 5. **No `VITE_DEV_BEARER` in `FRONTEND_ENV`** — production must not bypass Clerk.
 6. **PR previews are not a merge gate** — `.github/workflows/preview.yml` must stay out of `pr-gate`. Same-repo only; never bake `VITE_DEV_BEARER` into a preview. Agents screenshot Clerk-gated preview routes via `bun scripts/clerk-agent-login.ts` (applies a Clerk Agent Task + Testing Token in Chrome; do not paste tickets; helper re-execs from `origin/main`; Cursor cloud `gh` tokens are installation tokens, not push collaborators). Details: [`docs/pr-previews.md`](pr-previews.md).
@@ -98,6 +104,8 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBL
 | PM2 online but app dead on first request | Post-deploy `/health` + SPA smoke |
 | Stale service worker after deploy | `sw.js` no-cache headers in `server/app.ts`; bump `CACHE_VERSION` on SW behavior changes |
 | Preview HTML served as production SPA | Preview router is mounted **before** the SPA fallback; missing trees 404 |
+| Stale `api.pid` naming an unrelated process (root `kill`) | `publish-preview.sh` and the cleanup job only signal a pid whose `/proc/<pid>/cmdline` contains `previewApi`; otherwise they drop the pid file |
+| Sidecar never healthy, proxy routes to a dead port | `publish-preview.sh` stops it and removes `api.json`, so `/api/*` answers 404 `preview_api_not_published` |
 | Preview API OOM on 1 GB droplet | One sidecar (`PREVIEW_API_MAX=1`), `bun --smol`, IG worker off, loopback only |
 | Preview publish stuck on `could not acquire preview lock` | Sidecar must not inherit flock (`9>&-`); lock released before API boot; lock file is `publish.lock` |
 | Production SW caching `/preview/` | `sw.js` bypasses `/preview/`; bump `CACHE_VERSION` when changing that |
