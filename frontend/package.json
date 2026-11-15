@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "./node_modules/typescript7/bin/tsc -b && vite build && node scripts/check-stylex-css.mjs",
+    "build": "./node_modules/typescript7/bin/tsc -b && vite build && node scripts/check-stylex-css.mjs && node scripts/check-entry-preloads.mjs",
     "typecheck": "./node_modules/typescript7/bin/tsc -b --noEmit",
     "lint": "eslint .",
     "preview": "vite preview",

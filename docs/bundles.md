@@ -14,6 +14,7 @@ Source of truth: `frontend/vite.config.ts`.
 | `react-vendor` | react + react-dom + scheduler | Stable cache |
 | `motion` | motion/framer-motion | Shared; split so no route drags it in through a three.js chunk |
 | `effect` | effect + `@effect/*` | Frontend I/O runtime |
+| `tslib` | tslib helpers | Shared by `supabase` and `radix` (react-remove-scroll). Ungrouped, Rolldown put them in `supabase`, so a Radix dialog downloaded Supabase too |
 | `supabase` | @supabase/* | Auth + sync |
 | `router` | react-router | Routing |
 | `radix` | @radix-ui/* | UI primitives |
@@ -24,4 +25,13 @@ Source of truth: `frontend/vite.config.ts`.
 
 Chunk size warning ceiling is 1100 kB (intentional — `maplibre` is the largest chunk at ≈ 1.07 MB; it and `three` are lazily loaded and cached by SW).
 
----
+## The entry
+
+Every route is a `lazyRetry` import in `AppRoutes.tsx`, Landing included, so `dist/index.html` preloads only what every app needs: `react-vendor`, `router`, `effect` (`lib/telemetry.ts`) and the entry itself. `scripts/check-entry-preloads.mjs` runs after `vite build` and fails the build if the modulepreload list names `motion`, `radix`, `supabase`, `maplibre`, `three*`, `tiles3d` or `photoreal`; it also prints the entry's size.
+
+| Entry JS (modulepreloads + `index-*.js`) | Files | Raw | Gzip |
+|---|---|---|---|
+| Before (Landing static in the route table) | 9 | 1003.5 kB | 309.2 kB |
+| After (Landing lazy, `tslib` group) | 5 | 460.6 kB | 146.4 kB |
+
+Before, `/` preloaded `motion` (59 kB gz), `supabase` (54 kB gz), `radix` (17 kB gz) and `icons` (10.5 kB gz) through the landing page's static import.

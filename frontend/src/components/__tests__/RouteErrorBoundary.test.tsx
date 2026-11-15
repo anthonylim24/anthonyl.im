@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Guarded } from '../../AppRoutes'
 import { RouteErrorBoundary } from '../RouteErrorBoundary'
 
 function Bomb({ message = 'kaboom' }: { message?: string }): null {
@@ -136,5 +138,50 @@ describe('RouteErrorBoundary', () => {
       </RouteErrorBoundary>,
     )
     expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('clears the error when its reset key changes, and only then', () => {
+    const { rerender } = render(
+      <RouteErrorBoundary app="chatbot" resetKey="a">
+        <Bomb />
+      </RouteErrorBoundary>,
+    )
+    expect(screen.getByRole('alert')).toBeTruthy()
+
+    rerender(
+      <RouteErrorBoundary app="chatbot" resetKey="a">
+        <p>fine</p>
+      </RouteErrorBoundary>,
+    )
+    expect(screen.getByRole('alert')).toBeTruthy()
+
+    rerender(
+      <RouteErrorBoundary app="chatbot" resetKey="b">
+        <p>fine</p>
+      </RouteErrorBoundary>,
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('fine')).toBeTruthy()
+  })
+
+  it('shows the route you navigate back to after another route crashed', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Link to="/">home</Link>
+        <Link to="/broken">broken</Link>
+        <Routes>
+          <Route path="/" element={<Guarded app="chatbot" fallback={null}><p>home page</p></Guarded>} />
+          <Route path="/broken" element={<Guarded app="chatbot" fallback={null}><Bomb /></Guarded>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('home page')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('link', { name: 'broken' }))
+    expect(screen.getByRole('alert')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('link', { name: 'home' }))
+    await waitFor(() => expect(screen.getByText('home page')).toBeTruthy())
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
