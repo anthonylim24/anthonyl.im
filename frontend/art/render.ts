@@ -1,0 +1,107 @@
+/**
+ * Renders the site's pre-rendered art in Blender and packs it for the app.
+ *
+ *   bun art/render.ts toys [--only donut,teddy] [--frames 24] [--samples 128] [--pack-only]
+ *   bun art/render.ts seals [--only streak_7] [--samples 128] [--pack-only]
+ *   bun art/render.ts engravings
+ *
+ * toys: every catalog toy in `src/chat/world/spec.ts` as a still (`src/chat/toys/<slug>.webp`)
+ * and a one-turn sprite strip (`<slug>.turn.webp`).
+ * seals: every BreathFlow badge in `src/breathflow/gamify/badges.ts` as a pressed wax seal
+ * (`src/breathflow/seals/<id>.webp`) in its `sealInk` colour.
+ * engravings: the ink-on-white engravings in `art/concepts/` (drawn with ChatGPT Image) as
+ * alpha masks in `src/pages/Trips/art/`, which the page inks in its own colour.
+ *
+ * Needs Blender (BLENDER=path to override), ffmpeg and cwebp. Renders are kept in `art/.cache/`
+ * so a re-pack does not re-render.
+ */
+import { $ } from 'bun'
+import { mkdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { ITEMS } from '../src/chat/world/spec'
+import { BADGES } from '../src/breathflow/gamify/badges'
+import { sealInk } from '../src/breathflow/pigments'
+
+const ART = import.meta.dir
+const CACHE = join(ART, '.cache')
+const BLENDER = process.env.BLENDER ?? '/Applications/Blender.app/Contents/MacOS/Blender'
+const STILL = 240
+const FRAME = 160
+const SEAL = 144
+const ENGRAVING = 640
+const ENGRAVINGS = ['serpent', 'compass']
+const FONT = 'https://github.com/google/fonts/raw/main/ofl/fraunces/Fraunces-Italic%5BSOFT,WONK,opsz,wght%5D.ttf'
+
+const arg = (name: string, fallback: string) => {
+  const i = process.argv.indexOf(`--${name}`)
+  return i > 0 ? process.argv[i + 1] : fallback
+}
+const slug = (key: string) => key.replace(/ /g, '-')
+
+async function toys() {
+  const frames = Number(arg('frames', '24'))
+  const samples = arg('samples', '128')
+  const only = arg('only', '')
+  const specs = join(CACHE, 'specs.json')
+  const out = join(CACHE, 'toys')
+  const dest = join(ART, '../src/chat/toys')
+  mkdirSync(out, { recursive: true })
+  mkdirSync(dest, { recursive: true })
+  await Bun.write(specs, JSON.stringify(Object.fromEntries(Object.entries(ITEMS).map(([key, entry]) => [key, entry.spec]))))
+  const keys = only ? only.split(',') : Object.keys(ITEMS)
+  if (!process.argv.includes('--pack-only')) {
+    await $`${BLENDER} -b -P ${join(ART, 'toys.py')} -- ${specs} ${out} --only ${keys.join(',')} --frames ${frames} --samples ${samples} --res 320`
+  }
+  for (const key of keys) {
+    const dir = join(out, slug(key))
+    const still = join(dest, `${slug(key)}.webp`)
+    const turn = join(dest, `${slug(key)}.turn.webp`)
+    const strip = join(CACHE, `${slug(key)}.strip.png`)
+    await $`cwebp -quiet -q 84 -alpha_q 90 -resize ${STILL} ${STILL} ${join(dir, '00.png')} -o ${still}`
+    await $`ffmpeg -loglevel error -y -framerate 1 -i ${join(dir, '%02d.png')} -vf scale=${FRAME}:${FRAME}:flags=lanczos,tile=${frames}x1 -frames:v 1 -pix_fmt rgba ${strip}`
+    await $`cwebp -quiet -q 78 -alpha_q 80 ${strip} -o ${turn}`
+    console.log(`${key.padEnd(12)} still ${(statSync(still).size / 1024).toFixed(1)} kB · turn ${(statSync(turn).size / 1024).toFixed(1)} kB`)
+  }
+}
+
+async function seals() {
+  const only = arg('only', '')
+  const specs = join(CACHE, 'seals.json')
+  const out = join(CACHE, 'seals')
+  const dest = join(ART, '../src/breathflow/seals')
+  const font = join(CACHE, 'Fraunces-Italic.ttf')
+  mkdirSync(dest, { recursive: true })
+  if (!(await Bun.file(font).exists())) await Bun.write(font, await fetch(FONT))
+  const all = BADGES.map((badge) => ({ id: badge.id, letter: badge.name.charAt(0), ink: sealInk(badge.id) }))
+  await Bun.write(specs, JSON.stringify(all))
+  const ids = only ? only.split(',') : all.map((seal) => seal.id)
+  if (!process.argv.includes('--pack-only')) {
+    await $`${BLENDER} -b -P ${join(ART, 'seals.py')} -- ${specs} ${out} ${font} --only ${ids.join(',')} --samples ${arg('samples', '128')}`
+  }
+  for (const id of ids) {
+    const file = join(dest, `${id}.webp`)
+    await $`cwebp -quiet -q 84 -alpha_q 90 -resize ${SEAL} ${SEAL} ${join(out, `${id}.png`)} -o ${file}`
+    console.log(`${id.padEnd(18)} ${(statSync(file).size / 1024).toFixed(1)} kB`)
+  }
+}
+
+async function engravings() {
+  const dest = join(ART, '../src/pages/Trips/art')
+  mkdirSync(dest, { recursive: true })
+  const ink = `format=rgba,geq=r=0:g=0:b=0:a='clip((255-r(X,Y))*1.12-18,0,255)',scale=${ENGRAVING}:${ENGRAVING}:flags=lanczos`
+  for (const name of ENGRAVINGS) {
+    const mask = join(CACHE, `${name}.mask.png`)
+    const file = join(dest, `${name}.webp`)
+    await $`ffmpeg -loglevel error -y -i ${join(ART, 'concepts', `${name}.webp`)} -vf ${ink} ${mask}`
+    await $`cwebp -quiet -q 40 -alpha_q 85 ${mask} -o ${file}`
+    console.log(`${name.padEnd(10)} ${(statSync(file).size / 1024).toFixed(1)} kB`)
+  }
+}
+
+const jobs: Record<string, () => Promise<void>> = { toys, seals, engravings }
+const job = jobs[process.argv[2] ?? '']
+if (job) await job()
+else {
+  console.error('usage: bun art/render.ts toys|seals|engravings [--only a,b] [--samples 128] [--pack-only] (toys: [--frames 24])')
+  process.exit(1)
+}

@@ -494,4 +494,14 @@ export const a = stylex.create({
   stack: { display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: 0 },
   grow: { flexGrow: 1, minWidth: 0 },
   noShrink: { flexShrink: 0 },
+  engraving: {
+    display: "block",
+    width: "min(17rem, 68vw)",
+    aspectRatio: "1",
+    marginBlock: "-1rem -0.5rem",
+    backgroundColor: "var(--trips-ink-secondary)",
+    maskSize: "contain",
+    maskRepeat: "no-repeat",
+    maskPosition: "center",
+  },
 })

@@ -37,6 +37,12 @@ const jellyDot = stylex.keyframes({
   '20%': { transform: 'translateY(1px) scale(1.25, 0.75)' },
   '40%': { transform: 'translateY(-7px) scale(0.85, 1.15)' },
 })
+/** Frames in a toy's turn strip; `art/render.ts --frames` must match. */
+const TURN_FRAMES = 24
+const turn = stylex.keyframes({
+  from: { backgroundPosition: '0% 0' },
+  to: { backgroundPosition: '100% 0' },
+})
 const squish = stylex.keyframes({
   '0%': { transform: 'scale(1, 1)' },
   '30%': { transform: 'scale(1.16, 0.84)' },
@@ -727,7 +733,7 @@ export const chatbot = stylex.create({
   // Toys: a picture of the real model on top, the name below.
   toyGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
     gap: '8px',
     marginBlockEnd: '14px',
   },
@@ -751,12 +757,22 @@ export const chatbot = stylex.create({
     transitionTimingFunction: SPRING,
     ...focusRing,
   },
-  toyPic: { position: 'relative', display: 'block', width: '64px', height: '64px' },
-  toyCanvas: { display: 'block', width: '64px', height: '64px' },
-  toyCanvasOff: { visibility: 'hidden' },
+  toyPic: { position: 'relative', display: 'block', width: '80px', height: '80px' },
+  toyCanvas: { display: 'block', width: '80px', height: '80px' },
+  toyImg: { display: 'block', width: '80px', height: '80px', userSelect: 'none' },
+  toyTurn: {
+    position: 'absolute',
+    inset: 0,
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: `${TURN_FRAMES * 100}% 100%`,
+    animationName: turn,
+    animationDuration: '1.6s',
+    animationTimingFunction: `steps(${TURN_FRAMES}, jump-none)`,
+  },
+  toyHidden: { visibility: 'hidden' },
   toySwatch: {
     position: 'absolute',
-    inset: '18px',
+    inset: '22px',
     borderRadius: '50%',
     boxShadow: 'inset 0 0 0 1.5px rgba(43, 33, 64, 0.28)',
   },

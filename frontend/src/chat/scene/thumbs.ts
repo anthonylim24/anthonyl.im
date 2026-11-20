@@ -14,7 +14,7 @@ import { buildItemModel, createItemMaterials } from './items'
 import { createLimUniforms, inkOf } from './limLook'
 
 /** Card picture size in CSS pixels. */
-export const THUMB = 64
+export const THUMB = 80
 const FOV = 26
 /** The three-quarter view a toy rests at. */
 const REST = -0.5

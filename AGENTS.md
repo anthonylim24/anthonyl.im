@@ -11,6 +11,7 @@ This file is the always-loaded agent guide (`CLAUDE.md` imports it). It holds th
 | Lim chat, Lim's world, `server/src/lim/`, `/api/invoke` | [`docs/lim.md`](docs/lim.md) |
 | Environment variables | [`docs/env.md`](docs/env.md) |
 | Chunks, `vite.config.ts` `codeSplitting` | [`docs/bundles.md`](docs/bundles.md) |
+| Pre-rendered art (toy box, wax seals, Trips engravings), `frontend/art/`, Blender MCP | [`docs/art.md`](docs/art.md) |
 | Health checks, request log, telemetry, stalled sign-in | [`docs/observability.md`](docs/observability.md) |
 | Workflows, deploy, branch protection | [`docs/ci-cd.md`](docs/ci-cd.md), [`deploy/README.md`](deploy/README.md) |
 | PR previews and screenshot login | [`docs/pr-previews.md`](docs/pr-previews.md) |

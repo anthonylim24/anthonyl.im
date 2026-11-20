@@ -17,6 +17,11 @@ import type { TripAccent } from "../types"
 // sheet on phones. Both portal-safe: the modal re-declares the `.trips`
 // token scope because Radix portals to <body>.
 
+/** An engraving from `pages/Trips/art/`, inked in the theme's own ink so it reads on either paper. */
+export function Engraving({ src }: { src: string }) {
+  return <span aria-hidden="true" {...sx(a.engraving)} style={{ maskImage: `url(${src})` }} />
+}
+
 export function Spinner() {
   return <span {...sx(a.spinner)} aria-hidden />
 }
