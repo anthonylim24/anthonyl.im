@@ -78,7 +78,7 @@ def size(scene, width, height, samples):
     scene.cycles.samples = samples
 
 
-def world(scene, strength=1.0, night=False):
+def world(scene, strength=1.0):
     w = bpy.data.worlds.get('art-studio') or bpy.data.worlds.new('art-studio')
     scene.world = w
     w.use_nodes = True
@@ -98,7 +98,7 @@ def world(scene, strength=1.0, night=False):
     tint.data_type = 'RGBA'
     tint.blend_type = 'MULTIPLY'
     tint.inputs['Factor'].default_value = 1.0
-    tint.inputs['B'].default_value = lin('#8F86D6' if night else '#FFF4E8')
+    tint.inputs['B'].default_value = lin('#FFF4E8')
     nt.links.new(env.outputs['Color'], tint.inputs['A'])
     nt.links.new(tint.outputs['Result'], bg.inputs['Color'])
     nt.links.new(bg.outputs['Background'], out.inputs['Surface'])
@@ -118,16 +118,15 @@ def area(name, at, target, energy, colour, sz, shadow=True):
     return ob
 
 
-def rig(target, radius, night=False):
+def rig(target, radius):
     """One large soft key high on the upper left, a broad front light for the ambient the world no
     longer gives, a whisper of fill, a rim that outlines the top. Only the key casts shadows."""
     t = Vector(target)
     r = radius
-    key = '#C9C2FF' if night else '#FFF3E6'
-    area('key', t + Vector((-1.8 * r, -2.4 * r, 5.2 * r)), t, 130 * r * r, key, 3.2 * r)
-    area('front', t + Vector((0.4 * r, -4.2 * r, 1.6 * r)), t, 110 * r * r, '#B8AEF0' if night else '#FFF4E8', 7.0 * r, shadow=False)
-    area('fill', t + Vector((3.8 * r, -2.6 * r, 1.4 * r)), t, 22 * r * r, '#7A6CC8' if night else '#E4ECFF', 4.0 * r, shadow=False)
-    area('rim', t + Vector((1.2 * r, 3.8 * r, 3.0 * r)), t, 90 * r * r, '#B9A8FF' if night else '#FFFFFF', 2.4 * r, shadow=False)
+    area('key', t + Vector((-1.8 * r, -2.4 * r, 5.2 * r)), t, 130 * r * r, '#FFF3E6', 3.2 * r)
+    area('front', t + Vector((0.4 * r, -4.2 * r, 1.6 * r)), t, 110 * r * r, '#FFF4E8', 7.0 * r, shadow=False)
+    area('fill', t + Vector((3.8 * r, -2.6 * r, 1.4 * r)), t, 22 * r * r, '#E4ECFF', 4.0 * r, shadow=False)
+    area('rim', t + Vector((1.2 * r, 3.8 * r, 3.0 * r)), t, 90 * r * r, '#FFFFFF', 2.4 * r, shadow=False)
 
 
 def catcher(z, radius, reach=2.0):

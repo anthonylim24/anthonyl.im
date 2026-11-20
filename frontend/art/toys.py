@@ -2,7 +2,7 @@
 by hand here after the concept sheet in `art/concepts/toybox.webp`, in its catalog colours, and
 rendered as a turntable of sorbet plastic in the product studio of `studio.py`.
 
-Headless:  blender -b -P art/toys.py -- <specs.json> <out-dir> [--only a,b] [--frames 24] [--samples 96] [--res 256] [--night]
+Headless:  blender -b -P art/toys.py -- <specs.json> <out-dir> [--only a,b] [--frames 24] [--samples 96] [--res 256]
 Live:      python3 art/bmcp.py exec <snippet that imports this module and calls shoot()>
 """
 
@@ -720,7 +720,7 @@ def slug(key):
     return key.replace(' ', '-')
 
 
-def shoot(key, spec, out, frames=1, samples=96, res=256, night=False):
+def shoot(key, spec, out, frames=1, samples=96, res=256):
     """Build one toy, frame it and render `frames` steps of one turn into `out/<slug>/NN.png`."""
     scene = studio.reset()
     studio.size(scene, res, res, samples)
@@ -737,8 +737,8 @@ def shoot(key, spec, out, frames=1, samples=96, res=256, night=False):
     span = hi - lo
     target = Vector((0, 0, span.z / 2))
     radius = max(0.12, studio.reach(kit.root.children_recursive, target)) * 1.04
-    studio.world(scene, strength=0.55 if night else 0.9, night=night)
-    studio.rig(target, radius, night=night)
+    studio.world(scene, strength=0.9)
+    studio.rig(target, radius)
     studio.catcher(0, radius * 0.6)
     studio.camera(target, radius, elevation=24, fill=0.92)
     folder = os.path.join(out, slug(key))
@@ -758,7 +758,6 @@ def main():
     ap.add_argument('--frames', type=int, default=24)
     ap.add_argument('--samples', type=int, default=96)
     ap.add_argument('--res', type=int, default=256)
-    ap.add_argument('--night', action='store_true')
     args = ap.parse_args(argv)
     with open(args.specs) as f:
         items = json.load(f)
@@ -769,7 +768,7 @@ def main():
     for key, spec in items.items():
         if only and key not in only:
             continue
-        shoot(key, spec, args.out, args.frames, args.samples, args.res, args.night)
+        shoot(key, spec, args.out, args.frames, args.samples, args.res)
         print(f'[toys] {key}: {args.frames} frames', flush=True)
 
 
