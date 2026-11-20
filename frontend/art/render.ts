@@ -1,7 +1,7 @@
 /**
  * Renders the site's pre-rendered art in Blender and packs it for the app.
  *
- *   bun art/render.ts toys [--only donut,teddy] [--frames 24] [--samples 128] [--pack-only]
+ *   bun art/render.ts toys [--only donut,teddy] [--frames 48] [--samples 128] [--pack-only]
  *   bun art/render.ts meshes [--only donut,teddy]
  *   bun art/render.ts seals [--only streak_7] [--samples 128] [--pack-only]
  *   bun art/render.ts engravings
@@ -42,7 +42,7 @@ const arg = (name: string, fallback: string) => {
 const slug = (key: string) => key.replace(/ /g, '-')
 
 async function toys() {
-  const frames = Number(arg('frames', '24'))
+  const frames = Number(arg('frames', '48'))
   const samples = arg('samples', '128')
   const only = arg('only', '')
   const specs = join(CACHE, 'specs.json')
@@ -117,6 +117,6 @@ const jobs: Record<string, () => Promise<void>> = { toys, meshes, seals, engravi
 const job = jobs[process.argv[2] ?? '']
 if (job) await job()
 else {
-  console.error('usage: bun art/render.ts toys|meshes|seals|engravings [--only a,b] [--samples 128] [--pack-only] (toys: [--frames 24])')
+  console.error('usage: bun art/render.ts toys|meshes|seals|engravings [--only a,b] [--samples 128] [--pack-only] (toys: [--frames 48])')
   process.exit(1)
 }

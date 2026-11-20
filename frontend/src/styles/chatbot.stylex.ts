@@ -38,7 +38,7 @@ const jellyDot = stylex.keyframes({
   '40%': { transform: 'translateY(-7px) scale(0.85, 1.15)' },
 })
 /** Frames in a toy's turn strip; `art/render.ts --frames` must match. */
-const TURN_FRAMES = 24
+const TURN_FRAMES = 48
 const turn = stylex.keyframes({
   from: { backgroundPosition: '0% 0' },
   to: { backgroundPosition: '100% 0' },
