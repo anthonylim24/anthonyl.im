@@ -185,7 +185,7 @@ describe('useChat', () => {
     let release!: (v: string | null) => void
     const intercept = vi.fn(() => new Promise<string | null>((res) => (release = res)))
     const { result } = renderHook(() => useChat({ intercept }))
-    act(() => void result.current.send('give him a kite'))
+    act(() => void result.current.send('give him a pinwheel'))
     act(() => result.current.stop())
     await act(async () => release('Here you go!'))
     await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
@@ -194,10 +194,10 @@ describe('useChat', () => {
   })
 
   it('hands a world order to onWorld instead of showing it, and shows Lim\'s line', async () => {
-    const events = { world: () => ({ items: ['ball'], place: 'studio' }), onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A kite!', ok: true })), onChunk: vi.fn(), onDone: vi.fn() }
+    const events = { world: () => ({ items: ['ball'], place: 'studio' }), onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A pinwheel!', ok: true })), onChunk: vi.fn(), onDone: vi.fn() }
     const reply = deferredReply()
     const { result } = renderHook(() => useChat(events))
-    act(() => void result.current.send('give him a kite'))
+    act(() => void result.current.send('give him a pinwheel'))
     // The world goes along with the question.
     expect(invoke.mock.calls[0][4]).toEqual({ items: ['ball'], place: 'studio' })
     reply.chunk('@@')
@@ -206,11 +206,11 @@ describe('useChat', () => {
     // Nothing of the order is ever shown, and Lim doesn't lip-sync to it.
     expect(last(result.current.messages).content).toBe('')
     expect(events.onChunk).not.toHaveBeenCalled()
-    reply.chunk('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}')
+    reply.chunk('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A pinwheel!"}')
     await reply.finish()
     await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
-    expect(events.onWorld).toHaveBeenCalledWith('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}', false)
-    expect(last(result.current.messages)).toMatchObject({ content: 'A kite!', status: 'done' })
+    expect(events.onWorld).toHaveBeenCalledWith('@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A pinwheel!"}', false)
+    expect(last(result.current.messages)).toMatchObject({ content: 'A pinwheel!', status: 'done' })
     expect(events.onDone).toHaveBeenCalledWith(true, true)
 
     // The order goes back to the model as the order it was, so it keeps to the format;
@@ -218,8 +218,8 @@ describe('useChat', () => {
     const next = deferredReply()
     act(() => void result.current.send('Who is Anthony?'))
     expect(invoke.mock.calls[1][1]).toEqual([
-      { role: 'user', content: 'give him a kite' },
-      { role: 'assistant', content: '@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}' },
+      { role: 'user', content: 'give him a pinwheel' },
+      { role: 'assistant', content: '@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A pinwheel!"}' },
     ])
     await next.finish()
   })
@@ -255,21 +255,21 @@ describe('useChat', () => {
   })
 
   it('still treats a fenced or prefaced order as an order', async () => {
-    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A kite!', ok: true })), onChunk: vi.fn() }
+    const events = { onWorldStart: vi.fn(), onWorld: vi.fn(() => ({ text: 'A pinwheel!', ok: true })), onChunk: vi.fn() }
     const { result } = renderHook(() => useChat(events))
     // Fenced, arriving piece by piece: none of it is ever shown.
     const fenced = deferredReply()
-    act(() => void result.current.send('give him a kite'))
+    act(() => void result.current.send('give him a pinwheel'))
     for (const piece of ['`', '```', '```json\n', '```json\n@@wor', '```json\n@@world {"ops":[{"op":"item"']) {
       fenced.chunk(piece)
       expect(last(result.current.messages).content).toBe('')
     }
     expect(events.onWorldStart).toHaveBeenCalledOnce()
     expect(events.onChunk).not.toHaveBeenCalled()
-    fenced.chunk('```json\n@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A kite!"}\n```')
+    fenced.chunk('```json\n@@world {"ops":[{"op":"item","id":"ball"}],"reply":"A pinwheel!"}\n```')
     await fenced.finish()
     await waitFor(() => expect(result.current.turn.phase).toBe('idle'))
-    expect(last(result.current.messages).content).toBe('A kite!')
+    expect(last(result.current.messages).content).toBe('A pinwheel!')
 
     // Prefaced: the preface is withdrawn the moment the marker turns up.
     const prefaced = deferredReply()
@@ -302,7 +302,7 @@ describe('useChat', () => {
     const { result } = renderHook(() => useChat(events))
 
     const stopped = deferredReply()
-    act(() => void result.current.send('give him a kite'))
+    act(() => void result.current.send('give him a pinwheel'))
     stopped.chunk('@@world {"ops":[')
     act(() => result.current.stop())
     await waitFor(() => expect(result.current.turn.phase).toBe('idle'))

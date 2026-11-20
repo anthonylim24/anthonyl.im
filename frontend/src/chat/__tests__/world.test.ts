@@ -25,6 +25,15 @@ describe('catalog', () => {
     }
   })
 
+  it('every item can be asked for by its name or any alias', () => {
+    for (const [id, { aliases, spec }] of Object.entries(ITEMS)) {
+      for (const said of [id, ...aliases]) {
+        const ops = localIntent(`give him a ${said}`)?.ops
+        expect(JSON.stringify(ops), said).toContain(`"name":"${spec.name}"`)
+      }
+    }
+  })
+
   it('every place is a valid spec', () => {
     for (const [id, { spec }] of Object.entries(PLACES)) {
       const cleaned = cleanPlace(spec)
@@ -118,7 +127,7 @@ describe('cleaning what the model sends', () => {
     expect(more[1]).toEqual({ op: 'clear', what: 'items' })
     // By display name or alias too: the model is shown names, the catalog is keyed by id.
     expect(cleanOps([{ op: 'item', id: 'jelly bean' }, { op: 'item', id: 'Rubber Duck' }, { op: 'place', id: 'outer space' }]).map((o) => ('spec' in o ? o.spec?.name : ''))).toEqual(['jelly bean', 'rubber duck', 'space'])
-    expect(cleanOps([{ op: 'item', id: 'kite' }])).toEqual([])
+    expect(cleanOps([{ op: 'item', id: 'pinwheel' }])).toEqual([])
     expect(cleanOps('nonsense')).toEqual([])
     expect(cleanOps([{ op: 'tweak', set: {} }])).toEqual([])
     expect(cleanTweak({ weather: 'acid' })).toBeNull()
@@ -206,7 +215,7 @@ describe('reading a message without the model', () => {
 
   it('sends inventions to the model, and only those', () => {
     const invent = [
-      'give him a kite', 'can he have a tiny castle', 'can he have a tiny castle?', 'take lim to a candy land', 'put a scarf on his head',
+      'give him a pinwheel', 'can he have a tiny castle', 'can he have a tiny castle?', 'take lim to a candy land', 'put a scarf on his head',
       'Lim needs a scarf', 'give lim a giant pop-up book', 'bring her a hot dog stand', 'send him to a neon city', 'make it foggy',
       'please give lim a robot dog', 'could you give him a snail?', 'can he wear a wizard hat', 'take him to the moon', 'buy him a skateboard',
     ]

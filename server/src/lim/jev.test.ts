@@ -40,8 +40,8 @@ describe("routeLimModel (Jev)", () => {
   test("no live toy world: Hydrogen, without asking Jev", async () => {
     let calls = 0;
     const fetchImpl = (async () => (calls++, jevSays("jelly"))) as unknown as typeof fetch;
-    expect(await routeLimModel({ prompt: "give him a kite", apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
-    expect(await routeLimModel({ prompt: "give him a kite", world: { ...world, unavailable: true }, apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
+    expect(await routeLimModel({ prompt: "give him a pinwheel", apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
+    expect(await routeLimModel({ prompt: "give him a pinwheel", world: { ...world, unavailable: true }, apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
     expect(calls).toBe(0);
   });
 
