@@ -3,6 +3,7 @@ by hand here after the concept sheet in `art/concepts/toybox.webp`, in its catal
 rendered as a turntable of sorbet plastic in the product studio of `studio.py`.
 
 Headless:  blender -b -P art/toys.py -- <specs.json> <out-dir> [--only a,b] [--frames 24] [--samples 96] [--res 256]
+Stage:     blender -b -P art/toys.py -- <specs.json> <out-dir> --mesh [--only a,b]
 Live:      python3 art/bmcp.py exec <snippet that imports this module and calls shoot()>
 """
 
@@ -11,6 +12,7 @@ import json
 import math
 import os
 import random
+import struct
 import sys
 
 import bmesh
@@ -21,17 +23,29 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import studio  # noqa: E402
 
 INK = '#2B2140'
-REST = -0.5
-
+#: Mesh density for the stage, as a share of the pictures', and the most triangles a stage toy keeps.
+STAGE = 0.6
+BUDGET = 3000
+#: How a toy stands on the stage (Euler degrees), where the catalog body is posed unlike the toy built
+#: here. Every other toy stands as built, without the turn its picture is taken at.
+ON_STAGE = {'donut': (90, 0, 0), 'duck': (0, 0, 180), 'chili': (0, 0, 90)}
 
 
 class Kit:
-    """Everything a toy is made of goes under one root, so it can be framed and turned as one."""
+    """Everything a toy is made of goes under one root, so it can be framed and turned as one.
+    `detail` below 1 builds the same toy from fewer polygons, for the stage."""
 
-    def __init__(self):
+    def __init__(self, detail=1.0):
         self.root = bpy.data.objects.new('toy', None)
         bpy.context.scene.collection.objects.link(self.root)
         self.rng = random.Random(1)
+        self.detail = detail
+
+    def res(self, n, least, step=1):
+        """`n` segments at this kit's detail, a multiple of `step` so patterns cut along whole faces."""
+        if self.detail == 1:
+            return n
+        return max(least, round(n * self.detail / step) * step)
 
     def adopt(self, ob, mat=None, smooth=True, subsurf=0):
         if ob.name not in bpy.context.scene.collection.objects and not ob.users_collection:
@@ -58,6 +72,7 @@ class Kit:
 
     def sphere(self, mat, at=(0, 0, 0), r=1.0, scale=(1, 1, 1), rot=(0, 0, 0), shape=None, seg=64):
         bm = bmesh.new()
+        seg = self.res(seg, 12, 6)
         bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=seg // 2, radius=1.0)
         if shape:
             for v in bm.verts:
@@ -68,7 +83,7 @@ class Kit:
 
     def torus(self, mat, at=(0, 0, 0), R=1.0, r=0.25, rot=(0, 0, 0), scale=(1, 1, 1), keep=None, seg=(96, 32)):
         bm = bmesh.new()
-        n_u, n_v = seg
+        n_u, n_v = self.res(seg[0], 16, 2), self.res(seg[1], 8, 2)
         grid = []
         for i in range(n_u):
             u = i / n_u * math.tau
@@ -90,6 +105,7 @@ class Kit:
     def lathe(self, mat, profile, at=(0, 0, 0), seg=96, radial=None, rot=(0, 0, 0), subsurf=2, cap=True):
         """Spin a (radius, height) profile about Z. `radial(angle, height)` scales the radius per vertex (pleats, ribs)."""
         bm = bmesh.new()
+        seg = self.res(seg, 16, 2)
         rings = []
         for (pr, pz) in profile:
             ring = []
@@ -120,7 +136,7 @@ class Kit:
         ob = self.mesh('box', bm, mat, smooth=True)
         b = ob.modifiers.new('round', 'BEVEL')
         b.width = bevel
-        b.segments = segments
+        b.segments = self.res(segments, 2)
         b.limit_method = 'NONE'
         ob.modifiers.new('normals', 'WEIGHTED_NORMAL')
         return ob
@@ -129,9 +145,9 @@ class Kit:
         cu = bpy.data.curves.new('tube', 'CURVE')
         cu.dimensions = '3D'
         cu.bevel_depth = radius
-        cu.bevel_resolution = 6
+        cu.bevel_resolution = self.res(6, 2)
         cu.use_fill_caps = True
-        cu.resolution_u = 24
+        cu.resolution_u = self.res(24, 6)
         sp = cu.splines.new('NURBS')
         sp.points.add(len(points) - 1)
         for i, p in enumerate(points):
@@ -148,13 +164,13 @@ class Kit:
         a, b = Vector(a), Vector(b)
         d = b - a
         bm = bmesh.new()
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=verts, radius1=r, radius2=r, depth=d.length)
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=self.res(verts, 8), radius1=r, radius2=r, depth=d.length)
         M = Matrix.Translation((a + b) / 2) @ d.to_track_quat('Z', 'Y').to_matrix().to_4x4()
         bmesh.ops.transform(bm, matrix=M, verts=bm.verts)
         ob = self.mesh('rod', bm, mat)
         bv = ob.modifiers.new('round', 'BEVEL')
         bv.width = r * 0.45
-        bv.segments = 4
+        bv.segments = self.res(4, 2)
         ob.modifiers.new('normals', 'WEIGHTED_NORMAL')
         return ob
 
@@ -230,32 +246,23 @@ def gumball(k, spec):
 
 
 def beach_ball(k, spec):
+    """Six panels round the poles, each its own faces (so the stage mesh keeps them), and a white cap on each pole."""
     panels = ['#FF7E6B', '#FFFFFF', '#FFD978', '#FFFFFF', '#9FD3FF', '#FFFFFF']
-    m = studio.gummy('beach', panels[0], sss=0.15, rough=0.18)
-    nt = m.node_tree
-    b = nt.nodes['Principled BSDF']
-    tex = nt.nodes.new('ShaderNodeTexCoord')
-    grad = nt.nodes.new('ShaderNodeTexGradient')
-    grad.gradient_type = 'RADIAL'
-    nt.links.new(tex.outputs['Object'], grad.inputs['Vector'])
-    ramp = nt.nodes.new('ShaderNodeValToRGB')
-    ramp.color_ramp.interpolation = 'CONSTANT'
-    els = ramp.color_ramp.elements
-    els[0].color = studio.lin(panels[0])
-    els[1].position = 1 / 6
-    els[1].color = studio.lin(panels[1])
-    for i in range(2, 6):
-        e = els.new(i / 6)
-        e.color = studio.lin(panels[i])
-    nt.links.new(grad.outputs['Fac'], ramp.inputs['Fac'])
-    nt.links.new(ramp.outputs['Color'], b.inputs['Base Color'])
-    ball = k.sphere(m, r=0.5)
+    mats = {c: studio.gummy('beach', c, sss=0.15, rough=0.18) for c in dict.fromkeys(panels)}
+    ball = k.sphere(mats[panels[0]], r=0.5, seg=96)
+    ball.data.materials.clear()
+    for m in mats.values():
+        ball.data.materials.append(m)
+    order = list(mats)
+    for poly in ball.data.polygons:
+        c = poly.center
+        i = min(5, int((math.atan2(c.y, c.x) / math.tau + 0.5) * 6))
+        poly.material_index = order.index(panels[i])
     cap = studio.gummy('cap', '#FFFFFF', sss=0.2, rough=0.2)
     k.sphere(cap, at=(0, 0, 0.497), r=0.1, scale=(1, 1, 0.22))
     k.sphere(cap, at=(0, 0, -0.497), r=0.1, scale=(1, 1, 0.22))
     for ob in list(k.root.children):
         ob.rotation_euler = (0.55, 0.0, 0.4)
-    del ball
 
 
 def apple(k, spec):
@@ -749,6 +756,114 @@ def shoot(key, spec, out, frames=1, samples=96, res=256):
     return folder
 
 
+def canonical(verts, tris):
+    """Vertices sorted by position, each triangle turned to start at its lowest index, triangles
+    sorted. Blender walks a mesh in a different order on each run, and this keeps a rerun's files
+    byte for byte the same when the toy has not changed."""
+    order = sorted(range(len(verts)), key=lambda i: tuple(round(c, 6) for c in verts[i]))
+    new = [0] * len(verts)
+    for n, o in enumerate(order):
+        new[o] = n
+    out = []
+    for m, *t in tris:
+        t = [new[i] for i in t]
+        r = t.index(min(t))
+        out.append((m, *t[r:], *t[:r]))
+    return [verts[o] for o in order], sorted(out)
+
+
+def export(key, spec, out):
+    """Build one toy at stage detail and write `out/<slug>.mesh` for `chat/scene/toyMesh.ts`:
+    the 'TOY1' tag; vertex, index and group counts; the bounds; per group its first index, index count
+    and colour; then positions quantised to 16 bits within the bounds, and 16-bit triangle indices.
+    Axes are three.js's (y up, the front toward +z), the toy stands on y = 0 centred on x and z."""
+    studio.reset()
+    kit = Kit(detail=STAGE)
+    BUILD[key](kit, spec)
+    for ob in kit.root.children:
+        ob.rotation_euler = (0, 0, 0)
+    kit.root.rotation_euler = [math.radians(a) for a in ON_STAGE.get(key, (0, 0, 0))]
+    bpy.context.view_layer.update()
+    lo, hi = studio.bounds(kit.root.children_recursive)
+    centre = (lo + hi) / 2
+    kit.root.location = (-centre.x, -centre.y, -lo.z)
+    for ob in kit.root.children_recursive:
+        for m in ob.modifiers:
+            if m.type == 'SUBSURF':
+                m.levels = min(m.render_levels, 1)
+    bpy.context.view_layer.update()
+    deps = bpy.context.evaluated_depsgraph_get()
+    palette = []
+    bm = bmesh.new()
+    for ob in sorted(kit.root.children_recursive, key=lambda o: o.name):
+        if ob.type not in ('MESH', 'CURVE') or ob.hide_render:
+            continue
+        ev = ob.evaluated_get(deps)
+        me = ev.to_mesh()
+        part = bmesh.new()
+        part.from_mesh(me)
+        part.transform(ev.matrix_world)
+        if ev.matrix_world.determinant() < 0:
+            bmesh.ops.reverse_faces(part, faces=part.faces)
+        slots = [s.material for s in ev.material_slots]
+        for f in part.faces:
+            colour = studio.hex_of(slots[f.material_index] if f.material_index < len(slots) else None)
+            if colour not in palette:
+                palette.append(colour)
+            f.material_index = palette.index(colour)
+        tmp = bpy.data.meshes.new('part')
+        part.to_mesh(tmp)
+        part.free()
+        bm.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+        ev.to_mesh_clear()
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    verts, tris = canonical([tuple(v.co) for v in bm.verts], [(f.material_index, *(v.index for v in f.verts)) for f in bm.faces])
+    bm.free()
+    whole = bpy.data.meshes.new('stage')
+    whole.from_pydata(verts, [], [t[1:] for t in tris])
+    for poly, t in zip(whole.polygons, tris):
+        poly.material_index = t[0]
+    ob = bpy.data.objects.new('stage', whole)
+    bpy.context.scene.collection.objects.link(ob)
+    if len(whole.polygons) > BUDGET:
+        fewer = ob.modifiers.new('fewer', 'DECIMATE')
+        fewer.ratio = BUDGET / len(whole.polygons)
+        fewer.use_collapse_triangulate = True
+    bpy.context.view_layer.update()
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    me = ev.to_mesh()
+    me.calc_loop_triangles()
+    verts, tris = canonical([(v.co.x, v.co.z, -v.co.y) for v in me.vertices], [(t.material_index, *t.vertices) for t in me.loop_triangles])
+    ev.to_mesh_clear()
+    if len(verts) > 65535:
+        sys.exit(f'[toys] {key}: {len(verts)} vertices is more than 16-bit indices hold')
+    lo = [min(v[i] for v in verts) for i in range(3)]
+    hi = [max(v[i] for v in verts) for i in range(3)]
+    shift = [-(lo[0] + hi[0]) / 2, -lo[1], -(lo[2] + hi[2]) / 2]
+    verts = [tuple(v[i] + shift[i] for i in range(3)) for v in verts]
+    lo = [lo[i] + shift[i] for i in range(3)]
+    hi = [hi[i] + shift[i] for i in range(3)]
+    span = [max(1e-6, hi[i] - lo[i]) for i in range(3)]
+    index, groups = [], []
+    for m, colour in enumerate(palette):
+        group = [i for t in tris if t[0] == m for i in t[1:]]
+        if group:
+            groups.append((len(index), len(group), int(colour[1:], 16)))
+            index.extend(group)
+    path = os.path.join(out, f'{slug(key)}.mesh')
+    with open(path, 'wb') as f:
+        f.write(b'TOY1')
+        f.write(struct.pack('<3I', len(verts), len(index), len(groups)))
+        f.write(struct.pack('<6f', *lo, *hi))
+        for g in groups:
+            f.write(struct.pack('<3I', *g))
+        f.write(struct.pack(f'<{len(verts) * 3}H', *(round((v[i] - lo[i]) / span[i] * 65535) for v in verts for i in range(3))))
+        f.write(struct.pack(f'<{len(index)}H', *index))
+    return path, len(verts), len(index) // 3
+
+
 def main():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     ap = argparse.ArgumentParser()
@@ -758,6 +873,7 @@ def main():
     ap.add_argument('--frames', type=int, default=24)
     ap.add_argument('--samples', type=int, default=96)
     ap.add_argument('--res', type=int, default=256)
+    ap.add_argument('--mesh', action='store_true')
     args = ap.parse_args(argv)
     with open(args.specs) as f:
         items = json.load(f)
@@ -767,6 +883,10 @@ def main():
         sys.exit(f'[toys] no model for: {", ".join(missing)}')
     for key, spec in items.items():
         if only and key not in only:
+            continue
+        if args.mesh:
+            path, nv, nt = export(key, spec, args.out)
+            print(f'[toys] {key}: {nv} vertices, {nt} triangles', flush=True)
             continue
         shoot(key, spec, args.out, args.frames, args.samples, args.res)
         print(f'[toys] {key}: {args.frames} frames', flush=True)

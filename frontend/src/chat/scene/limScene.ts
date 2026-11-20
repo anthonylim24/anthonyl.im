@@ -23,7 +23,8 @@ import { sound } from '../sound'
 import type { Stunt } from '../eggs'
 import { ITEMS, actionsFor, type Action, type ItemSpec, type PlaceSpec, type Trait, type Tweak } from '../world/spec'
 import { Weather, backdropMaterial, createPlaceUniforms, easePlace } from './env'
-import { ItemExtras, bodyRest, createItemMaterials, paintOf, shadeOf } from './items'
+import { bodyRest, createItemMaterials, jellyLook, modelLook, type ToyLook } from './items'
+import { catalogKey, loadToyMesh, toyMeshNow } from './toyMesh'
 import { Fixture, fixtureKind } from './fixtures'
 import { SceneryStage } from './scenery'
 import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
@@ -46,7 +47,6 @@ import {
   rippleMaterial,
   shadowMaterial,
   smoothNormals,
-  toyMaterial,
   type Face,
   type FaceName,
   type V3,
@@ -399,14 +399,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     jelly.maxTravel = rest.radius * 0.5
     const geo = skinnedJellyGeometry(jelly, rest.index)
     const hex = spec.parts[0].color
-    // The body gets materials of its own: they change while it is in hand.
-    const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shadeOf(hex), paintOf(spec.parts[0], true)))
-    const hull = new THREE.Mesh(geo, hullMaterial(ink, 0.016))
-    mesh.frustumCulled = hull.frustumCulled = false
-    const extras = new ItemExtras(spec, [0, 0, 0], itemMats)
-    scene.add(mesh, hull, extras.group)
+    // A catalog toy is drawn as its Blender model once that has arrived; until then, and for anything else, as its jelly.
+    const key = catalogKey(spec)
+    const model = key ? toyMeshNow(key) : null
+    const look: ToyLook = model ? modelLook(spec, model, rest, u, ink) : jellyLook(spec, geo, u, ink, itemMats)
+    scene.add(look.group)
     return {
-      spec, has, hex, jelly, geo, mesh, hull, extras, shadow: makeShadow(null), r: rest.radius, half: rest.half,
+      spec, has, hex, jelly, geo, look, key, rest, shadow: makeShadow(null), r: rest.radius, half: rest.half,
+      /** Drawn over everything (in hand, or on the way into Lim's mouth). */
+      top: false,
       slot: 0, depth: 0.25, beta: jelly.beta, stiffness: jelly.stiffness,
       /** A starter toy comes back after it is eaten; anything else is gone. */
       renew,
@@ -430,6 +431,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
   type Toy = ReturnType<typeof makeToy>
   const toys: Toy[] = []
+  /** The scene was disposed (unmounted, or its GPU was lost): nothing late may touch it. */
+  let gone = false
   const wakeToy = (toy: Toy) => {
     toy.asleep = false
     toy.still = 0
@@ -736,10 +739,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // In hand it holds its shape instead of dangling from the pinned patch.
     toy.jelly.beta = on ? 0.06 : toy.beta
     toy.jelly.stiffness = on ? 0.4 : toy.stiffness
-    toy.hull.renderOrder = on ? 9 : 0
-    toy.mesh.renderOrder = on ? 10 : 0
-    // Still writes depth, so the floor (drawn later) doesn't paint over it.
-    for (const m of [toy.mesh.material, toy.hull.material] as THREE.Material[]) m.depthTest = !on
+    toy.top = on
+    toy.look.onTop(on)
   }
   /** Something happened: reset the nap timer, and wake Lim unless a nap was asked for. */
   const active = (nudge = false) => {
@@ -923,7 +924,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const inPlay = bodies.indexOf(toy.jelly)
     if (inPlay >= 0) bodies.splice(inPlay, 1)
     later(0.26, () => {
-      toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = toy.extras.group.visible = false
+      toy.look.group.visible = toy.shadow.mesh.visible = false
       toy.eatenAt = -1
       toy.backAt = toy.renew ? t + 6 + Math.random() * 3 : Infinity
       toy.jelly.anchor = null
@@ -998,7 +999,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     place(toy.jelly, toy.geo, 1, toy.slot, topY + 0.4, toy.depth)
     toy.prev = [...toy.jelly.center]
     toy.by = null
-    toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = toy.extras.group.visible = true
+    toy.look.group.visible = toy.shadow.mesh.visible = true
     onTop(toy, false)
     wakeToy(toy)
     bodies.push(toy.jelly)
@@ -1036,8 +1037,23 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // Nothing nudges things apart when motion is reduced, so fan them out in depth.
     toy.depth = reducedMotion ? -0.5 + (toys.indexOf(toy) % 5) * 0.3 : -0.4 + (toys.indexOf(toy) % 3) * 0.42
   }
+  /** Trade a toy's jelly look for its model once the model has arrived and its materials are built. */
+  const dressToy = async (toy: Toy) => {
+    const model = toy.key && !toyMeshNow(toy.key) ? await loadToyMesh(toy.key) : null
+    if (!model || gone) return
+    const look = modelLook(toy.spec, model, toy.rest, u, ink)
+    const built = await renderer.compileAsync(look.group, camera, scene).then(() => true, () => false)
+    if (!built || gone || !toys.includes(toy)) return look.dispose()
+    look.group.visible = toy.look.group.visible
+    look.onTop(toy.top)
+    toy.look.dispose()
+    toy.look = look
+    scene.add(look.group)
+    look.update(toy.geo, toy.jelly)
+  }
   const addToy = (spec: ItemSpec, renew: boolean, height: number) => {
     const toy = makeToy(spec, renew)
+    void dressToy(toy)
     toys.push(toy)
     info.set(toy.jelly, { r: toy.r, m: toy.has('heavy') ? 4 : 1, toy })
     bodies.push(toy.jelly)
@@ -1089,10 +1105,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       sparkle(toy.jelly.center[0], toy.jelly.center[1], toy.jelly.center[2] + 0.2, 7, 0.8)
       sound.pop()
     }
-    scene.remove(toy.mesh, toy.hull, toy.shadow.mesh)
-    toy.extras.dispose()
+    scene.remove(toy.shadow.mesh)
+    toy.look.dispose()
     toy.geo.dispose()
-    for (const m of [toy.mesh.material, toy.hull.material, toy.shadow.mesh.material] as THREE.Material[]) m.dispose()
+    ;(toy.shadow.mesh.material as THREE.Material).dispose()
     changed()
   }
 
@@ -2485,9 +2501,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     for (const toy of toys) {
       if (toy.asleep && !first) continue
       skinJelly(toy.geo, toy.jelly, 0.045, toy.jelly.floor)
-      syncJellyGeometry(toy.geo)
-      toy.extras.update(toy.jelly)
-      toy.shadow.mesh.visible = !toy.worn && toy.mesh.visible
+      toy.look.update(toy.geo, toy.jelly)
+      toy.shadow.mesh.visible = !toy.worn && toy.look.group.visible
       updateShadow(toy.shadow, toy.jelly, 3.4 * toy.r * toy.jelly.scale, 0.24)
     }
     const hatOn = toys.some((toy) => toy.worn === 'hat')
@@ -2511,8 +2526,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
   }
 
-  // Starter toys (or whatever was here last visit) drop in one after another.
+  // Starter toys (or whatever was here last visit) drop in one after another, as their models if those come quickly.
   const startWith = opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]
+  const models = startWith.map(catalogKey).filter((key) => key !== null).map(loadToyMesh)
+  await Promise.race([Promise.all(models), new Promise((done) => setTimeout(done, 1500))])
   for (const spec of startWith) if (fixtureKind(spec) && !fixtures.some((f) => f.kind === fixtureKind(spec))) addFixture(spec)
   startWith.filter((spec) => !fixtureKind(spec)).slice(0, MAX_ITEMS).forEach((spec, i) => {
     // Jelly beans grow back, so there is always something to feed Lim.
@@ -2521,8 +2538,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   scenery.set(site)
   for (const toy of toys) {
     skinJelly(toy.geo, toy.jelly, 0.045, 0)
-    syncJellyGeometry(toy.geo)
-    toy.extras.update(toy.jelly)
+    toy.look.update(toy.geo, toy.jelly)
   }
   applyPlace()
   await renderer.compileAsync(scene, camera)
@@ -2826,7 +2842,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           u.tintAmt.value = 0.56
           if (toy.renew) {
             toy.backAt = Infinity
-            toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = toy.extras.group.visible = false
+            toy.look.group.visible = toy.shadow.mesh.visible = false
             const b = bodies.indexOf(toy.jelly)
             if (b >= 0) bodies.splice(b, 1)
           } else removeToy(toy, false)
@@ -2873,6 +2889,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       sound.sparkle()
     },
     dispose() {
+      gone = true
       clearTimeout(cheerTimer)
       host.removeEventListener('pointerdown', onTap)
       pointer.dispose()

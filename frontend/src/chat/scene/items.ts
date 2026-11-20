@@ -7,11 +7,12 @@
 import * as THREE from 'three/webgpu'
 import { attribute, normalize, positionLocal } from 'three/tsl'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
+import { syncJellyGeometry } from '../../three/jellyMesh'
 import type { ItemSpec, Part, Shape } from '../world/spec'
-import { hullMaterial, toyMaterial, type LimUniforms, type ToyPaint, type V3 } from './limLook'
+import { hullMaterial, toyMaterial, type F, type LimUniforms, type ToyPaint, type V3 } from './limLook'
+import { ITEM_R, bindToBody, carryToy, fitToyMesh, isInk, outlineWidths, reachOf, type ToyMesh } from './toyMesh'
 
-/** World radius of a size-1 item's body. */
-export const ITEM_R = 0.3
+export { ITEM_R }
 
 const pw = (v: number, e: number) => Math.sign(v) * Math.abs(v) ** e
 const smooth = (k: number) => {
@@ -285,6 +286,98 @@ export function buildItemModel(spec: ItemSpec, u: LimUniforms, mats: ItemMateria
     dispose() {
       geo.dispose()
       fill.dispose()
+    },
+  }
+}
+
+/** How a toy is drawn on the stage: carried by its soft body every frame, drawn over everything while in hand. */
+export interface ToyLook {
+  readonly group: THREE.Group
+  /** `skin` is the body as drawn (`skinJelly`), whatever this look draws from it. */
+  update(skin: THREE.BufferGeometry, jelly: Jelly): void
+  onTop(on: boolean): void
+  dispose(): void
+}
+
+type Rest = ReturnType<typeof bodyRest>
+
+function drawOnTop(fills: THREE.Mesh, hull: THREE.Mesh, on: boolean) {
+  hull.renderOrder = on ? 9 : 0
+  fills.renderOrder = on ? 10 : 0
+  // Still writes depth, so the floor (drawn later) doesn't paint over it.
+  for (const m of [fills.material, hull.material].flat()) m.depthTest = !on
+}
+
+/** The toy as its jelly: the body drawn straight from the skin, the other parts and the eyes riding on it. */
+export function jellyLook(spec: ItemSpec, skin: THREE.BufferGeometry, u: LimUniforms, ink: V3, mats: ItemMaterials): ToyLook {
+  const hex = spec.parts[0].color
+  // The body gets materials of its own: they change while it is in hand.
+  const mesh = new THREE.Mesh(skin, toyMaterial(u, hex, shadeOf(hex), paintOf(spec.parts[0], true)))
+  const hull = new THREE.Mesh(skin, hullMaterial(ink, 0.016))
+  mesh.frustumCulled = hull.frustumCulled = false
+  const extras = new ItemExtras(spec, [0, 0, 0], mats)
+  const group = new THREE.Group()
+  group.add(mesh, hull, extras.group)
+  return {
+    group,
+    update(geo, jelly) {
+      syncJellyGeometry(geo)
+      extras.update(jelly)
+    },
+    onTop: (on) => drawOnTop(mesh, hull, on),
+    dispose() {
+      group.removeFromParent()
+      extras.dispose()
+      ;(mesh.material as THREE.Material).dispose()
+      ;(hull.material as THREE.Material).dispose()
+    },
+  }
+}
+
+/**
+ * The toy as its Blender model (`toyMesh.ts`), in the same gel and ink: one fill per catalog
+ * colour, ink parts in ink, the body's paint where the model has no pattern of its own.
+ */
+export function modelLook(spec: ItemSpec, model: ToyMesh, rest: Rest, u: LimUniforms, ink: V3): ToyLook {
+  const fitted = fitToyMesh(model, spec)
+  const bind = bindToBody(fitted, rest.positions, reachOf(rest.positions, rest.radius))
+  const geo = new THREE.BufferGeometry()
+  const pos = new THREE.BufferAttribute(Float32Array.from(fitted), 3)
+  pos.setUsage(THREE.DynamicDrawUsage)
+  geo.setAttribute('position', pos)
+  geo.setAttribute('rest', new THREE.BufferAttribute(fitted, 3))
+  geo.setAttribute('outline', new THREE.BufferAttribute(outlineWidths(model, fitted, 0.016), 1))
+  geo.setIndex(new THREE.BufferAttribute(model.index, 1))
+  geo.computeVertexNormals()
+  ;(geo.attributes.normal as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage)
+  model.groups.forEach((g, i) => geo.addGroup(g.start, g.count, i))
+  const body = spec.parts[0]
+  const own = (hex: string) => model.groups.some((g) => g.color === hex.toUpperCase())
+  const paint = body.ink && own(body.ink) ? undefined : paintOf(body, true)
+  const fills = model.groups.map((g) => {
+    if (isInk(g.color)) {
+      const m = new THREE.MeshBasicNodeMaterial()
+      m.colorNode = ink
+      return m
+    }
+    return toyMaterial(u, g.color, shadeOf(g.color), g.color === body.color.toUpperCase() ? paint : undefined)
+  })
+  const fill = new THREE.Mesh(geo, fills)
+  const hull = new THREE.Mesh(geo, hullMaterial(ink, attribute('outline', 'float') as unknown as F))
+  fill.frustumCulled = hull.frustumCulled = false
+  const group = new THREE.Group()
+  group.add(fill, hull)
+  return {
+    group,
+    update(skin, jelly) {
+      carryToy(fitted, bind, jelly, skin.attributes.position.array, pos.array as Float32Array, (jelly.floor ?? -Infinity) - rest.lift)
+      syncJellyGeometry(geo)
+    },
+    onTop: (on) => drawOnTop(fill, hull, on),
+    dispose() {
+      group.removeFromParent()
+      geo.dispose()
+      for (const m of [...fills, hull.material as THREE.Material]) m.dispose()
     },
   }
 }

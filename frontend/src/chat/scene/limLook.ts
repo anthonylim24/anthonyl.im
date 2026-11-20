@@ -247,7 +247,7 @@ export function gel(n: V3, spec: V3, o: GelOptions): V3 {
   return c
 }
 
-export function hullMaterial(ink: V3, width: number, normal: V3 = normalLocal) {
+export function hullMaterial(ink: V3, width: number | F, normal: V3 = normalLocal) {
   const m = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide })
   m.positionNode = positionLocal.add(normal.mul(width))
   m.colorNode = ink

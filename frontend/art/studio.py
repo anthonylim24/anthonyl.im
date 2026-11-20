@@ -206,10 +206,26 @@ def camera(target, radius, fov=24, elevation=30, fill=1.0):
     return ob
 
 
-def _principled(name):
+def _principled(name, hex_colour=None):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
-    return m, m.node_tree, m.node_tree.nodes['Principled BSDF']
+    b = m.node_tree.nodes['Principled BSDF']
+    if hex_colour:
+        m['hex'] = hex_colour
+        b.inputs['Base Color'].default_value = lin(hex_colour)
+    return m, m.node_tree, b
+
+
+def hex_of(mat):
+    """The catalog colour a material was made from, or its base colour when it was not."""
+    if mat is None:
+        return '#FFFFFF'
+    if 'hex' in mat:
+        return mat['hex'].upper()
+    b = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None) if mat.use_nodes else None
+    c = b.inputs['Base Color'].default_value if b else mat.diffuse_color
+    srgb = [12.92 * x if x <= 0.0031308 else 1.055 * x ** (1 / 2.4) - 0.055 for x in c[:3]]
+    return '#' + ''.join(f'{round(max(0.0, min(1.0, x)) * 255):02X}' for x in srgb)
 
 
 def _sparkle(nt, b, amount, scale=320):
@@ -240,9 +256,8 @@ def _sparkle(nt, b, amount, scale=320):
 
 def gummy(name, hex_colour, sss=0.35, rough=0.3, coat=1.0, sparkle=0.0, transmission=0.0, sheen=0.0, sss_scale=0.05):
     """Sorbet plastic: a saturated body that glows a little where it is thin, under a clear wet coat."""
-    m, nt, b = _principled(name)
+    m, nt, b = _principled(name, hex_colour)
     c = lin(hex_colour)
-    b.inputs['Base Color'].default_value = c
     b.inputs['Roughness'].default_value = rough
     b.inputs['Subsurface Weight'].default_value = sss
     b.inputs['Subsurface Radius'].default_value = (1.0, 0.45, 0.3)
@@ -259,8 +274,7 @@ def gummy(name, hex_colour, sss=0.35, rough=0.3, coat=1.0, sparkle=0.0, transmis
 
 def matte(name, hex_colour, rough=0.6, sss=0.1, bump=0.0, bump_scale=60):
     """Baked dough, felt, terracotta: no coat, a soft grain."""
-    m, nt, b = _principled(name)
-    b.inputs['Base Color'].default_value = lin(hex_colour)
+    m, nt, b = _principled(name, hex_colour)
     b.inputs['Roughness'].default_value = rough
     b.inputs['Subsurface Weight'].default_value = sss
     b.inputs['Subsurface Scale'].default_value = 0.03
@@ -279,8 +293,7 @@ def matte(name, hex_colour, rough=0.6, sss=0.1, bump=0.0, bump_scale=60):
 
 
 def glass(name, hex_colour, rough=0.03, ior=1.31):
-    m, nt, b = _principled(name)
-    b.inputs['Base Color'].default_value = lin(hex_colour)
+    m, nt, b = _principled(name, hex_colour)
     b.inputs['Roughness'].default_value = rough
     b.inputs['IOR'].default_value = ior
     b.inputs['Transmission Weight'].default_value = 1.0
@@ -288,8 +301,7 @@ def glass(name, hex_colour, rough=0.03, ior=1.31):
 
 
 def gloss(name, hex_colour, rough=0.15, metallic=0.0):
-    m, nt, b = _principled(name)
-    b.inputs['Base Color'].default_value = lin(hex_colour)
+    m, nt, b = _principled(name, hex_colour)
     b.inputs['Roughness'].default_value = rough
     b.inputs['Metallic'].default_value = metallic
     b.inputs['Coat Weight'].default_value = 0.8

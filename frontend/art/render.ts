@@ -2,11 +2,14 @@
  * Renders the site's pre-rendered art in Blender and packs it for the app.
  *
  *   bun art/render.ts toys [--only donut,teddy] [--frames 24] [--samples 128] [--pack-only]
+ *   bun art/render.ts meshes [--only donut,teddy]
  *   bun art/render.ts seals [--only streak_7] [--samples 128] [--pack-only]
  *   bun art/render.ts engravings
  *
  * toys: every catalog toy in `src/chat/world/spec.ts` as a still (`src/chat/toys/<slug>.webp`)
  * and a one-turn sprite strip (`<slug>.turn.webp`).
+ * meshes: the same toys as light models for Lim's stage (`src/chat/toys/<slug>.mesh`), every one
+ * but the hoop and the goal, which `scene/fixtures.ts` draws to fit their colliders.
  * seals: every BreathFlow badge in `src/breathflow/gamify/badges.ts` as a pressed wax seal
  * (`src/breathflow/seals/<id>.webp`) in its `sealInk` colour.
  * engravings: the ink-on-white engravings in `art/concepts/` (drawn with ChatGPT Image) as
@@ -64,6 +67,18 @@ async function toys() {
   }
 }
 
+async function meshes() {
+  const specs = join(CACHE, 'specs.json')
+  const dest = join(ART, '../src/chat/toys')
+  mkdirSync(dest, { recursive: true })
+  const stage = Object.entries(ITEMS).filter(([, entry]) => !entry.spec.traits.some((t) => t === 'hoop' || t === 'goal'))
+  await Bun.write(specs, JSON.stringify(Object.fromEntries(Object.entries(ITEMS).map(([key, entry]) => [key, entry.spec]))))
+  const only = arg('only', '')
+  const keys = only ? only.split(',') : stage.map(([key]) => key)
+  await $`${BLENDER} -b -P ${join(ART, 'toys.py')} -- ${specs} ${dest} --mesh --only ${keys.join(',')}`
+  for (const key of keys) console.log(`${key.padEnd(12)} ${(statSync(join(dest, `${slug(key)}.mesh`)).size / 1024).toFixed(1)} kB`)
+}
+
 async function seals() {
   const only = arg('only', '')
   const specs = join(CACHE, 'seals.json')
@@ -98,10 +113,10 @@ async function engravings() {
   }
 }
 
-const jobs: Record<string, () => Promise<void>> = { toys, seals, engravings }
+const jobs: Record<string, () => Promise<void>> = { toys, meshes, seals, engravings }
 const job = jobs[process.argv[2] ?? '']
 if (job) await job()
 else {
-  console.error('usage: bun art/render.ts toys|seals|engravings [--only a,b] [--samples 128] [--pack-only] (toys: [--frames 24])')
+  console.error('usage: bun art/render.ts toys|meshes|seals|engravings [--only a,b] [--samples 128] [--pack-only] (toys: [--frames 24])')
   process.exit(1)
 }
