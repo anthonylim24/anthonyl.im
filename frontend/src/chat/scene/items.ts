@@ -5,11 +5,11 @@
  * part is the body; the others are light rigid meshes that ride on it.
  */
 import * as THREE from 'three/webgpu'
-import { attribute, normalize, positionLocal } from 'three/tsl'
+import { attribute, normalize, positionLocal, uniform } from 'three/tsl'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
 import { syncJellyGeometry } from '../../three/jellyMesh'
 import type { ItemSpec, Part, Shape } from '../world/spec'
-import { hullMaterial, toyMaterial, type F, type LimUniforms, type ToyPaint, type V3 } from './limLook'
+import { hullMaterial, nearDepth, toyMaterial, type F, type LimUniforms, type ToyPaint, type V3 } from './limLook'
 import { ITEM_R, bindToBody, carryToy, fitToyMesh, isInk, outlineWidths, reachOf, type ToyMesh } from './toyMesh'
 
 export { ITEM_R }
@@ -365,6 +365,9 @@ export function modelLook(spec: ItemSpec, model: ToyMesh, rest: Rest, u: LimUnif
   const fill = new THREE.Mesh(geo, fills)
   const hull = new THREE.Mesh(geo, hullMaterial(ink, attribute('outline', 'float') as unknown as F))
   fill.frustumCulled = hull.frustumCulled = false
+  // A model overlaps itself (an arm over the body), so in hand it keeps its depth test and is drawn near instead.
+  const top = uniform(0)
+  for (const m of [...fills, hull.material as THREE.NodeMaterial]) m.vertexNode = nearDepth(top)
   const group = new THREE.Group()
   group.add(fill, hull)
   return {
@@ -373,7 +376,9 @@ export function modelLook(spec: ItemSpec, model: ToyMesh, rest: Rest, u: LimUnif
       carryToy(fitted, bind, jelly, skin.attributes.position.array, pos.array as Float32Array, (jelly.floor ?? -Infinity) - rest.lift)
       syncJellyGeometry(geo)
     },
-    onTop: (on) => drawOnTop(fill, hull, on),
+    onTop(on) {
+      top.value = on ? 1 : 0
+    },
     dispose() {
       group.removeFromParent()
       geo.dispose()

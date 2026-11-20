@@ -14,7 +14,7 @@ import {
   parseToyMesh,
   type ToyMesh,
 } from '../scene/toyMesh'
-import { ITEMS } from '../world/spec'
+import { cleanItem, ITEMS } from '../world/spec'
 
 function encode(positions: number[], index: number[], groups: [number, number, number][]): ArrayBuffer {
   const lo = [0, 1, 2].map((k) => Math.min(...positions.filter((_, i) => i % 3 === k)))
@@ -73,6 +73,10 @@ describe('toy meshes', () => {
     expect(catalogKey({ ...ITEMS.teddy.spec, size: ITEMS.teddy.spec.size * 2 })).toBeNull()
     expect(catalogKey({ ...ITEMS.teddy.spec, parts: ITEMS.teddy.spec.parts.slice(1) })).toBeNull()
     expect(catalogKey(ITEMS.hoop.spec)).toBeNull()
+  })
+
+  it.each(MODELED)('still knows %s after its spec is saved and cleaned', (key) => {
+    expect(catalogKey(cleanItem(JSON.parse(JSON.stringify(ITEMS[key].spec)))!)).toBe(key)
   })
 
   it('stands the model where the parts stand, centred on them', () => {

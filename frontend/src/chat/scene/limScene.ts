@@ -180,6 +180,9 @@ const smooth = (k: number) => {
 
 export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const { canvas, host, reducedMotion } = opts
+  const startWith = opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]
+  // The starter toys' models download while the GPU starts.
+  const models = Promise.all(startWith.map(catalogKey).filter((key) => key !== null).map(loadToyMesh))
   const stage = await createStage({ canvas, host, reducedMotion, alpha: true })
   const { renderer } = stage
   renderer.setClearColor(0x000000, 0)
@@ -402,7 +405,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // A catalog toy is drawn as its Blender model once that has arrived; until then, and for anything else, as its jelly.
     const key = catalogKey(spec)
     const model = key ? toyMeshNow(key) : null
-    const look: ToyLook = model ? modelLook(spec, model, rest, u, ink) : jellyLook(spec, geo, u, ink, itemMats)
+    const look: ToyLook = key && model ? modelLook(ITEMS[key].spec, model, rest, u, ink) : jellyLook(spec, geo, u, ink, itemMats)
     scene.add(look.group)
     return {
       spec, has, hex, jelly, geo, look, key, rest, shadow: makeShadow(null), r: rest.radius, half: rest.half,
@@ -1039,9 +1042,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
   /** Trade a toy's jelly look for its model once the model has arrived and its materials are built. */
   const dressToy = async (toy: Toy) => {
-    const model = toy.key && !toyMeshNow(toy.key) ? await loadToyMesh(toy.key) : null
+    const { key } = toy
+    if (!key || toyMeshNow(key)) return
+    const model = await loadToyMesh(key)
     if (!model || gone) return
-    const look = modelLook(toy.spec, model, toy.rest, u, ink)
+    const look = modelLook(ITEMS[key].spec, model, toy.rest, u, ink)
     const built = await renderer.compileAsync(look.group, camera, scene).then(() => true, () => false)
     if (!built || gone || !toys.includes(toy)) return look.dispose()
     look.group.visible = toy.look.group.visible
@@ -2527,9 +2532,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
 
   // Starter toys (or whatever was here last visit) drop in one after another, as their models if those come quickly.
-  const startWith = opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]
-  const models = startWith.map(catalogKey).filter((key) => key !== null).map(loadToyMesh)
-  await Promise.race([Promise.all(models), new Promise((done) => setTimeout(done, 1500))])
+  await Promise.race([models, new Promise((done) => setTimeout(done, 1500))])
   for (const spec of startWith) if (fixtureKind(spec) && !fixtures.some((f) => f.kind === fixtureKind(spec))) addFixture(spec)
   startWith.filter((spec) => !fixtureKind(spec)).slice(0, MAX_ITEMS).forEach((spec, i) => {
     // Jelly beans grow back, so there is always something to feed Lim.

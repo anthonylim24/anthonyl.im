@@ -9,7 +9,7 @@ import { DecodeError, HttpStatusError } from '@/effect/errors'
 import { fetchExternal } from '@/effect/http'
 import { runPromise } from '@/effect/runtime'
 import type { Jelly, Vec3 } from '../../three/jelly'
-import { ITEMS, type ItemSpec, type Part } from '../world/spec'
+import { cleanItem, ITEMS, type ItemSpec, type Part } from '../world/spec'
 
 /** World radius of a size-1 item's body. */
 export const ITEM_R = 0.3
@@ -198,19 +198,15 @@ const MESHES: Record<string, string> = Object.fromEntries(
 /** Catalog keys with a stage model. */
 export const MODELED = Object.keys(MESHES)
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+const shapeOf = (spec: ItemSpec | null) => (spec ? JSON.stringify([spec.name, spec.size, spec.parts]) : '')
+const CATALOG = new Map(MODELED.map((key) => [shapeOf(cleanItem(ITEMS[key].spec)), key]))
 
 /**
- * The catalog toy a spec is, when its model can stand in for the body: the same name, parts and
- * size. A spec saved before a catalog change, or one the model made up, keeps the jelly look.
+ * The catalog toy a spec is, when its model can stand in for the body: the same name, size and
+ * parts once both are cleaned, as a saved world is when it is read back. A toy the model made, or
+ * a catalog toy it recoloured or resized, keeps the jelly look.
  */
-export function catalogKey(spec: ItemSpec): string | null {
-  for (const [key, entry] of Object.entries(ITEMS)) {
-    const c = entry.spec
-    if (c.name === spec.name && c.size === spec.size && same(c.parts, spec.parts)) return key in MESHES ? key : null
-  }
-  return null
-}
+export const catalogKey = (spec: ItemSpec): string | null => CATALOG.get(shapeOf(cleanItem(spec))) ?? null
 
 const fetchMesh = Effect.fn('ToyMesh.fetch')(function* (url: string) {
   const res = yield* fetchExternal(url)
