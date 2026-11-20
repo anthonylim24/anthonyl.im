@@ -34,6 +34,7 @@ export const GIVE_UP_MS = 30
 /** Frames this slow (under about 17 fps) no screen-space pass can be worth: Auto drops them all at once. */
 export const CRAWL_MS = 60
 const DAY_MS = 24 * 3600 * 1000
+const BUSY_MS = 16
 /** Seconds of a fresh scene that never count as slow, and how close two slow windows must be to count as a row. */
 export const GRACE_MS = 5000
 const ROW_MS = 3000
@@ -59,6 +60,22 @@ export function strike(prev: Strikes, now: number, start: number, median: number
   const count = now - prev.at < Math.max(ROW_MS, median * 120) ? prev.count + 1 : 1
   // A whole window's median this slow is no passing stall.
   return count >= 2 || median > CRAWL_MS ? { strikes: { count: 0, at: now }, act: true } : { strikes: { count, at: now }, act: false }
+}
+
+/**
+ * Whether a slow window is the stage's own doing: its work (CPU or GPU, whichever takes longer) cannot
+ * fit a 60 fps frame, or fills most of the interval. A browser capping frames at 30 Hz (Low Power Mode,
+ * Energy Saver) gives long intervals with little work, and nothing given up would bring them back.
+ */
+export function ours(work: number, interval: number) {
+  return work > Math.min(BUSY_MS, interval * 0.5)
+}
+
+/** The middle of a window of frame costs; 0 for none (the WebGL2 fallback reports no GPU time). */
+export function median(xs: readonly number[]) {
+  if (!xs.length) return 0
+  const sorted = [...xs].sort((a, b) => a - b)
+  return sorted[sorted.length >> 1]
 }
 
 /** Auto's answer to a slow window: the tier to run next. The same tier means "let the stage lower its resolution". */

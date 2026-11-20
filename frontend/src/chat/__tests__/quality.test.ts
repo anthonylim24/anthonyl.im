@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CRAWL_MS, GIVE_UP_MS, GRACE_MS, parseFit, shed, startTier, strike, type Tier } from '../scene/quality'
+import { CRAWL_MS, GIVE_UP_MS, GRACE_MS, ours, parseFit, shed, startTier, strike, type Tier } from '../scene/quality'
 
 const desk = { webgpu: true, mobile: false, still: false }
 const phone = { webgpu: true, mobile: true, still: false }
@@ -51,6 +51,19 @@ describe('Auto shedding load', () => {
     expect(shed({ look: 'lit', rung: 'lit' }, slow(GIVE_UP_MS - 5))).toEqual({ look: 'lit', rung: 'lit' })
     expect(shed({ look: 'lit', rung: 'lit' }, slow(GIVE_UP_MS + 5))).toEqual({ look: 'toon' })
     expect(shed({ look: 'toon' }, slow(80))).toEqual({ look: 'toon' })
+  })
+})
+
+describe('whose fault a slow window is', () => {
+  it('blames the stage when its work cannot fit the frame', () => {
+    expect(ours(22, 33)).toBe(true)
+    expect(ours(120, 130)).toBe(true)
+    expect(ours(7, 11)).toBe(true)
+  })
+
+  it('holds on a display capped at 30 Hz with the stage mostly idle', () => {
+    expect(ours(5, 33)).toBe(false)
+    expect(ours(12, 33)).toBe(false)
   })
 })
 

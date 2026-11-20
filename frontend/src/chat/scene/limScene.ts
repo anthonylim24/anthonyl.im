@@ -29,7 +29,7 @@ import { Fixture, fixtureKind } from './fixtures'
 import { SceneryStage } from './scenery'
 import { createLighting, type Lighting } from './lighting'
 import { createPost, type Post } from './post'
-import { isMobile, readFit, saveFit, shed, startTier, strike, type Graphics, type Rung, type Strikes, type Tier } from './quality'
+import { isMobile, median, ours, readFit, saveFit, shed, startTier, strike, type Graphics, type Rung, type Strikes, type Tier } from './quality'
 import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
 import {
   CONFETTI,
@@ -198,12 +198,20 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let tier: Tier = { look: 'toon' }
   let strikes: Strikes = { count: 0, at: 0 }
   const born = performance.now()
+  // What each recent frame cost the main thread and the GPU, so a capped display is not taken for a slow one.
+  const cpuMs: number[] = []
+  const gpuMs: number[] = []
+  const note = (into: number[], ms: number) => {
+    into.push(ms)
+    if (into.length > 60) into.shift()
+  }
   const stage = await createStage({
     canvas,
     host,
     reducedMotion,
     alpha: true,
     shed: (slow) => {
+      if (!ours(Math.max(median(cpuMs), median(gpuMs)), slow.median)) return true
       if (graphics !== 'auto') return false
       const judged = strike(strikes, performance.now(), born, slow.median)
       strikes = judged.strikes
@@ -223,6 +231,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   renderer.setClearColor(0x000000, 0)
   const mobile = isMobile()
   const webgpu = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true
+  const gpuQueue = (renderer.backend as { device?: GPUDevice }).device?.queue
   tier = startTier(graphics, { webgpu, mobile, still: reducedMotion }, readFit())
 
   const scene = new THREE.Scene()
@@ -2503,6 +2512,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let first = true
   let anchorKey = ''
   const frame = (dt: number) => {
+    const began = performance.now()
     if (dt > 0) {
       t += dt
       u.time.value = t
@@ -2582,6 +2592,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     lighting?.update(u.night.value)
     if (post) post.render()
     else renderer.render(scene, camera)
+    const sent = performance.now()
+    note(cpuMs, sent - began)
+    void gpuQueue?.onSubmittedWorkDone().then(() => note(gpuMs, performance.now() - sent))
     if (import.meta.env.DEV) (window as { __limFrame?: () => void }).__limFrame?.()
     if (opts.onAnchor) {
       lim.attach(headTopRest, tmp)
