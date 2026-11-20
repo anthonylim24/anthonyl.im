@@ -28,10 +28,10 @@
     "typescript": "~7.0.2"
   },
   "dependencies": {
-    "@clerk/backend": "^3.29.0",
+    "@clerk/backend": "^3.30.0",
     "@hono/zod-validator": "^0.9.1",
     "groq-sdk": "^1.6.0",
-    "hono": "^4.13.18",
+    "hono": "^4.13.19",
     "zod": "^4.6.7"
   }
 }
