@@ -5,7 +5,7 @@
  * - **anthony** (asking about Anthony, his work, this site, or anything else
  *   for the assistant) → Gemini 4 Hydrogen
  * - **jelly** (playing with Lim, the jelly mascot: toys, places, weather,
- *   actions) → Gemini 4 Carbon
+ *   actions, and the toys Lim is asked to invent) → Gemini 4 Neon
  *
  * One Choice question, one fast call. The route only picks the model: both
  * models get the same system prompt (profile + toy-world rules), so a wrong
@@ -14,7 +14,7 @@
  * `LIM_GEMINI_MODEL` pins a model, and when `JEV_API_KEY` is missing;
  * if Jev errors or is slow, the date-based default (`limGeminiModel`) answers.
  */
-import { LIM_MODEL_AFTER_SWITCH, LIM_MODEL_UNTIL_SWITCH, limGeminiModel } from "./model";
+import { LIM_MODEL_AFTER_SWITCH, limGeminiModel } from "./model";
 import type { WorldState } from "./world";
 
 export const JEV_URL = "https://api.typesafe.ai/v1/systemone";
@@ -23,7 +23,8 @@ export const JEV_MODEL = "jev-latest";
 export const JEV_TIMEOUT_MS = 2_000;
 
 export const ANTHONY_MODEL = LIM_MODEL_AFTER_SWITCH; // gemini-4-hydrogen
-export const JELLY_MODEL = LIM_MODEL_UNTIL_SWITCH; // gemini-4-carbon
+/** Writes the toy-world orders, inventions included. Its own constant: the date-based fallback is unrelated. */
+export const JELLY_MODEL = "gemini-4-neon";
 
 export type LimRoute = {
   model: string;
