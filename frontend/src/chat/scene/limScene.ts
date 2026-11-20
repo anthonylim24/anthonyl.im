@@ -25,6 +25,7 @@ import { ITEMS, actionsFor, type Action, type ItemSpec, type PlaceSpec, type Tra
 import { Weather, backdropMaterial, createPlaceUniforms, easePlace } from './env'
 import { bodyRest, createItemMaterials, jellyLook, modelLook, type ToyLook } from './items'
 import { catalogKey, loadToyMesh, toyMeshNow } from './toyMesh'
+import { QUIRKS, clink, tapTraits, tickTraits, type QuirkToy, type Stage } from './quirks'
 import { Fixture, fixtureKind } from './fixtures'
 import { SceneryStage } from './scenery'
 import { createLighting, type Lighting } from './lighting'
@@ -41,6 +42,7 @@ import {
   col,
   createEyeMaterial,
   createLimUniforms,
+  floorGlowMaterial,
   floorMaterial,
   gel,
   haloMaterial,
@@ -502,6 +504,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       /** Its centre a frame ago: a score is a crossing. */
       prev: [0, 0, 0] as Vec3,
       scoredAt: -9,
+      memo: {} as Record<string, number>,
     }
   }
   type Toy = ReturnType<typeof makeToy>
@@ -540,8 +543,16 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   dust.mesh.renderOrder = 2
   const stars = new Pool(starGeometry(4, 0.34), plain(), 40, { gravity: 3, drag: 2.2, billboard: true, shape: popIn })
   const hearts = new Pool(heartGeometry(), plain(), 24, { gravity: -1.1, drag: 1.4, billboard: true, flutter: 1.8, shape: popIn })
-  const pools = [confetti, dust, stars, hearts]
+  const bubbles = new Pool(new THREE.SphereGeometry(1, 14, 10), bubbleMaterial(u), 24, { gravity: -1.4, drag: 1.1, flutter: 1.2, shape: popIn })
+  const pools = [confetti, dust, stars, hearts, bubbles]
   for (const p of pools) scene.add(p.mesh)
+  /** Light on the floor under glowing toys, laid out afresh every frame. */
+  const glows = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), floorGlowMaterial(), 8)
+  glows.count = 0
+  glows.frustumCulled = false
+  glows.renderOrder = 2
+  glows.setColorAt(0, new THREE.Color())
+  scene.add(glows)
 
   // ── Layout ───────────────────────────────────────────────────────
   let halfW = 2.5
@@ -649,6 +660,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let dizzyUntil = 0
   let nextOrbit = 0
   let lastBonk = -1
+  let lastClink = -1
   let lastShout = -9
   let lastKey = 0
   let inflate = 0
@@ -744,16 +756,40 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       d.angle = -Math.PI / 2
     }
   }
-  const sparkle = (x: number, y: number, z: number, count: number, power = 1) => {
+  const sparkle = (x: number, y: number, z: number, count: number, power = 1, colours?: readonly string[]) => {
     if (reducedMotion) return
     for (let k = 0; k < count; k++) {
       const a = Math.random() * Math.PI * 2
-      const s = stars.spawn(k % 3 ? '#FFD25E' : '#FFFFFF', 0.45 + Math.random() * 0.35, 0.07 + Math.random() * 0.08)
+      const hex = colours ? colours[Math.floor(Math.random() * colours.length)] : k % 3 ? '#FFD25E' : '#FFFFFF'
+      const s = stars.spawn(hex, 0.45 + Math.random() * 0.35, 0.07 + Math.random() * 0.08)
       s.p.set(x, y, z)
       s.v.set(Math.cos(a) * 3 * power, Math.sin(a) * 3 * power + 1, 0)
       s.spin = (Math.random() - 0.5) * 12
     }
   }
+  /** Flakes thrown up from a point that flutter down and settle: feathers, seeds, rain. */
+  const flakes = (at: Vec3, count: number, power: number, colours: readonly string[]) => {
+    if (reducedMotion) return
+    for (let k = 0; k < count; k++) {
+      const c = confetti.spawn(colours[k % colours.length], 1.6 + Math.random() * 1.2)
+      c.p.set(at[0] + (Math.random() - 0.5) * 0.3, at[1], at[2] + (Math.random() - 0.5) * 0.2)
+      const a = Math.random() * Math.PI * 2
+      const s = (0.6 + Math.random() * 1.6) * power
+      c.v.set(Math.cos(a) * s, (2 + Math.random() * 2.4) * power, Math.sin(a) * s * 0.4)
+      c.axis.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
+      c.spin = (Math.random() - 0.5) * 14
+    }
+  }
+  const blow = (at: Vec3, count: number) => {
+    if (reducedMotion) return
+    for (let k = 0; k < count; k++) {
+      const b = bubbles.spawn('#ffffff', 1.8 + Math.random() * 1.2, 0.08 + Math.random() * 0.1)
+      b.p.set(at[0] + (Math.random() - 0.5) * 0.3, at[1], at[2] + 0.2)
+      b.v.set((Math.random() - 0.5) * 1.6, 0.8 + Math.random() * 1.2, (Math.random() - 0.5) * 0.4)
+    }
+  }
+  const glowTint = new THREE.Color()
+  const glowAt = new THREE.Matrix4()
   const love = (count: number) => {
     if (reducedMotion) return
     lim.attach(headTopRest, tmp)
@@ -858,6 +894,93 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (popped) return
     dance = { t0: t, until: t + dur, step: -1, lean: 0 }
     setAct('happy', dur)
+  }
+
+  // ── Toy quirks (quirks.ts): the stage's own effects, handed to each toy ──
+  const quirkToys = new WeakMap<Toy, QuirkToy>()
+  const asQuirk = (toy: Toy) => {
+    let q = quirkToys.get(toy)
+    if (!q) {
+      q = {
+        key: toy.key,
+        has: toy.has,
+        center: toy.jelly.center,
+        get held() {
+          return held === toy
+        },
+        kick(vx, vy, vz) {
+          if (reducedMotion) return
+          wakeToy(toy)
+          toy.jelly.kick(vx, vy, vz)
+        },
+        spin(wx, wy, wz) {
+          if (reducedMotion) return
+          wakeToy(toy)
+          toy.jelly.spin(wx, wy, wz)
+        },
+        memo: toy.memo,
+      }
+      quirkToys.set(toy, q)
+    }
+    return q
+  }
+  const onStage = (toy: Toy) => toy.eatenAt < 0 && toy.backAt < 0 && !toy.worn
+  const quirkOf = (toy: Toy) => (toy.key ? QUIRKS[toy.key] : undefined)
+  const quirkStage: Stage = {
+    get t() {
+      return t
+    },
+    still: reducedMotion,
+    get night() {
+      return u.night.value as number
+    },
+    get toys() {
+      return toys.filter(onStage).map(asQuirk)
+    },
+    sparkle: (at, count, power, colours) => sparkle(at[0], at[1], at[2] + 0.2, count, power, colours),
+    flakes,
+    bubbles: blow,
+    puff: (at, count, power, radius) => puff(at[0], at[2], count, power, radius),
+    glow(toy, hex, strength) {
+      if (reducedMotion || glows.count >= glows.instanceMatrix.count) return
+      // Brighter at night, fainter the higher the toy floats; past 1 in the lit look, so the bloom catches it.
+      const k = strength * (0.4 + 0.6 * (u.night.value as number)) * Math.max(0, 1 - toy.center[1] / 4) * (u.lit ? 1.6 : 1)
+      if (k < 0.02) return
+      glowAt.makeScale(2.2, 1, 2.2).setPosition(toy.center[0], 0.02, toy.center[2])
+      glows.setMatrixAt(glows.count, glowAt)
+      glows.setColorAt(glows.count, glowTint.set(hex).multiplyScalar(k))
+      glows.count++
+    },
+    later,
+    emote,
+    lim: {
+      center: lim.center,
+      get dancing() {
+        return !!dance && t < dance.until
+      },
+      kick(vx, vy, vz) {
+        if (!reducedMotion) lim.kick(vx, vy, vz)
+      },
+      face: setAct,
+      dance: startDance,
+      dizzy: () => dizzy(),
+      sleepy: () => nod('sleepy'),
+      point(at) {
+        tuft.flick(Math.sign(at[0] - lim.center[0]) * 2.4, 0.6, 0)
+      },
+    },
+  }
+  /** Each toy's quirk and traits for this frame, and the floor glow they leave. */
+  const tickQuirks = (dt: number) => {
+    glows.count = 0
+    for (const toy of toys) {
+      if (!onStage(toy)) continue
+      const q = asQuirk(toy)
+      quirkOf(toy)?.tick?.(quirkStage, q, dt)
+      tickTraits(quirkStage, q, toy.hex)
+    }
+    glows.instanceMatrix.needsUpdate = true
+    if (glows.instanceColor) glows.instanceColor.needsUpdate = true
   }
   const startSpin = (turns: number, dur: number) => {
     spin = { t0: t, dur, turns, at: 0 }
@@ -993,6 +1116,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Feeding ──────────────────────────────────────────────────────
   const eat = (toy: Toy) => {
+    quirkOf(toy)?.eaten?.(quirkStage, asQuirk(toy))
     toy.eatenAt = t
     toy.jelly.gravity = [0, 0, 0]
     toy.jelly.anchor = { target: mouthAt, k: 420, c: 30 }
@@ -1677,6 +1801,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         body.kick((Math.random() - 0.5) * 1.5, 3 + Math.random() * 1.5, 0)
         body.spin(0, 0, (Math.random() - 0.5) * 9)
         sound.squeak()
+        const q = asQuirk(toy)
+        tapTraits(quirkStage, q)
+        quirkOf(toy)?.tap?.(quirkStage, q)
         return
       }
       if (body !== lim) {
@@ -2053,6 +2180,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           wa, wb, ra: ia.r, rb: ib.r, restitution: 0.5, friction: 0.45, spinA: A !== lim, spinB: B !== lim,
         })
         if (j <= 0) continue
+        if (A === lim && ib.toy && j > 2) quirkOf(ib.toy)?.hit?.(quirkStage, asQuirk(ib.toy), 'lim', j)
+        if (ia.toy && ib.toy && j > 3) {
+          quirkOf(ia.toy)?.hit?.(quirkStage, asQuirk(ia.toy), 'toy', j)
+          quirkOf(ib.toy)?.hit?.(quirkStage, asQuirk(ib.toy), 'toy', j)
+          if (j > 6 && t - lastClink > 0.25) {
+            lastClink = t
+            clink(quirkStage, [A.center[0] + nx * ia.r, A.center[1] + ny * ia.r, A.center[2] + nz * ia.r])
+          }
+        }
         // Something small hitting Lim leaves a dent that rings, not a shove.
         if (A === lim && ib.toy?.has('prickly') && j > 1 && t - lastOuch > 1.4 && !grabbed) ouch(ib.toy)
         if (A === lim && j > 2) {
@@ -2530,6 +2666,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
       snatch()
       stepToys(dt)
+      tickQuirks(dt)
       collide()
       referee()
       for (const body of bodies) {

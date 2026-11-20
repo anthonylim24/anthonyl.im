@@ -672,6 +672,13 @@ export function bubbleMaterial(u: LimUniforms) {
   return mat
 }
 
+/** The pool of light a glowing toy throws on the floor; each instance's colour carries its tint and strength. */
+export function floorGlowMaterial() {
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+  mat.opacityNode = pow(saturate(float(1).sub(length(uv().sub(0.5)).mul(2))), 2)
+  return mat
+}
+
 /** Night glow behind Lim. */
 export function haloMaterial(u: LimUniforms) {
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
