@@ -41,6 +41,10 @@ class Kit:
         self.rng = random.Random(1)
         self.detail = detail
 
+    @property
+    def picture(self):
+        return self.detail == 1
+
     def res(self, n, least, step=1):
         """`n` segments at this kit's detail, a multiple of `step` so patterns cut along whole faces."""
         if self.detail == 1:
@@ -141,13 +145,34 @@ class Kit:
         ob.modifiers.new('normals', 'WEIGHTED_NORMAL')
         return ob
 
-    def tube(self, mat, points, radius, taper=None, order=4):
+    def slab(self, mat, outline, depth, at=(0, 0, 0), rot=(0, 0, 0), soft=0.45):
+        """A flat shape with soft edges: `outline` is (x, z) points in the front plane, `depth` thick along y."""
+        bm = bmesh.new()
+        front = [bm.verts.new((x, -depth / 2, z)) for x, z in outline]
+        back = [bm.verts.new((x, depth / 2, z)) for x, z in outline]
+        bm.faces.new(front)
+        bm.faces.new(back[::-1])
+        for i in range(len(outline)):
+            j = (i + 1) % len(outline)
+            bm.faces.new((front[i], front[j], back[j], back[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        M = Matrix.Translation(at) @ Euler(rot).to_matrix().to_4x4()
+        bmesh.ops.transform(bm, matrix=M, verts=bm.verts)
+        ob = self.mesh('slab', bm, mat)
+        b = ob.modifiers.new('round', 'BEVEL')
+        b.width = depth * soft
+        b.segments = self.res(4, 2)
+        b.limit_method = 'NONE'
+        ob.modifiers.new('normals', 'WEIGHTED_NORMAL')
+        return ob
+
+    def tube(self, mat, points, radius, taper=None, order=4, steps=24):
         cu = bpy.data.curves.new('tube', 'CURVE')
         cu.dimensions = '3D'
         cu.bevel_depth = radius
         cu.bevel_resolution = self.res(6, 2)
         cu.use_fill_caps = True
-        cu.resolution_u = self.res(24, 6)
+        cu.resolution_u = self.res(steps, min(6, steps))
         sp = cu.splines.new('NURBS')
         sp.points.add(len(points) - 1)
         for i, p in enumerate(points):
@@ -229,6 +254,105 @@ def smooth(k):
 
 def colour(spec, i=0):
     return spec['parts'][i]['color']
+
+
+def glow(m, hex_colour, strength):
+    b = m.node_tree.nodes['Principled BSDF']
+    b.inputs['Emission Color'].default_value = studio.lin(hex_colour)
+    b.inputs['Emission Strength'].default_value = strength
+    return m
+
+
+def film(name):
+    m = studio.gloss(name, '#FFFFFF', rough=0.04)
+    nt = m.node_tree
+    b = nt.nodes['Principled BSDF']
+    noise = nt.nodes.new('ShaderNodeTexNoise')
+    noise.inputs['Scale'].default_value = 3.5
+    noise.inputs['Detail'].default_value = 3
+    noise.inputs['Distortion'].default_value = 1.5
+    nt.links.new(nt.nodes.new('ShaderNodeTexCoord').outputs['Object'], noise.inputs['Vector'])
+    ramp = nt.nodes.new('ShaderNodeValToRGB')
+    stops = ('#FF9FC5', '#FFE08A', '#8FE3C0', '#9FC8FF', '#C7A8FF', '#FF9FC5')
+    for _ in range(len(stops) - 2):
+        ramp.color_ramp.elements.new(0.5)
+    for i, (e, c) in enumerate(zip(ramp.color_ramp.elements, stops)):
+        e.position = 0.25 + 0.5 * i / (len(stops) - 1)
+        e.color = studio.lin(c)
+    nt.links.new(noise.outputs['Fac'], ramp.inputs['Fac'])
+    nt.links.new(ramp.outputs['Color'], b.inputs['Base Color'])
+    nt.links.new(ramp.outputs['Color'], b.inputs['Emission Color'])
+    b.inputs['Emission Strength'].default_value = 0.15
+    rim = nt.nodes.new('ShaderNodeLayerWeight')
+    rim.inputs['Blend'].default_value = 0.3
+    cover = nt.nodes.new('ShaderNodeMapRange')
+    cover.inputs['To Min'].default_value = 0.12
+    cover.inputs['To Max'].default_value = 0.85
+    nt.links.new(rim.outputs['Facing'], cover.inputs['Value'])
+    mix = nt.nodes.new('ShaderNodeMixShader')
+    nt.links.new(cover.outputs['Result'], mix.inputs['Fac'])
+    nt.links.new(nt.nodes.new('ShaderNodeBsdfTransparent').outputs['BSDF'], mix.inputs[1])
+    nt.links.new(b.outputs['BSDF'], mix.inputs[2])
+    out = next(n for n in nt.nodes if n.type == 'OUTPUT_MATERIAL')
+    nt.links.new(mix.outputs['Shader'], out.inputs['Surface'])
+    return m
+
+
+def waffle(m, groove, cells=7, pitch=26.0):
+    """Diagonal waffle grooves round a cone standing on z: `cells` diamonds per half turn, `pitch` lines per unit of height."""
+    nt = m.node_tree
+    b = nt.nodes['Principled BSDF']
+
+    def node(kind, op=None, *values):
+        n = nt.nodes.new(kind)
+        if op:
+            n.operation = op
+        for i, v in enumerate(values):
+            if v is not None:
+                n.inputs[i].default_value = v
+        return n
+
+    sep = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(nt.nodes.new('ShaderNodeTexCoord').outputs['Object'], sep.inputs[0])
+    angle = node('ShaderNodeMath', 'ARCTAN2')
+    nt.links.new(sep.outputs['Y'], angle.inputs[0])
+    nt.links.new(sep.outputs['X'], angle.inputs[1])
+    around = node('ShaderNodeMath', 'MULTIPLY', None, cells / math.pi)
+    nt.links.new(angle.outputs[0], around.inputs[0])
+    up = node('ShaderNodeMath', 'MULTIPLY', None, pitch)
+    nt.links.new(sep.outputs['Z'], up.inputs[0])
+    lines = []
+    for op in ('ADD', 'SUBTRACT'):
+        mix = node('ShaderNodeMath', op)
+        nt.links.new(around.outputs[0], mix.inputs[0])
+        nt.links.new(up.outputs[0], mix.inputs[1])
+        wave = node('ShaderNodeMath', 'MULTIPLY', None, math.pi)
+        nt.links.new(mix.outputs[0], wave.inputs[0])
+        sine = node('ShaderNodeMath', 'SINE')
+        nt.links.new(wave.outputs[0], sine.inputs[0])
+        size = node('ShaderNodeMath', 'ABSOLUTE')
+        nt.links.new(sine.outputs[0], size.inputs[0])
+        lines.append(size)
+    near = node('ShaderNodeMath', 'MINIMUM')
+    nt.links.new(lines[0].outputs[0], near.inputs[0])
+    nt.links.new(lines[1].outputs[0], near.inputs[1])
+    flat = nt.nodes.new('ShaderNodeMapRange')
+    flat.interpolation_type = 'SMOOTHSTEP'
+    flat.inputs['From Min'].default_value = 0.08
+    flat.inputs['From Max'].default_value = 0.3
+    nt.links.new(near.outputs[0], flat.inputs['Value'])
+    tint = nt.nodes.new('ShaderNodeMix')
+    tint.data_type = 'RGBA'
+    tint.inputs['A'].default_value = studio.lin(groove)
+    tint.inputs['B'].default_value = b.inputs['Base Color'].default_value[:]
+    nt.links.new(flat.outputs['Result'], tint.inputs['Factor'])
+    nt.links.new(tint.outputs['Result'], b.inputs['Base Color'])
+    bump = nt.nodes.new('ShaderNodeBump')
+    bump.inputs['Strength'].default_value = 0.7
+    bump.inputs['Distance'].default_value = 0.01
+    nt.links.new(flat.outputs['Result'], bump.inputs['Height'])
+    nt.links.new(bump.outputs['Normal'], b.inputs['Normal'])
+    return m
 
 
 
@@ -714,12 +838,692 @@ def goal(k, spec):
         o.rotation_euler = (0, 0, math.radians(24))
 
 
+def turn(k, degrees, tilt=(0, 0)):
+    for ob in k.root.children:
+        ob.rotation_euler = (math.radians(tilt[0]), math.radians(tilt[1]), math.radians(degrees))
+
+
+def scaled(points, u):
+    return [(r * u, z * u) for r, z in points]
+
+
+def painted(k, name, bm, mats, smooth=True):
+    """A mesh whose faces keep the `material_index` they were given in `bm`, into `mats`."""
+    index = [f.material_index for f in bm.faces]
+    ob = k.mesh(name, bm, mats[0], smooth=smooth)
+    for m in mats[1:]:
+        ob.data.materials.append(m)
+    ob.data.polygons.foreach_set('material_index', index)
+    return ob
+
+
+def rocket(k, spec):
+    u = 0.3
+    red = studio.gummy('rocket', colour(spec), sss=0.3, rough=0.16)
+    cream = studio.gummy('nose', colour(spec, 1), sss=0.35, rough=0.22)
+    window = studio.gummy('porthole', colour(spec, 2), sss=0.2, rough=0.04, transmission=0.35)
+    yellow = studio.gummy('fin', colour(spec, 3), sss=0.3, rough=0.2)
+    k.lathe(red, scaled([(0.0, -1.0), (0.42, -1.0), (0.5, -0.94), (0.54, -0.6), (0.54, 1.0), (0.0, 1.0)], u), seg=48)
+    k.lathe(cream, scaled([(0.0, 0.96), (0.54, 0.96), (0.5, 1.2), (0.4, 1.5), (0.27, 1.8), (0.12, 2.08), (0.0, 2.22)], u), seg=48, subsurf=1)
+    k.torus(yellow, at=(0, 0, 0.97 * u), R=0.54 * u, r=0.055 * u, seg=(48, 12))
+    k.rod(cream, (0, -0.3 * u, 0.35 * u), (0, -0.62 * u, 0.35 * u), 0.3 * u)
+    k.sphere(window, at=(0, -0.62 * u, 0.35 * u), r=0.21 * u, scale=(1, 0.45, 1), seg=32)
+    fin = [(0.35, 0.05), (0.66, -0.2), (0.96, -0.55), (1.17, -0.95), (1.3, -1.33), (1.06, -1.3), (0.8, -1.1), (0.53, -1.0), (0.35, -1.0)]
+    for a in (90, 210, 330):
+        k.slab(yellow, scaled(fin, u), 0.2 * u, rot=(0, 0, math.radians(a)))
+    k.lathe(cream, scaled([(0.0, -0.95), (0.28, -0.95), (0.24, -1.05), (0.32, -1.2), (0.0, -1.2)], u), seg=32, subsurf=1)
+    turn(k, -20)
+
+
+def bubble_wand(k, spec):
+    u = 0.3
+    lilac = studio.gummy('wand', colour(spec), sss=0.35, rough=0.18)
+    pink = studio.gummy('handle', colour(spec, 1), sss=0.35, rough=0.22)
+    yellow = studio.gummy('knob', colour(spec, 2), sss=0.3, rough=0.18)
+    R, r = 0.59 * u, 0.11 * u
+    ring = k.torus(lilac, R=R, r=r, rot=(math.pi / 2, 0, 0), seg=(84, 16))
+    for v in ring.data.vertices:
+        a = math.atan2(v.co.z, v.co.x)
+        c = Vector((R * math.cos(a), 0, R * math.sin(a)))
+        v.co = c + (v.co - c) * (1 + 0.3 * max(0.0, math.cos(a * 14)) ** 6)
+    k.sphere(lilac, at=(0, 0, -0.66 * u), r=0.13 * u, seg=32)
+    k.lathe(pink, scaled([(0.0, -0.62), (0.1, -0.62), (0.11, -0.8), (0.14, -1.0), (0.14, -1.6), (0.12, -1.68), (0.0, -1.68)], u), seg=32)
+    for z in (-1.12, -1.32, -1.52):
+        k.torus(pink, at=(0, 0, z * u), R=0.14 * u, r=0.032 * u, seg=(32, 8))
+    k.sphere(yellow, at=(0, 0, -1.78 * u), r=0.16 * u, seg=32)
+    if k.picture:
+        soap = film('soap')
+        k.sphere(soap, r=R, scale=(1, 0.05, 1))
+        k.sphere(soap, at=(0.74 * u, -0.25 * u, 0.62 * u), r=0.15 * u, seg=48)
+        k.sphere(soap, at=(0.98 * u, -0.1 * u, 0.3 * u), r=0.09 * u, seg=32)
+    turn(k, 28)
+
+
+def snow_globe(k, spec):
+    u = 0.3
+    dome = studio.glass('globe', colour(spec), rough=0.0, ior=1.45)
+    b = dome.node_tree.nodes['Principled BSDF']
+    b.inputs['Thin Wall'].default_value = True
+    b.inputs['Base Color'].default_value = studio.lin('#F2FAFF')
+    k.sphere(dome, r=0.9 * u)
+    wood = studio.gummy('wood', colour(spec, 1), sss=0.15, rough=0.35, coat=0.6)
+    k.lathe(wood, scaled([(0.0, -1.37), (0.8, -1.37), (0.84, -1.32), (0.84, -1.18), (0.74, -0.86), (0.66, -0.76), (0.0, -0.76)], u), seg=48, subsurf=1)
+    gold = studio.gummy('gold', colour(spec, 2), sss=0.3, rough=0.18, sparkle=0.25)
+    k.torus(gold, at=(0, 0, -0.78 * u), R=0.74 * u, r=0.1 * u, scale=(1, 1, 0.8), seg=(64, 16))
+    if k.picture:
+        snow = studio.gummy('snow', '#FFFFFF', sss=0.5, rough=0.45, coat=0.0, sparkle=0.5)
+        k.lathe(snow, scaled([(0.0, -0.48), (0.35, -0.5), (0.6, -0.58), (0.62, -0.63), (0.47, -0.77), (0.0, -0.77)], u))
+        pine = studio.gummy('pine', colour(spec, 3), sss=0.3, rough=0.3)
+        k.lathe(pine, scaled([(0.0, 0.1), (0.12, -0.1), (0.08, -0.1), (0.2, -0.3), (0.14, -0.3), (0.27, -0.55), (0.0, -0.55)], u), seg=48, subsurf=1)
+        k.sphere(gold, at=(0, 0, 0.17 * u), r=0.09 * u, shape=puffy('star'))
+        for _ in range(48):
+            while True:
+                p = Vector((k.rng.uniform(-0.8, 0.8), k.rng.uniform(-0.8, 0.8), k.rng.uniform(-0.42, 0.8)))
+                if p.length < 0.78 and Vector((p.x, p.y)).length > 0.2:
+                    break
+            k.sphere(snow, at=p * u, r=k.rng.uniform(0.025, 0.045) * u, seg=12)
+
+
+def lava_lamp(k, spec):
+    u = 0.3
+    lilac = studio.gummy('lamp', colour(spec, 1), sss=0.25, rough=0.15, sparkle=0.25)
+    k.lathe(lilac, scaled([(0.0, -1.85), (0.6, -1.85), (0.63, -1.79), (0.44, -1.0), (0.38, -0.94), (0.0, -0.94)], u), seg=48, subsurf=1)
+    k.lathe(lilac, scaled([(0.0, 0.92), (0.34, 0.92), (0.32, 1.0), (0.15, 1.52), (0.08, 1.6), (0.0, 1.61)], u), seg=48, subsurf=1)
+    liquid = studio.gummy('lava', colour(spec), sss=0.3, rough=0.05)
+    nt = liquid.node_tree
+    body = nt.nodes['Principled BSDF']
+    at = nt.nodes.new('ShaderNodeTexCoord').outputs['Object']
+    stretch = nt.nodes.new('ShaderNodeMapping')
+    stretch.inputs['Scale'].default_value = (1, 1, 0.55)
+    nt.links.new(at, stretch.inputs['Vector'])
+    noise = nt.nodes.new('ShaderNodeTexNoise')
+    noise.inputs['Scale'].default_value = 7
+    noise.inputs['Detail'].default_value = 0
+    nt.links.new(stretch.outputs['Vector'], noise.inputs['Vector'])
+    blobs = nt.nodes.new('ShaderNodeMapRange')
+    blobs.interpolation_type = 'SMOOTHSTEP'
+    blobs.inputs['From Min'].default_value = 0.6
+    blobs.inputs['From Max'].default_value = 0.63
+    nt.links.new(noise.outputs['Fac'], blobs.inputs['Value'])
+    height = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(at, height.inputs[0])
+    pool = nt.nodes.new('ShaderNodeMapRange')
+    pool.interpolation_type = 'SMOOTHSTEP'
+    pool.inputs['From Min'].default_value = -0.8 * u
+    pool.inputs['From Max'].default_value = -0.7 * u
+    pool.inputs['To Min'].default_value = 1
+    pool.inputs['To Max'].default_value = 0
+    nt.links.new(height.outputs['Z'], pool.inputs['Value'])
+    wax = nt.nodes.new('ShaderNodeMath')
+    wax.operation = 'MAXIMUM'
+    nt.links.new(blobs.outputs['Result'], wax.inputs[0])
+    nt.links.new(pool.outputs['Result'], wax.inputs[1])
+    tint = nt.nodes.new('ShaderNodeMix')
+    tint.data_type = 'RGBA'
+    tint.inputs['A'].default_value = studio.lin(colour(spec))
+    tint.inputs['B'].default_value = studio.lin(colour(spec, 3))
+    nt.links.new(wax.outputs[0], tint.inputs['Factor'])
+    nt.links.new(tint.outputs['Result'], body.inputs['Base Color'])
+    nt.links.new(tint.outputs['Result'], body.inputs['Emission Color'])
+    lit = nt.nodes.new('ShaderNodeMapRange')
+    lit.inputs['To Min'].default_value = 0.3
+    lit.inputs['To Max'].default_value = 1.6
+    nt.links.new(wax.outputs[0], lit.inputs['Value'])
+    nt.links.new(lit.outputs['Result'], body.inputs['Emission Strength'])
+    k.lathe(liquid, scaled([(0.0, -0.96), (0.38, -0.96), (0.48, -0.62), (0.5, -0.2), (0.44, 0.4), (0.33, 0.94), (0.0, 0.94)], u), seg=48)
+    turn(k, 180)
+
+
+def disco_ball(k, spec):
+    u = 0.3
+    tiles = [studio.gloss('mirror', colour(spec), rough=0.06, metallic=1.0), studio.gloss('grout', colour(spec, 1), rough=0.4)]
+    tiles += [studio.gloss('tint', c, rough=0.06, metallic=1.0) for c in ('#FF9FC5', '#9FD3FF', '#FFD978', '#C7B6FF')]
+    seg = k.res(36, 20, 2)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=seg // 2, radius=u)
+    gap = 0.12 * math.tau * u / seg
+    for f in bm.faces:
+        if len(f.verts) == 3:
+            f.material_index = 1
+    tiles_only = [f for f in bm.faces if len(f.verts) == 4]
+    for f in bmesh.ops.inset_individual(bm, faces=tiles_only, thickness=gap, depth=gap * 0.3)['faces']:
+        f.material_index = 1
+    bm.faces.index_update()
+    place = {f.index: n for n, f in enumerate(sorted(bm.faces, key=lambda f: tuple(round(c, 6) for c in f.calc_center_median())))}
+    bm.faces.sort(key=lambda f: place[f.index])
+    for f in bm.faces:
+        if f.material_index == 0 and k.rng.random() < 0.16:
+            f.material_index = k.rng.randrange(2, len(tiles))
+    painted(k, 'disco', bm, tiles, smooth=False)
+    cap = studio.gloss('cap', colour(spec, 1), rough=0.2, metallic=0.6)
+    k.lathe(cap, scaled([(0.0, 0.92), (0.16, 0.92), (0.13, 1.18), (0.0, 1.2)], u), seg=24, subsurf=1)
+    k.torus(cap, at=(0, 0, 1.26 * u), R=0.07 * u, r=0.025 * u, rot=(math.pi / 2, 0, 0), seg=(24, 8))
+    if k.picture:
+        spark = glow(studio.gummy('glint', '#FFFFFF', sss=0.0, rough=0.3), '#FFFFFF', 6.0)
+
+        def glint(co):
+            n = co.normalized()
+            reach = 0.1 + 0.9 * abs(math.cos(2 * math.atan2(n.z, n.x))) ** 24
+            return Vector((n.x * reach, n.y * 0.1, n.z * reach))
+        for d, size in ((Vector((-0.45, -0.75, 0.5)), 0.3), (Vector((0.5, -0.8, -0.15)), 0.2)):
+            d.normalize()
+            k.sphere(spark, at=d * 1.03 * u, r=size * u, shape=glint, rot=d.to_track_quat('-Y', 'Z').to_euler())
+
+
+def jack_in_the_box(k, spec):
+    u = 0.3
+    red = studio.gummy('jack', colour(spec), sss=0.3, rough=0.18)
+    yellow = studio.gummy('lid', colour(spec, 1), sss=0.3, rough=0.2)
+    lilac = studio.gummy('crank', colour(spec, 2), sss=0.3, rough=0.2)
+    knob = studio.gummy('knob', colour(spec, 3), sss=0.3, rough=0.16)
+    k.box(red, dims=(1.7 * u, 1.7 * u, 1.7 * u), bevel=0.14 * u)
+    lift = math.radians(-9)
+    hinge = Vector((0, 0.9 * u, 0.84 * u))
+    k.box(yellow, at=hinge + Matrix.Rotation(lift, 3, 'X') @ Vector((0, -0.92 * u, 0.1 * u)), dims=(1.84 * u, 1.84 * u, 0.2 * u), bevel=0.07 * u, rot=(lift, 0, 0))
+    k.box(studio.gloss('dark', INK, rough=0.3), at=(0, 0, 0.86 * u), dims=(1.5 * u, 1.5 * u, 0.04 * u), bevel=0.015 * u, segments=2)
+    white = studio.gloss('peek', '#FFFFFF', rough=0.1)
+    pupil = studio.gloss('pupil', INK, rough=0.06)
+    for s in (-1, 1):
+        k.sphere(white, at=(s * 0.2 * u, -0.66 * u, 0.98 * u), r=0.11 * u, scale=(1, 0.8, 1), seg=24)
+        k.sphere(pupil, at=(s * 0.2 * u, -0.74 * u, 0.97 * u), r=0.055 * u, scale=(1, 0.6, 1), seg=24)
+    k.sphere(yellow, at=(0, -0.87 * u, 0), r=0.42 * u, shape=puffy('star'), seg=36)
+    k.sphere(lilac, at=(-0.87 * u, 0, -0.02 * u), r=0.38 * u, shape=puffy('heart'), rot=(0, 0, -math.pi / 2), seg=36)
+    k.sphere(yellow, at=(0, 0.87 * u, 0), r=0.42 * u, shape=puffy('star'), rot=(0, 0, math.pi), seg=36)
+    k.sphere(lilac, at=(0.86 * u, 0, 0.1 * u), r=0.17 * u, scale=(0.45, 1, 1), seg=24)
+    k.rod(lilac, (0.85 * u, 0, 0.1 * u), (1.2 * u, 0, 0.1 * u), 0.08 * u, verts=16)
+    k.sphere(lilac, at=(1.2 * u, 0, 0.1 * u), r=0.085 * u, seg=24)
+    k.rod(lilac, (1.2 * u, 0, 0.1 * u), (1.2 * u, 0, -0.35 * u), 0.07 * u, verts=16)
+    k.sphere(lilac, at=(1.2 * u, 0, -0.35 * u), r=0.075 * u, seg=24)
+    k.rod(lilac, (1.2 * u, 0, -0.35 * u), (1.34 * u, 0, -0.35 * u), 0.06 * u, verts=16)
+    k.sphere(knob, at=(1.4 * u, 0, -0.35 * u), r=0.14 * u, seg=32)
+    turn(k, -38)
+
+
+def rubber_chicken(k, spec):
+    u = 0.3
+    skin = studio.gummy('chicken', colour(spec), sss=0.35, rough=0.32, coat=0.4)
+    nt = skin.node_tree
+    bumps = nt.nodes.new('ShaderNodeTexVoronoi')
+    bumps.inputs['Scale'].default_value = 90
+    nt.links.new(nt.nodes.new('ShaderNodeTexCoord').outputs['Object'], bumps.inputs['Vector'])
+    raise_ = nt.nodes.new('ShaderNodeBump')
+    raise_.inputs['Strength'].default_value = 0.25
+    raise_.inputs['Distance'].default_value = 0.004
+    raise_.invert = True
+    nt.links.new(bumps.outputs['Distance'], raise_.inputs['Height'])
+    nt.links.new(raise_.outputs['Normal'], nt.nodes['Principled BSDF'].inputs['Normal'])
+    beak = studio.gummy('beak', colour(spec, 2), sss=0.3, rough=0.25)
+    comb = studio.gummy('comb', colour(spec, 3), sss=0.3, rough=0.22)
+
+    def body(co):
+        n = co.normalized()
+        t = (n.x + 1) / 2
+        w = 0.72 + 0.28 * smooth(t * 1.4)
+        return Vector((n.x * 1.0, n.y * 0.5 * w, n.z * 0.5 * w + 0.1 * smooth((0.25 - t) / 0.25)))
+    k.sphere(skin, at=(-0.12 * u, 0, 0), r=u, shape=body)
+    k.sphere(skin, at=(-1.02 * u, 0, 0.3 * u), r=0.16 * u, scale=(0.8, 0.7, 1.3), rot=(0, -0.5, 0), seg=32)
+    for s in (-1, 1):
+        k.sphere(skin, at=(-0.05 * u, s * 0.4 * u, 0.08 * u), r=0.36 * u, scale=(1, 0.22, 0.55), rot=(0, 0.35, 0), seg=32)
+    k.tube(skin, [(0.62 * u, 0, 0.05 * u), (0.88 * u, 0, 0.16 * u), (1.1 * u, 0, 0.36 * u)], 0.17 * u, steps=8)
+    k.sphere(skin, at=(1.22 * u, 0, 0.42 * u), r=0.36 * u, scale=(1.05, 0.9, 1), seg=48)
+    for tilt, length in ((-0.38, 0.48), (0.5, 0.4)):
+        jaw = k.lathe(beak, scaled([(0.0, 0.0), (0.17, 0.0), (0.0, length)], u), at=(1.5 * u, 0, 0.42 * u), rot=(0, math.pi / 2 + tilt, 0), seg=32)
+        for v in jaw.data.vertices:
+            v.co.y *= 1.25
+    k.sphere(comb, at=(1.62 * u, 0, 0.42 * u), r=0.12 * u, scale=(1, 1.2, 0.9), seg=24)
+    for x, z, s in ((1.06, 0.8, 0.1), (1.21, 0.86, 0.12), (1.36, 0.8, 0.1)):
+        k.sphere(comb, at=(x * u, 0, z * u), r=s * u, scale=(1, 0.55, 1.15), seg=24)
+    k.sphere(comb, at=(1.5 * u, 0, 0.14 * u), r=0.1 * u, scale=(0.7, 0.55, 1.3), seg=24)
+    white = studio.gloss('white', '#FFFFFF', rough=0.1)
+    ink = studio.gloss('eye', INK, rough=0.06)
+    for s in (-1, 1):
+        c = Vector((1.33 * u, s * 0.28 * u, 0.56 * u))
+        k.sphere(white, at=c, r=0.13 * u, seg=24)
+        k.sphere(ink, at=c + Vector((0.05 * u, s * 0.1 * u, -0.02 * u)), r=0.05 * u, seg=16)
+    for x in (0.1, 0.45):
+        hip = Vector((x * u, -0.18 * u, -0.3 * u))
+        ankle = Vector(((x + 0.08) * u, -0.78 * u, -0.44 * u))
+        k.tube(beak, [hip, (hip + ankle) / 2 + Vector((0, 0, 0.04 * u)), ankle], 0.05 * u, steps=8)
+        for dx, dy in ((-0.13, -0.15), (0.0, -0.2), (0.13, -0.15)):
+            k.rod(beak, ankle, ankle + Vector((dx * u, dy * u, -0.02 * u)), 0.04 * u, verts=8)
+    turn(k, -28)
+
+
+def magnet(k, spec):
+    u = 0.3
+    red = studio.gummy('magnet', colour(spec), sss=0.3, rough=0.14)
+    steel = studio.gloss('steel', colour(spec, 1), rough=0.16, metallic=1.0)
+    rho, a, b, leg = 0.6, 0.25, 0.24, 0.62
+    n_leg, n_arc, cs = k.res(8, 4), k.res(48, 12), k.res(32, 12, 4)
+    path = [((-rho, -leg + leg * i / n_leg), (-1, 0)) for i in range(n_leg)]
+    path += [((rho * math.cos(t), rho * math.sin(t)), (math.cos(t), math.sin(t))) for t in (math.pi * (1 - i / n_arc) for i in range(n_arc + 1))]
+    path += [((rho, -leg * i / n_leg), (1, 0)) for i in range(1, n_leg + 1)]
+    bm = bmesh.new()
+    rings = []
+    for (px, pz), (nx, nz) in path:
+        ring = []
+        for j in range(cs):
+            t = j / cs * math.tau
+            sa = math.copysign(abs(math.cos(t)) ** 0.5, math.cos(t)) * a
+            sb = math.copysign(abs(math.sin(t)) ** 0.5, math.sin(t)) * b
+            ring.append(bm.verts.new(((px + nx * sa) * u, sb * u, (pz + nz * sa) * u)))
+        rings.append(ring)
+    for r0, r1 in zip(rings, rings[1:]):
+        for j in range(cs):
+            bm.faces.new((r0[j], r0[(j + 1) % cs], r1[(j + 1) % cs], r1[j]))
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    k.mesh('horseshoe', bm, red)
+    for s in (-1, 1):
+        k.box(steel, at=(s * rho * u, 0, -0.86 * u), dims=((2 * a + 0.02) * u, (2 * b + 0.02) * u, 0.52 * u), bevel=0.06 * u)
+    turn(k, -25)
+
+
+def sparkler(k, spec):
+    u = 0.3
+    core = glow(studio.gummy('flare', '#FFF6D6', sss=0.4, rough=0.25), '#FFF1BF', 5.0)
+    spark = glow(studio.gummy('spark', colour(spec), sss=0.4, rough=0.25), colour(spec), 0.9)
+    k.sphere(core, r=0.19 * u, seg=32)
+    golden = math.pi * (3 - math.sqrt(5))
+    n = 16
+    for i in range(n):
+        z = 1 - 2 * (i + 0.5) / n
+        d = Vector((math.cos(golden * i) * math.sqrt(1 - z * z), math.sin(golden * i) * math.sqrt(1 - z * z), z))
+        length = 0.44 if i % 2 == 0 else 0.32
+        k.lathe(spark, scaled([(0.0, 0.0), (0.06, 0.0), (0.015, length - 0.015), (0.0, length)], u), rot=d.to_track_quat('Z', 'Y').to_euler(), seg=16, subsurf=0)
+    coat = studio.matte('coat', colour(spec, 1), rough=0.8, sss=0.05, bump=0.6, bump_scale=160)
+    k.rod(coat, (0, 0, -0.15 * u), (0, 0, -1.6 * u), 0.1 * u, verts=16)
+    wood = studio.gummy('handle', colour(spec, 2), sss=0.15, rough=0.4, coat=0.3)
+    k.rod(wood, (0, 0, -1.56 * u), (0, 0, -2.0 * u), 0.13 * u, verts=16)
+    if k.picture:
+        for _ in range(12):
+            d = Vector((k.rng.uniform(-1, 1), k.rng.uniform(-1, 1), k.rng.uniform(-0.4, 1))).normalized()
+            k.sphere(core, at=d * k.rng.uniform(0.48, 0.6) * u, r=k.rng.uniform(0.025, 0.04) * u, seg=12)
+
+
+def umbrella(k, spec):
+    u = 0.3
+    panels = [studio.gummy('canopy', colour(spec), sss=0.3, rough=0.22), studio.gummy('panel', '#FFF3DC', sss=0.3, rough=0.22)]
+    ink = studio.gloss('shaft', colour(spec, 1), rough=0.12)
+    yellow = studio.gummy('tip', colour(spec, 3), sss=0.3, rough=0.18)
+    ribs = 8
+    per, rings = k.res(10, 4, 2), k.res(16, 8)
+    count = ribs * per
+    bm = bmesh.new()
+    top = bm.verts.new((0, 0, 0.55 * u))
+    grid = []
+    for i in range(1, rings + 1):
+        t = i / rings
+        row = []
+        for j in range(count):
+            a = j / count * math.tau
+            s = (j % per) / per
+            f = math.cos(math.pi / ribs) / math.cos((s - 0.5) * math.tau / ribs) * (1 + 0.035 * math.sin(math.pi * s) * t)
+            z = 0.55 - 1.1 * t ** 1.8 + 0.12 * math.sin(math.pi * s) * t ** 6
+            row.append(bm.verts.new((1.25 * t * f * math.cos(a) * u, 1.25 * t * f * math.sin(a) * u, z * u)))
+        grid.append(row)
+    for j in range(count):
+        bm.faces.new((top, grid[0][j], grid[0][(j + 1) % count])).material_index = (j // per) % 2
+    for r0, r1 in zip(grid, grid[1:]):
+        for j in range(count):
+            bm.faces.new((r0[j], r1[j], r1[(j + 1) % count], r0[(j + 1) % count])).material_index = (j // per) % 2
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    canopy = painted(k, 'canopy', bm, panels)
+    sol = canopy.modifiers.new('thick', 'SOLIDIFY')
+    sol.thickness = 0.05 * u
+    sol.offset = -1
+    if k.picture:
+        for i in range(ribs):
+            a = i / ribs * math.tau
+            k.sphere(yellow, at=(1.25 * math.cos(a) * u, 1.25 * math.sin(a) * u, -0.56 * u), r=0.06 * u, seg=24)
+    k.sphere(yellow, at=(0, 0, 0.64 * u), r=0.1 * u, seg=32)
+    k.rod(ink, (0, 0, 0.6 * u), (0, 0, -1.62 * u), 0.075 * u, verts=16)
+    hook = [(0, -1.58), (0, -1.8), (0.03, -1.9), (0.1, -1.95), (0.22, -1.95), (0.3, -1.9), (0.33, -1.8), (0.33, -1.7)]
+    k.tube(ink, [(x * u, 0, z * u) for x, z in hook], 0.08 * u, steps=8)
+    turn(k, 15)
+
+
+def kite(k, spec):
+    u = 0.3
+    sails = (studio.gummy('kite', colour(spec), sss=0.3, rough=0.25, coat=0.6), studio.gummy('sail', colour(spec, 1), sss=0.3, rough=0.25, coat=0.6))
+    trim = studio.gummy('spar', '#FFF3DC', sss=0.3, rough=0.3)
+    centre = Vector((0, 0, 0.3))
+    tips = [Vector((0, 0, 1.13)), Vector((1.1, 0, 0.3)), Vector((0, 0, -1.13)), Vector((-1.1, 0, 0.3))]
+    for i in range(4):
+        corner = (centre, tips[i], tips[(i + 1) % 4])
+        bm = bmesh.new()
+        bm.faces.new([bm.verts.new(p * u) for p in corner])
+        bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=k.res(10, 4), use_grid_fill=True)
+        a, b, c = (p * u for p in corner)
+        area = (b - a).cross(c - a).length
+        for v in bm.verts:
+            wa = (b - v.co).cross(c - v.co).length / area
+            wb = (c - v.co).cross(a - v.co).length / area
+            v.co.y = -0.14 * u * min(1.0, 27 * wa * wb * max(0.0, 1 - wa - wb)) ** 0.5
+        sail = k.mesh('sail', bm, sails[i % 2])
+        sol = sail.modifiers.new('thick', 'SOLIDIFY')
+        sol.thickness = 0.06 * u
+        sol.offset = 0
+    for a, b in ((tips[0], tips[2]), (tips[1], tips[3])):
+        k.rod(trim, (a.x * u, -0.02 * u, a.z * u), (b.x * u, -0.02 * u, b.z * u), 0.035 * u, verts=8)
+    for i in range(4):
+        a, b = tips[i] * u, tips[(i + 1) % 4] * u
+        k.rod(trim, a, b, 0.04 * u, verts=8)
+        k.sphere(trim, at=a, r=0.06 * u, seg=24)
+    k.sphere(trim, at=(0, -0.04 * u, 0.3 * u), r=0.07 * u, seg=24)
+    string = [(0, -1.13), (0.04, -1.22), (0.08, -1.36), (0.1, -1.5), (0.04, -1.64), (-0.04, -1.76), (-0.05, -1.84)]
+    k.tube(trim, [(x * u, 0, z * u) for x, z in string], 0.03 * u, steps=6)
+
+    def wing(co):
+        n = co.normalized()
+        w = 0.35 + 0.65 * smooth((n.x + 1) / 2)
+        return Vector((n.x, n.y * w * 0.35, n.z * w))
+    for (x, z), i in zip(((0.0, -1.2), (0.1, -1.5), (-0.05, -1.78)), (1, 2, 3)):
+        bow = studio.gummy('bow', colour(spec, i), sss=0.3, rough=0.25)
+        for s in (-1, 1):
+            k.sphere(bow, at=((x + s * 0.14) * u, 0, z * u), r=0.14 * u, scale=(1, 1, 0.85), shape=wing, rot=(0, 0, 0 if s > 0 else math.pi), seg=24)
+        k.sphere(bow, at=(x * u, 0, z * u), r=0.055 * u, seg=16)
+    turn(k, 20)
+
+
+def music_box(k, spec):
+    u = 0.3
+    pink = studio.gummy('musicbox', colour(spec), sss=0.3, rough=0.2)
+    lid = studio.gloss('lid', colour(spec, 1), rough=0.18)
+    dress = studio.gummy('dress', colour(spec, 2), sss=0.4, rough=0.3)
+    skin = studio.gummy('skin', colour(spec, 3), sss=0.5, rough=0.35)
+    gold = studio.gummy('gold', colour(spec, 4), sss=0.3, rough=0.18, sparkle=0.25)
+    k.box(pink, dims=(1.9 * u, 1.4 * u, 1.2 * u), bevel=0.12 * u)
+    k.box(lid, at=(0, 0, 0.68 * u), dims=(2.0 * u, 1.5 * u, 0.16 * u), bevel=0.07 * u)
+    k.box(gold, at=(0, 0, 0.58 * u), dims=(1.94 * u, 1.44 * u, 0.06 * u), bevel=0.025 * u, segments=2)
+    k.lathe(gold, scaled([(0.0, 0.76), (0.26, 0.76), (0.27, 0.8), (0.25, 0.83), (0.0, 0.83)], u), seg=32, subsurf=1)
+    tutu = lambda a, z: 1 + (0.14 * math.cos(a * 9) if 0.96 * u < z < 1.04 * u else 0.0)
+    k.lathe(dress, scaled([(0.0, 0.83), (0.05, 0.86), (0.06, 0.95), (0.25, 1.0), (0.08, 1.05), (0.1, 1.18), (0.05, 1.33), (0.0, 1.35)], u), seg=36, radial=tutu)
+    k.sphere(skin, at=(0, 0, 1.45 * u), r=0.1 * u, seg=24)
+    k.sphere(gold, at=(0, 0.02 * u, 1.55 * u), r=0.05 * u, seg=16)
+    for s in (-1, 1):
+        k.tube(skin, [(s * 0.06 * u, 0, 1.28 * u), (s * 0.15 * u, 0, 1.3 * u), (s * 0.22 * u, 0, 1.24 * u)], 0.022 * u, steps=6)
+    note = studio.gloss('note', colour(spec, 1), rough=0.18)
+    k.sphere(note, at=(-0.1 * u, -0.71 * u, -0.22 * u), r=0.13 * u, scale=(1.25, 0.4, 0.9), rot=(0, 0.45, 0), seg=32)
+    k.rod(note, (0.04 * u, -0.71 * u, -0.18 * u), (0.04 * u, -0.71 * u, 0.32 * u), 0.035 * u, verts=8)
+    k.tube(note, [(x * u, -0.71 * u, z * u) for x, z in ((0.04, 0.32), (0.14, 0.26), (0.22, 0.14), (0.18, 0.02))], 0.035 * u, steps=8)
+    k.rod(gold, (0.93 * u, 0, 0), (1.22 * u, 0, 0), 0.06 * u, verts=12)
+    k.sphere(gold, at=(1.22 * u, 0, 0), r=0.07 * u, seg=16)
+    for s in (-1, 1):
+        k.torus(gold, at=(1.3 * u, 0, s * 0.13 * u), R=0.1 * u, r=0.04 * u, rot=(math.pi / 2, 0, 0), seg=(24, 8))
+    turn(k, -32)
+
+
+def crystal(k, spec):
+    u = 0.3
+    gem = glow(studio.glass('crystal', colour(spec), rough=0.0, ior=1.9), colour(spec), 0.3)
+    b = gem.node_tree.nodes['Principled BSDF']
+    b.inputs['Transmission Dispersion Scale'].default_value = 1.0
+    b.inputs['Transmission Dispersion Abbe Number'].default_value = 18
+    bm = bmesh.new()
+
+    def ring(r, z, shift):
+        return [bm.verts.new((r * math.cos((i + shift) / 8 * math.tau) * u, r * math.sin((i + shift) / 8 * math.tau) * u, z * u)) for i in range(8)]
+
+    def strip(lo, hi):
+        for i in range(8):
+            bm.faces.new((lo[i], lo[(i + 1) % 8], hi[i]))
+            bm.faces.new((hi[i], lo[(i + 1) % 8], hi[(i + 1) % 8]))
+    apex = bm.verts.new((0, 0, -0.9 * u))
+    pavilion = ring(0.36, 0.0, 0)
+    girdle = ring(0.7, 0.52, 0.5)
+    band = ring(0.7, 0.6, 0.5)
+    crown = ring(0.52, 0.88, 1.0)
+    table = ring(0.36, 1.05, 1.5)
+    for i in range(8):
+        bm.faces.new((apex, pavilion[(i + 1) % 8], pavilion[i]))
+        bm.faces.new((girdle[i], girdle[(i + 1) % 8], band[(i + 1) % 8], band[i]))
+    strip(pavilion, girdle)
+    strip(band, crown)
+    strip(crown, table)
+    bm.faces.new(table)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    k.mesh('gem', bm, gem, smooth=False)
+    turn(k, 11)
+
+
+def lantern(k, spec):
+    u = 0.3
+    paper = studio.gummy('paper', colour(spec), sss=0.6, rough=0.45, coat=0.2)
+    nt = paper.node_tree
+    b = nt.nodes['Principled BSDF']
+    b.inputs['Emission Color'].default_value = studio.lin('#FFB27A')
+    sep = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(nt.nodes.new('ShaderNodeTexCoord').outputs['Object'], sep.inputs[0])
+    angle = nt.nodes.new('ShaderNodeMath')
+    angle.operation = 'ARCTAN2'
+    nt.links.new(sep.outputs['Y'], angle.inputs[0])
+    nt.links.new(sep.outputs['X'], angle.inputs[1])
+    ribs = nt.nodes.new('ShaderNodeMath')
+    ribs.operation = 'MULTIPLY'
+    ribs.inputs[1].default_value = 6
+    nt.links.new(angle.outputs[0], ribs.inputs[0])
+    wave = nt.nodes.new('ShaderNodeMath')
+    wave.operation = 'SINE'
+    nt.links.new(ribs.outputs[0], wave.inputs[0])
+    size = nt.nodes.new('ShaderNodeMath')
+    size.operation = 'ABSOLUTE'
+    nt.links.new(wave.outputs[0], size.inputs[0])
+    line = nt.nodes.new('ShaderNodeMapRange')
+    line.interpolation_type = 'SMOOTHSTEP'
+    line.inputs['From Min'].default_value = 0.03
+    line.inputs['From Max'].default_value = 0.14
+    nt.links.new(size.outputs[0], line.inputs['Value'])
+    facing = nt.nodes.new('ShaderNodeLayerWeight')
+    facing.inputs['Blend'].default_value = 0.45
+    lit = nt.nodes.new('ShaderNodeMapRange')
+    lit.inputs['To Min'].default_value = 3.2
+    lit.inputs['To Max'].default_value = 0.6
+    nt.links.new(facing.outputs['Facing'], lit.inputs['Value'])
+    strength = nt.nodes.new('ShaderNodeMath')
+    strength.operation = 'MULTIPLY'
+    nt.links.new(lit.outputs['Result'], strength.inputs[0])
+    nt.links.new(line.outputs['Result'], strength.inputs[1])
+    nt.links.new(strength.outputs[0], b.inputs['Emission Strength'])
+    tint = nt.nodes.new('ShaderNodeMix')
+    tint.data_type = 'RGBA'
+    tint.inputs['A'].default_value = studio.lin(colour(spec, 1))
+    tint.inputs['B'].default_value = studio.lin(colour(spec))
+    nt.links.new(line.outputs['Result'], tint.inputs['Factor'])
+    nt.links.new(tint.outputs['Result'], b.inputs['Base Color'])
+    t0 = math.asin(0.4 / 0.85)
+    body = [(0.0, -0.95 * math.cos(t0))] + [(0.85 * math.sin(t), -0.95 * math.cos(t)) for t in (t0 + (math.pi - 2 * t0) * i / 14 for i in range(15))] + [(0.0, 0.95 * math.cos(t0))]
+    k.lathe(paper, scaled(body, u), seg=96, radial=lambda a, z: 1 - 0.06 * (1 - abs(math.sin(a * 6))) ** 4, subsurf=0)
+    red = studio.gummy('cap', colour(spec, 1), sss=0.3, rough=0.18)
+    k.lathe(red, scaled([(0.0, 0.82), (0.44, 0.82), (0.47, 0.92), (0.42, 1.06), (0.0, 1.1)], u), seg=32, subsurf=1)
+    k.lathe(red, scaled([(0.0, -1.1), (0.42, -1.06), (0.47, -0.92), (0.44, -0.82), (0.0, -0.82)], u), seg=32, subsurf=1)
+    k.torus(red, at=(0, 0, 1.16 * u), R=0.07 * u, r=0.022 * u, rot=(math.pi / 2, 0, 0), seg=(24, 8))
+    tassel = studio.gummy('tassel', colour(spec, 3), sss=0.3, rough=0.4, coat=0.2, sheen=0.5)
+    k.sphere(tassel, at=(0, 0, -1.16 * u), r=0.08 * u, seg=24)
+    k.lathe(tassel, scaled([(0.0, -1.2), (0.06, -1.22), (0.09, -1.4), (0.13, -1.66), (0.0, -1.7)], u), seg=32, radial=lambda a, z: 1 + 0.12 * math.cos(a * 12), subsurf=1)
+
+
+def watermelon(k, spec):
+    u = 0.3
+    mats = [
+        studio.gummy('melon', colour(spec), sss=0.5, rough=0.25, sparkle=0.2),
+        studio.gummy('pith', '#F4F7DC', sss=0.4, rough=0.3),
+        studio.gummy('rind', colour(spec, 1), sss=0.3, rough=0.25),
+        studio.gummy('stripe', '#3F8A3E', sss=0.3, rough=0.25),
+    ]
+    apex, alpha, d = -0.8, math.radians(35.7), 0.3
+    radii = [0.0, 0.5, 1.0, 1.4, 1.54, 1.6, 1.66, 1.8]
+    na = k.res(24, 12, 2)
+
+    def band(r):
+        return 0 if r < 1.54 else 1 if r < 1.66 else 2
+
+    bm = bmesh.new()
+    sides = {}
+    for y in (-d, d):
+        tip = bm.verts.new((0, y * u, apex * u))
+        grid = [[tip] * (na + 1)] + [[bm.verts.new((r * math.sin(b) * u, y * u, (apex + r * math.cos(b)) * u)) for b in (-alpha + 2 * alpha * j / na for j in range(na + 1))] for r in radii[1:]]
+        sides[y] = grid
+        for i in range(len(radii) - 1):
+            for j in range(na):
+                vs = list(dict.fromkeys((grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1])))
+                bm.faces.new(vs if y < 0 else vs[::-1]).material_index = band((radii[i] + radii[i + 1]) / 2)
+    front, back = sides[-d], sides[d]
+    for j in range(na):
+        bm.faces.new((front[-1][j], front[-1][j + 1], back[-1][j + 1], back[-1][j])).material_index = 3 if (j * 8 // na) % 2 else 2
+    for i in range(len(radii) - 1):
+        for j in (0, na):
+            vs = (front[i][j], front[i + 1][j], back[i + 1][j], back[i][j])
+            bm.faces.new(vs if j else vs[::-1]).material_index = band((radii[i] + radii[i + 1]) / 2)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = painted(k, 'slice', bm, mats)
+    bv = ob.modifiers.new('round', 'BEVEL')
+    bv.width = 0.07 * u
+    bv.segments = k.res(4, 2)
+    bv.limit_method = 'ANGLE'
+    ob.modifiers.new('normals', 'WEIGHTED_NORMAL')
+    seed = studio.gloss('seed', colour(spec, 2), rough=0.08)
+
+    def drop(co):
+        n = co.normalized()
+        return Vector((n.x * (0.55 + 0.45 * smooth((n.z + 1) / 1.4)), n.y, n.z))
+    for x, z in ((0.0, -0.2), (-0.31, 0.15), (0.31, 0.15), (-0.57, 0.42), (0.57, 0.42), (0.0, 0.55)):
+        tilt = math.atan2(x, z - apex)
+        for y in (-d, d):
+            k.sphere(seed, at=(x * u, y * u, z * u), r=0.075 * u, scale=(0.6, 0.35, 1.0), shape=drop, rot=(0, tilt, 0), seg=24)
+    turn(k, 25, tilt=(0, 180))
+
+
+def ice_cream(k, spec):
+    u = 0.3
+    wafer = waffle(studio.matte('cone', colour(spec), rough=0.55, sss=0.2), '#C98A5B', cells=7, pitch=15.0)
+    k.lathe(wafer, scaled([(0.0, -0.95), (0.06, -0.9), (0.5, 0.84), (0.0, 0.84)], u), seg=64, subsurf=1)
+    k.torus(wafer, at=(0, 0, 0.86 * u), R=0.5 * u, r=0.07 * u, seg=(48, 12))
+    cream = studio.gummy('scoop', colour(spec, 1), sss=0.45, rough=0.3)
+
+    def scoop(co):
+        n = co.normalized()
+        lip = math.exp(-((n.z + 0.45) / 0.18) ** 2)
+        g = 1 + lip * (0.16 + 0.07 * math.sin(math.atan2(n.y, n.x) * 7))
+        return Vector((n.x * g, n.y * g, n.z))
+    k.sphere(cream, at=(0, 0, 1.2 * u), r=0.66 * u, scale=(1, 1, 0.88), shape=scoop, seg=54)
+    k.tube(cream, [(0.36 * u, -0.32 * u, 0.95 * u), (0.4 * u, -0.36 * u, 0.8 * u), (0.42 * u, -0.37 * u, 0.66 * u)], 0.09 * u, steps=8)
+    k.sphere(cream, at=(0.42 * u, -0.37 * u, 0.62 * u), r=0.11 * u, seg=24)
+    cherry = studio.gummy('cherry', colour(spec, 2), sss=0.3, rough=0.08)
+    k.sphere(cherry, at=(0, 0, 1.8 * u), r=0.15 * u, seg=32)
+    k.tube(studio.matte('stem', '#5A3A2A', rough=0.5), [(0, 0, 1.92 * u), (0.02 * u, 0, 1.99 * u), (0.07 * u, 0.02 * u, 2.05 * u)], 0.012, steps=6)
+    if k.picture:
+        mats = [studio.gummy('sprinkle', c, sss=0.15, rough=0.25) for c in ('#FFD978', '#9FD3FF', '#FFFFFF', '#7FD6B5', '#C7B6FF')]
+        for _ in range(22):
+            a = k.rng.uniform(0, math.tau)
+            e = k.rng.uniform(0.15, 1.2)
+            p = Vector((math.cos(a) * math.cos(e) * 0.67, math.sin(a) * math.cos(e) * 0.67, 1.2 + math.sin(e) * 0.59)) * u
+            t = k.rng.uniform(0, math.tau)
+            step = Vector((math.cos(t), math.sin(t), 0)) * 0.035 * u
+            k.rod(k.rng.choice(mats), p - step, p + step, 0.012 * u, verts=10)
+
+
+def robot(k, spec):
+    u = 0.3
+    blue = studio.gummy('robot', colour(spec), sss=0.25, rough=0.18)
+    steel = studio.gloss('steel', colour(spec, 1), rough=0.25, metallic=0.7)
+    red = studio.gummy('bulb', colour(spec, 2), sss=0.3, rough=0.12)
+    ink = studio.gloss('visor', colour(spec, 5), rough=0.08)
+    k.box(blue, at=(0, 0, 0.1 * u), dims=(1.5 * u, 1.2 * u, 1.4 * u), bevel=0.14 * u)
+    for s in (-1, 1):
+        k.box(steel, at=(s * 0.38 * u, -0.06 * u, -0.7 * u), dims=(0.46 * u, 0.62 * u, 0.2 * u), bevel=0.07 * u)
+    k.rod(steel, (0, 0, 0.75 * u), (0, 0, 0.92 * u), 0.24 * u)
+    k.box(steel, at=(0, 0, 1.3 * u), dims=(1.1 * u, 1.0 * u, 0.9 * u), bevel=0.14 * u)
+    k.box(ink, at=(0, -0.48 * u, 1.35 * u), dims=(0.8 * u, 0.08 * u, 0.28 * u), bevel=0.06 * u)
+    eye = glow(studio.gummy('eye', colour(spec), sss=0.2, rough=0.1), '#CFEFFF', 4.0)
+    for s in (-1, 1):
+        k.sphere(eye, at=(s * 0.2 * u, -0.53 * u, 1.36 * u), r=0.07 * u, scale=(1, 0.5, 1), seg=24)
+        k.rod(red, (s * 0.55 * u, 0, 1.3 * u), (s * 0.66 * u, 0, 1.3 * u), 0.12 * u, verts=16)
+    k.rod(steel, (0, 0, 1.75 * u), (0, 0, 1.84 * u), 0.035 * u, verts=8)
+    k.sphere(glow(studio.gummy('bulb', colour(spec, 2), sss=0.3, rough=0.12), colour(spec, 2), 0.8), at=(0, 0, 1.88 * u), r=0.1 * u, seg=24)
+    k.box(steel, at=(0, -0.6 * u, 0.2 * u), dims=(0.95 * u, 0.06 * u, 0.75 * u), bevel=0.04 * u, segments=3)
+    for x, c in ((-0.25, colour(spec, 2)), (0.0, '#FFD25E'), (0.25, '#7FD6B5')):
+        k.sphere(studio.gummy('button', c, sss=0.3, rough=0.12), at=(x * u, -0.64 * u, 0.38 * u), r=0.08 * u, scale=(1, 0.6, 1), seg=18)
+    for z in (0.14, 0.02, -0.1):
+        k.box(ink, at=(0, -0.635 * u, z * u), dims=(0.6 * u, 0.03 * u, 0.05 * u), bevel=0.015 * u, segments=2)
+    for s in (-1, 1):
+        k.sphere(steel, at=(s * 0.86 * u, 0, 0.5 * u), r=0.15 * u, seg=32)
+        k.rod(steel, (s * 0.95 * u, 0, 0.5 * u), (s * 0.95 * u, 0, -0.38 * u), 0.12 * u, verts=16)
+        k.torus(steel, at=(s * 0.95 * u, 0, -0.5 * u), R=0.12 * u, r=0.045 * u, rot=(math.pi / 2, 0, 0), keep=lambda co, a: abs(a + math.pi / 2) > 0.65, seg=(32, 8))
+        for e in (-1, 1):
+            a = -math.pi / 2 + e * 0.65
+            k.sphere(steel, at=((s * 0.95 + 0.12 * math.cos(a)) * u, 0, (-0.5 + 0.12 * math.sin(a)) * u), r=0.045 * u, seg=12)
+    turn(k, -22)
+
+
+def whoopee_cushion(k, spec):
+    u = 0.3
+    rubber = studio.gummy('whoopee', colour(spec), sss=0.35, rough=0.3, coat=0.5)
+
+    def puff(co):
+        n = co.normalized()
+        return Vector((n.x, n.y, n.z * (1.2 if n.z > 0 else 0.8)))
+    k.sphere(rubber, r=u, scale=(1.12, 1.0, 0.42), shape=puff, seg=54)
+    k.torus(rubber, R=u, r=0.05 * u, scale=(1.12, 1.0, 1.0), seg=(64, 10))
+    neck = k.lathe(rubber, scaled([(0.0, 0.8), (0.46, 0.8), (0.34, 1.0), (0.28, 1.2), (0.32, 1.42), (0.42, 1.52), (0.36, 1.58), (0.0, 1.58)], u), rot=(0, math.pi / 2, 0), seg=32)
+    for v in neck.data.vertices:
+        v.co.z *= 0.5
+    k.sphere(studio.gloss('mouth', INK, rough=0.2), at=(1.57 * u, 0, 0), r=0.24 * u, scale=(0.18, 1, 0.42), seg=24)
+    turn(k, -35)
+
+
+def spinning_top(k, spec):
+    u = 0.3
+    gores = [studio.gummy('top', colour(spec), sss=0.3, rough=0.16), studio.gummy('gore', '#FFF3DC', sss=0.3, rough=0.16)]
+    yellow = studio.gummy('rim', colour(spec, 1), sss=0.3, rough=0.18, sparkle=0.2)
+    pink = studio.gummy('dome', colour(spec, 2), sss=0.35, rough=0.16)
+    lilac = studio.gummy('stem', colour(spec, 3), sss=0.35, rough=0.2)
+    onion = [(0.0, -0.6), (0.03, -0.59), (0.07, -0.53), (0.2, -0.42), (0.38, -0.28), (0.56, -0.12), (0.72, 0.06), (0.84, 0.24), (0.9, 0.4), (0.9, 0.5), (0.0, 0.5)]
+    body = k.lathe(gores[0], scaled(onion, u), seg=80, subsurf=0)
+    body.data.materials.append(gores[1])
+    for poly in body.data.polygons:
+        poly.material_index = math.floor(math.atan2(poly.center.y, poly.center.x) / (math.tau / 8)) % 2
+    k.lathe(yellow, scaled([(0.84, 0.36), (0.93, 0.38), (0.97, 0.45), (0.93, 0.52), (0.84, 0.54)], u), seg=48, cap=False, subsurf=1)
+    k.lathe(pink, scaled([(0.0, 0.5), (0.6, 0.55), (0.55, 0.75), (0.4, 0.92), (0.2, 1.02), (0.0, 1.05)], u), seg=48)
+    k.rod(lilac, (0, 0, 0.95 * u), (0, 0, 1.5 * u), 0.1 * u, verts=16)
+    k.sphere(lilac, at=(0, 0, 1.52 * u), r=0.14 * u, seg=32)
+    k.sphere(studio.gloss('point', '#D9DCEB', rough=0.15, metallic=1.0), at=(0, 0, -0.56 * u), r=0.055 * u, seg=18)
+    turn(k, 20, tilt=(10, 0))
+
+
+def mushroom(k, spec):
+    u = 0.3
+    stem = studio.gummy('stalk', colour(spec), sss=0.45, rough=0.35, coat=0.4)
+    cap = studio.gummy('cap', colour(spec, 1), sss=0.3, rough=0.16)
+    spot = studio.gummy('spot', colour(spec, 2), sss=0.3, rough=0.25)
+    k.lathe(stem, scaled([(0.0, -0.6), (0.46, -0.6), (0.49, -0.4), (0.41, 0.0), (0.35, 0.5), (0.0, 0.62)], u), seg=40)
+    a, c, mid = 1.15, 0.87, 0.7
+    dome = [(a * math.sin(t), mid + c * math.cos(t)) for t in (math.pi / 2 * i / 12 for i in range(13))]
+    k.lathe(cap, scaled(dome + [(1.13, 0.62), (1.02, 0.58), (0.0, 0.58)], u), seg=80, subsurf=0)
+    k.lathe(stem, scaled([(1.04, 0.6), (0.7, 0.57), (0.36, 0.55)], u), seg=40, cap=False, subsurf=0)
+    for theta, phi, size in ((-130, 39, 0.2), (-54, 48, 0.18), (-87, 17, 0.16), (-10, 28, 0.18), (160, 30, 0.2), (95, 32, 0.18),
+                             (40, 62, 0.15), (-100, 72, 0.14), (140, 66, 0.13), (-170, 8, 0.13), (-30, 6, 0.12), (60, 10, 0.13)):
+        t, p = math.radians(theta), math.radians(phi)
+        normal = Vector((math.cos(p) * math.cos(t) / a, math.cos(p) * math.sin(t) / a, math.sin(p) / c)).normalized()
+        at = Vector((a * math.cos(p) * math.cos(t), a * math.cos(p) * math.sin(t), mid + c * math.sin(p))) - normal * 0.02
+        k.sphere(spot, at=at * u, r=size * u, scale=(1, 1, 0.3), rot=normal.to_track_quat('Z', 'Y').to_euler(), seg=24)
+    k.face((0, -0.41 * u, 0.05 * u), (0, -1, 0), spread=0.055, eye=0.022, smile=False)
+    ink = studio.gloss('smile', INK, rough=0.06)
+    k.tube(ink, [(t * 0.025, -0.413 * u, 0.05 * u - 0.024 - (1 - t * t) * 0.012) for t in (-1, -0.5, 0, 0.5, 1)], 0.022 * 0.22, steps=6)
+    turn(k, -12)
+
+
 BUILD = {
     'bean': bean, 'gumball': gumball, 'ball': beach_ball, 'apple': apple, 'donut': donut, 'cupcake': cupcake,
     'chili': chili, 'party hat': party_hat, 'crown': crown, 'sunglasses': sunglasses, 'teddy': teddy,
     'pillow': pillow, 'drum': drum, 'balloon': balloon, 'duck': duck, 'cactus': cactus, 'ghost': ghost,
     'ice cube': ice_cube, 'star': star, 'heart': heart, 'basketball': basketball, 'soccer ball': soccer_ball,
-    'hoop': hoop, 'goal': goal,
+    'hoop': hoop, 'goal': goal, 'rocket': rocket, 'bubble wand': bubble_wand, 'snow globe': snow_globe,
+    'lava lamp': lava_lamp, 'disco ball': disco_ball, 'jack-in-the-box': jack_in_the_box, 'rubber chicken': rubber_chicken,
+    'magnet': magnet, 'sparkler': sparkler, 'umbrella': umbrella, 'kite': kite, 'music box': music_box, 'crystal': crystal,
+    'lantern': lantern, 'watermelon': watermelon, 'ice cream': ice_cream, 'robot': robot, 'whoopee cushion': whoopee_cushion,
+    'spinning top': spinning_top, 'mushroom': mushroom,
 }
 
 
