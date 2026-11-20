@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowDown, Moon, Plus, Sun, ToyBrick, Volume2, VolumeX } from "lucide-react";
+import { ArrowDown, Moon, Plus, Sparkles, Sun, ToyBrick, Volume2, VolumeX } from "lucide-react";
 import { sx } from "./lib/utils";
 import { useFavicon } from "./hooks/useFavicon";
 import { useLatestCallback } from "./hooks/useLatestCallback";
@@ -22,6 +22,7 @@ import { caretPoint } from "./chat/caret";
 import { konami, stuntFor, type Stunt } from "./chat/eggs";
 import { sound } from "./chat/sound";
 import type { LimWorld, ScoreEvent } from "./chat/scene/limScene";
+import { readGraphics, saveGraphics, tierLabel, type Graphics, type Tier } from "./chat/scene/quality";
 import { ITEMS, PLACES, localIntent, looksLikeWorldRequest, type WorldOp } from "./chat/world/spec";
 import { loadMade, readWorldReply, rememberMade } from "./chat/world/worldApi";
 import "./chat/chat.css";
@@ -39,6 +40,12 @@ const CHEER_MS = 2200;
  * Page shortcuts. They need Alt+Shift so typing a letter anywhere never flips
  * the lights or the sound (WCAG 2.1.4); `code` because Alt changes `key` on a Mac.
  */
+const GRAPHICS: { value: Graphics; label: string; note: string }[] = [
+  { value: "auto", label: "Auto", note: "As good as this device keeps smooth." },
+  { value: "high", label: "High", note: "Studio light, soft shadows, reflections and bounce light." },
+  { value: "low", label: "Low", note: "The flat toon look. Lightest on the battery." },
+];
+
 const SHORTCUTS = { night: { code: "KeyS", label: "Alt+Shift+S" }, sound: { code: "KeyM", label: "Alt+Shift+M" } };
 /** Phones: the share of the shell the visitor gave Lim's stage by dragging the grip. */
 const STAGE_KEY = "lim-stage";
@@ -139,6 +146,13 @@ function App() {
   const [prefill] = useState(() => prefillFrom(search) ?? "");
   const [night, setNight] = useState(readNight);
   const [soundOn, setSoundOn] = useState(() => sound.load());
+  const [graphics, setGraphics] = useState<Graphics>(readGraphics);
+  const [tier, setTier] = useState<Tier | null>(null);
+  const chooseGraphics = useCallback((next: Graphics) => {
+    saveGraphics(next);
+    setTier(null);
+    setGraphics(next);
+  }, []);
   const [hasText, setHasText] = useState(prefill.length > 0);
   const [focused, setFocused] = useState(false);
   const [showJump, setShowJump] = useState(false);
@@ -558,10 +572,44 @@ function App() {
         >
           {soundOn ? <Volume2 size={18} aria-hidden="true" /> : <VolumeX size={18} aria-hidden="true" />}
         </button>
+        <button type="button" popoverTarget="graphics-menu" {...sx(chatbot.iconButton)} aria-label="Graphics" title="Graphics">
+          <Sparkles size={18} aria-hidden="true" />
+        </button>
+        <div
+          id="graphics-menu"
+          popover="auto"
+          // Keyboard users land on the current choice, where the arrow keys move between them.
+          onToggle={(e) => {
+            if (e.newState === "open") e.currentTarget.querySelector<HTMLInputElement>("input:checked")?.focus();
+          }}
+          {...sx(chatbot.graphicsMenu)}
+        >
+          <fieldset>
+            <legend {...sx(chatbot.graphicsLegend)}>Graphics</legend>
+            {GRAPHICS.map((option) => (
+              <label key={option.value} {...sx(chatbot.graphicsOption)}>
+                <input
+                  type="radio"
+                  name="graphics"
+                  value={option.value}
+                  checked={graphics === option.value}
+                  onChange={() => chooseGraphics(option.value)}
+                  {...sx(chatbot.graphicsRadio)}
+                />
+                <span>
+                  <span {...sx(chatbot.graphicsName)}>{option.label}</span>
+                  <span {...sx(chatbot.graphicsNote)}>
+                    {option.value === "auto" && graphics === "auto" && tier ? `Now ${tierLabel(tier)}. ${option.note}` : option.note}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        </div>
       </header>
 
       <div ref={stageAreaRef} {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
-        <LimStage ref={stageRef} mood={mood} night={night} onWorld={setWorld} onScore={onScore} />
+        <LimStage ref={stageRef} mood={mood} night={night} graphics={graphics} onTier={setTier} onWorld={setWorld} onScore={onScore} />
         <p {...sx(chatbot.stageCaption, (focused || !empty || played) && chatbot.stageCaptionHidden)}>
           psst — poke me, fling me, or feed me a bean
         </p>

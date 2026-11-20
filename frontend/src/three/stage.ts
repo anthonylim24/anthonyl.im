@@ -7,8 +7,9 @@
  * A frame-rate governor keeps the loop at the display's rate: when frames
  * fall behind (under ~55 fps, or well under a 120 Hz display's rate) the
  * pixel ratio steps down, so slow GPUs trade a little sharpness for motion.
- * If it is already as low as it goes, `onStruggle` listeners hear about it so
- * scenes can drop optional effects.
+ * A scene with optional effects can pass `shed`, which hears first and may
+ * drop one instead. If the ratio is already as low as it goes, `onStruggle`
+ * listeners hear about it so scenes can drop optional effects.
  */
 import * as THREE from 'three/webgpu'
 import { float, time } from 'three/tsl'
@@ -21,6 +22,11 @@ export type StageOptions = {
   reducedMotion: boolean
   maxDpr?: number
   alpha?: boolean
+  /**
+   * Frames fell behind over a window: drop an optional effect and return true, or return false to
+   * let the stage lower its pixel ratio. `median` is the window's frame interval in ms.
+   */
+  shed?: (slow: { median: number; dpr: number; floor: number }) => boolean
 }
 
 export type Stage = {
@@ -46,7 +52,7 @@ export type Stage = {
   dispose(): void
 }
 
-export async function createStage({ canvas, host: initialHost, reducedMotion, maxDpr = 1.75, alpha = false }: StageOptions): Promise<Stage> {
+export async function createStage({ canvas, host: initialHost, reducedMotion, maxDpr = 1.75, alpha = false, shed }: StageOptions): Promise<Stage> {
   let host: HTMLElement | null = initialHost
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha })
   let dpr = Math.min(window.devicePixelRatio, initialHost.clientWidth < 820 ? Math.min(maxDpr, 1.5) : maxDpr)
@@ -101,7 +107,9 @@ export async function createStage({ canvas, host: initialHost, reducedMotion, ma
     const slow = median > 18 || (fast && median > best * 1.35)
     // Below 60 fps anything goes; to hold 120 Hz keep at least 1.25× density.
     const floor = median > 18 ? 1 : 1.25
-    if (slow && dpr > floor + 0.01) {
+    if (slow && shed?.({ median, dpr, floor })) {
+      settle = 30
+    } else if (slow && dpr > floor + 0.01) {
       dpr = Math.max(floor, dpr * 0.85)
       renderer.setPixelRatio(dpr)
       resize()

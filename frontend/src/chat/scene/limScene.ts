@@ -27,6 +27,9 @@ import { bodyRest, createItemMaterials, jellyLook, modelLook, type ToyLook } fro
 import { catalogKey, loadToyMesh, toyMeshNow } from './toyMesh'
 import { Fixture, fixtureKind } from './fixtures'
 import { SceneryStage } from './scenery'
+import { createLighting, type Lighting } from './lighting'
+import { createPost, type Post } from './post'
+import { isMobile, readFit, saveFit, shed, startTier, type Graphics, type Rung, type Tier } from './quality'
 import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
 import {
   CONFETTI,
@@ -44,6 +47,7 @@ import {
   hullMaterial,
   inkOf,
   limBodyColor,
+  plastic,
   rippleMaterial,
   shadowMaterial,
   smoothNormals,
@@ -75,6 +79,12 @@ export type LimSceneOptions = {
   onWorld?: (world: LimWorld) => void
   /** Something went through the hoop or into the goal. */
   onScore?: (event: ScoreEvent) => void
+  /** The visitor's graphics setting (see `quality.ts`); Auto when left out. */
+  graphics?: Graphics
+  /** The tier the stage runs at, once it starts and whenever Auto moves it. */
+  onTier?: (tier: Tier) => void
+  /** Auto gave up the lit look: build the scene again (it will start on the toon look). */
+  onRebuild?: () => void
 }
 
 /** Points so far: the visitor's shots against Lim's. */
@@ -183,13 +193,46 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const startWith = opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]
   // The starter toys' models download while the GPU starts.
   const models = Promise.all(startWith.map(catalogKey).filter((key) => key !== null).map(loadToyMesh))
-  const stage = await createStage({ canvas, host, reducedMotion, alpha: true })
+  const graphics = opts.graphics ?? 'auto'
+  let post: Post | null = null
+  let tier: Tier = { look: 'toon' }
+  const stage = await createStage({
+    canvas,
+    host,
+    reducedMotion,
+    alpha: true,
+    shed: (slow) => {
+      if (graphics !== 'auto') return false
+      const next = shed(tier, slow)
+      if (next.look === tier.look && (next.look === 'toon' || next.rung === post?.rung)) return false
+      tier = next
+      saveFit(next)
+      opts.onTier?.(next)
+      if (next.look === 'toon') opts.onRebuild?.()
+      else setRung(next.rung)
+      return true
+    },
+  })
   const { renderer } = stage
   renderer.setClearColor(0x000000, 0)
+  const mobile = isMobile()
+  tier = startTier(graphics, { webgpu: (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true, mobile }, readFit())
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 80)
-  const u = createLimUniforms(opts.night)
+  const u = createLimUniforms(opts.night, tier.look === 'lit')
+  let lighting: Lighting | null = null
+  if (tier.look === 'lit') {
+    lighting = createLighting(scene, renderer, { mobile })
+    post = createPost(renderer, scene, camera, { rung: tier.rung, temporal: !reducedMotion, mobile })
+  }
+  /** The lit look: every solid surface under it casts a shadow from the key. */
+  const castShadows = (root: THREE.Object3D) => {
+    if (!u.lit) return
+    root.traverse((o) => {
+      if (o instanceof THREE.Mesh && [o.material].flat().some((m) => m instanceof THREE.MeshPhysicalNodeMaterial)) o.castShadow = true
+    })
+  }
   const ink = inkOf(u)
   const emote = (word: string) => opts.onEmote?.(word)
 
@@ -232,8 +275,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const restEyeGap = Math.hypot(eyeRests[0][0] - eyeRests[1][0], eyeRests[0][1] - eyeRests[1][1], eyeRests[0][2] - eyeRests[1][2])
   const restHeight = headTopRest[1] - baseRest[1]
 
-  const bodyMat = new THREE.MeshBasicNodeMaterial()
-  bodyMat.colorNode = limBodyColor(u, limN, anchors)
+  let bodyMat: THREE.NodeMaterial
+  if (u.lit) {
+    bodyMat = plastic(limBodyColor(u, limN, anchors), { normal: limN.view, glow: col(PAL.glow), rough: 0.3 })
+  } else {
+    bodyMat = new THREE.MeshBasicNodeMaterial()
+    bodyMat.colorNode = limBodyColor(u, limN, anchors)
+  }
   const limMesh = new THREE.Mesh(limGeo, bodyMat)
   const limHull = new THREE.Mesh(limGeo, hullMaterial(ink, 0.03, limN.local))
   limMesh.frustumCulled = limHull.frustumCulled = false
@@ -260,8 +308,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     [[0.02, 0.86, 0.04], [0.03, 1.03, 0.04], [0.09, 1.18, 0.04], [0.21, 1.27, 0.04], [0.33, 1.27, 0.04], [0.42, 1.21, 0.04]],
     [0.085, 0.08, 0.07, 0.06, 0.048, 0.034],
   )
-  const tuftMat = new THREE.MeshBasicNodeMaterial()
-  {
+  let tuftMat: THREE.NodeMaterial = new THREE.MeshBasicNodeMaterial()
+  if (u.lit) {
+    const tinted = mix(col(PAL.top), u.tint as unknown as V3, u.tintAmt)
+    tuftMat = plastic(mix(tinted, col('#D9939B'), u.sad.mul(0.4)).mul(mix(float(1), float(0.86), u.night)), { glow: col(PAL.glow) })
+  } else {
     const n = normalize(normalView)
     const tinted = mix(col(PAL.top), u.tint as unknown as V3, u.tintAmt)
     tuftMat.colorNode = gel(n, n, {
@@ -279,6 +330,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const tuftHull = new THREE.Mesh(tuft.geo, hullMaterial(ink, 0.026))
   tuftMesh.frustumCulled = tuftHull.frustumCulled = false
   scene.add(tuftMesh, tuftHull)
+  castShadows(limMesh)
+  castShadows(tuftMesh)
 
   // A nose bubble for naps: swells on the out-breath, pops when Lim wakes.
   const noseRest = surfacePoint(limRest.positions, [0.1, anchors.eyeY - 0.2, 0.97]).p
@@ -315,6 +368,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   floor.position.z = 3
   // A hair below the contact plane, so the ink line closes under every body.
   floor.position.y = -0.045
+  const setRung = (rung: Rung) => post?.setRung(rung)
   scene.add(floor)
   // The sky rides on the camera, far behind everything, so it always fills the view.
   const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), backdropMaterial(pu))
@@ -407,6 +461,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const model = key ? toyMeshNow(key) : null
     const look: ToyLook = key && model ? modelLook(ITEMS[key].spec, model, rest, u, ink) : jellyLook(spec, geo, u, ink, itemMats)
     scene.add(look.group)
+    castShadows(look.group)
     return {
       spec, has, hex, jelly, geo, look, key, rest, shadow: makeShadow(null), r: rest.radius, half: rest.half,
       /** Drawn over everything (in hand, or on the way into Lim's mouth). */
@@ -1054,6 +1109,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.look.dispose()
     toy.look = look
     scene.add(look.group)
+    castShadows(look.group)
     look.update(toy.geo, toy.jelly)
   }
   const addToy = (spec: ItemSpec, renew: boolean, height: number) => {
@@ -2371,7 +2427,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     s.mesh.position.z = body.center[2]
     const k = 1 + lift * 0.35
     s.mesh.scale.set(size * k, size * 0.62 * k, 1)
-    s.strength.value = base / (1 + lift * 1.6)
+    // Under the lit look the key casts real shadows, and the blob is only the contact under the body.
+    s.strength.value = (u.lit ? base * 0.55 : base) / (1 + lift * (u.lit ? 4 : 1.6))
   }
 
   const updateCamera = (dt: number) => {
@@ -2513,7 +2570,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const hatOn = toys.some((toy) => toy.worn === 'hat')
     if (!popped) tuftMesh.visible = tuftHull.visible = !hatOn
     weather.step(dt, t, { w: reach, h: topY }, camera, 0)
-    renderer.render(scene, camera)
+    lighting?.update(u.night.value)
+    if (post) post.render()
+    else renderer.render(scene, camera)
     if (import.meta.env.DEV) (window as { __limFrame?: () => void }).__limFrame?.()
     if (opts.onAnchor) {
       lim.attach(headTopRest, tmp)
@@ -2544,7 +2603,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.look.update(toy.geo, toy.jelly)
   }
   applyPlace()
+  await Promise.race([lighting?.ready.catch(() => {}), new Promise((done) => setTimeout(done, 1500))])
   await renderer.compileAsync(scene, camera)
+  opts.onTier?.(tier)
   stage.start(frame)
   if (!reducedMotion) {
     // Entrance: pop, hop, shake it off, then look at you.
@@ -2897,6 +2958,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       host.removeEventListener('pointerdown', onTap)
       pointer.dispose()
       scenery.dispose()
+      post?.dispose()
+      lighting?.dispose()
       stage.dispose()
       scene.traverse((o) => {
         if (o instanceof THREE.Mesh) {
