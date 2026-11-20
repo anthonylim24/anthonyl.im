@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { GIVE_UP_MS, parseFit, shed, startTier, type Tier } from '../scene/quality'
+import { CRAWL_MS, GIVE_UP_MS, GRACE_MS, parseFit, shed, startTier, strike, type Tier } from '../scene/quality'
 
-const desk = { webgpu: true, mobile: false }
-const phone = { webgpu: true, mobile: true }
-const gl2 = { webgpu: false, mobile: false }
+const desk = { webgpu: true, mobile: false, still: false }
+const phone = { webgpu: true, mobile: true, still: false }
+const gl2 = { webgpu: false, mobile: false, still: false }
 const slow = (median: number, dpr = 1, floor = 1) => ({ median, dpr, floor })
 
 describe('where the stage starts', () => {
@@ -22,9 +22,12 @@ describe('where the stage starts', () => {
     expect(startTier('low', desk, null)).toEqual({ look: 'toon' })
   })
 
-  it('keeps the WebGL2 fallback on the toon look unless High is asked for, and then without screen-space effects', () => {
-    expect(startTier('auto', gl2, null)).toEqual({ look: 'toon' })
+  it('lights the WebGL2 fallback and reduced motion without the screen-space passes', () => {
+    expect(startTier('auto', gl2, null)).toEqual({ look: 'lit', rung: 'lit' })
     expect(startTier('high', gl2, null)).toEqual({ look: 'lit', rung: 'lit' })
+    expect(startTier('auto', gl2, { look: 'lit', rung: 'gi' })).toEqual({ look: 'lit', rung: 'lit' })
+    expect(startTier('high', { ...desk, still: true }, null)).toEqual({ look: 'lit', rung: 'lit' })
+    expect(startTier('auto', gl2, { look: 'toon' })).toEqual({ look: 'toon' })
   })
 })
 
@@ -34,6 +37,10 @@ describe('Auto shedding load', () => {
     const seen: Tier[] = []
     for (let i = 0; i < 3; i++) seen.push((tier = shed(tier, slow(40, 1.75))))
     expect(seen).toEqual([{ look: 'lit', rung: 'ssr' }, { look: 'lit', rung: 'ao' }, { look: 'lit', rung: 'lit' }])
+  })
+
+  it('drops every screen-space pass at once when frames crawl', () => {
+    expect(shed({ look: 'lit', rung: 'gi' }, slow(CRAWL_MS + 10, 1.75))).toEqual({ look: 'lit', rung: 'lit' })
   })
 
   it('lets the stage lower its resolution before it gives up the lit look', () => {
@@ -47,11 +54,38 @@ describe('Auto shedding load', () => {
   })
 })
 
+describe('when Auto acts', () => {
+  const start = 0
+  it('never in the first seconds, and only on a second slow window in a row', () => {
+    expect(strike({ count: 0, at: 0 }, GRACE_MS - 100, start, 30).act).toBe(false)
+    const first = strike({ count: 0, at: 0 }, GRACE_MS + 1000, start, 30)
+    expect(first.act).toBe(false)
+    expect(strike(first.strikes, GRACE_MS + 2500, start, 30).act).toBe(true)
+  })
+
+  it('starts counting again after a smooth stretch', () => {
+    const first = strike({ count: 0, at: 0 }, GRACE_MS + 1000, start, 30)
+    expect(strike(first.strikes, GRACE_MS + 9000, start, 30).act).toBe(false)
+  })
+
+  it('counts windows in a row however long a slow device takes to fill one', () => {
+    const first = strike({ count: 0, at: 0 }, GRACE_MS + 1000, start, 50)
+    expect(first.act).toBe(false)
+    expect(strike(first.strikes, GRACE_MS + 1000 + 90 * 50, start, 50).act).toBe(true)
+  })
+
+  it('acts on the first window when frames crawl', () => {
+    expect(strike({ count: 0, at: 0 }, GRACE_MS + 1000, start, CRAWL_MS + 10).act).toBe(true)
+  })
+})
+
 describe('what Auto remembers', () => {
   const now = 1_000_000_000_000
-  it('reads back a fit from this week and forgets older or broken ones', () => {
-    expect(parseFit(JSON.stringify({ look: 'lit', rung: 'ao', at: now - 1000 }), now)).toEqual({ look: 'lit', rung: 'ao' })
+  const day = 24 * 3600 * 1000
+  it('reads back a lit rung for a week, the toon look for a day, and forgets broken ones', () => {
+    expect(parseFit(JSON.stringify({ look: 'lit', rung: 'ao', at: now - 3 * day }), now)).toEqual({ look: 'lit', rung: 'ao' })
     expect(parseFit(JSON.stringify({ look: 'toon', at: now - 1000 }), now)).toEqual({ look: 'toon' })
+    expect(parseFit(JSON.stringify({ look: 'toon', at: now - 2 * day }), now)).toBeNull()
     expect(parseFit(JSON.stringify({ look: 'lit', rung: 'ao', at: now - 8 * 24 * 3600 * 1000 }), now)).toBeNull()
     expect(parseFit(JSON.stringify({ look: 'lit', rung: 'ultra', at: now }), now)).toBeNull()
     expect(parseFit('{', now)).toBeNull()

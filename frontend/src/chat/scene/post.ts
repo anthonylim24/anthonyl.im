@@ -9,8 +9,8 @@
  * Without motion (reduced motion renders on demand) nothing temporal runs: the scene keeps MSAA.
  */
 import * as THREE from 'three/webgpu'
-import { diffuseColor, float, metalness, mix, mrt, normalView, output, packNormalToRGB, pass, sample, unpackRGBToNormal, vec4, velocity } from 'three/tsl'
-import type { Node } from 'three/webgpu'
+import { diffuseColor, float, Fn, metalness, mix, mrt, normalView, output, packNormalToRGB, pass, sample, unpackRGBToNormal, vec3, vec4, velocity } from 'three/tsl'
+import type { Node, NodeBuilder } from 'three/webgpu'
 import { bloom } from 'three/addons/tsl/display/BloomNode.js'
 import { ao } from 'three/addons/tsl/display/GTAONode.js'
 import { ssgi } from 'three/addons/tsl/display/SSGINode.js'
@@ -26,6 +26,17 @@ export type Post = {
 }
 
 type Disposable = { dispose(): void }
+
+/**
+ * A screen-space input only surfaces write. Mist, light beams, weather and blob shadows draw over
+ * the stage without writing depth; under their material's blending a zero leaves the surface
+ * behind them in the normals, the colours and the motion.
+ */
+const solid = (node: Node<'vec4'>) =>
+  Fn(({ material }: NodeBuilder) => (material.transparent && !material.depthWrite ? vec4(0) : node))() as unknown as Node<'vec4'>
+
+/** What GI tints and how much SSR reflects. Unlit surfaces (the floor, the sky, painted scenery) already show their final colour and take no bounce. */
+const bounce = Fn(({ material }: NodeBuilder) => vec4((material as THREE.NodeMaterial).lights ? diffuseColor.rgb : vec3(0), metalness))() as unknown as Node<'vec4'>
 
 export function createPost(
   renderer: THREE.WebGPURenderer,
@@ -49,12 +60,17 @@ export function createPost(
       // WebGPU allows 32 bytes of colour targets per pixel, and every target here costs 8: a
       // surface's diffuse colour and its reflectivity (its metalness) share one.
       const surface = r === 'ssr' || r === 'gi'
-      scenePass.setMRT(mrt({
+      const targets = mrt({
         output,
-        normal: packNormalToRGB(normalView),
-        ...(temporal ? { velocity } : null),
-        ...(surface ? { material: vec4(diffuseColor.rgb, metalness) } : null),
-      }))
+        normal: solid(vec4(packNormalToRGB(normalView), 1)),
+        ...(temporal ? { velocity: solid(vec4(velocity as unknown as Node<'vec2'>, 0, 1)) } : null),
+        ...(surface ? { material: solid(bounce) } : null),
+      })
+      for (const name of ['normal', 'velocity', 'material']) {
+        targets.setBlendMode(name, new THREE.BlendMode(THREE.MaterialBlending))
+        targets.setClearColor(name, new THREE.Color(0, 0, 0), 0)
+      }
+      scenePass.setMRT(targets)
       scenePass.getTexture('normal').type = THREE.UnsignedByteType
       if (surface) scenePass.getTexture('material').type = THREE.UnsignedByteType
       const depth = scenePass.getTextureNode('depth')
@@ -64,13 +80,13 @@ export function createPost(
         const gi = ssgi(color, depth, normal, camera)
         gi.sliceCount.value = mobile ? 1 : 2
         gi.stepCount.value = mobile ? 8 : 10
-        gi.radius.value = 4
-        gi.giIntensity.value = 0.15
-        gi.aoIntensity.value = 1.4
+        gi.radius.value = 2
+        gi.giIntensity.value = 1.5
+        gi.aoIntensity.value = 1
         gi.resolutionScale = mobile ? 0.5 : 1
         gi.useTemporalFiltering = temporal
         owned.push(gi)
-        out = vec4(color.rgb.mul(gi.a).add(scenePass.getTextureNode('material').rgb.mul(gi.rgb)), color.a)
+        out = vec4(color.rgb.mul(gi.getAONode()).add(scenePass.getTextureNode('material').rgb.mul(gi.getGINode().rgb)), color.a)
       } else {
         const occlusion = ao(depth, normal, camera)
         occlusion.resolutionScale = 0.5
@@ -78,7 +94,8 @@ export function createPost(
         occlusion.samples.value = mobile ? 8 : 12
         occlusion.useTemporalFiltering = temporal
         owned.push(occlusion)
-        out = vec4(color.rgb.mul(occlusion.getTextureNode().r), color.a)
+        // At full strength GTAO dims whole curved bodies, not just their contact; the renders keep the colours bright.
+        out = vec4(color.rgb.mul(mix(float(1), occlusion.getTextureNode().r, 0.55)), color.a)
       }
       if (surface) {
         const reflect = ssr(color, depth, normal, { metalnessNode: scenePass.getTextureNode('material').a, roughnessNode: float(0.06), camera })
@@ -86,9 +103,8 @@ export function createPost(
         reflect.maxDistance.value = 6
         reflect.thickness.value = 0.04
         owned.push(reflect)
-        // Mixed in by the reflection's own weight; `blendColor` would divide by a zero alpha where the canvas is clear.
-        const hit = reflect.getTextureNode()
-        out = vec4(mix(out.rgb, hit.rgb, hit.a), out.a)
+        // The reflection arrives already weighted by reflectivity, distance and angle (its alpha is the hit distance).
+        out = vec4(out.rgb.add(reflect.getTextureNode().rgb), out.a)
       }
     }
     const glow = bloom(out, 0.4, 0.5, 1)

@@ -29,7 +29,7 @@ import { Fixture, fixtureKind } from './fixtures'
 import { SceneryStage } from './scenery'
 import { createLighting, type Lighting } from './lighting'
 import { createPost, type Post } from './post'
-import { isMobile, readFit, saveFit, shed, startTier, type Graphics, type Rung, type Tier } from './quality'
+import { isMobile, readFit, saveFit, shed, startTier, strike, type Graphics, type Rung, type Strikes, type Tier } from './quality'
 import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
 import {
   CONFETTI,
@@ -196,6 +196,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const graphics = opts.graphics ?? 'auto'
   let post: Post | null = null
   let tier: Tier = { look: 'toon' }
+  let strikes: Strikes = { count: 0, at: 0 }
+  const born = performance.now()
   const stage = await createStage({
     canvas,
     host,
@@ -203,8 +205,12 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     alpha: true,
     shed: (slow) => {
       if (graphics !== 'auto') return false
+      const judged = strike(strikes, performance.now(), born, slow.median)
+      strikes = judged.strikes
+      // Not yet: an empty answer would let the stage lower its resolution instead.
+      if (!judged.act) return true
       const next = shed(tier, slow)
-      if (next.look === tier.look && (next.look === 'toon' || next.rung === post?.rung)) return false
+      if (JSON.stringify(next) === JSON.stringify(tier)) return false
       tier = next
       saveFit(next)
       opts.onTier?.(next)
@@ -216,7 +222,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const { renderer } = stage
   renderer.setClearColor(0x000000, 0)
   const mobile = isMobile()
-  tier = startTier(graphics, { webgpu: (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true, mobile }, readFit())
+  const webgpu = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true
+  tier = startTier(graphics, { webgpu, mobile, still: reducedMotion }, readFit())
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 80)
@@ -224,7 +231,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let lighting: Lighting | null = null
   if (tier.look === 'lit') {
     lighting = createLighting(scene, renderer, { mobile })
-    post = createPost(renderer, scene, camera, { rung: tier.rung, temporal: !reducedMotion, mobile })
+    // WebGL2 draws the lit look straight to the canvas: the passes are WebGPU only.
+    if (webgpu) post = createPost(renderer, scene, camera, { rung: tier.rung, temporal: !reducedMotion, mobile })
   }
   /** The lit look: every solid surface under it casts a shadow from the key. */
   const castShadows = (root: THREE.Object3D) => {
@@ -1102,6 +1110,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const model = await loadToyMesh(key)
     if (!model || gone) return
     const look = modelLook(ITEMS[key].spec, model, toy.rest, u, ink)
+    castShadows(look.group)
     const built = await renderer.compileAsync(look.group, camera, scene).then(() => true, () => false)
     if (!built || gone || !toys.includes(toy)) return look.dispose()
     look.group.visible = toy.look.group.visible
@@ -1109,8 +1118,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.look.dispose()
     toy.look = look
     scene.add(look.group)
-    castShadows(look.group)
     look.update(toy.geo, toy.jelly)
+    stage.requestRender()
   }
   const addToy = (spec: ItemSpec, renew: boolean, height: number) => {
     const toy = makeToy(spec, renew)

@@ -18,7 +18,7 @@ export type Lighting = {
 }
 
 const DAY = { env: 0.6, key: 1.6, front: 0.5, fill: 0.2, rim: 0.8 }
-const NIGHT = { env: 0.22, key: 0.55, front: 0.35, fill: 0.3, rim: 1.4 }
+const NIGHT = { env: 0.34, key: 0.85, front: 0.5, fill: 0.35, rim: 1.4 }
 
 export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURenderer, { mobile }: { mobile: boolean }): Lighting {
   renderer.shadowMap.enabled = true
@@ -42,7 +42,7 @@ export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURendere
   key.shadow.radius = 5
   scene.add(lights)
 
-  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), new THREE.ShadowNodeMaterial({ color: new THREE.Color(PAL.shadow), opacity: 0.42 }))
+  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), new THREE.ShadowNodeMaterial({ color: new THREE.Color(PAL.shadow), opacity: 0.42, depthWrite: false }))
   catcher.rotation.x = -Math.PI / 2
   catcher.position.set(0, -0.04, 3)
   catcher.receiveShadow = true

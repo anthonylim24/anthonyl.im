@@ -557,6 +557,8 @@ export function floorMaterial(u: LimUniforms, place: FloorPlace) {
     // Unlit all the same (the floor keeps its exact colours and takes shadows from the catcher), but
     // it tells the reflection pass how polished it is: the studio's floor a little, the disco floor more.
     mat.lights = false
+    // Premultiplied, so its own opacity, not its reflectivity, weighs what it leaves in the reflection pass's targets.
+    mat.premultipliedAlpha = true
     mat.metalnessNode = float(0.22).mul(float(1).sub(place.amount)).add(u.disco.mul(0.3))
     mat.roughnessNode = float(0.06)
   }
