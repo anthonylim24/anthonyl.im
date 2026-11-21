@@ -14,9 +14,7 @@ Required when the IG worker is enabled (warns if missing):
 - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
 
 Optional / feature-gated:
-- `JEV_API_KEY` — optional. Jev, TypeSafe's classifier model, routes each Lim chat message (`server/src/lim/jev.ts`): asking about Anthony (or anything else) → `gemini-4-hydrogen`, playing with the jelly (orders and the toys Lim invents) → `gemini-4-neon`. Skipped when the page has no live 3D scene (Hydrogen). Without the key, or if Jev fails or takes over 2 s, the date default below answers.
-- `LIM_GEMINI_MODEL` — optional. Pins the Gemini model for Lim's chat and skips Jev; otherwise Jev routes, and the fallback is `gemini-4-carbon` through December 1, 2026 and `gemini-4-hydrogen` after (`server/src/lim/model.ts`).
-- `GEMINI_API_KEY` — the primary model everywhere (Gemini 4 Hydrogen): trip drafts and reviews, concierge, Instagram extraction and transcription, chatbot. Without it the Groq backups run alone and the concierge is unavailable. The concierge's place search and directions use `GOOGLE_MAPS_API_KEY` (Places API (New) and Routes API)
+- `GEMINI_API_KEY` — the primary model everywhere (Gemini 4 Neon, `gemini-4-neon`): trip drafts and reviews, concierge and its follow-up chips, Instagram extraction, transcription and geocoding, Lim's chat. `GEMINI_MODEL` overrides the model for all of them (`server/src/igPlaces/gemini.ts`); when the key cannot use it, `gemini-3.8-flash` answers instead. Without the key the Groq backups run alone and the concierge is unavailable. The concierge's place search and directions use `GOOGLE_MAPS_API_KEY` (Places API (New) and Routes API)
 - `CEREBRAS_API_KEY` — Groq 429 fallback
 - `GOOGLE_VISION_API_KEY` — defaults to Maps key
 - `KAKAO_REST_API_KEY` — Korea geocode assist

@@ -101,12 +101,9 @@ AGENT_GITHUB_REPO=anthonylim24/anthonyl.im
 #   3. Groq Whisper 429 fallback (video transcription)
 #   4. Last-resort text extractor when the primary chain yields 0 places
 # Model is set app-wide in `server/src/igPlaces/gemini.ts` → GEMINI_MODEL
-# (gemini-4-hydrogen everywhere, gemini-3.8-flash as the automatic fallback).
+# (gemini-4-neon everywhere, Lim's chat included; gemini-3.8-flash as the
+# automatic fallback).
 GEMINI_API_KEY=AIza...
-# TypeSafe key for Jev, which routes each Lim chat message: questions to
-# Gemini 4 Hydrogen, playing with the jelly to Gemini 4 Carbon
-# (server/src/lim/jev.ts). Optional; without it Lim uses the date default.
-JEV_API_KEY=...
 IG_DEV_BEARER=...                       # alt auth path for curl testing
 ```
 
