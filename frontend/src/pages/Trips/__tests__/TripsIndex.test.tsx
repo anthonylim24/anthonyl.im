@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import type { AtlasMapProps } from "../map/AtlasMap"
 import type { TripSummary } from "../types"
-import { makeSummary } from "./tripFixtures"
+import { makeSummary, makeTrip, stubMatchMedia } from "./tripFixtures"
 
 const { mockGetToken } = vi.hoisted(() => ({
   mockGetToken: vi.fn().mockResolvedValue("test-token"),
@@ -91,9 +91,9 @@ function Path() {
   return <p data-testid="path">{pathname}</p>
 }
 
-function renderIndex() {
+function renderIndex(path = "/trips") {
   return render(
-    <MemoryRouter initialEntries={["/trips"]}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/trips" element={<TripsIndex />} />
         <Route path="*" element={<Path />} />
@@ -118,6 +118,21 @@ describe("TripsIndex", () => {
     vi.setSystemTime(NOW)
     mockListTrips.mockResolvedValue([done, later, soon, live])
     mockDeleteTrip.mockResolvedValue({ ok: true })
+    // Seoul's days; 12:00 UTC on 15 Jun is 21:00 on day 3 there.
+    mockGetTrip.mockResolvedValue({
+      trip: makeTrip({
+        id: "seoul",
+        timezone: "Asia/Seoul",
+        startDate: "2026-06-13",
+        endDate: "2026-06-20",
+        days: [
+          { id: "d1", date: "2026-06-13", items: [] },
+          { id: "d2", date: "2026-06-14", items: [] },
+          { id: "d3", date: "2026-06-15", items: [] },
+        ],
+      }),
+      access: "owner",
+    })
   })
 
   afterEach(() => {
@@ -339,6 +354,9 @@ describe("TripsIndex", () => {
 
   it("deletes a trip after confirming, and removes its card", async () => {
     renderIndex()
+    // The toast's live region is in place before there is anything to say.
+    const toastRegion = screen.getAllByRole("status").find((el) => el.textContent === "")
+    expect(toastRegion).toBeDefined()
     fireEvent.click(await screen.findByRole("button", { name: "Options for Oslo Winter" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete trip…" }))
 
@@ -350,7 +368,8 @@ describe("TripsIndex", () => {
     expect(mockDeleteTrip.mock.calls[0]![1]).toBe("oslo")
     await waitFor(() => expect(cardTitles()).toEqual(["Seoul Now", "Lisbon Later", "Kyoto Autumn"]))
     expect(screen.queryByRole("heading", { level: 3, name: /^Past/ })).toBeNull()
-    expect(await screen.findByText("Deleted “Oslo Winter”.")).toBeInTheDocument()
+    await waitFor(() => expect(toastRegion).toHaveTextContent("Deleted “Oslo Winter”."))
+    expect(toastRegion).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     // Local removal only; the list is not re-fetched.
     expect(mockListTrips).toHaveBeenCalledTimes(1)
@@ -482,6 +501,139 @@ describe("TripsIndex", () => {
     expect(mockDeleteTrip.mock.calls[0]![1]).toBe("oslo")
     loadTrip({ trip: { id: "seoul", name: "Seoul Now" }, access: "owner" })
     expect(await screen.findByTestId("path")).toHaveTextContent("/trips/seoul-copy")
+  })
+
+  it("shows no heading for a bucket with no trips, and ends the last one with “Plan another trip”", async () => {
+    mockListTrips.mockResolvedValue([
+      live,
+      soon,
+      later,
+      makeSummary({ id: "busan", name: "Busan Later", destinations: ["Busan"], startDate: "2026-09-01", endDate: "2026-09-03" }),
+    ])
+    renderIndex()
+    expect(await screen.findByRole("heading", { level: 3, name: "Upcoming · 3" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { level: 3, name: /^Past/ })).toBeNull()
+    expect(bucket(/^Upcoming/).getByRole("link", { name: /Plan another trip/ })).toBeInTheDocument()
+  })
+
+  it("drops a bucket a search empties, heading and all", async () => {
+    mockListTrips.mockResolvedValue([
+      done,
+      later,
+      { ...live, tags: ["korea"] },
+      makeSummary({ id: "busan", name: "Busan Later", destinations: ["Busan"], startDate: "2026-09-01", endDate: "2026-09-03", tags: ["korea"] }),
+      makeSummary({ id: "gyeongju", name: "Gyeongju", destinations: ["Gyeongju"], startDate: "2026-10-01", endDate: "2026-10-03", tags: ["korea"] }),
+      makeSummary({ id: "incheon", name: "Incheon", destinations: ["Incheon"], startDate: "2026-12-01", endDate: "2026-12-03", tags: ["korea"] }),
+    ])
+    renderIndex()
+    await screen.findByRole("heading", { level: 3, name: "Past · 1" })
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "korea" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["Seoul Now", "Busan Later", "Gyeongju", "Incheon"]))
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Happening now · 1", "Upcoming · 3"])
+  })
+
+  it("searches without minding accents or how far a Korean word is typed", async () => {
+    mockListTrips.mockResolvedValue([
+      makeSummary({ id: "sp", name: "São Paulo", destinations: ["São Paulo"], startDate: "2026-07-01", endDate: "2026-07-03" }),
+      makeSummary({ id: "seoul-ko", name: "서울 여행", destinations: ["서울"], startDate: "2026-08-01", endDate: "2026-08-03" }),
+      makeSummary({ id: "zurich", name: "Zürich", destinations: ["Zürich"], startDate: "2026-09-01", endDate: "2026-09-03" }),
+    ])
+    renderIndex()
+    const search = await screen.findByRole("searchbox")
+
+    fireEvent.change(search, { target: { value: "sao" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["São Paulo"]))
+    fireEvent.change(search, { target: { value: "ZURICH" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["Zürich"]))
+    // "서" is still being typed toward "서울"; a bare "ㅅ" is a start too.
+    fireEvent.change(search, { target: { value: "서" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["서울 여행"]))
+    fireEvent.change(search, { target: { value: "ㅅ" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["서울 여행"]))
+    expect(screen.getAllByRole("status").some((el) => el.textContent === "1 matching trip.")).toBe(true)
+  })
+
+  it("keeps an Instagram link shared with no trips, and offers to start one for it", async () => {
+    const post = "https://www.instagram.com/p/ABC123/"
+    mockListTrips.mockResolvedValue([])
+    renderIndex(`/trips?url=${encodeURIComponent(post)}`)
+
+    expect(await screen.findByText("You shared an Instagram post. Start a trip and its places go straight onto it.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Plan your first trip" })).toHaveAttribute("href", `/trips/new?instagram=${encodeURIComponent(post)}`)
+    expect(screen.queryByTestId("path")).toBeNull()
+  })
+
+  it("opens today's day from the “Now” link once the trip has been read", async () => {
+    renderIndex()
+    const now = await screen.findByRole("link", { name: /Now: Seoul Now/ })
+    expect(now).toHaveAttribute("href", "/trips/seoul")
+
+    fireEvent.focus(now)
+    await waitFor(() => expect(now).toHaveAttribute("href", "/trips/seoul/day/d3"))
+    expect(mockGetTrip).toHaveBeenCalledTimes(1)
+    expect(mockGetTrip.mock.calls[0]![1]).toBe("seoul")
+
+    // Pointing again reads nothing new.
+    fireEvent.pointerEnter(now)
+    expect(mockGetTrip).toHaveBeenCalledTimes(1)
+  })
+
+  it("reads the trip on a tap with no hover first, then opens today's day", async () => {
+    renderIndex()
+    fireEvent.click(await screen.findByRole("link", { name: /Now: Seoul Now/ }))
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/seoul/day/d3")
+  })
+
+  it("opens the trip itself when it can't be read", async () => {
+    mockGetTrip.mockRejectedValue(new Error("HTTP 500"))
+    renderIndex()
+    fireEvent.click(await screen.findByRole("link", { name: /Now: Seoul Now/ }))
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/seoul")
+  })
+
+  it("on a phone, mounts the globe only once it is on screen and the browser is idle", async () => {
+    const realMatchMedia = window.matchMedia
+    const realObserver = window.IntersectionObserver
+    const realIdle = window.requestIdleCallback
+    const realCancelIdle = window.cancelIdleCallback
+    let seen: IntersectionObserverCallback = () => {}
+    let idle: IdleRequestCallback = () => {}
+    stubMatchMedia(true)
+    Object.defineProperty(window, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: class {
+        constructor(callback: IntersectionObserverCallback) {
+          seen = callback
+        }
+        observe() {}
+        disconnect() {}
+      },
+    })
+    Object.defineProperty(window, "requestIdleCallback", {
+      configurable: true,
+      writable: true,
+      value: (callback: IdleRequestCallback) => {
+        idle = callback
+        return 1
+      },
+    })
+    Object.defineProperty(window, "cancelIdleCallback", { configurable: true, writable: true, value: () => {} })
+    try {
+      renderIndex()
+      await screen.findByRole("heading", { level: 4, name: "Seoul Now" })
+      expect(screen.queryByRole("region", { name: /^Globe/ })).toBeNull()
+
+      act(() => seen([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver))
+      expect(screen.queryByRole("region", { name: /^Globe/ })).toBeNull()
+      act(() => idle({ didTimeout: false, timeRemaining: () => 10 }))
+      expect(screen.getByRole("region", { name: /Globe with 3 trips pinned/ })).toBeInTheDocument()
+    } finally {
+      Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: realMatchMedia })
+      Object.defineProperty(window, "IntersectionObserver", { configurable: true, writable: true, value: realObserver })
+      Object.defineProperty(window, "requestIdleCallback", { configurable: true, writable: true, value: realIdle })
+      Object.defineProperty(window, "cancelIdleCallback", { configurable: true, writable: true, value: realCancelIdle })
+    }
   })
 
   it("does not navigate to a copy that finishes after the index has gone", async () => {
