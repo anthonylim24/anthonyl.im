@@ -1,13 +1,37 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
-import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles, TimerOff } from "lucide-react"
+import {
+  ArrowDownUp,
+  ArrowLeft,
+  ArrowRight,
+  CalendarClock,
+  CalendarMinus,
+  CalendarPlus,
+  ChevronsLeft,
+  ChevronsRight,
+  CopyPlus,
+  Eraser,
+  Heart,
+  Lightbulb,
+  List,
+  MapPin,
+  MoreHorizontal,
+  NotebookPen,
+  Orbit,
+  Sparkles,
+  TimerOff,
+} from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, isLocated, isToSchedule, routeMeters, splitDay, type LngLat } from "../map/geo"
-import { dayStarts } from "../dayClock"
+import { dayZone } from "../dayClock"
+import { LIMITS } from "../limits"
 import { formatDistance } from "../reservationView"
-import { addItem } from "../tripEdits"
+import { addItem, ideasFull, saveForLater } from "../tripEdits"
+import { Modal } from "../components/kit"
+import { canAddDay, dayAfterDelete, deleteDay, duplicateDay, insertDayAfter, moveDay, outOfOrder, sortByTime, type DayPlan } from "./dayOps"
+import { composing } from "./ime"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
@@ -51,6 +75,12 @@ export interface DayPanelProps {
   edit: { id: string; n: number } | null
   near: LngLat | null
   onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
+  /**
+   * Edits the whole trip document (`editor.edit`): day operations change the
+   * dates, and "Save for later" moves a stop into `trip.ideas`. Without it
+   * those actions are not offered.
+   */
+  onEditTrip?: (fn: (doc: Trip) => Trip, undo?: UndoMark) => void
   onDelete: (dayId: string, item: ItineraryItem) => void
   onAdded: (id: string) => void
   onHover: (id: string | null) => void
@@ -68,29 +98,6 @@ export interface DayPanelProps {
   /** The day's weather: the live forecast, the AI's, a held place while loading, or none. */
   sky: Sky
 }
-
-/**
- * The day's plan in clock order, read on the day's own clock (`dayStarts`): a
- * 01:00 stop after a 23:00 one stays last. Untimed items stay behind the timed
- * item they followed; headings travel the same way. Places parked under "To
- * schedule" keep their place under it. Sorting a sorted day changes nothing.
- */
-export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
-  const parkedAt = items.findIndex(isToSchedule)
-  const plan = parkedAt < 0 ? items : items.slice(0, parkedAt)
-  const starts = dayStarts(plan.map((item) => (item.kind === "section" ? {} : item)))
-  let carry = -1
-  const keyed = plan.map((item, index) => {
-    const start = starts[index] ?? null
-    if (start !== null) carry = start
-    return { item, index, key: start ?? carry }
-  })
-  keyed.sort((x, y) => x.key - y.key || x.index - y.index)
-  return [...keyed.map((entry) => entry.item), ...items.slice(plan.length)]
-}
-
-/** "Sort stops by time" has something to do. */
-export const outOfOrder = (items: readonly ItineraryItem[]) => sortByTime(items).some((item, i) => item !== items[i])
 
 type SortableProps = ItemCardProps & { leg: Leg | null; legWet: number | null }
 
@@ -178,6 +185,7 @@ export function DayPanel({
   edit,
   near,
   onChange,
+  onEditTrip,
   onDelete,
   onAdded,
   onHover,
@@ -193,10 +201,15 @@ export function DayPanel({
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
   /** Where keyboard focus goes once the list has re-rendered without a stop. */
   const focusNext = useRef<string | null>(null)
   const isToday = day.date === todayIsoIn(trip.timezone)
+  // Today or already over, where the day is lived: stops can be marked Done,
+  // Skipped or Loved, and the journal opens.
+  const lived = day.date <= todayIsoIn(dayZone(trip, day))
   const now = useNow(60_000, isToday)
   const clock = isToday ? clockIn(trip.timezone, now) : null
   const list = useMemo(() => dayList(day, clockMinutes(clock ?? undefined)), [day, clock])
@@ -222,13 +235,28 @@ export function DayPanel({
       // An empty day's card already says "Nothing planned yet"; the header does not echo it.
       .join(" · ") || (day.items.length === 0 ? null : "Nothing planned")
 
-  const outOfOrder = useMemo(() => {
-    const times = day.items.filter((i) => i.kind !== "section" && i.time).map((i) => i.time!)
-    return times.some((time, i) => i > 0 && time < times[i - 1]!)
-  }, [day.items])
+  const unsorted = useMemo(() => outOfOrder(day.items), [day.items])
+  const parkedAt = day.items.findIndex(isToSchedule)
 
   const patchDay = (patch: Partial<TripDay>, undo?: UndoMark) =>
     onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...patch } : d)), undo)
+
+  // Whole-day edits change the dates, so they go through the trip document.
+  const editPlan = (op: (plan: DayPlan) => DayPlan | null, undo: UndoMark) =>
+    onEditTrip?.((doc) => {
+      const plan = op(doc)
+      return plan ? { ...doc, ...plan } : doc
+    }, undo)
+  const dayName = `day ${dayIndex + 1}`
+  const removeDay = () => {
+    setConfirmDelete(false)
+    const after = dayAfterDelete(trip.days, day.id)
+    if (!after) return
+    editPlan((plan) => deleteDay(plan, day.id), { label: `Deleted ${dayName}`, toast: true })
+    // This page's day is gone: show the one that took its place.
+    navigate(`${basePath}/day/${after.id}`, { replace: true })
+  }
+  const dayHasContent = day.items.length > 0 || !!day.notes || !!day.journal
 
   // The card names the other stop in a clash by its number on the map, as the pins do.
   const conflicts = useMemo(() => {
@@ -283,6 +311,14 @@ export function DayPanel({
     },
     [leave, onDelete],
   )
+  // Stable for the memoised cards; absent (not offered) until the trip can be edited as a whole.
+  const keepForLater = useLatestCallback((dayId: string, item: ItineraryItem, index: number) => {
+    leave(index)
+    onEditTrip?.((doc) => saveForLater(doc, dayId, item.id), { label: `Saved “${item.title || "Untitled"}” for later`, toast: true })
+    setSpoken(`${item.title || "Stop"} saved for later, in the trip’s ideas.`)
+  })
+  const onSaveForLater = onEditTrip ? keepForLater : undefined
+  const noRoomForIdeas = ideasFull(trip)
   // The edit that removed the stop re-renders this panel; focus moves once it has.
   useLayoutEffect(() => {
     const target = focusNext.current
@@ -296,7 +332,7 @@ export function DayPanel({
     ...(editable
       ? [{ label: day.notes ? "Edit day notes" : "Add day notes", icon: <NotebookPen size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setNotesOpen(true) }]
       : []),
-    ...(editable && outOfOrder
+    ...(editable && unsorted
       ? [
           {
             label: "Sort stops by time",
@@ -310,6 +346,47 @@ export function DayPanel({
       ? [{ label: "Fly the day in 3D", icon: <Orbit size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPhotoreal }]
       : []),
     calendarMenuItem(trip, day),
+    ...(editable && onEditTrip
+      ? [
+          {
+            label: "Add a day after this one",
+            icon: <CalendarPlus size={16} strokeWidth={1.75} aria-hidden />,
+            separated: true,
+            disabled: locked || !canAddDay(trip),
+            onSelect: () => {
+              editPlan((plan) => insertDayAfter(plan, day.id), { label: `Added a day after ${dayName}` })
+              setSpoken(`Added day ${dayIndex + 2}. Later days moved a date on.`)
+            },
+          },
+          {
+            label: "Duplicate this day",
+            icon: <CopyPlus size={16} strokeWidth={1.75} aria-hidden />,
+            disabled: locked || !canAddDay(trip),
+            onSelect: () => {
+              editPlan((plan) => duplicateDay(plan, day.id), { label: `Duplicated ${dayName}` })
+              setSpoken(`Day ${dayIndex + 2} is a copy of this day. Later days moved a date on.`)
+            },
+          },
+          {
+            label: "Move a day earlier",
+            icon: <ChevronsLeft size={16} strokeWidth={1.75} aria-hidden />,
+            disabled: locked || dayIndex === 0,
+            onSelect: () => {
+              editPlan((plan) => moveDay(plan, day.id, -1), { label: `Moved ${dayName} earlier`, toast: true })
+              setSpoken(`This plan is day ${dayIndex} now.`)
+            },
+          },
+          {
+            label: "Move a day later",
+            icon: <ChevronsRight size={16} strokeWidth={1.75} aria-hidden />,
+            disabled: locked || dayIndex === trip.days.length - 1,
+            onSelect: () => {
+              editPlan((plan) => moveDay(plan, day.id, 1), { label: `Moved ${dayName} later`, toast: true })
+              setSpoken(`This plan is day ${dayIndex + 2} now.`)
+            },
+          },
+        ]
+      : []),
     ...(editable && day.items.length > 0
       ? [
           {
@@ -319,6 +396,18 @@ export function DayPanel({
             separated: true,
             disabled: locked,
             onSelect: onClear,
+          },
+        ]
+      : []),
+    ...(editable && onEditTrip
+      ? [
+          {
+            label: "Delete this day",
+            icon: <CalendarMinus size={16} strokeWidth={1.75} aria-hidden />,
+            danger: true,
+            separated: day.items.length === 0,
+            disabled: locked || trip.days.length <= 1,
+            onSelect: () => (dayHasContent ? setConfirmDelete(true) : removeDay()),
           },
         ]
       : []),
@@ -353,9 +442,10 @@ export function DayPanel({
                 value={day.title ?? ""}
                 placeholder={`Name day ${dayIndex + 1}`}
                 disabled={locked}
+                maxLength={LIMITS.dayTitle}
                 {...sx(s.titleInput, s.dayTitle, "trips-day-title-input")}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") {
+                  if (event.key === "Enter" && !composing(event)) {
                     event.preventDefault()
                     event.currentTarget.blur()
                   }
@@ -374,6 +464,7 @@ export function DayPanel({
                     value={day.city ?? ""}
                     placeholder="City"
                     disabled={locked}
+                    maxLength={LIMITS.dayCity}
                     {...sx(s.inlineInput)}
                     onChange={(event) => patchDay({ city: event.target.value || undefined })}
                   />
@@ -418,6 +509,7 @@ export function DayPanel({
             value={day.notes ?? ""}
             placeholder="Notes for the day"
             disabled={locked}
+            maxLength={LIMITS.dayNotes}
             autoFocus={notesOpen && !day.notes}
             {...sx(s.notes)}
             onBlur={() => !day.notes && setNotesOpen(false)}
@@ -514,6 +606,10 @@ export function DayPanel({
                   rainHeavy={alerts.get(item.id)?.rain?.heavy ?? false}
                   rainCode={alerts.get(item.id)?.rain?.spell.code ?? null}
                   past={list.past.has(item.id)}
+                  lived={lived}
+                  parked={parkedAt >= 0 && index > parkedAt}
+                  onSaveForLater={onSaveForLater}
+                  ideasFull={noRoomForIdeas}
                   leg={list.legs.get(item.id) ?? null}
                   legWet={legWet(list.legs.get(item.id))}
                   editable={editable}
@@ -551,6 +647,39 @@ export function DayPanel({
         />
       )}
 
+      {lived && (
+        <DayJournal
+          day={day}
+          today={isToday}
+          editable={editable}
+          locked={locked}
+          onChange={(journal) => patchDay({ journal })}
+        />
+      )}
+
+      {confirmDelete && (
+        <Modal
+          open
+          onClose={() => setConfirmDelete(false)}
+          title={`Delete day ${dayIndex + 1}?`}
+          description={deleteWords(day)}
+          footer={
+            <>
+              <button type="button" {...sx(a.btn, a.btnSecondary)} onClick={() => setConfirmDelete(false)}>
+                Keep the day
+              </button>
+              <button type="button" {...sx(a.btn, a.btnDanger)} disabled={locked} onClick={removeDay}>
+                Delete day
+              </button>
+            </>
+          }
+        >
+          <p {...sx(a.body)}>
+            The days after it move a date earlier, so the trip ends a day sooner. You can undo this straight after.
+          </p>
+        </Modal>
+      )}
+
       <nav {...sx(s.pager)} aria-label="Other days">
         {prev && (
           <Link to={`${basePath}/day/${prev.id}`} rel="prev" {...sx(s.pagerLink)}>
@@ -572,6 +701,68 @@ export function DayPanel({
         )}
       </nav>
     </div>
+  )
+}
+
+/** "Its 5 stops and notes go with it." */
+function deleteWords(day: Pick<TripDay, "items" | "notes" | "journal">): string {
+  const stops = day.items.filter((i) => i.kind !== "section").length
+  const parts = [stops > 0 ? plural(stops, "stop") : null, day.notes ? "notes" : null, day.journal ? "journal" : null].filter((p): p is string => !!p)
+  if (parts.length === 0) return "Everything on it goes with it."
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]
+  const one = parts.length === 1 && (parts[0] === "1 stop" || parts[0] === "journal")
+  return `Its ${list} ${one ? "goes" : "go"} with it.`
+}
+
+/**
+ * Today's and past days: the stops the traveller loved, then what they wrote.
+ * Ruled paper, not a chat box; it saves as it is typed, like the day notes.
+ */
+function DayJournal({
+  day,
+  today,
+  editable,
+  locked,
+  onChange,
+}: {
+  day: TripDay
+  today: boolean
+  editable: boolean
+  locked: boolean
+  onChange: (journal: string | undefined) => void
+}) {
+  const headingId = `journal-${day.id}`
+  const loved = day.items.filter((item) => item.highlight)
+  if (!editable && !day.journal && loved.length === 0) return null
+  return (
+    <section {...sx(s.journal)} aria-labelledby={headingId}>
+      <h3 id={headingId} {...sx(a.eyebrow)}>
+        Journal
+      </h3>
+      {loved.length > 0 && (
+        <ul {...sx(s.journalLoved)} aria-label="Loved it">
+          {loved.map((item) => (
+            <li key={item.id} {...sx(s.journalLovedItem)}>
+              <Heart size={14} strokeWidth={2} fill="currentColor" aria-hidden {...sx(s.journalHeart)} />
+              <span {...sx(a.wrap)}>{stopTitle(item)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {editable ? (
+        <textarea
+          aria-labelledby={headingId}
+          value={day.journal ?? ""}
+          maxLength={LIMITS.journal}
+          disabled={locked}
+          placeholder={today ? "How is the day going? What do you want to remember?" : "What do you want to remember about this day?"}
+          {...sx(s.journalText)}
+          onChange={(event) => onChange(event.target.value || undefined)}
+        />
+      ) : (
+        day.journal && <p {...sx(s.journalRead, a.wrap)}>{day.journal}</p>
+      )}
+    </section>
   )
 }
 

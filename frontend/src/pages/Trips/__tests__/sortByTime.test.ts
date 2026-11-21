@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { outOfOrder, sortByTime } from "../workspace/DayPanel"
+import { outOfOrder, sortByTime } from "../workspace/dayOps"
 import type { ItineraryItem } from "../types"
 
 const stop = (id: string, time?: string, overrides: Partial<ItineraryItem> = {}): ItineraryItem => ({

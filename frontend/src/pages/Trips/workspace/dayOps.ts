@@ -1,7 +1,32 @@
+import { dayStarts } from "../dayClock"
 import { addDays } from "../meta"
 import { LIMITS } from "../limits"
+import { isToSchedule } from "../map/geo"
 import { makeItem, restingStatus } from "../tripEdits"
-import type { Trip, TripDay } from "../types"
+import type { ItineraryItem, Trip, TripDay } from "../types"
+
+/**
+ * The day's plan in clock order, read on the day's own clock (`dayStarts`): a
+ * 01:00 stop after a 23:00 one stays last. Untimed items stay behind the timed
+ * item they followed; headings travel the same way. Places parked under "To
+ * schedule" keep their place under it. Sorting a sorted day changes nothing.
+ */
+export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
+  const parkedAt = items.findIndex(isToSchedule)
+  const plan = parkedAt < 0 ? items : items.slice(0, parkedAt)
+  const starts = dayStarts(plan.map((item) => (item.kind === "section" ? {} : item)))
+  let carry = -1
+  const keyed = plan.map((item, index) => {
+    const start = starts[index] ?? null
+    if (start !== null) carry = start
+    return { item, index, key: start ?? carry }
+  })
+  keyed.sort((x, y) => x.key - y.key || x.index - y.index)
+  return [...keyed.map((entry) => entry.item), ...items.slice(plan.length)]
+}
+
+/** "Sort stops by time" has something to do. */
+export const outOfOrder = (items: readonly ItineraryItem[]) => sortByTime(items).some((item, i) => item !== items[i])
 
 // Whole-day edits: insert, delete, duplicate and reorder days. Pure: each
 // takes the trip's plan and returns the new one, or null when the edit isn't

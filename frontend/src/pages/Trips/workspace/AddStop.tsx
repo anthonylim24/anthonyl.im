@@ -11,7 +11,9 @@ import type { ItineraryItem } from "../types"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { Spinner } from "../components/kit"
+import { LIMITS } from "../limits"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { composing } from "./ime"
 
 // One input adds anything to a day. Typing searches real places (pinned on
 // the map the moment you pick one); the same text can instead become a note,
@@ -71,10 +73,14 @@ export function placeItem(place: PlaceResult): ItineraryItem {
   }
 }
 
+type PlainKind = "place" | "note" | "reservation" | "section"
+
 type Option =
   | { type: "instagram"; urls: string[] }
   | { type: "place"; place: PlaceResult }
-  | { type: "plain"; kind: "place" | "note" | "reservation" | "section"; label: string }
+  | { type: "plain"; kind: PlainKind; label: string }
+
+const ALL_KINDS: readonly PlainKind[] = ["place", "note", "reservation", "section"]
 
 /** Identity of an option across renders, so the highlight stays put when results arrive. */
 const optionKey = (option: Option) =>
@@ -85,12 +91,23 @@ export function AddStop({
   disabled,
   onAdd,
   onInstagram,
+  kinds = ALL_KINDS,
+  label = "Add a place, note or booking",
+  placeholder,
+  below = false,
 }: {
   near: LngLat | null
   disabled?: boolean
   onAdd: (item: ItineraryItem) => void
   /** Present when Instagram import is available: receives pasted post links. */
   onInstagram?: (urls: string[]) => void
+  /** What typed text can become besides a found place (all four on a day). */
+  kinds?: readonly PlainKind[]
+  /** The field's accessible name. */
+  label?: string
+  placeholder?: string
+  /** Open the suggestions under the field (it sits at the top of its panel). */
+  below?: boolean
 }) {
   const [text, setText] = useState("")
   const [open, setOpen] = useState(false)
@@ -110,10 +127,14 @@ export function AddStop({
     : typed
     ? [
         ...results.map((place): Option => ({ type: "place", place })),
-        { type: "plain", kind: "place", label: `Add “${typed}” without a pin` },
-        { type: "plain", kind: "note", label: `Add as a note` },
-        { type: "plain", kind: "reservation", label: `Add as a booking` },
-        { type: "plain", kind: "section", label: `Add as a heading` },
+        ...(
+          [
+            { type: "plain", kind: "place", label: `Add “${typed}” without a pin` },
+            { type: "plain", kind: "note", label: `Add as a note` },
+            { type: "plain", kind: "reservation", label: `Add as a booking` },
+            { type: "plain", kind: "section", label: `Add as a heading` },
+          ] satisfies Option[]
+        ).filter((option) => kinds.includes(option.kind)),
       ]
     : []
 
@@ -170,6 +191,8 @@ export function AddStop({
   }, [enterPending, loading, submitLatest])
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Enter and the arrows belong to the input method while it composes a word.
+    if (composing(event)) return
     if (event.key === "Escape") {
       if (open) event.stopPropagation()
       setOpen(false)
@@ -201,7 +224,7 @@ export function AddStop({
   return (
     <div ref={wrapRef} {...sx(s.composer)}>
       {showList && (
-        <ul id={listId} role="listbox" aria-label="Suggestions" {...sx(s.results)}>
+        <ul id={listId} role="listbox" aria-label="Suggestions" {...sx(s.results, below && s.resultsDown)}>
           {loading && results.length === 0 && (
             <li {...sx(s.result, a.muted)} role="presentation">
               <Spinner /> Searching places…
@@ -283,12 +306,13 @@ export function AddStop({
           aria-controls={listId}
           aria-activedescendant={showList ? `${listId}-${cursor}` : undefined}
           aria-autocomplete="list"
-          aria-label="Add a place, note or booking"
+          aria-label={label}
           autoComplete="off"
           enterKeyHint="done"
-          placeholder={onInstagram ? "Add a place, note or link…" : "Add a place, note or booking…"}
+          placeholder={placeholder ?? (onInstagram ? "Add a place, note or link…" : "Add a place, note or booking…")}
           value={text}
           disabled={disabled}
+          maxLength={LIMITS.itemTitle}
           {...sx(a.fieldBare)}
           onChange={(event) => {
             setText(event.target.value)
