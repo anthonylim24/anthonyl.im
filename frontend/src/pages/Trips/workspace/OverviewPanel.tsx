@@ -19,7 +19,7 @@ import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import type { DayForecast } from "../forecast"
 import { ForecastChip } from "./ForecastChip"
-import { NowCard } from "../live/NowCard"
+import { NowCard, type UpdateDay } from "../live/NowCard"
 import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief } from "./AiPanels"
 
 /** The longest leg counted as walked. */
@@ -43,6 +43,8 @@ export function OverviewPanel({
   forecast,
   onAddBooking,
   onPasteBookings,
+  onUpdateDay,
+  onOpenRecap,
 }: {
   trip: Trip
   /** dayId → live forecast, for days in the forecast window. */
@@ -65,6 +67,10 @@ export function OverviewPanel({
   onAddBooking?: (dayId: string, item: ItineraryItem) => void
   /** "Paste a confirmation": open the paste sheet. */
   onPasteBookings?: () => void
+  /** The Now card's Done, Skip and Running late: change one day. */
+  onUpdateDay?: UpdateDay
+  /** The after-trip card's "See your recap". */
+  onOpenRecap?: () => void
 }) {
   const [brief, setBrief] = useState<DraftBrief>(EMPTY_BRIEF)
   const [handOpen, setHandOpen] = useState(false)
@@ -100,7 +106,14 @@ export function OverviewPanel({
 
   return (
     <div {...sx(s.content)}>
-      <NowCard trip={trip} basePath={basePath} forecast={forecast} />
+      <NowCard
+        trip={trip}
+        basePath={basePath}
+        forecast={forecast}
+        canEdit={editable && !locked}
+        onUpdateDay={onUpdateDay}
+        onOpenRecap={onOpenRecap}
+      />
       {description && <p {...sx(a.body, a.wrap)}>{description}</p>}
 
       <dl {...sx(s.stats)}>

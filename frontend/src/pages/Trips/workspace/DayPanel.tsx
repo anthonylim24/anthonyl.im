@@ -24,7 +24,7 @@ import {
   TimerOff,
 } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
+import { daysBetween, formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, isLocated, isToSchedule, routeMeters, splitDay, type LngLat } from "../map/geo"
 import { dayZone } from "../dayClock"
 import { LIMITS } from "../limits"
@@ -44,11 +44,11 @@ import { calendarMenuItem } from "../calendar/calendarMenu"
 import { DaySky } from "./DaySky"
 import { weatherKind, wetDuring, wetSpells, type DaySky as Sky, type WetSpell } from "../forecast"
 import { NowLine } from "../live/NowLine"
-import { clockIn, nowSlot } from "../live/liveTrip"
+import { clockText, dayNow, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
 import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
 import { DoneFold } from "../timeline/DoneFold"
-import { clockMinutes, stopTitle } from "../timeline/timeline"
+import { stopTitle } from "../timeline/timeline"
 import { useDayView } from "./dayView"
 import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
@@ -207,13 +207,18 @@ export function DayPanel({
   const rootRef = useRef<HTMLDivElement>(null)
   /** Where keyboard focus goes once the list has re-rendered without a stop. */
   const focusNext = useRef<string | null>(null)
-  const isToday = day.date === todayIsoIn(trip.timezone)
   // Today or already over, where the day is lived: stops can be marked Done,
   // Skipped or Loved, and the journal opens.
-  const lived = day.date <= todayIsoIn(dayZone(trip, day))
-  const now = useNow(60_000, isToday)
-  const clock = isToday ? clockIn(trip.timezone, now) : null
-  const list = useMemo(() => dayList(day, clockMinutes(clock ?? undefined)), [day, clock])
+  const zoneToday = todayIsoIn(dayZone(trip, day))
+  const lived = day.date <= zoneToday
+  // The day's own clock (its zone, running into the small hours while a
+  // night stop is on), ticking only on the day itself or either side of it.
+  const aroundToday = Math.abs(daysBetween(day.date, zoneToday)) <= 1
+  const now = useNow(60_000, aroundToday)
+  const dayClock = aroundToday ? dayNow(trip, day, now) : null
+  const isToday = dayClock !== null
+  const clock = dayClock === null ? null : clockText(dayClock)
+  const list = useMemo(() => dayList(day, dayClock), [day, dayClock])
   const slot = isToday ? nowSlot(day, trip, now) : null
   const nowLine = slot === null || clock === null ? null : <NowLine key="now-line" time={formatClock(clock)} />
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
@@ -480,7 +485,7 @@ export function DayPanel({
           <DaySky
             sky={sky}
             day={day}
-            now={clock === null ? null : clockMinutes(clock)}
+            now={dayClock}
             onStop={findStop}
             onRework={editable && !locked ? rework : undefined}
           />
@@ -561,7 +566,7 @@ export function DayPanel({
             activeId={activeId}
             hotId={hotId}
             onHover={onHover}
-            now={isToday ? clockIn(trip.timezone, now) : undefined}
+            now={dayClock ?? undefined}
             forecast={forecast}
             fold={{ open: foldOpen, onToggle: toggleFold }}
             onSelect={findStop}
@@ -582,7 +587,7 @@ export function DayPanel({
                 <div {...sx(s.gutter)} style={{ paddingTop: 0 }} aria-hidden>
                   <span {...sx(s.gutterLine)} />
                 </div>
-                <DoneFold count={list.done.stops.length} from={list.done.from} to={list.done.to} open={foldOpen} onToggle={toggleFold} />
+                <DoneFold skipped={list.done.skipped} count={list.done.stops.length} from={list.done.from} to={list.done.to} open={foldOpen} onToggle={toggleFold} />
               </li>
             )}
             {shown.flatMap((item, at) => {

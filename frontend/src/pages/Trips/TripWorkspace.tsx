@@ -932,6 +932,7 @@ function Workspace() {
                   onStopAi={editor.stopAi}
                   onAddBooking={addBookingByHand}
                   onPasteBookings={() => setPasting(true)}
+                  onUpdateDay={(dayId, change, undo) => editor.setDays((days) => days.map((d) => (d.id === dayId ? change(d) : d)), undo)}
                 />
               ) : (
                 <OverlayBoundary onError={overlayFailed(`The ${tabLabel(open)} tab`, () => setTab("itinerary"))}>
