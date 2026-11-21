@@ -344,7 +344,7 @@ export const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
 }
 
 const TRANSPORT_TYPES = new Set(["flight", "train", "transit", "car", "bus", "ferry"])
-const FOOD_TYPES = new Set(["meal", "restaurant", "cafe", "bar", "bakery"])
+const FOOD_TYPES = new Set(["meal", "food", "restaurant", "cafe", "coffee", "bar", "pub", "bakery", "dessert", "brewery", "winery", "street_food", "food_market"])
 
 /** Which budget line a stop's cost belongs to. */
 export function costCategory(item: Pick<ItineraryItem, "reservation" | "location">): ExpenseCategory {

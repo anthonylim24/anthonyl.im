@@ -44,6 +44,8 @@ import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./work
 import { DayPanel } from "./workspace/DayPanel"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
+import { OverviewTabs } from "./workspace/OverviewTabs"
+import { OVERVIEW_TABS, readOverviewTab, type OverviewTab } from "./workspace/overviewTab"
 import { calendarMenuItem } from "./calendar/calendarMenu"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import { a } from "./atlas.stylex"
@@ -52,6 +54,7 @@ import { share, ws as s } from "./workspace.stylex"
 const PhotorealOverlay = lazyRetry(() => import("./photoreal/PhotorealOverlay"))
 
 const PHOTOREAL_READY = photorealAvailable()
+const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => ({ default: m.BudgetPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
@@ -190,6 +193,20 @@ function Workspace() {
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
+  const tab = readOverviewTab(searchParams.get("tab"))
+  const setTab = useCallback(
+    (next: OverviewTab) =>
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev)
+          if (next === "itinerary") params.delete("tab")
+          else params.set("tab", next)
+          return params
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  )
   /** What this opening of the Instagram import has added: one undo step, one toast. */
   const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
   /** Offered after the traveller adds or changes where they sleep. */
@@ -796,22 +813,52 @@ function Workspace() {
             forecast={forecast.get(day.id)}
           />
         ) : (
-          <OverviewPanel
-            trip={trip}
-            forecast={forecast}
-            basePath={basePath}
-            editable={editable}
-            locked={locked}
-            drafting={running === "draft"}
-            enhancing={running === "trip"}
-            applying={ai.k === "applying"}
-            run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
-            dayOptions={editor.dayOptions}
-            onDraft={(brief) => void draft(brief)}
-            onHoverDay={(id) => setHotId(id ? `${DAY_PIN}${id}` : null)}
-            onApplyRun={editor.applyActiveRun}
-            onDismissRun={editor.dismissRun}
-            onStopAi={editor.stopAi}
+          <OverviewTabs
+            tab={tab}
+            onTab={setTab}
+            only={OVERVIEW_PANELS}
+            render={(open) =>
+              open === "itinerary" ? (
+                      <OverviewPanel
+                  trip={trip}
+                  forecast={forecast}
+                  basePath={basePath}
+                  editable={editable}
+                  locked={locked}
+                  drafting={running === "draft"}
+                  enhancing={running === "trip"}
+                  applying={ai.k === "applying"}
+                  run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
+                  dayOptions={editor.dayOptions}
+                  onDraft={(brief) => void draft(brief)}
+                  onHoverDay={(id) => setHotId(id ? `${DAY_PIN}${id}` : null)}
+                  onApplyRun={editor.applyActiveRun}
+                  onDismissRun={editor.dismissRun}
+                  onStopAi={editor.stopAi}
+                />
+              ) : (
+                <OverlayBoundary onError={overlayFailed(`The ${tabLabel(open)} tab`, () => setTab("itinerary"))}>
+                  <Suspense fallback={<PanelLoading />}>
+                    <div {...sx(s.content)}>
+                      {open === "budget" && (
+                        <BudgetPanel
+                          trip={trip}
+                          editable={editable}
+                          locked={locked}
+                          viewer={viewer}
+                          onEdit={editor.edit}
+                          onOpenItem={(itemDayId, itemId) => {
+                            navigate(`${basePath}/day/${itemDayId}`)
+                            requestEdit(itemId)
+                            setView("list")
+                          }}
+                        />
+                      )}
+                    </div>
+                  </Suspense>
+                </OverlayBoundary>
+              )
+            }
           />
         )}
       </div>
@@ -1155,6 +1202,19 @@ function Workspace() {
         </Suspense>
         </OverlayBoundary>
       )}
+    </div>
+  )
+}
+
+/** The overview tabs whose panels this build has. */
+const OVERVIEW_PANELS: readonly OverviewTab[] = ["itinerary", "budget"]
+
+const tabLabel = (tab: OverviewTab) => OVERVIEW_TABS.find((t) => t.id === tab)?.label.toLowerCase() ?? tab
+
+function PanelLoading() {
+  return (
+    <div {...sx(s.content)} role="status" aria-label="Loading">
+      <Spinner />
     </div>
   )
 }
