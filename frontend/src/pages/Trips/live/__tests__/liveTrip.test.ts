@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { makeItem, makeSummary } from "../../__tests__/tripFixtures"
-import type { TripDay } from "../../types"
+import type { Trip, TripDay } from "../../types"
 import {
   clockIn,
   clockMinutes,
   clockText,
   countdownLabel,
+  dayNow,
   liveState,
   nowSlot,
   travelBetween,
@@ -50,7 +51,8 @@ describe("clock in the trip's zone", () => {
 
   it("parses and prints 24-hour times", () => {
     expect(clockMinutes("09:30")).toBe(570)
-    expect(clockMinutes("9:30")).toBe(570)
+    // Stored times are "HH:mm": the one day clock reads them all.
+    expect(clockMinutes("9:30")).toBeNull()
     expect(clockMinutes("24:00")).toBeNull()
     expect(clockMinutes("9.30")).toBeNull()
     expect(clockMinutes(undefined)).toBeNull()
@@ -141,7 +143,7 @@ describe("liveState during the trip", () => {
     const state = duringAt("2026-05-28T04:42:00Z")
     expect(state).toMatchObject({ date: "2026-05-28", clock: "13:42", dayIndex: 2, dayCount: 12, current: null })
     expect(state.day?.id).toBe("d3")
-    expect(state.next).toMatchObject({ start: "14:00", end: null, tomorrow: false, dayIndex: 2 })
+    expect(state.next).toMatchObject({ start: "14:00", end: null, when: "today", dayIndex: 2 })
     expect(state.next?.item.id).toBe("palace")
     expect(state.minutesToNext).toBe(18)
     // From Bukchon (the pinned stop before it; the note has no pin): 1.1 km on foot.
@@ -180,7 +182,7 @@ describe("liveState during the trip", () => {
   it("after the last stop, next is tomorrow's first, with no countdown or leave time", () => {
     const state = duringAt("2026-05-28T12:00:00Z") // 21:00
     expect(state.current?.item.id).toBe("market")
-    expect(state.next).toMatchObject({ tomorrow: true, start: "08:10", dayIndex: 3 })
+    expect(state.next).toMatchObject({ when: "tomorrow", start: "08:10", dayIndex: 3 })
     expect(state.next?.item.id).toBe("ktx")
     expect(state).toMatchObject({ minutesToNext: null, travel: null, leaveBy: null, leaveIn: null, progress: 1 })
   })
@@ -234,12 +236,22 @@ describe("liveState during the trip", () => {
     expect(travelBetween(place("s", "Seoul Station", 37.55), place("b", "Busan Station", 35.11))).toBeNull()
   })
 
-  it("copes with a day with no times, and with no day for today's date", () => {
-    const untimed = seoulTrip()
-    untimed.days[2]!.items = [makeItem({ id: "x", title: "Wander" })]
-    const quiet = duringAt("2026-05-28T04:42:00Z", untimed)
-    expect(quiet).toMatchObject({ current: null, total: 0, started: 0, progress: 0, minutesToNext: null })
-    expect(quiet.next?.item.id).toBe("ktx")
+  it("on a day with no times, offers its first stop not done yet; an empty day points at tomorrow", () => {
+    const loose = seoulTrip()
+    loose.days[2]!.items = [
+      makeItem({ id: "w", title: "Walk the wall", status: "completed" }),
+      makeItem({ id: "n", kind: "note", title: "Bring cash" }),
+      makeItem({ id: "x", title: "Wander" }),
+      makeItem({ id: "y", title: "Market" }),
+    ]
+    const quiet = duringAt("2026-05-28T04:42:00Z", loose)
+    expect(quiet).toMatchObject({ current: null, total: 0, started: 0, progress: 0, minutesToNext: null, travel: null })
+    expect(quiet.next).toMatchObject({ when: "anytime", start: null, dayIndex: 2 })
+    expect(quiet.next?.item.id).toBe("x")
+
+    const empty = seoulTrip()
+    empty.days[2]!.items = []
+    expect(duringAt("2026-05-28T04:42:00Z", empty).next?.item.id).toBe("ktx")
 
     const gap = seoulTrip()
     gap.days.splice(2, 1)
@@ -292,14 +304,172 @@ describe("nowSlot", () => {
     expect(nowSlot(day, trip, at("2026-05-28T04:42:00Z"))).toBeNull()
   })
 
-  it("follows list order when times are out of order", () => {
+  it("sits before the next stop in clock order when the list is out of order", () => {
     const day: TripDay = {
       id: "d3",
       date: "2026-05-28",
-      items: [makeItem({ id: "late", time: "14:00" }), makeItem({ id: "early", time: "10:00" })],
+      items: [makeItem({ id: "early", time: "09:00" }), makeItem({ id: "dinner", time: "19:00" }), makeItem({ id: "lunch", time: "13:00" })],
     }
-    // At 12:00 the first card still to come is the first in the list.
-    expect(nowSlot(day, trip, at("2026-05-28T03:00:00Z"))).toBe(0)
-    expect(nowSlot(day, trip, at("2026-05-28T06:00:00Z"))).toBe(2)
+    // At 10:00 lunch (third in the list) is what happens next, not dinner.
+    expect(nowSlot(day, trip, at("2026-05-28T01:00:00Z"))).toBe(2)
+    // Once everything has started it follows the last timed card.
+    expect(nowSlot(day, trip, at("2026-05-28T11:00:00Z"))).toBe(3)
+  })
+
+  it("passes over stops done early and stops skipped", () => {
+    const day: TripDay = {
+      id: "d3",
+      date: "2026-05-28",
+      items: [makeItem({ id: "a", time: "09:00" }), makeItem({ id: "b", time: "11:00", status: "completed" }), makeItem({ id: "c", time: "12:00", status: "skipped" }), makeItem({ id: "d", time: "14:00" })],
+    }
+    expect(nowSlot(day, trip, at("2026-05-28T01:00:00Z"))).toBe(3) // 10:00 → before d
+  })
+
+  it("stays on a day through its night, after midnight", () => {
+    const day: TripDay = { id: "d3", date: "2026-05-28", items: [makeItem({ id: "dinner", time: "19:00", endTime: "21:00" }), makeItem({ id: "club", time: "01:00", endTime: "03:00" })] }
+    expect(nowSlot(day, trip, at("2026-05-28T15:30:00Z"))).toBe(1) // 00:30 on the 29th → before the club
+    expect(nowSlot(day, trip, at("2026-05-28T18:30:00Z"))).toBeNull() // 03:30, the night is over
+  })
+})
+
+/** Day 3 (Thu 28 May) as a night out: dinner, then a club after midnight. */
+function nightOut(trip: Trip = seoulTrip(), dayIndex = 2): Trip {
+  trip.days[dayIndex]!.items = [
+    place("dinner", "Gwangjang Market", 37.57, { time: "19:00", endTime: "21:00" }),
+    place("club", "Club Octagon", 37.58, { time: "01:00", endTime: "03:00" }),
+  ]
+  return trip
+}
+
+describe("liveState after midnight", () => {
+  it("at 08:00 a 1 AM club is tonight, not this morning", () => {
+    const state = duringAt("2026-05-27T23:00:00Z", nightOut()) // 08:00
+    expect(state).toMatchObject({ current: null, started: 0, total: 2, night: false })
+    expect(state.next?.item.id).toBe("dinner")
+  })
+
+  it("at 23:30 the club is next, an hour and a half away", () => {
+    const state = duringAt("2026-05-28T14:30:00Z", nightOut()) // 23:30
+    expect(state.next).toMatchObject({ when: "today", start: "01:00" })
+    expect(state.next?.item.id).toBe("club")
+    expect(state.minutesToNext).toBe(90)
+    // From dinner, the stop before it on the clock: 1.1 km on foot.
+    expect(state.travel).toMatchObject({ mode: "walk", minutes: 14 })
+    expect(state.leaveBy).toBe("00:46")
+  })
+
+  it("at 00:30 it is still day 3's night: the club is next, half an hour away", () => {
+    const state = duringAt("2026-05-28T15:30:00Z", nightOut()) // 00:30 on the 29th
+    expect(state).toMatchObject({ date: "2026-05-28", clock: "00:30", now: 1470, night: true, dayIndex: 2, minutesToNext: 30 })
+    expect(state.day?.id).toBe("d3")
+    expect(state.next?.item.id).toBe("club")
+    expect(duringAt("2026-05-28T17:00:00Z", nightOut()).current?.item.id).toBe("club") // 02:00
+  })
+
+  it("hands over to the next day once the night is over", () => {
+    const state = duringAt("2026-05-28T18:30:00Z", nightOut()) // 03:30 on the 29th
+    expect(state).toMatchObject({ date: "2026-05-29", night: false, dayIndex: 3 })
+  })
+
+  it("lets a club marked done end the night early", () => {
+    const trip = nightOut()
+    trip.days[2]!.items[1] = { ...trip.days[2]!.items[1]!, status: "completed" }
+    expect(duringAt("2026-05-28T15:30:00Z", trip)).toMatchObject({ date: "2026-05-29", night: false })
+  })
+
+  it("does not call the trip over while the last night is still on", () => {
+    const trip = nightOut(seoulTrip(), 11) // the last day, Sat 6 Jun
+    const state = duringAt("2026-06-06T15:30:00Z", trip) // 00:30 on the 7th
+    expect(state).toMatchObject({ night: true, dayIndex: 11, dayCount: 12 })
+    expect(liveState(trip, at("2026-06-06T18:30:00Z"))).toMatchObject({ phase: "after", label: "Ended yesterday" })
+  })
+
+  it("dayNow reads each day's own clock, past 1440 in its night", () => {
+    const trip = nightOut()
+    expect(dayNow(trip, trip.days[2]!, at("2026-05-28T14:30:00Z"))).toBe(1410)
+    expect(dayNow(trip, trip.days[2]!, at("2026-05-28T15:30:00Z"))).toBe(1470)
+    // The 29th has begun too, on its own clock.
+    expect(dayNow(trip, trip.days[3]!, at("2026-05-28T15:30:00Z"))).toBe(30)
+    expect(dayNow(trip, trip.days[1]!, at("2026-05-28T15:30:00Z"))).toBeNull()
+  })
+})
+
+describe("liveState in real time", () => {
+  it("counts down across the spring-forward night as the hours are lived", () => {
+    // Sat 7 Mar 2026 in New York: clocks go from 2:00 to 3:00 that night.
+    const trip = seoulTrip({ timezone: "America/New_York", startDate: "2026-03-06", endDate: "2026-03-09" })
+    trip.days = ["2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09"].map((date, i) => ({ id: `n${i + 1}`, date, items: [] }))
+    trip.days[1]!.items = [
+      place("show", "Late show", 40.7, { time: "23:00" }),
+      place("diner", "All-night diner", 40.71, { time: "03:30" }),
+    ]
+    const state = duringAt("2026-03-08T04:30:00Z", trip) // 23:30 EST
+    expect(state.current?.item.id).toBe("show")
+    expect(state.next?.item.id).toBe("diner")
+    // 03:30 EDT is three real hours after 23:30 EST, not four.
+    expect(state.minutesToNext).toBe(180)
+    expect(state.travel?.minutes).toBe(14)
+    expect(state.leaveBy).toBe("03:16")
+    expect(state.leaveIn).toBe(166)
+  })
+
+  it("reads each day in its own zone on a trip across zones", () => {
+    // Day 4 (the 29th) is lived in Honolulu; the trip's zone is Seoul's.
+    const trip = seoulTrip()
+    trip.days[3]!.timezone = "Pacific/Honolulu"
+    trip.days[3]!.items = [place("beach", "Waikiki", 21.27, { time: "10:00" })]
+    // 09:00 on the 29th in Honolulu (04:00 on the 30th in Seoul): day 4 is under way there.
+    const hnl = duringAt("2026-05-29T19:00:00Z", trip)
+    expect(hnl).toMatchObject({ date: "2026-05-29", zone: "Pacific/Honolulu", clock: "09:00", minutesToNext: 60 })
+    expect(hnl.next?.item.id).toBe("beach")
+    // 20:00 in Honolulu is 15:00 on the 30th in Seoul: both days read as today; the earlier one stays.
+    expect(duringAt("2026-05-30T06:00:00Z", trip)).toMatchObject({ date: "2026-05-29", clock: "20:00" })
+    // Once Honolulu's 29th is over, day 5 in Seoul takes over.
+    expect(duringAt("2026-05-30T10:30:00Z", trip)).toMatchObject({ date: "2026-05-30", zone: "Asia/Seoul", clock: "19:30" })
+  })
+})
+
+describe("leave-by origin", () => {
+  it("sets off from the stop before in clock order, not in list order", () => {
+    const trip = seoulTrip()
+    trip.days[2]!.items = [
+      place("lunch", "Lunch", 37.57, { time: "12:00", endTime: "13:00" }),
+      place("tea", "Tea", 37.6, { time: "16:00" }),
+      place("museum", "Museum", 37.58, { time: "14:00", endTime: "15:30" }),
+    ]
+    const state = duringAt("2026-05-28T06:45:00Z", trip) // 15:45 → tea
+    expect(state.next?.item.id).toBe("tea")
+    expect(state.from?.id).toBe("museum")
+    expect(state.travel?.from.id).toBe("museum")
+  })
+
+  it("sets off for the day's first stop from last night's hotel", () => {
+    const trip = seoulTrip()
+    trip.days[1]!.items = [place("stay", "Hotel in Anguk", 37.575, { kind: "reservation", time: "15:00", reservation: { type: "hotel", status: "confirmed" } })]
+    const state = duringAt("2026-05-27T23:00:00Z", trip) // 08:00 on day 3 → breakfast at 09:00
+    expect(state.next?.item.id).toBe("breakfast")
+    expect(state.from?.id).toBe("stay")
+    expect(state.leaveBy).not.toBeNull()
+  })
+
+  it("does not set off from a train: it lands somewhere else", () => {
+    const trip = seoulTrip()
+    trip.days[2]!.items = [
+      place("ktx", "KTX to Busan", 37.55, { kind: "reservation", time: "08:00", endTime: "10:30", reservation: { type: "transit", status: "confirmed" } }),
+      place("lunch", "Lunch", 37.56, { time: "12:00" }),
+    ]
+    expect(duringAt("2026-05-28T02:00:00Z", trip)).toMatchObject({ from: null, travel: null, leaveBy: null }) // 11:00
+  })
+})
+
+describe("liveState with stops done and skipped", () => {
+  it("never makes a skipped stop next or under way, and passes over one done early", () => {
+    const trip = seoulTrip()
+    const items = trip.days[2]!.items
+    trip.days[2]!.items = items.map((item) => (item.id === "palace" ? { ...item, status: "skipped" as const } : item.id === "bukchon" ? { ...item, status: "completed" as const } : item))
+    const state = duringAt("2026-05-28T02:00:00Z", trip) // 11:00: Bukchon was on, but it is done
+    expect(state.current).toBeNull()
+    expect(state.next?.item.id).toBe("market")
+    expect(state).toMatchObject({ started: 2, total: 3 })
   })
 })

@@ -178,6 +178,32 @@ describe("DayTimeline", () => {
     expect(screen.queryByText("Now")).toBeNull()
   })
 
+  it("runs the night on past midnight: a 1 AM stop after dinner is drawn late, and now at 00:30 sits before it", () => {
+    const night = [place("dinner", "Dinner", "19:00", SEOUL, { endTime: "21:00" }), place("club", "Club", "01:00", north(1), { endTime: "03:00" })]
+    const day = dayWith(night)
+    render(<DayTimeline trip={makeTrip({ days: [day] })} day={day} activeId={null} hotId={null} onSelect={() => {}} onHover={() => {}} now={24 * 60 + 30} />)
+    // Dinner is over and folded away; the club is still ahead, on the ruler past midnight.
+    expect(screen.getByRole("button", { name: /^1 stop done 7:00–9:00 PM/ })).toBeInTheDocument()
+    const names = within(screen.getByRole("list", { name: "1 stop on the clock" }))
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label"))
+    expect(names).toEqual(["1:00 AM to 3:00 AM, Club, stop 2"])
+    expect(screen.getByText(/, now 12:30 AM/)).toBeInTheDocument()
+  })
+
+  it("reads a morning clock on the day's own date as its morning, not the night after", () => {
+    const day = dayWith([place("dinner", "Dinner", "19:00", SEOUL, { endTime: "21:00" }), place("club", "Club", "01:00", north(1), { endTime: "03:00" })])
+    render(<DayTimeline trip={makeTrip({ days: [day] })} day={day} activeId={null} hotId={null} onSelect={() => {}} onHover={() => {}} now="00:30" />)
+    expect(screen.queryByRole("button", { name: /stops? done/ })).toBeNull()
+    expect(screen.queryByText("Now")).toBeNull()
+  })
+
+  it("strikes a skipped stop and says so, and mutes one marked done", () => {
+    renderTimeline([flight, { ...palace, status: "skipped" }, { ...tea, status: "completed" }, dinner])
+    expect(stopNamed("2:00 PM to 4:00 PM, Gyeongbokgung, palace, stop 2, skipped")).toBeInTheDocument()
+    expect(stopNamed(/^3:00 PM, Tea house, cafe, stop 3, done$/)).toBeInTheDocument()
+  })
+
   it("explains the timeline when nothing has a time yet", () => {
     renderTimeline([bar])
     expect(screen.getByText("Stops with a start time appear on the timeline; the rest wait under Anytime.")).toBeInTheDocument()

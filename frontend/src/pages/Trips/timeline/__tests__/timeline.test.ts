@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { dayPins, TO_SCHEDULE } from "../../map/geo"
 import type { ItineraryItem, TripDay } from "../../types"
 import { makeItem } from "../../__tests__/tripFixtures"
-import { clockLabel, clockMinutes, clockRange, layoutDay, legEstimate, stopNumbers, stopTitle, timeScale, typicalMinutes, yAt } from "../timeline"
+import { clockLabel, clockMinutes, clockRange, doneFold, layoutDay, legEstimate, stopNumbers, stopTitle, timeScale, typicalMinutes, yAt } from "../timeline"
 
 const at = (h: number, m = 0) => h * 60 + m
 
@@ -27,7 +27,8 @@ const block = (layout: ReturnType<typeof layoutDay>, id: string) => layout.block
 describe("clock helpers", () => {
   it("reads only real clock times", () => {
     expect(clockMinutes("09:30")).toBe(at(9, 30))
-    expect(clockMinutes("9:05")).toBe(at(9, 5))
+    // Stored times are "HH:mm" (the server's schema): one clock reads them all.
+    expect(clockMinutes("9:05")).toBeNull()
     expect(clockMinutes("24:00")).toBeNull()
     expect(clockMinutes("10:75")).toBeNull()
     expect(clockMinutes("noon")).toBeNull()
@@ -248,6 +249,51 @@ describe("layoutDay", () => {
     const layout = layoutDay(day([stop("someday", undefined)]))
     expect(layout).toMatchObject({ blocks: [], gaps: [], conflicts: [], untimed: ["someday"] })
     expect(layout.end - layout.start).toBe(360)
+  })
+
+  it("puts a small-hours stop after a late one past midnight, and runs the ruler on to it", () => {
+    const layout = layoutDay(day([stop("dinner", "19:00", { endTime: "21:00" }), stop("bar", "23:00"), stop("club", "01:00", { endTime: "03:00" })]))
+    expect(block(layout, "club")).toMatchObject({ start: at(25), end: at(27), estimated: false })
+    expect(layout.blocks.map((b) => b.itemId)).toEqual(["dinner", "bar", "club"])
+    // The bar's guessed length gives way to the club, not to a 1 AM that morning.
+    expect(block(layout, "bar")).toMatchObject({ start: at(23), end: at(24) })
+    expect(layout).toMatchObject({ start: at(19), end: at(27) })
+  })
+
+  it("keeps a 1 AM stop at the top of a morning list as that morning", () => {
+    const layout = layoutDay(day([stop("flight", "01:00"), stop("hotel", "09:00")]))
+    expect(block(layout, "flight").start).toBe(at(1))
+  })
+
+  it("keeps a skipped stop on the ruler, out of every clash and leg", () => {
+    const layout = layoutDay(
+      day([
+        pinned("a", "10:00", north(0), { endTime: "11:00" }),
+        pinned("skip", "10:30", north(5), { endTime: "11:30", status: "skipped" }),
+        pinned("b", "12:00", north(1), { endTime: "13:00" }),
+      ]),
+    )
+    expect(block(layout, "skip").outcome).toBe("skipped")
+    expect(layout.conflicts).toEqual([])
+    expect(layout.gaps.map((g) => `${g.afterId}>${g.beforeId}`)).toEqual(["a>b"])
+  })
+
+  it("marks a stop done whatever the clock says", () => {
+    const layout = layoutDay(day([stop("a", "10:00", { status: "completed" }), stop("b", "12:00")]))
+    expect(block(layout, "a").outcome).toBe("done")
+    expect(block(layout, "b").outcome).toBe("planned")
+  })
+})
+
+describe("doneFold", () => {
+  const plan = () => layoutDay(day([stop("a", "09:00", { endTime: "10:00" }), stop("b", "10:30", { endTime: "11:30", status: "skipped" }), stop("c", "13:00", { endTime: "14:00" })]))
+
+  it("folds a skipped stop with the done ones before the clock reaches its end", () => {
+    expect(doneFold(plan(), at(12, 15))).toEqual({ ids: ["a", "b"], skipped: 1, from: at(9), to: at(11, 30), foldAt: at(12) })
+  })
+
+  it("folds nothing off today", () => {
+    expect(doneFold(plan(), null)).toBeNull()
   })
 })
 

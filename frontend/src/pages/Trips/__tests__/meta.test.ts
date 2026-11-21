@@ -209,8 +209,23 @@ describe("small label helpers", () => {
 })
 
 describe("formatTripDate", () => {
-  it("formats the day in the trip's time zone", () => {
+  it("names the calendar day the date is, in any zone", () => {
     expect(formatTripDate("2026-07-10", "Europe/Lisbon")).toBe("Fri, Jul 10")
+    expect(formatTripDate("2026-07-10", "America/Los_Angeles")).toBe("Fri, Jul 10")
+  })
+
+  it("does not run a day late in zones 12 or more hours ahead of UTC", () => {
+    expect(formatTripDate("2026-07-10", "Pacific/Auckland")).toBe("Fri, Jul 10")
+    expect(formatTripDate("2026-01-10", "Pacific/Auckland", { weekday: "long", month: "long" })).toBe("Saturday, January 10")
+    expect(formatTripDate("2026-07-10", "Pacific/Kiritimati", { weekday: "short", month: undefined, day: undefined })).toBe("Fri")
+    expect(formatTripDate("2026-07-10", "Pacific/Tongatapu", { weekday: undefined, month: undefined, day: "numeric" })).toBe("10")
+    // The header's range agrees with the day labels.
+    expect(formatRange("2026-07-10", "2026-07-12")).toBe("Jul 10 – 12, 2026")
+  })
+
+  it("drops a part passed as undefined, and adds one asked for", () => {
+    expect(formatTripDate("2026-07-10", "UTC", { weekday: undefined })).toBe("Jul 10")
+    expect(formatTripDate("2026-07-10", "UTC", { year: "numeric" })).toBe("Fri, Jul 10, 2026")
   })
 
   it("falls back to the calendar day when the time zone is not one", () => {

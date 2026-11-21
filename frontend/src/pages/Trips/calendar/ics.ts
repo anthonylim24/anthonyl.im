@@ -1,20 +1,31 @@
+import { clockMinutes, dayEnd, dayStarts, validZone, wallClock, zonedEpoch, zoneOffsetMs } from "../dayClock"
 import type { ItineraryItem, Trip, TripDay } from "../types"
+import { isCalendarItem } from "./calendarItems"
 
 // A trip as an iCalendar file (RFC 5545), built in the browser. Pure: the
 // caller passes `now`, so the same trip always gives the same file.
 //
-// - Timed stops are wall-clock times in the trip's time zone
-//   (`DTSTART;TZID=…`), with a VTIMEZONE built from `Intl` for the dates the
-//   trip covers. An unknown zone falls back to floating times.
-// - Stops with no time are all-day events on their day.
+// - Timed stops are wall-clock times in the zone their day is lived in
+//   (`DTSTART;TZID=…`), read on the day's own clock: a 1 AM bar after dinner
+//   is on the next date. Each zone used gets a VTIMEZONE built from `Intl`
+//   for the dates it covers. An unknown zone falls back to floating times.
+// - A booking that lands elsewhere (a flight with `endTimezone` / `endDate`)
+//   ends at its real arrival, written in the arrival zone.
+// - Booked stops carry a reminder: three hours before a flight, an hour
+//   before anything else. Ordinary stops have none.
+// - Stops with no time are all-day events on their day; a skipped stop is
+//   exported as cancelled, so a calendar that imported it before updates.
 // - Each stop's UID is its item id, so importing the file again updates the
 //   events instead of adding a second copy.
 
+export { isCalendarItem }
+
 const CRLF = "\r\n"
 const MAX_OCTETS = 75
+const MINUTES_PER_DAY = 24 * 60
 /** A stop with a start and no end gets this long in the calendar. */
 const DEFAULT_MINUTES = 60
-/** An end earlier than the start is read as "after midnight" only up to this long. */
+/** An end earlier on the clock than the start is read as "after midnight" only up to this long. */
 const MAX_OVERNIGHT_MINUTES = 12 * 60
 
 const encoder = new TextEncoder()
@@ -58,8 +69,8 @@ function pad(n: number, width = 2): string {
 }
 
 /** "2026-07-10" → [2026, 7, 10], or null. */
-function parseDate(date: string): [number, number, number] | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+function parseDate(date: string | undefined): [number, number, number] | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date ?? "")
   if (!m) return null
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
   const check = new Date(Date.UTC(y, mo - 1, d))
@@ -67,28 +78,22 @@ function parseDate(date: string): [number, number, number] | null {
   return [y, mo, d]
 }
 
-/** "9:05" / "09:05" → minutes after midnight, or null. */
-export function parseClock(time: string | undefined): number | null {
-  if (!time) return null
-  const m = /^(\d{1,2}):(\d{2})/.exec(time.trim())
-  if (!m) return null
-  const h = Number(m[1])
-  const min = Number(m[2])
-  if (h > 23 || min > 59) return null
-  return h * 60 + min
-}
-
 function addDays([y, m, d]: [number, number, number], days: number): [number, number, number] {
   const next = new Date(Date.UTC(y, m - 1, d + days))
   return [next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()]
 }
 
+const isoOf = ([y, m, d]: [number, number, number]) => `${y}-${pad(m)}-${pad(d)}`
+
 function dateValue([y, m, d]: [number, number, number]): string {
   return `${y}${pad(m)}${pad(d)}`
 }
 
+/** A wall time on the day's clock: minutes past 1440 land on the following dates. */
 function dateTimeValue(date: [number, number, number], minutes: number): string {
-  return `${dateValue(date)}T${pad(Math.floor(minutes / 60))}${pad(minutes % 60)}00`
+  const days = Math.floor(minutes / MINUTES_PER_DAY)
+  const rest = minutes - days * MINUTES_PER_DAY
+  return `${dateValue(addDays(date, days))}T${pad(Math.floor(rest / 60))}${pad(rest % 60)}00`
 }
 
 function utcStamp(ms: number): string {
@@ -96,41 +101,9 @@ function utcStamp(ms: number): string {
   return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
 }
 
-/** True when `Intl` knows the zone. */
-export function isKnownZone(zone: string | undefined): zone is string {
-  if (!zone) return false
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone })
-    return true
-  } catch {
-    return false
-  }
-}
-
-const offsetFormats = new Map<string, Intl.DateTimeFormat>()
-
 /** The zone's UTC offset at an instant, in minutes (east positive). */
 export function zoneOffsetMinutes(zone: string, ms: number): number {
-  let format = offsetFormats.get(zone)
-  if (!format) {
-    format = new Intl.DateTimeFormat("en-US", {
-      timeZone: zone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-    offsetFormats.set(zone, format)
-  }
-  const parts: Record<string, number> = {}
-  for (const part of format.formatToParts(new Date(ms))) {
-    if (part.type !== "literal") parts[part.type] = Number(part.value)
-  }
-  const wall = Date.UTC(parts.year!, parts.month! - 1, parts.day!, parts.hour!, parts.minute!, parts.second!)
-  return Math.round((wall - Math.floor(ms / 1000) * 1000) / 60_000)
+  return Math.round(zoneOffsetMs(ms, zone) / 60_000)
 }
 
 function offsetValue(minutes: number): string {
@@ -206,13 +179,6 @@ export function vtimezone(zone: string, first: [number, number, number], last: [
   return lines
 }
 
-/** Stops that belong in a calendar: not headings, and notes only when timed. */
-export function isCalendarItem(item: ItineraryItem): boolean {
-  if (item.kind === "section") return false
-  if (item.kind === "note") return parseClock(item.time) != null
-  return true
-}
-
 /** "Name, Address" without repeating a name the address already starts with. */
 function locationText(item: ItineraryItem): string | null {
   const loc = item.location
@@ -239,28 +205,74 @@ export function eventUid(trip: Pick<Trip, "id">, item: Pick<ItineraryItem, "id">
   return `${clean(item.id)}.${clean(trip.id)}@trips.anthonyl.im`
 }
 
-/** End time for a timed stop: same day, after midnight, or none (default length). */
-export function endFor(start: number, endTime: string | undefined): { minutes: number; nextDay: boolean } | null {
-  const end = parseClock(endTime)
-  if (end == null || end === start) return null
-  if (end > start) return { minutes: end, nextDay: false }
-  const overnight = 24 * 60 - start + end
-  return overnight <= MAX_OVERNIGHT_MINUTES ? { minutes: end, nextDay: true } : null
+/**
+ * Where a timed stop ends on the day's clock (`dayEnd`): later the same day,
+ * or after midnight. An end that wraps past midnight by more than 12 hours is
+ * read as a slip (14:00 to 13:00), so null: the event gets the default length.
+ */
+export function endFor(start: number, endTime: string | undefined): number | null {
+  const end = dayEnd(start, endTime)
+  if (end === null || end === start) return null
+  const wraps = end >= Math.floor(start / MINUTES_PER_DAY) * MINUTES_PER_DAY + MINUTES_PER_DAY
+  return wraps && end - start > MAX_OVERNIGHT_MINUTES ? null : end
 }
 
-function eventLines(trip: Trip, day: TripDay, date: [number, number, number], item: ItineraryItem, zone: string | null, stamp: string, sequence: number): string[] {
+/** A local time in a zone (null: floating) on a date. */
+interface Stamp {
+  zone: string | null
+  date: [number, number, number]
+  minutes: number
+}
+
+/**
+ * The arrival of a booking that ends somewhere else or on another day: its
+ * `endTime` in `endTimezone` (else the day's zone), on `endDate` when given,
+ * else the first such time after it leaves. Null when it has none, or it
+ * would land before it leaves.
+ */
+function arrival(item: ItineraryItem, depart: Stamp & { zone: string }): Stamp | null {
+  const booking = item.reservation
+  if (!booking || (!booking.endTimezone && !booking.endDate)) return null
+  const minutes = clockMinutes(item.endTime)
+  if (minutes === null) return null
+  const zone = validZone(booking.endTimezone) ?? depart.zone
+  const leaves = zonedEpoch(isoOf(depart.date), depart.minutes, depart.zone)
+  const given = parseDate(booking.endDate)
+  let date = given ?? (parseDate(wallClock(leaves, zone).date) as [number, number, number])
+  if (!given && zonedEpoch(isoOf(date), minutes, zone) <= leaves) date = addDays(date, 1)
+  return zonedEpoch(isoOf(date), minutes, zone) > leaves ? { zone, date, minutes } : null
+}
+
+const isFlight = (item: ItineraryItem) => item.reservation?.type?.trim().toLowerCase() === "flight"
+/** A booking the traveller must not miss: a reservation, or a stop marked booked. */
+const isBooked = (item: ItineraryItem) => item.kind === "reservation" || item.status === "booked"
+
+function alarmLines(item: ItineraryItem, summary: string): string[] {
+  const hours = isFlight(item) ? 3 : 1
+  return [
+    "BEGIN:VALARM",
+    "ACTION:DISPLAY",
+    `DESCRIPTION:${escapeText(`${summary} · in ${hours === 1 ? "1 hour" : `${hours} hours`}`)}`,
+    `TRIGGER:-PT${hours}H`,
+    "END:VALARM",
+  ]
+}
+
+const timeValue = (name: "DTSTART" | "DTEND", at: Stamp) =>
+  `${name}${at.zone ? `;TZID=${at.zone}` : ""}:${dateTimeValue(at.date, at.minutes)}`
+
+function eventLines(trip: Trip, day: TripDay, item: ItineraryItem, start: Stamp | null, end: Stamp | null, stamp: string, sequence: number): string[] {
   const lines = ["BEGIN:VEVENT", `UID:${eventUid(trip, item)}`, `DTSTAMP:${stamp}`, `SEQUENCE:${sequence}`]
-  const start = parseClock(item.time)
-  const tz = zone ? `;TZID=${zone}` : ""
-  if (start == null) {
+  const date = parseDate(day.date)!
+  if (start === null) {
     lines.push(`DTSTART;VALUE=DATE:${dateValue(date)}`, `DTEND;VALUE=DATE:${dateValue(addDays(date, 1))}`, "TRANSP:TRANSPARENT")
   } else {
-    lines.push(`DTSTART${tz}:${dateTimeValue(date, start)}`)
-    const end = endFor(start, item.endTime)
-    if (end) lines.push(`DTEND${tz}:${dateTimeValue(end.nextDay ? addDays(date, 1) : date, end.minutes)}`)
+    lines.push(timeValue("DTSTART", start))
+    if (end) lines.push(timeValue("DTEND", end))
     else lines.push(`DURATION:PT${DEFAULT_MINUTES / 60}H`)
   }
-  lines.push(`SUMMARY:${escapeText(item.title.trim() || "Stop")}`)
+  const summary = item.title.trim() || "Stop"
+  lines.push(`SUMMARY:${escapeText(summary)}`)
   const where = locationText(item)
   if (where) lines.push(`LOCATION:${escapeText(where)}`)
   const { lat, lng } = item.location ?? {}
@@ -269,8 +281,12 @@ function eventLines(trip: Trip, day: TripDay, date: [number, number, number], it
   }
   const body = description(item)
   if (body) lines.push(`DESCRIPTION:${escapeText(body)}`)
-  if (item.reservation) lines.push(`STATUS:${item.reservation.status === "confirmed" ? "CONFIRMED" : "TENTATIVE"}`)
+  const skipped = item.status === "skipped"
+  if (skipped) lines.push("STATUS:CANCELLED")
+  else if (item.reservation) lines.push(`STATUS:${item.reservation.status === "confirmed" ? "CONFIRMED" : "TENTATIVE"}`)
   if (day.title?.trim()) lines.push(`CATEGORIES:${escapeText(day.title.trim())}`)
+  // An all-day reminder would ring the evening before at an hour nobody chose.
+  if (start !== null && !skipped && item.status !== "completed" && isBooked(item)) lines.push(...alarmLines(item, summary))
   lines.push("END:VEVENT")
   return lines
 }
@@ -288,31 +304,51 @@ export interface CalendarExport {
  * edited trip wins in calendars that honour it.
  */
 export function tripToIcs(trip: Trip, { dayId, now }: { dayId?: string; now: number }): CalendarExport {
-  const zone = isKnownZone(trip.timezone) ? trip.timezone : null
-  const days = trip.days
-    .filter((day) => !dayId || day.id === dayId)
-    .flatMap((day) => {
-      const date = parseDate(day.date)
-      return date ? [{ day, date }] : []
-    })
+  const days = trip.days.filter((day) => (!dayId || day.id === dayId) && parseDate(day.date))
   const stamp = utcStamp(now)
   const updated = Date.parse(trip.updatedAt)
   // Minutes since 2020: an INTEGER (signed 32-bit) that only grows.
   const sequence = Number.isFinite(updated) ? Math.max(0, Math.floor((updated - Date.UTC(2020, 0, 1)) / 60_000)) : 0
 
   const events: string[] = []
+  // Each zone a timed event is written in, with the first and last date it is used on.
+  const zones = new Map<string, { first: [number, number, number]; last: [number, number, number] }>()
+  const cover = (at: Stamp) => {
+    if (!at.zone) return
+    const date = addDays(at.date, Math.floor(at.minutes / MINUTES_PER_DAY))
+    const seen = zones.get(at.zone)
+    if (!seen) zones.set(at.zone, { first: date, last: date })
+    else {
+      if (isoOf(date) < isoOf(seen.first)) seen.first = date
+      if (isoOf(date) > isoOf(seen.last)) seen.last = date
+    }
+  }
   let count = 0
-  let timed = false
-  for (const { day, date } of days) {
-    for (const item of day.items) {
+  for (const day of days) {
+    const date = parseDate(day.date)!
+    // The day's zone, or floating times when neither the day's nor the trip's is one the runtime knows.
+    const zone = validZone(day.timezone) ?? validZone(trip.timezone) ?? null
+    // The day's own clock: a small-hours start after a late one is the next date. Headings never set it.
+    const starts = dayStarts(day.items.map((item) => (item.kind === "section" ? {} : item)))
+    for (const [index, item] of day.items.entries()) {
       if (!isCalendarItem(item)) continue
-      if (parseClock(item.time) != null) timed = true
-      events.push(...eventLines(trip, day, date, item, zone, stamp, sequence))
+      const minutes = starts[index] ?? null
+      const start: Stamp | null = minutes === null ? null : { zone, date, minutes }
+      let end: Stamp | null = null
+      if (start) {
+        const landed = start.zone ? arrival(item, { ...start, zone: start.zone }) : null
+        const until = landed ? null : endFor(start.minutes, item.endTime)
+        end = landed ?? (until === null ? null : { zone, date, minutes: until })
+        cover(start)
+        if (end) cover(end)
+      }
+      events.push(...eventLines(trip, day, item, start, end, stamp, sequence))
       count += 1
     }
   }
 
-  const name = dayId && days[0] ? `${trip.name} · ${days[0].day.date}` : trip.name
+  const tripZone = validZone(trip.timezone)
+  const name = dayId && days[0] ? `${trip.name} · ${days[0].date}` : trip.name
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -320,8 +356,8 @@ export function tripToIcs(trip: Trip, { dayId, now }: { dayId?: string; now: num
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeText(name)}`,
-    ...(zone ? [`X-WR-TIMEZONE:${zone}`] : []),
-    ...(zone && timed && days.length > 0 ? vtimezone(zone, days[0]!.date, days[days.length - 1]!.date) : []),
+    ...(tripZone ? [`X-WR-TIMEZONE:${tripZone}`] : []),
+    ...[...zones].flatMap(([zone, { first, last }]) => vtimezone(zone, first, last)),
     ...events,
     "END:VCALENDAR",
   ]
