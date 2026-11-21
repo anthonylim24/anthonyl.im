@@ -7,7 +7,7 @@ import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, generateItinerary, getTrip, updateTrip } from "./tripsApi"
 import { isTripConflict } from "./tripConflict"
 import { READ_TIMEOUT_MS, isNetworkError, isOffline, saveFailure, useOnline } from "./offline/network"
-import { dropDraft, keepDraft, keepTrip, readDraft, readTrip, type TripDraft } from "./offline/tripCopies"
+import { dropDraft, keepDraft, keepDraftNow, keepTrip, readDraft, readTrip, type TripDraft } from "./offline/tripCopies"
 import { saveOnLeave } from "./offline/leaveSave"
 import { useShowCopy, useTripsDevice } from "./offline/tripsDevice"
 import { removeItem } from "./tripEdits"
@@ -213,10 +213,19 @@ export function useTripEditor() {
     const onHidden = () => {
       if (document.visibilityState === "hidden") writeNow()
     }
-    window.addEventListener("pagehide", writeNow)
+    // The page is going away: an IndexedDB write may not finish in time, so
+    // anything unsaved is also written synchronously (`keepDraftNow`).
+    const onLeave = () => {
+      const now = stateRef.current
+      if (now.s === "ready" && canWrite(now.access) && now.sync.k !== "clean" && !discardedRef.current) {
+        keepDraftNow(owner, { doc: now.doc, base: now.base, savedAt: Date.now() })
+      }
+      writeNow()
+    }
+    window.addEventListener("pagehide", onLeave)
     document.addEventListener("visibilitychange", onHidden)
     return () => {
-      window.removeEventListener("pagehide", writeNow)
+      window.removeEventListener("pagehide", onLeave)
       document.removeEventListener("visibilitychange", onHidden)
     }
   }, [owner, store])

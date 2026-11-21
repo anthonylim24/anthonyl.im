@@ -128,7 +128,9 @@ update while anything is unsaved or an AI run is going.
 **Offline:** `offline/deviceStore.ts` is IndexedDB behind an interface (2 s
 open deadline; `noStore` when there is none). `tripCopies.ts` keeps, per
 account, the last 10 trips opened, the trip list and any unsaved edits
-(debounced, and written at once on `pagehide`). Reads give up after 20 s and
+(debounced to IndexedDB; on `pagehide` also written synchronously to
+`localStorage` (`keepDraftNow`), since an IndexedDB write may not finish
+before the page is gone; the newer of the two is read back). Reads give up after 20 s and
 fall back to the device copy. When sign-in can't load, `TripsLayout` shows the
 copies read-only, but only while Clerk's cookies (`__client_uat` > 0 and a
 `__session` whose `sub` matches the stored owner) still name their owner; the

@@ -52,7 +52,10 @@ export const deviceOwner = (store: DeviceStore) => store.get<string>(OWNER_KEY)
 export async function claimDevice(store: DeviceStore, userId: string): Promise<void> {
   const owner = await deviceOwner(store)
   if (owner === userId) return
-  if (owner !== null) await store.clear()
+  if (owner !== null) {
+    await store.clear()
+    forgetLastMoment()
+  }
   await store.set(OWNER_KEY, userId)
 }
 
@@ -100,7 +103,7 @@ export async function readTrip(
   idOrSlug: string,
 ): Promise<{ copy: TripCopy | null; draft: TripDraft | null }> {
   const id = await resolveId(store, owner, idOrSlug)
-  const [copy, draft] = await Promise.all([store.get<TripCopy>(tripKey(owner, id)), store.get<TripDraft>(draftKey(owner, id))])
+  const [copy, draft] = await Promise.all([store.get<TripCopy>(tripKey(owner, id)), readDraft(store, owner, id)])
   return { copy, draft }
 }
 
@@ -111,9 +114,67 @@ export const readList = (store: DeviceStore, owner: string) => store.get<TripLis
 
 export const keepDraft = (store: DeviceStore, owner: string, draft: TripDraft) => store.set(draftKey(owner, draft.doc.id), draft)
 
-export const readDraft = (store: DeviceStore, owner: string, tripId: string) => store.get<TripDraft>(draftKey(owner, tripId))
+/** Unsaved edits on a trip: the newer of the store's and one written as the page went away. */
+export async function readDraft(store: DeviceStore, owner: string, tripId: string): Promise<TripDraft | null> {
+  const kept = await store.get<TripDraft>(draftKey(owner, tripId))
+  const last = readLastMoment(owner, tripId)
+  if (!last) return kept
+  return !kept || last.savedAt >= kept.savedAt ? last : kept
+}
 
-export const dropDraft = (store: DeviceStore, owner: string, tripId: string) => store.delete(draftKey(owner, tripId))
+export async function dropDraft(store: DeviceStore, owner: string, tripId: string): Promise<void> {
+  dropLastMoment(owner, tripId)
+  await store.delete(draftKey(owner, tripId))
+}
+
+// The page going away (a closed tab, a reload, typing another address) gives
+// no time for an IndexedDB write to finish, so the draft taken then goes to
+// localStorage, which writes before the call returns. It is read with the
+// store's (the newer wins) and dropped with it.
+const LAST_MOMENT = "trips-device-last:"
+const lastMomentKey = (owner: string, tripId: string) => `${LAST_MOMENT}${draftKey(owner, tripId)}`
+
+/** Write a draft at once, as the page goes away. False when the browser won't keep it (private mode, full). */
+export function keepDraftNow(owner: string, draft: TripDraft): boolean {
+  try {
+    localStorage.setItem(lastMomentKey(owner, draft.doc.id), JSON.stringify(draft))
+    return true
+  } catch {
+    return false
+  }
+}
+
+function readLastMoment(owner: string, tripId: string): TripDraft | null {
+  try {
+    const raw = localStorage.getItem(lastMomentKey(owner, tripId))
+    const draft = raw ? (JSON.parse(raw) as TripDraft) : null
+    return draft && typeof draft.savedAt === "number" && draft.doc?.id === tripId && draft.base?.id === tripId ? draft : null
+  } catch {
+    return null
+  }
+}
+
+function dropLastMoment(owner: string, tripId: string): void {
+  try {
+    localStorage.removeItem(lastMomentKey(owner, tripId))
+  } catch {
+    // No storage: nothing was kept there.
+  }
+}
+
+/** Another account: every draft written as a page went away. */
+function forgetLastMoment(): void {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(LAST_MOMENT)) keys.push(key)
+    }
+    for (const key of keys) localStorage.removeItem(key)
+  } catch {
+    // No storage: nothing was kept there.
+  }
+}
 
 function cookies(cookie: string, family: string): string[] {
   const values: string[] = []

@@ -9,6 +9,7 @@ import {
   dropDraft,
   forgetDevice,
   keepDraft,
+  keepDraftNow,
   keepList,
   keepTrip,
   readDraft,
@@ -88,7 +89,30 @@ describe("trips kept on this device", () => {
     expect(await readDraft(store, "u1", "t2")).toBeNull()
   })
 
+  it("reads a draft written as the page went away, the newer one winning, and drops it with the rest", async () => {
+    localStorage.clear()
+    const store = memoryStore()
+    await claimDevice(store, "u1")
+    await keepDraft(store, "u1", { doc: makeTrip({ id: "t1", name: "Older" }), base: makeTrip({ id: "t1" }), savedAt: 1 })
+    expect(keepDraftNow("u1", { doc: makeTrip({ id: "t1", name: "Last moment" }), base: makeTrip({ id: "t1" }), savedAt: 2 })).toBe(true)
+    expect((await readDraft(store, "u1", "t1"))?.doc.name).toBe("Last moment")
+    expect((await readTrip(store, "u1", "t1")).draft?.doc.name).toBe("Last moment")
+    await dropDraft(store, "u1", "t1")
+    expect(await readDraft(store, "u1", "t1")).toBeNull()
+  })
+
+  it("never shows one account the drafts another left as a page went away", async () => {
+    localStorage.clear()
+    const store = memoryStore()
+    await claimDevice(store, "u1")
+    keepDraftNow("u1", { doc: makeTrip({ id: "t1" }), base: makeTrip({ id: "t1" }), savedAt: 1 })
+    await claimDevice(store, "u2")
+    expect(await readDraft(store, "u1", "t1")).toBeNull()
+    expect(localStorage.length).toBe(0)
+  })
+
   it("a device that keeps nothing reads as empty", async () => {
+    localStorage.clear()
     const store: DeviceStore = noStore
     await keepTrip(store, "u1", makeTrip({ id: "t1" }))
     expect(await readTrip(store, "u1", "t1")).toEqual({ copy: null, draft: null })
