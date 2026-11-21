@@ -24,6 +24,7 @@ import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
 import { legEstimate } from "../timeline/timeline"
 import type { TravelMode } from "../timeline/travel"
 import { useDayView } from "./dayView"
+import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type ItemCardProps } from "./ItemCard"
@@ -178,6 +179,7 @@ export function DayPanel({
     return { labels, legs }
   }, [planned])
   const [dayView, setDayView] = useDayView()
+  const currency = defaultCurrency(trip)
 
   const outOfOrder = useMemo(() => {
     const times = day.items.filter((i) => i.kind !== "section" && i.time).map((i) => i.time!)
@@ -411,6 +413,7 @@ export function DayPanel({
                 flash={recentIds.has(item.id)}
                 near={near}
                 dayOptions={dayOptions}
+                currency={currency}
                 onChange={onChange}
                 onDelete={removeStop}
                 onGone={leave}
