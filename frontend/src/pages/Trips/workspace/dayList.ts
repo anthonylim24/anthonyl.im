@@ -81,8 +81,8 @@ export function dayList(day: TripDay, now: number | null): DayList {
 
   const labels = new Map<string, string>()
   let n = 0
-  // Places parked under "To schedule" carry no number, as on the map.
-  for (const item of planned) if (isLocated(item)) labels.set(item.id, String((n += 1)))
+  // Places parked under "To schedule", and skipped stops, carry no number, as on the map.
+  for (const item of planned) if (isLocated(item) && item.status !== "skipped") labels.set(item.id, String((n += 1)))
 
   const layout = layoutDay(day)
   // Conflicts and gaps run in clock order, the list in itinerary order: match either way.
