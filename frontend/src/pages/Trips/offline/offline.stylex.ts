@@ -108,7 +108,6 @@ export const banner = stylex.create({
     fontSize: "0.875rem",
     lineHeight: 1.45,
   },
-  empty: { display: "none" },
   text: { flexGrow: 1, flexBasis: "16rem", minWidth: 0, overflowWrap: "anywhere", margin: 0 },
   actions: { display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 },
 })
