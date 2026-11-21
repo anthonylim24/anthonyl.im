@@ -1,15 +1,15 @@
 /**
  * How good Lim's stage looks, and how Auto keeps it smooth.
  *
- * The visitor picks Auto, High or Low. That resolves to a tier: the toon look (today's unlit gel,
- * also the WebGL2 and rollback path) or the lit look at one of four post rungs. The look is fixed
- * when the scene is built, so changing it rebuilds the scene; the rung changes live.
+ * The visitor picks Auto, High or Low. That resolves to a tier: the toon look (the unlit gel, also
+ * the rollback path) or the lit look at one of four post rungs. The look is fixed when the scene is
+ * built, so changing it rebuilds the scene; the rung changes live.
  *
  * Auto sheds in this order while frames fall behind: GI, then reflections, then ambient occlusion,
  * then (in the stage) resolution, and only when the stage is still very slow at its lowest pixel
- * ratio does it give up the lit look. It acts on a second slow window in a row (on the first when frames crawl), never in the first
- * seconds (shader compiles and model downloads stall those). Where it settles is remembered on this
- * device: a lit rung for a week, the toon look for a day.
+ * ratio does it give up the lit look. It acts on a second slow window in a row (on the first when
+ * frames crawl), never in the first seconds (shader compiles and model downloads stall those).
+ * Where it settles is remembered on this device: a lit rung for a week, the toon look for a day.
  */
 
 export type Graphics = 'auto' | 'high' | 'low'
