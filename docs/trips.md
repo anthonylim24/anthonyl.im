@@ -50,6 +50,24 @@ cached for 30 minutes. `useForecast(trip)` refetches only when a place or
 date changes. The day header and the overview's day rows show it; the AI's
 `day.weather` stays the fallback. Fahrenheit for US locales.
 
+**Print and copy:** `print/usePrintItinerary(trip)` mounts `PrintItinerary`
+on demand: it renders map stills (`renderStills`, numbered pins via
+`StillRequest.labels` for days, the clustered overview for the cover) with an
+8 s stall cap per still and a 30 s ceiling (a missing still falls back to the
+`TripCover` chart), then calls `print()`; `afterprint`, the next pointer or key
+event, or 60 s unmounts it and restores the title and scroll. `itineraryText`
+(plain or Markdown, escaped) backs "Copy itinerary" (`copyItinerary`: Clipboard
+API, then `execCommand`).
+
+**Command palette:** `command/CommandContext` (`CommandProvider` in
+`TripsLayout`, `useRegisterCommands(source, commands)` in `TripWorkspace` and
+`TripsIndex`, `useCommandPalette()`), `searchCommands` (exact > prefix > word
+start > substring, then all-words / subsequence only when nothing better
+matches; accent- and case-insensitive, Hangul to jamo), `tripCommands` /
+`tripListCommands`. Global keys: ⌘K / Ctrl+K toggles; `?` opens the shortcuts
+sheet unless typing or a dialog is open. Theme commands write through
+`koreaUtils` and fire `THEME_EVENT` so the header toggle follows.
+
 **Calendar export:** "Export to calendar" in the trip menu and each day's
 "…" menu downloads an RFC 5545 `.ics` built client-side by
 `calendar/ics.ts` (no dependency): timed stops in the trip's time zone with
