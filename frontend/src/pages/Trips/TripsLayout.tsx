@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { ArrowLeft, Lock, Plus, RotateCw } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useClerk } from "@clerk/clerk-react"
@@ -14,13 +14,72 @@ import compass from "./art/compass.webp"
 import { TripChatLauncher } from "./TripChatLauncher"
 import { CommandProvider } from "./command/CommandContext"
 import { CommandButton } from "./command/CommandButton"
+import { deviceStore, noStore, type DeviceStore } from "./offline/deviceStore"
+import { claimDevice, cookieSession, deviceOwner, forgetDevice } from "./offline/tripCopies"
+import { TripsDeviceContext, type CopyShown } from "./offline/tripsDevice"
+import { copyBannerText, leftUnsavedText } from "./offline/bannerText"
+import { OfflineBanner } from "./offline/OfflineBanner"
+import { useOnline } from "./offline/network"
 
 const DEV_BEARER: string | null =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
 
-function TripsAuthGate({ children }: { children: ReactNode }) {
-  if (DEV_BEARER || !CLERK_ENABLED) return <>{children}</>
-  return <ClerkTripsGate>{children}</ClerkTripsGate>
+/** Who the pages are for, as far as this device's kept trips go, and whether they show those copies instead of live ones. */
+interface DeviceAccess {
+  owner: string
+  mode: "live" | "copy"
+}
+
+type GateChildren = (access: DeviceAccess) => ReactNode
+
+function TripsAuthGate({ store, children }: { store: DeviceStore; children: GateChildren }) {
+  if (DEV_BEARER || !CLERK_ENABLED) return <LocalGate store={store}>{children}</LocalGate>
+  return <ClerkTripsGate store={store}>{children}</ClerkTripsGate>
+}
+
+/** `who` may keep trips on this device: true once any other account's are forgotten. */
+function useClaim(store: DeviceStore, who: string | null): boolean {
+  const [claimed, setClaimed] = useState<string | null>(null)
+  useEffect(() => {
+    if (!who) return
+    let live = true
+    void claimDevice(store, who).then(() => {
+      if (live) setClaimed(who)
+    })
+    return () => {
+      live = false
+    }
+  }, [store, who])
+  return who !== null && claimed === who
+}
+
+/** The account this device keeps trips for (undefined while reading it). */
+function useKeptOwner(store: DeviceStore): string | null | undefined {
+  const [kept, setKept] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    let live = true
+    void deviceOwner(store).then((owner) => {
+      if (live) setKept(owner)
+    })
+    return () => {
+      live = false
+    }
+  }, [store])
+  return kept
+}
+
+function Checking() {
+  return (
+    <div {...sx(s.gate)} role="status" aria-label="Checking sign-in">
+      <span {...sx(a.eyebrow)}>Loading…</span>
+    </div>
+  )
+}
+
+/** Dev bearer, or no sign-in at all: one local traveller. */
+function LocalGate({ store, children }: { store: DeviceStore; children: GateChildren }) {
+  const ready = useClaim(store, "local")
+  return ready ? <>{children({ owner: "local", mode: "live" })}</> : <Checking />
 }
 
 const stallCopy: Record<StallCause, { title: string; body: string }> = {
@@ -38,21 +97,41 @@ const stallCopy: Record<StallCause, { title: string; body: string }> = {
   },
 }
 
-/** True once Clerk reports that it could not load. */
-function useClerkFailed(): boolean {
+/** Clerk's own account of its load: "loading", "ready", "degraded" (loaded, but its servers aren't answering) or "error". */
+function useClerkStatus(): string {
   const clerk = useClerk()
-  const [failed, setFailed] = useState(clerk.status === "error")
+  const [status, setStatus] = useState<string>(clerk.status)
   useEffect(() => {
-    const onStatus = (status: string) => setFailed(status === "error")
+    const onStatus = (next: string) => setStatus(next)
     clerk.on("status", onStatus, { notify: true })
     return () => clerk.off("status", onStatus)
   }, [clerk])
-  return failed
+  return status
 }
 
-function ClerkTripsGate({ children }: { children: ReactNode }) {
-  const { isLoaded } = useAuth()
-  const { stalled, cause } = useAuthStall(isLoaded, useClerkFailed())
+function ClerkTripsGate({ store, children }: { store: DeviceStore; children: GateChildren }) {
+  const { isLoaded, isSignedIn, userId } = useAuth()
+  const status = useClerkStatus()
+  const { stalled, cause } = useAuthStall(isLoaded, status === "error")
+  const online = useOnline()
+  const kept = useKeptOwner(store)
+  const signedInAs = isLoaded && isSignedIn ? (userId ?? null) : null
+  const claimed = useClaim(store, signedInAs)
+
+  // Signed out for certain (Clerk answered, and there is a connection): forget every kept trip.
+  const signedOut = isLoaded && !isSignedIn && online && status === "ready"
+  useEffect(() => {
+    if (signedOut) void forgetDevice(store)
+  }, [signedOut, store])
+
+  if (signedInAs) return claimed ? <>{children({ owner: signedInAs, mode: "live" })}</> : <Checking />
+
+  // Sign-in can't answer (no connection, blocked, or down). Show the copies
+  // kept here only while Clerk's own cookies still name their owner, so a
+  // sign-out or another account anywhere on the site hides them.
+  const unreachable = isLoaded ? !online || status === "degraded" : !online || stalled
+  if (unreachable && kept && cookieSession() === kept) return <>{children({ owner: kept, mode: "copy" })}</>
+
   if (!isLoaded) {
     if (stalled && cause) {
       const copy = stallCopy[cause]
@@ -70,15 +149,13 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
         </div>
       )
     }
-    return (
-      <div {...sx(s.gate)} role="status" aria-label="Checking sign-in">
-        <span {...sx(a.eyebrow)}>Loading…</span>
-      </div>
-    )
+    return <Checking />
   }
   return (
     <>
-      <SignedIn>{children}</SignedIn>
+      <SignedIn>
+        <Checking />
+      </SignedIn>
       <SignedOut>
         <div {...sx(s.gate)}>
           <div {...sx(s.gateInner)}>
@@ -100,6 +177,24 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
   )
 }
 
+/** Pages that can show a kept copy: the index and a trip. Creating or joining needs the server. */
+const READABLE_OFFLINE = /^\/trips(?:\/(?!new\/?$|join(?:\/|$))[^/]+(?:\/day\/[^/]+)?)?\/?$/
+
+function NeedsConnection() {
+  return (
+    <div {...sx(s.gate)}>
+      <div {...sx(s.gateInner)}>
+        <CompassMark size={40} />
+        <h1 {...sx(a.display, s.gateTitle)}>This needs a connection</h1>
+        <p {...sx(a.body)}>Sign-in can’t be reached right now. The trips saved on this device can still be read.</p>
+        <Link to="/trips" {...sx(a.btn, a.btnPrimary)}>
+          See your trips
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 /** Eight-point compass rose: the Trips mark. */
 export function CompassMark({ size = 22, style }: { size?: number; style?: Parameters<typeof sx>[0] }) {
   return (
@@ -110,10 +205,28 @@ export function CompassMark({ size = 22, style }: { size?: number; style?: Param
   )
 }
 
+/** Lets the header (outside the sign-in gate) drop what can't work on kept copies. */
+function ReportMode({ mode, onMode }: { mode: "live" | "copy"; onMode: (copy: boolean) => void }) {
+  useEffect(() => {
+    onMode(mode === "copy")
+    return () => onMode(false)
+  }, [mode, onMode])
+  return null
+}
+
 export function TripsLayout() {
   const { pathname } = useLocation()
   const atIndex = /^\/trips\/?$/.test(pathname)
   const creating = /^\/trips\/new\/?$/.test(pathname)
+  const [store] = useState(deviceStore)
+  const online = useOnline()
+  const [shown, setShown] = useState<CopyShown | null>(null)
+  const [left, setLeft] = useState<{ name: string; reason: string } | null>(null)
+  const [copyMode, setCopyMode] = useState(false)
+  const showCopy = useCallback((next: CopyShown | null) => setShown(next), [])
+  const leftUnsaved = useCallback((name: string, reason: string) => setLeft({ name, reason }), [])
+  const dismissLeft = useCallback(() => setLeft(null), [])
+  const retry = useCallback(() => window.location.reload(), [])
 
   useEffect(() => {
     applyTheme(getInitialTheme())
@@ -145,7 +258,7 @@ export function TripsLayout() {
           </Link>
         </div>
         <div {...sx(s.headerSide)}>
-          {!creating && (
+          {!creating && !copyMode && (
             <Link to="/trips/new" {...sx(a.btn, a.btnGhost, a.btnSm)} aria-label="New trip">
               <Plus size={16} strokeWidth={1.75} aria-hidden />
               <span {...sx(s.newLabel)}>New trip</span>
@@ -155,14 +268,25 @@ export function TripsLayout() {
           <span {...sx("trip-tap-44")}>
             <ThemeToggle style={s.themeToggle} />
           </span>
-          {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
+          {CLERK_ENABLED && !DEV_BEARER && !copyMode ? <UserButton afterSignOutUrl="/" /> : null}
         </div>
       </header>
-      <TripsAuthGate>
-        <main id="trips-main" tabIndex={-1} {...sx(s.main)}>
-          <Outlet />
-        </main>
-        <TripChatLauncher />
+      <TripsAuthGate store={store}>
+        {({ owner, mode }) => (
+          <TripsDeviceContext.Provider value={{ store, owner: store === noStore ? null : owner, mode, showCopy, leftUnsaved }}>
+            <ReportMode mode={mode} onMode={setCopyMode} />
+            <OfflineBanner
+              copy={copyBannerText({ shown, mode, online })}
+              left={left && leftUnsavedText(left.name, left.reason, store !== noStore)}
+              onRetry={retry}
+              onDismissLeft={dismissLeft}
+            />
+            <main id="trips-main" tabIndex={-1} {...sx(s.main)}>
+              {mode === "copy" && !READABLE_OFFLINE.test(pathname) ? <NeedsConnection /> : <Outlet />}
+            </main>
+            {mode === "live" && <TripChatLauncher />}
+          </TripsDeviceContext.Provider>
+        )}
       </TripsAuthGate>
     </div>
     </CommandProvider>

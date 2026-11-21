@@ -1,8 +1,9 @@
 import { Effect } from "effect"
 import { AuthError, HttpStatusError, PollTimeoutError } from "../../effect/errors"
-import { bearerHeaders, fetchApi, parseJson, readAuthToken, requestJson, requireOk, sleep } from "../../effect/http"
+import { bearerHeaders, fetchApi, parseJson, readAuthToken, requestJson, requireOk, sleep, type RequestOptions } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
-import { TripConflictError } from "./tripConflict"
+import { TripConflictError, TripRefusedError } from "./tripConflict"
+import { describeRefusal } from "./offline/saveIssues"
 import type {
   ChecklistItem,
   EnhancementRun,
@@ -25,9 +26,17 @@ import type {
 
 export type GetToken = () => Promise<string | null>
 
-function request<T>(getToken: GetToken, path: string, init: RequestInit = {}): Promise<T> {
-  return runPromise(requestJson<T>(getToken, `/api/trips${path}`, init))
+function request<T>(getToken: GetToken, path: string, init: RequestInit = {}, options?: RequestOptions): Promise<T> {
+  return runPromise(requestJson<T>(getToken, `/api/trips${path}`, init, options))
 }
+
+/** Opt-in deadline for reads (`READ_TIMEOUT_MS` in offline/network); never for AI calls. */
+export interface ReadOptions {
+  timeoutMs?: number
+}
+
+const readOptions = (options?: ReadOptions): RequestOptions | undefined =>
+  options?.timeoutMs === undefined ? undefined : { timeoutMs: options.timeoutMs, timeoutMessage: "Couldn’t reach the server." }
 
 export interface CreateTripInput {
   name: string
@@ -42,11 +51,11 @@ export interface CreateTripInput {
   center?: TripCenter
 }
 
-export const listTrips = (getToken: GetToken) =>
-  request<{ trips: TripSummary[] }>(getToken, "").then((r) => r.trips)
+export const listTrips = (getToken: GetToken, options?: ReadOptions) =>
+  request<{ trips: TripSummary[] }>(getToken, "", {}, readOptions(options)).then((r) => r.trips)
 
-export const getTrip = (getToken: GetToken, id: string) =>
-  request<{ trip: Trip; access: TripAccess }>(getToken, `/${encodeURIComponent(id)}`)
+export const getTrip = (getToken: GetToken, id: string, options?: ReadOptions) =>
+  request<{ trip: Trip; access: TripAccess }>(getToken, `/${encodeURIComponent(id)}`, {}, readOptions(options))
 
 export const createTrip = (getToken: GetToken, input: CreateTripInput) =>
   request<{ trip: Trip }>(getToken, "", { method: "POST", body: JSON.stringify(input) }).then((r) => r.trip)
@@ -98,7 +107,14 @@ const updateTripEffect = Effect.fn("TripsService.update")(function* (
         new TripConflictError({ message: "Someone else changed this trip since it was opened.", trip: body.trip }),
       )
     }
-    return yield* Effect.fail(new HttpStatusError({ status: 409, message: body.message || body.error || "HTTP 409" }))
+    // A link name someone else has: the same PATCH would only be refused again.
+    return yield* Effect.fail(new TripRefusedError({ message: body.message || body.error || "HTTP 409" }))
+  }
+  if (res.status === 400) {
+    // `readErrorMessage` would keep only `error` ("invalid update"); the
+    // `issues` say which field, which is what the traveller needs to fix it.
+    const body = yield* parseJson<unknown>(res).pipe(Effect.orElseSucceed(() => null))
+    return yield* Effect.fail(new TripRefusedError({ message: describeRefusal(body) }))
   }
   yield* requireOk(res)
   const body = yield* parseJson<{ trip: Trip }>(res)
@@ -142,10 +158,42 @@ export const joinTrip = (getToken: GetToken, token: string, name?: string) =>
 export const leaveTrip = (getToken: GetToken, id: string) =>
   request<{ ok: boolean }>(getToken, `/${encodeURIComponent(id)}/leave`, { method: "POST" })
 
+/** Statuses that describe what happened on the original trip, not the plan. */
+const LIVED: ReadonlySet<ItineraryItem["status"]> = new Set(["booked", "completed", "skipped"])
+
+/**
+ * A stop as a template: the plan stays (place, time, notes, what the booking
+ * is), what belonged to the original journey goes (bookings made, stops done
+ * or skipped, highlights, the confirmation number and seat).
+ */
+function templateItem(item: ItineraryItem, id: string): ItineraryItem {
+  const out: ItineraryItem = { ...item, id, status: LIVED.has(item.status) ? "none" : item.status, highlight: undefined }
+  if (item.reservation) {
+    out.reservation = {
+      ...item.reservation,
+      status: item.reservation.status === "confirmed" ? "pending" : item.reservation.status,
+      confirmation: undefined,
+      seat: undefined,
+    }
+  }
+  return out
+}
+
+/** A copy whose plan never arrived, and whose empty shell couldn't be removed. `cause` is why the plan failed. */
+class CopyLeftEmptyError extends Error {
+  readonly cause: unknown
+  constructor(message: string, cause: unknown) {
+    super(message)
+    this.name = "CopyLeftEmptyError"
+    this.cause = cause
+  }
+}
+
 /** Copy a trip (days, look, place) into a new draft owned by the caller. */
 export async function duplicateTrip(getToken: GetToken, source: Trip): Promise<Trip> {
+  const name = `${source.name} (copy)`.slice(0, 160)
   const created = await createTrip(getToken, {
-    name: `${source.name} (copy)`.slice(0, 160),
+    name,
     destinations: source.destinations,
     startDate: source.startDate,
     endDate: source.endDate,
@@ -157,19 +205,34 @@ export async function duplicateTrip(getToken: GetToken, source: Trip): Promise<T
   const byDate = new Map(source.days.map((d) => [d.date, d]))
   const stamp = () => `it-${crypto.randomUUID().slice(0, 8)}`
   // A copy is a template for another trip: the plan, budget and lists come
-  // along, ticks are cleared, and money already spent stays with the original.
-  return updateTrip(getToken, created.id, {
-    appearance: source.appearance,
-    budget: source.budget,
-    party: source.party,
-    checklist: source.checklist?.map((entry) => ({ ...entry, done: false })),
-    ideas: source.ideas?.map((idea) => ({ ...idea, id: stamp() })),
-    days: created.days.map((day) => {
-      const from = byDate.get(day.date)
-      if (!from) return day
-      return { ...from, id: day.id, items: from.items.map((item) => ({ ...item, id: stamp() })) }
-    }),
-  })
+  // along; ticks, journals, highlights and bookings made are cleared, and
+  // money already spent stays with the original.
+  try {
+    return await updateTrip(getToken, created.id, {
+      appearance: source.appearance,
+      budget: source.budget,
+      party: source.party,
+      checklist: source.checklist?.map((entry) => ({ ...entry, done: false })),
+      ideas: source.ideas?.map((idea) => templateItem(idea, stamp())),
+      days: created.days.map((day) => {
+        const from = byDate.get(day.date)
+        if (!from) return day
+        return { ...from, id: day.id, journal: undefined, items: from.items.map((item) => templateItem(item, stamp())) }
+      }),
+    })
+  } catch (err) {
+    // Without its plan the new trip is an empty shell named like a copy:
+    // remove it, so a retry doesn't leave a pile of them behind.
+    const removed = await deleteTrip(getToken, created.id).then(
+      () => true,
+      () => false,
+    )
+    if (removed) throw err
+    throw new CopyLeftEmptyError(
+      `Couldn’t copy the plan, and an empty “${name}” is left in your trips to delete. (${err instanceof Error ? err.message : String(err)})`,
+      err,
+    )
+  }
 }
 
 export const generateItinerary = (
