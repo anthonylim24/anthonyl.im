@@ -1,3 +1,4 @@
+import { applyDetailsPatch, detailsUndo } from "./workspace/tripDetails"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
@@ -22,7 +23,7 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
-import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, tripTiming } from "./meta"
+import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
@@ -108,7 +109,6 @@ type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "t
 /** Long enough to read and reach (WCAG 2.2.1); paused while hovered or focused. */
 const UNDO_TOAST_MS = 12_000
 
-const itemTotal = (days: readonly TripDay[]) => days.reduce((n, d) => n + d.items.length, 0)
 
 /** "Saved" / "Saving" / "Not saved · Retry", read out politely as it changes. */
 function SaveStatus({ sync, locked, compact, onRetry }: { sync: Sync; locked: boolean; compact?: boolean; onRetry: () => void }) {
@@ -277,7 +277,19 @@ function Workspace() {
   const { trip, editable, locked } = editor
   const ai = editor.ai
   const forecast = useForecast(trip)
-  const printer = usePrintItinerary(trip)
+  // An optional overlay (the printout, the 3D view, a sheet) that fails to
+  // load closes and says so in the dock; the trip itself is untouched.
+  const overlayFailed = (what: string, close: () => void) => (error: Error) => {
+    close()
+    const stale = isChunkLoadError(error)
+    setOverlayProblem({
+      stale,
+      text: stale
+        ? `${what} needs the latest version of the app. Reload to get it; your trip is saved.`
+        : `${what} couldn’t open. Your trip is fine. (${errorText(error)})`,
+    })
+  }
+  const printer = usePrintItinerary(trip, overlayFailed("The printout", () => {}))
 
   // The newest undo step offers a toast when it was a destructive change.
   // An older step coming back to the top (after an Undo) does not.
@@ -521,16 +533,6 @@ function Workspace() {
     setView("list")
   }
 
-  const overlayFailed = (what: string, close: () => void) => (error: Error) => {
-    close()
-    const stale = isChunkLoadError(error)
-    setOverlayProblem({
-      stale,
-      text: stale
-        ? `${what} needs the latest version of the app. Reload to get it; your trip is saved.`
-        : `${what} couldn’t open. Your trip is fine. (${errorText(error)})`,
-    })
-  }
 
   // Closing the import: show what landed (flash + pin drop). Its Undo is the
   // toast for the import's one undo step.
@@ -614,6 +616,7 @@ function Workspace() {
     })
   })
   const printFromPalette = printer.print
+  const paletteDay = trip ? todayIsoIn(trip.timezone) : ""
   const paletteCommands = useMemo(
     () =>
       trip
@@ -639,7 +642,8 @@ function Workspace() {
             },
           })
         : [],
-    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `paletteDay` rebuilds the list when the trip's date turns over ("Go to today")
+    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette, paletteDay],
   )
   useRegisterCommands("trip", paletteCommands)
 
@@ -1199,9 +1203,10 @@ function Workspace() {
           trip={trip}
           open={dialog === "details" && !locked}
           onClose={() => setDialog(null)}
-          onSave={(next: Trip) => {
-            const lost = itemTotal(next.days) < itemTotal(trip.days)
-            editor.edit(() => next, lost ? { label: "Changed the trip dates", toast: true } : { label: "Updated the trip details" })
+          onApply={(patch) => {
+            // Only what the dialog changed lands, on the trip as it is now.
+            editor.edit((doc) => applyDetailsPatch(doc, patch), detailsUndo(trip, patch))
+            const next = applyDetailsPatch(trip, patch)
             if (dayId && !next.days.some((d: TripDay) => d.id === dayId)) navigate(basePath)
           }}
         />

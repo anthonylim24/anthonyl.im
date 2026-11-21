@@ -16,7 +16,7 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react"
-import { isCalendarItem } from "../calendar/ics"
+import { isCalendarItem } from "../calendar/calendarItems"
 import { IgGlyph } from "../instagram/IgGlyph"
 import { formatClock, formatRange, formatTripDate, itemIcon, plural, visibleTags } from "../meta"
 import { todayDay } from "../today"
