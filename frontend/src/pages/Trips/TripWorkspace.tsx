@@ -92,6 +92,14 @@ function typing(target: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable || Boolean(target.closest('[role="dialog"], [role="menu"]'))
 }
 
+/** Widgets whose arrow keys move within them (tabs, radio groups, menus, sliders). */
+function inArrowWidget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[role="tablist"], [role="radiogroup"], [role="menu"], [role="listbox"], [role="slider"], [role="grid"]') !== null
+  )
+}
+
 type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip"; prompt?: string }
 
 /** Long enough to read and reach (WCAG 2.2.1); paused while hovered or focused. */
@@ -329,6 +337,8 @@ function Workspace() {
     if (!trip) return
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target) || dialog !== null) return
+      // A control that already used the key (tabs, the Itinerary/Map switch, a menu) keeps it.
+      if (event.defaultPrevented || inArrowWidget(event.target)) return
       if (event.key === "Escape" && activeId) {
         setActiveId(null)
         setFocusId(null)
@@ -345,9 +355,12 @@ function Workspace() {
   }, [trip, dayIndex, basePath, navigate, dialog, activeId])
 
   // Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z. A text field keeps the keys for its own
-  // undo history, and so does an open dialog.
+  // undo history, and so does an open dialog. Undo steps through the plan
+  // (days and dates), so it only listens where the plan is on screen: a day,
+  // or the overview's Itinerary tab, never Budget or Checklist.
+  const planOnScreen = Boolean(dayId) || tab === "itinerary"
   useEffect(() => {
-    if (!editable) return
+    if (!editable || !planOnScreen) return
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== "z") return
       if (typing(event.target) || dialog !== null || instagram !== null) return
@@ -357,9 +370,11 @@ function Workspace() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [editable, dialog, instagram, undoLast, redoNext])
+  }, [editable, planOnScreen, dialog, instagram, undoLast, redoNext])
 
   // Good news clears itself; anything that reads like a problem stays put.
+  // A dock row mounts with its text, which screen readers often miss, so good
+  // news also goes through the always-present announcer.
   const notice = editor.notice
   useEffect(() => {
     if (!notice || PROBLEM.test(notice)) return
@@ -414,18 +429,22 @@ function Workspace() {
     [wide],
   )
 
-  // Deep link: /day/:id#item-<id> selects that stop and shows it on the map
-  // (on a phone that means switching to the map). Checked once per day and
-  // hash, during render, after the new-day reset above.
+  // Deep links. /day/:id#item-<id> shows that stop on the map (on a phone
+  // that means switching to the map): the concierge's "Show". /day/:id#stop-<id>
+  // picks the stop out in the list and leaves the view alone: the Now card's
+  // "this one", read with the phone in hand. Checked once per day and hash,
+  // during render, after the new-day reset above.
   const deepLinkKey = day ? `${day.id}${location.hash}` : null
   const [seenDeepLink, setSeenDeepLink] = useState<string | null>(null)
   if (deepLinkKey !== seenDeepLink) {
     setSeenDeepLink(deepLinkKey)
-    const id = day && location.hash.startsWith("#item-") ? decodeURIComponent(location.hash.slice(6)) : null
+    const hash = location.hash
+    const onMap = hash.startsWith("#item-")
+    const id = day && (onMap || hash.startsWith("#stop-")) ? decodeURIComponent(hash.slice(6)) : null
     if (day && id && day.items.some((i) => i.id === id)) {
       setActiveId(id)
       setFocusId(id)
-      if (!wide) setView("map")
+      if (onMap && !wide) setView("map")
     }
   }
 
@@ -927,7 +946,7 @@ function Workspace() {
       </div>
 
       <p {...sx(a.srOnly)} role="status" aria-live="polite">
-        {announce}
+        {editor.notice && !PROBLEM.test(editor.notice) ? editor.notice : announce}
       </p>
       {printer.node}
       {(toast || flash || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
@@ -986,7 +1005,7 @@ function Workspace() {
             </div>
           )}
           {editor.notice && (
-            <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : "status"}>
+            <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : undefined}>
               <span {...sx(a.grow, a.wrap)}>{editor.notice}</span>
               <button type="button" {...sx(s.dockBtn)} onClick={() => editor.setNotice(null)}>
                 Dismiss

@@ -346,7 +346,7 @@ describe("TripWorkspace", () => {
       expect(mockGenerateItinerary.mock.calls[0]![3]).toBeInstanceOf(AbortSignal)
 
       // The drafted trip replaces the empty one and the summary is announced.
-      expect(await screen.findByText("Drafted a food-first weekend.")).toBeInTheDocument()
+      expect((await screen.findAllByText("Drafted a food-first weekend."))[0]).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Draft itinerary" })).toBeNull()
       expect(stat("Places")).toHaveTextContent("Places3")
       expect(stat("On the map")).toHaveTextContent("On the map2 of 3")
@@ -644,6 +644,22 @@ describe("TripWorkspace", () => {
       const card = within(await screen.findByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
       expect(screen.getByRole("radio", { name: "Map" })).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("picks out the stop named by #stop- in the list on a phone", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1#stop-it-fado")
+      await screen.findByRole("textbox", { name: "Day title" })
+      expect(screen.getByRole("radio", { name: "Itinerary" })).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("leaves the day alone when an arrow key moves the Itinerary / Map choice", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1")
+      await screen.findByRole("textbox", { name: "Day title" })
+      fireEvent.keyDown(screen.getByRole("radio", { name: "Itinerary" }), { key: "ArrowRight" })
+      expect(screen.getByRole("textbox", { name: "Day title" })).toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: /day 2/i })).not.toBeInTheDocument()
     })
 
     it("moves the Itinerary / Map choice with the arrow keys", async () => {
@@ -1229,7 +1245,7 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon", makeTrip())
 
       fireEvent.click(await screen.findByRole("button", { name: "Draft itinerary" }))
-      expect(await screen.findByText("Drafted a food-first weekend.")).toBeInTheDocument()
+      expect((await screen.findAllByText("Drafted a food-first weekend."))[0]).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
       expect(screen.queryByText(/Staying at Pestana Palace/)).toBeNull()
     })
