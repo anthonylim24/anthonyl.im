@@ -69,9 +69,25 @@ async function run(label, opts) {
   await settle(p, 4000)
   await shot(p, `${label}-overview`)
 
+  // The overview's other tabs (each a lazy panel).
+  for (const tab of ["budget", "checklist", "essentials"]) {
+    await p.goto(`${BASE}/trips/${TRIP}?tab=${tab}`)
+    await settle(p, 2500)
+    await shot(p, `${label}-${tab}`)
+  }
+
   await p.goto(`${BASE}/trips/${TRIP}/day/${DAY}`)
   await settle(p, 4000)
   await shot(p, `${label}-day`)
+
+  const timeline = p.getByRole("radio", { name: "Timeline" })
+  if (await timeline.count()) {
+    await timeline.click()
+    await p.waitForTimeout(700)
+    await shot(p, `${label}-timeline`)
+    await p.getByRole("radio", { name: "List" }).click()
+    await p.waitForTimeout(400)
+  }
 
   const marker = p.getByRole("button", { name: /^Show .* on the map$/ }).nth(1)
   if (await marker.count()) {
