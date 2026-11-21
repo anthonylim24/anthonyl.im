@@ -14,7 +14,7 @@ export const sky = stylex.create({
   root: {
     display: "grid",
     gridTemplateColumns: { default: "6.5rem minmax(0, 1fr)", [PHONE]: "4rem minmax(0, 1fr)" },
-    gridTemplateAreas: '"art eyebrow" "art temps" "art word" "art meets"',
+    gridTemplateAreas: '"art eyebrow" "art temps" "art word" "art meets" "art holiday"',
 
     alignContent: "center",
     columnGap: { default: "1rem", [PHONE]: "0.75rem" },
@@ -170,4 +170,38 @@ export const sky = stylex.create({
   },
   lightPart: { whiteSpace: "nowrap" },
   sunrise: { display: { default: "inline", [PHONE]: "none" } },
+  // "Rain on 4 days in 10": kept whole when the line wraps.
+  wetDays: { whiteSpace: "nowrap" },
+
+  // A public holiday: a quiet line under the sky, its name a step darker.
+  holiday: {
+    gridArea: "holiday",
+    marginTop: "0.25rem",
+    fontSize: "0.75rem",
+    lineHeight: 1.4,
+    color: "var(--trips-ink-tertiary)",
+    textWrap: "pretty",
+    overflowWrap: "anywhere",
+  },
+  holidayName: { color: "var(--trips-ink-secondary)", fontWeight: 600 },
+  // The holiday with no sky to sit under.
+  alone: { margin: 0 },
+})
+
+// The overview's day row for a day past the forecast's reach: the same glyph
+// and figures as a forecast, set back a step (lighter ink, the glyph in
+// tertiary), with "typical" where a forecast puts its chance of rain.
+export const typicalChip = stylex.create({
+  icon: { color: "var(--trips-ink-tertiary)" },
+  high: { color: "var(--trips-ink-secondary)" },
+  note: {
+    gridColumn: 2,
+    marginTop: "0.1875rem",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.625rem",
+    lineHeight: 1,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "var(--trips-ink-tertiary)",
+  },
 })

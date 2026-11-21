@@ -114,6 +114,29 @@ export function countriesFor(trip: TripPlaces): Country[] {
   return byZone ? [byZone] : []
 }
 
+type TripDays = Pick<Trip, "destinations" | "timezone"> & { days: ReadonlyArray<{ id: string; city?: string; timezone?: string }> }
+
+/**
+ * The country each day is spent in: the day's own zone, else its city, else
+ * the day before's country. The first days start from the trip's own zone
+ * when that is one of its countries, else from the first destination. A day
+ * is left out only when the trip's countries are unknown.
+ */
+export function dayCountries(trip: TripDays): Map<string, Country> {
+  const countries = countriesFor(trip)
+  const out = new Map<string, Country>()
+  if (countries.length === 0) return out
+  const home = countryForZone(trip.timezone)
+  let carry = countries.find((country) => country.code === home?.code) ?? countries[0]!
+  for (const day of trip.days) {
+    const city = day.city?.trim() ? placesIn(day.city)[0] : undefined
+    const own = countryForZone(day.timezone) ?? (city ? COUNTRIES[city.code] : undefined)
+    if (own) carry = own
+    out.set(day.id, carry)
+  }
+  return out
+}
+
 /** The zone to show a country's clock in: the trip's own, a named city's, or the capital's. */
 export function localZone(trip: TripPlaces, country: Country): string {
   if (countryForZone(trip.timezone)?.code === country.code) return trip.timezone
