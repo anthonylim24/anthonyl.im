@@ -32,7 +32,7 @@ function bounds(alpha: Uint8Array, size: number) {
 }
 
 /** The drawing squared with `margin` on its long side, box-filtered down to WORK px. */
-export function frame(grey: Uint8Array, size: number, margin = 0.05): Float32Array {
+export function frame(grey: Uint8Array, size: number, margin = 0.04): Float32Array {
   const alpha = Uint8Array.from(grey, coverage)
   const { x0, x1, y0, y1 } = bounds(alpha, size)
   const side = Math.max(x1 - x0, y1 - y0) / (1 - 2 * margin)
@@ -59,10 +59,33 @@ export function frame(grey: Uint8Array, size: number, margin = 0.05): Float32Arr
   return out
 }
 
-/** Levels: a gamma under 1 darkens the hairlines that downscaling turns grey. `weight` thickens strokes. */
-export function level(ink: Float32Array, gamma = 0.78, weight = 0): Float32Array {
+/** Mean ink over the drawn pixels: how dark the strokes read, whatever the drawing's size. */
+function strokeTone(ink: Float32Array): number {
+  let sum = 0
+  let n = 0
+  for (const a of ink)
+    if (a > 0.04) {
+      sum += a
+      n++
+    }
+  return n === 0 ? 0 : sum / n
+}
+
+/**
+ * Levels: the gamma that brings the strokes to `tone`, so a pale fog and a dense
+ * thunderhead read at the same weight side by side. `weight` thickens strokes first.
+ */
+export function level(ink: Float32Array, tone = 0.5, weight = 0): Float32Array {
   const heavy = weight > 0 ? spread(ink, 1) : ink
-  return ink.map((a, i) => Math.pow(Math.max(a, heavy[i]! * weight), gamma))
+  const base = ink.map((a, i) => Math.max(a, heavy[i]! * weight))
+  let [lo, hi] = [0.3, 1.4]
+  for (let step = 0; step < 24; step++) {
+    const gamma = (lo + hi) / 2
+    if (strokeTone(base.map((a) => Math.pow(a, gamma))) > tone) lo = gamma
+    else hi = gamma
+  }
+  const gamma = (lo + hi) / 2
+  return base.map((a) => Math.pow(a, gamma))
 }
 
 /** Grey dilation (max over a square of radius r), separable. */

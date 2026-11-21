@@ -7,6 +7,8 @@ import * as stylex from "@stylexjs/stylex"
 const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const PHONE = "@media (max-width: 639.98px)"
+/** Hour labels, then a gutter for the rain band, then the track the stops sit on. */
+const TRACK = { default: "4.375rem", [PHONE]: "3.75rem" }
 
 export const tl = stylex.create({
   root: { display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: 0 },
@@ -25,30 +27,22 @@ export const tl = stylex.create({
     fontVariantNumeric: "tabular-nums",
     color: "var(--trips-ink-secondary)",
   },
+
   summaryWarn: { display: "inline-flex", alignItems: "center", gap: "0.25rem", color: "var(--trips-ink)" },
-  summaryBlock: { display: "flex", flexDirection: "column", gap: "0.25rem" },
-  summaryWet: { columnGap: "0.375rem", color: "var(--trips-ink)" },
-  dot: { color: "var(--trips-ink-tertiary)" },
+  // " · " before every part after the first: a wrapped line starts with it, never ends with it.
+  sep: { "::before": { content: '"·"', marginRight: "0.625rem", color: "var(--trips-ink-tertiary)" } },
 
   // ── Ruler ────────────────────────────────────────────
   // Padding keeps the first and last hour labels (centred on their rule) inside.
-  // The hour-label column is 3.5rem (3rem on phones); the track starts after it.
+  // The hour-label column is 3rem (2.5rem on phones); the gutter after it holds the rain band.
   ruler: { position: "relative", paddingTop: "0.5rem", paddingBottom: "1rem" },
   canvas: { position: "relative" },
   hourRule: {
     position: "absolute",
-    left: { default: "3.5rem", [PHONE]: "3rem" },
+    left: TRACK,
     right: 0,
     height: "1px",
     backgroundColor: "var(--trips-line)",
-    pointerEvents: "none",
-  },
-  halfTick: {
-    position: "absolute",
-    left: { default: "3.5rem", [PHONE]: "3rem" },
-    width: "0.5rem",
-    height: "1px",
-    backgroundColor: "var(--trips-line-strong)",
     pointerEvents: "none",
   },
   hourLabel: {
@@ -74,56 +68,64 @@ export const tl = stylex.create({
   },
 
   // ── Weather on the ruler ─────────────────────────────
-  // Behind the stops, the hours of dark are a faint wash of ink (so it follows
-  // the theme) under a dashed hairline at sunrise and sunset. Rain is never
-  // drawn over a stop: it is a dashed strip in the gutter between the hours and
-  // the track, and a line on the stops it meets.
-  dark: {
-    position: "absolute",
-    left: { default: "3.5rem", [PHONE]: "3rem" },
-    right: 0,
-    backgroundColor: "color-mix(in srgb, var(--trips-ink) 4%, transparent)",
-    pointerEvents: "none",
-  },
+  // Rain is never drawn over a stop: a hatched band in the gutter between the
+  // hours and the track, under a rain glyph, plus a line on each stop it meets.
+  // Sunrise and sunset are dashed hairlines across the track, over the stops
+  // like the Now line, each named at its right end.
   rain: {
     position: "absolute",
-    left: { default: "3.125rem", [PHONE]: "2.625rem" },
-    width: "3px",
-    borderRadius: "2px",
-    backgroundImage: "repeating-linear-gradient(to bottom, var(--trips-ink-secondary) 0 4px, transparent 4px 7px)",
+    left: { default: "3.5rem", [PHONE]: "2.9375rem" },
+    width: { default: "6px", [PHONE]: "5px" },
+    borderRadius: "1px",
+    backgroundImage: "repeating-linear-gradient(-60deg, color-mix(in srgb, var(--trips-ink-tertiary) 70%, transparent) 0 1.5px, transparent 1.5px 4.5px)",
+    pointerEvents: "none",
   },
-  sunLine: {
+  rainIcon: {
     position: "absolute",
-    left: { default: "3.5rem", [PHONE]: "3rem" },
+    left: { default: "calc(3.5rem + 3px)", [PHONE]: "calc(2.9375rem + 2.5px)" },
+    display: "flex",
+    transform: "translate(-50%, calc(-100% - 3px))",
+    color: "var(--trips-ink-tertiary)",
+    pointerEvents: "none",
+  },
+  sun: {
+    position: "absolute",
+    left: TRACK,
     right: 0,
+    zIndex: 2,
     height: 0,
     borderTopWidth: "1px",
     borderTopStyle: "dashed",
-    borderTopColor: "var(--trips-line-strong)",
+    borderTopColor: "var(--trips-ink-tertiary)",
     pointerEvents: "none",
   },
   sunLabel: {
     position: "absolute",
-    left: 0,
-    width: { default: "3rem", [PHONE]: "2.5rem" },
+    right: "0.375rem",
+    top: 0,
     transform: "translateY(-50%)",
-    display: "flex",
+    display: "inline-flex",
     alignItems: "center",
-    justifyContent: "flex-end",
-    gap: "0.1875rem",
+    gap: "0.25rem",
+    height: "1.125rem",
+    paddingInline: "0.4375rem",
+    borderRadius: "999px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: "var(--trips-line-strong)",
+    backgroundColor: "var(--trips-canvas)",
     fontFamily: "var(--trips-mono)",
     fontSize: "0.625rem",
     lineHeight: 1,
     fontVariantNumeric: "tabular-nums",
     whiteSpace: "nowrap",
     color: "var(--trips-ink-secondary)",
-    pointerEvents: "none",
   },
   track: {
     position: "absolute",
     top: 0,
     bottom: 0,
-    left: { default: "3.5rem", [PHONE]: "3rem" },
+    left: TRACK,
     right: 0,
     listStyle: "none",
     margin: 0,
@@ -160,8 +162,7 @@ export const tl = stylex.create({
     [HOVER]: { ":hover": { borderColor: "var(--trips-ink-tertiary)" } },
     [REDUCE]: { transitionDuration: "0ms" },
   },
-  // Side by side with an overlapping stop the column is narrow: the title
-  // drops under the badge and takes the full width.
+  // Side by side with an overlapping stop the column is narrow: tighter padding, same grid.
   blockStacked: { columnGap: "0.25rem", paddingLeft: "0.3125rem", paddingRight: "0.3125rem" },
   // The end is a guess: the bottom edge says so.
   blockEstimated: { borderBottomStyle: "dashed" },
@@ -191,7 +192,6 @@ export const tl = stylex.create({
     backgroundColor: "var(--ta-fill)",
     color: "var(--ta-on)",
   },
-  badgeStacked: { gridRow: "1" },
   badgeActive: { backgroundColor: "var(--trips-ink)", color: "var(--trips-canvas)" },
   disc: {
     gridRow: "1 / span 2",
@@ -209,7 +209,6 @@ export const tl = stylex.create({
     color: "var(--trips-ink-tertiary)",
   },
   text: { display: "flex", flexDirection: "column", flexGrow: 1, minWidth: 0 },
-  wide: { gridColumn: "1 / -1" },
   time: {
     gridColumn: "2",
     alignSelf: "center",
@@ -223,6 +222,7 @@ export const tl = stylex.create({
     textOverflow: "ellipsis",
   },
   estimate: { color: "var(--trips-ink-tertiary)" },
+  timeIcon: { display: "inline-block", marginLeft: "0.375rem", verticalAlign: "-2px", color: "var(--trips-ink-tertiary)" },
   title: {
     gridColumn: "2",
     display: "-webkit-box",
@@ -260,7 +260,6 @@ export const tl = stylex.create({
     color: "var(--trips-ink)",
   },
   wet: { color: "var(--trips-ink-secondary)" },
-  warnWrap: { whiteSpace: "normal", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 },
   warnText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   noShrink: { flexShrink: 0 },
 
@@ -306,7 +305,7 @@ export const tl = stylex.create({
   // ── Now ──────────────────────────────────────────────
   now: {
     position: "absolute",
-    left: { default: "3.5rem", [PHONE]: "3rem" },
+    left: TRACK,
     right: 0,
     zIndex: 3,
     height: 0,

@@ -26,7 +26,7 @@ export const share = stylex.create({
   segmentOn: {
     backgroundColor: "var(--trips-raised)",
     color: "var(--trips-ink)",
-    boxShadow: "var(--trips-shadow-1)",
+    boxShadow: "0 0 0 1px var(--trips-selected-edge, transparent), var(--trips-shadow-1)",
   },
   linkBox: {
     display: "flex",
@@ -267,17 +267,25 @@ export const ws = stylex.create({
     borderBottomWidth: "1px",
     borderBottomStyle: "solid",
     borderBottomColor: "var(--trips-line)",
+    // Overview holds the first column; only the days scroll.
+    display: "flex",
+    alignItems: "center",
+    paddingInlineStart: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
   },
+  railRule: { flexShrink: 0, width: "1px", height: "2rem", marginInlineStart: "0.5rem", backgroundColor: "var(--trips-line)" },
   railScroll: {
     position: "relative",
     display: "flex",
+    flexGrow: 1,
+    minWidth: 0,
     gap: "0.375rem",
-    paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
+    paddingInlineStart: "0.5rem",
+    paddingInlineEnd: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
     paddingBlock: "0.625rem",
     overflowX: "auto",
     scrollbarWidth: "none",
     scrollSnapType: "x proximity",
-    scrollPaddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
+    scrollPaddingInline: { default: "0.5rem 1.25rem", "@media (min-width: 640px)": "0.5rem 1.75rem" },
   },
   railFadeStart: { maskImage: "linear-gradient(to right, transparent, #000 2.5rem)" },
   railFadeEnd: { maskImage: "linear-gradient(to left, transparent, #000 2.5rem)" },
@@ -338,6 +346,16 @@ export const ws = stylex.create({
     minWidth: "2.75rem",
     paddingInline: { default: "0.625rem", "@media (min-width: 480px)": "0.875rem" },
     fontSize: "0.8125rem",
+    // Looks 36px; the band reaches over the track's padding to a 44px target.
+    position: "relative",
+    "::after": { content: '""', position: "absolute", inset: "-4px 0" },
+  },
+  /** "Ideas for this day": an outline in brand ink, quieter than a filled pill beside the plan. */
+  ideasBtn: {
+    backgroundColor: "transparent",
+    color: "var(--brand)",
+    borderColor: "var(--trips-line-strong)",
+    [HOVER]: { ":hover": { backgroundColor: "var(--brand-soft)", borderColor: "transparent" } },
   },
 
   // ── Overview tabs ─────────────────────────────────────
@@ -461,7 +479,42 @@ export const ws = stylex.create({
     color: "var(--ta)",
   },
   dayDateNum: { fontFamily: "var(--trips-display)", fontSize: "1.5rem", lineHeight: 0.9 },
+  /**
+   * Today's tile: "Today" in place of the weekday, ringed in the trip's colour.
+   * Not a solid fill: 10px white on most accent fills is under 4.5:1.
+   */
+  dayDateToday: { boxShadow: "inset 0 0 0 1px var(--ta)" },
   dayRowTitle: { fontSize: "0.9375rem", fontWeight: 600, color: "var(--trips-ink)" },
+  // Two lines before it gives way: on a phone the forecast takes a third of the row.
+  dayRowTitleClamp: {
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    overflowWrap: "anywhere",
+    lineHeight: 1.3,
+  },
+  // A day row's forecast: glyph | high over low, the chance of rain under them.
+  rowSky: {
+    display: "grid",
+    gridTemplateColumns: "1.25rem auto",
+    alignItems: "center",
+    columnGap: "0.5rem",
+    minWidth: "4.75rem",
+  },
+  rowSkyIcon: { gridRow: "1 / span 2", color: "var(--trips-ink-secondary)" },
+  rowSkyTemps: { display: "flex", alignItems: "baseline", gap: "0.25rem", lineHeight: 1, whiteSpace: "nowrap" },
+  rowSkyHigh: { fontFamily: "var(--trips-display)", fontSize: "1.25rem", lineHeight: 1, color: "var(--trips-ink)" },
+  rowSkyLow: { fontSize: "0.8125rem", color: "var(--trips-ink-tertiary)", fontVariantNumeric: "tabular-nums" },
+  rowSkyChance: {
+    gridColumn: 2,
+    marginTop: "0.1875rem",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.6875rem",
+    lineHeight: 1,
+    letterSpacing: "0.04em",
+    color: "var(--trips-ink-secondary)",
+  },
 
   // Bookings
   booking: {
@@ -492,13 +545,11 @@ export const ws = stylex.create({
 
   // ── Day header ────────────────────────────────────────
   dayHead: { display: "flex", flexDirection: "column", gap: "0.5rem" },
-  // Title on the left, the day's sky on the right; stacked on phones.
+  // Title and its line, then the day's sky as a band under them, at every
+  // width: the title keeps the pane's full measure and the sky its place.
   dayHeadTop: {
     display: "flex",
-    flexDirection: { default: "row", "@media (max-width: 639.98px)": "column" },
-    alignItems: { default: "center", "@media (max-width: 639.98px)": "stretch" },
-    justifyContent: "space-between",
-    columnGap: "1.25rem",
+    flexDirection: "column",
     rowGap: "0.75rem",
     minWidth: 0,
     marginBottom: "0.375rem",
@@ -951,6 +1002,8 @@ export const ws = stylex.create({
   placePhoto: {
     display: "block",
     width: "calc(100% + 2rem)",
+    // The reset caps images at 100%, which left the bleed 2rem short on the right.
+    maxWidth: "none",
     marginTop: "-1rem",
     marginInline: "-1rem",
     marginBottom: "0.125rem",

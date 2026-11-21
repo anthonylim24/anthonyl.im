@@ -162,6 +162,20 @@ async function settle(p, ms = 1500) {
       return !canvas || getComputedStyle(canvas.closest("[role=region]").firstElementChild).opacity === "1"
     }, null, { timeout: 30_000 })
     .catch(() => {})
+  // The sky's engraving is a CSS mask: decode it so a shot never catches the empty slot.
+  await p
+    .evaluate(() =>
+      Promise.all(
+        [...document.querySelectorAll(".trips-sky-art")].map((el) => {
+          const url = /url\("?([^")]+)"?\)/.exec(getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage)?.[1]
+          if (!url) return null
+          const img = new Image()
+          img.src = url
+          return img.decode().catch(() => null)
+        }),
+      ),
+    )
+    .catch(() => {})
   await p.waitForTimeout(ms)
 }
 

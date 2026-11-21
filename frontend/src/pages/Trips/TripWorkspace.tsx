@@ -70,6 +70,8 @@ const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
 const WIDE_QUERY = "(min-width: 1024px)"
 const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
 const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
+/** The least map kept clear above a tall place card on a phone. */
+const MIN_MAP_BAND = 160
 
 function useWide(): boolean {
   const [wide, setWide] = useState(() => typeof window === "undefined" || !window.matchMedia || window.matchMedia(WIDE_QUERY).matches)
@@ -190,6 +192,21 @@ function Workspace() {
   const [hotId, setHotId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
+  /** Below 1024px the place card spans the foot of the map: a stop flown to lands above it. */
+  const [cardInset, setCardInset] = useState(0)
+  const measureCard = useCallback((card: HTMLElement | null) => {
+    if (!card || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(() => {
+      const room = (card.offsetParent?.clientHeight ?? 0) - MAP_PADDING_NARROW.top - MIN_MAP_BAND
+      // Whole 16px steps: the photo arriving moves the camera, a sub-pixel change does not.
+      setCardInset(Math.max(0, Math.min(Math.ceil((card.offsetHeight + 24) / 16) * 16, room)))
+    })
+    observer.observe(card)
+    return () => {
+      observer.disconnect()
+      setCardInset(0)
+    }
+  }, [])
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set())
   const [busy, setBusy] = useState<string | null>(null)
   const [photoreal, setPhotoreal] = useState(false)
@@ -367,7 +384,9 @@ function Workspace() {
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
   const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
-  const frameKey = `${day?.id ?? "all"}|${pins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}`
+  const cardCovers = !wide && focusPin !== undefined && cardInset > MAP_PADDING_NARROW.bottom
+  const mapPadding = wide ? MAP_PADDING : cardCovers ? { ...MAP_PADDING_NARROW, bottom: cardInset } : MAP_PADDING_NARROW
+  const frameKey = `${day?.id ?? "all"}|${pins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}|${cardCovers ? cardInset : ""}`
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
   const activeDay = trip && activeDayIndex >= 0 ? trip.days[activeDayIndex] : undefined
@@ -983,7 +1002,7 @@ function Workspace() {
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
-            padding={wide ? MAP_PADDING : MAP_PADDING_NARROW}
+            padding={mapPadding}
             activeId={activeId}
             hotId={hotId}
             dots={dots}
@@ -1014,7 +1033,7 @@ function Workspace() {
               </button>
             )}
             {active && (
-              <aside {...sx(s.placeCard)} aria-label="Selected place">
+              <aside ref={measureCard} {...sx(s.placeCard)} aria-label="Selected place">
                 <PlacePhoto key={active.item.id} item={active.item} city={active.day.city ?? trip.destinations[0] ?? ""} />
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
@@ -1068,7 +1087,7 @@ function Workspace() {
                     </button>
                   )}
                   {tour && tour.ids.length > 1 && (
-                    <span {...sx(a.row)} style={{ marginLeft: "auto", gap: 0 }}>
+                    <span {...sx(a.row)} style={{ marginLeft: "auto", gap: "0.5rem" }}>
                       <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Previous stop" disabled={tour.at === 0} onClick={() => locate(tour.ids[tour.at - 1]!)}>
                         <ChevronLeft size={18} strokeWidth={1.75} aria-hidden />
                       </button>

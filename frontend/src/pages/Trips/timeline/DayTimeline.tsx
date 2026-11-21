@@ -42,8 +42,8 @@ const PX_PER_MIN = 1.2
 const INSET = 1
 /** The smallest block is still a 44px target with a time and a title. */
 const BLOCK_MIN_PX = 44
-/** Stacked (beside an overlapping stop) the title sits under the badge row, with room for two lines. */
-const STACKED_MIN_PX = 70
+/** Stacked beside an overlapping stop the column is narrow: room for the time and two title lines. */
+const STACKED_MIN_PX = 12 + 22 + 36
 const WARN_PX = 18
 const GAP_LABEL_PX = 26
 /** Free time worth pointing out. */
@@ -136,8 +136,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
         ...layout.blocks.map((block) => ({
           from: block.start,
           to: block.end,
-          // Stacked, the warning may wrap to a second line in the narrow column.
-          px: (block.lanes > 1 ? STACKED_MIN_PX : BLOCK_MIN_PX) + INSET * 2 + (warnings.has(block.itemId) ? WARN_PX * (block.lanes > 1 ? 2 : 1) : 0),
+          px: (block.lanes > 1 ? STACKED_MIN_PX : BLOCK_MIN_PX) + INSET * 2 + (warnings.has(block.itemId) ? WARN_PX : 0),
         })),
         ...layout.gaps.filter(labelled).map((gap) => ({ from: gap.from, to: gap.to, px: GAP_LABEL_PX })),
       ]),
@@ -217,8 +216,16 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
   const hours: number[] = []
   for (let t = layout.start; t <= layout.end; t += 60) hours.push(t)
   const free = layout.gaps.reduce((sum, gap) => sum + freeAhead(gap, nowAt), 0)
-  const wettest = sky.rain.reduce<(typeof sky.rain)[number] | null>((top, spell) => (!top || spell.chance > top.chance ? spell : top), null)
+  const overlaps = layout.conflicts.filter((conflict) => conflict.kind === "overlap").length
+  const tight = layout.conflicts.length - overlaps
   const anytimeHeading = `${baseId}-anytime`
+
+  /** "Overlaps stop 2": a lane is too narrow for the other stop's name. */
+  const laneWarning = (warning: TimelineConflict) => {
+    const other = numbers.get(warning.ids[0])
+    if (!other) return warning.kind === "overlap" ? "Overlap" : "Tight"
+    return warning.kind === "overlap" ? `Overlaps stop ${other}` : `Tight after stop ${other}`
+  }
 
   const block = (b: TimelineBlock) => {
     const item = byId.get(b.itemId)
@@ -238,13 +245,13 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     const height = Math.max(0, yAt(scale, Math.min(b.end, layout.end)) - INSET - top)
     const stacked = b.lanes > 1
     // Fill the card in order of what matters: time, a title line, the warning, the rain, the kind, more title.
-    // Stacked, the column is narrow: two title lines and the whole warning come before the kind.
-    let room = height - LINE.chrome - (stacked ? LINE.badge + LINE.title : LINE.time) - LINE.title - (stopWarnings.length > 0 ? LINE.warn * (stacked ? 2 : 1) : 0)
+    // Stacked, the column is narrow: a second title line comes before the kind.
+    let room = height - LINE.chrome - (stacked ? LINE.badge + LINE.title : LINE.time) - LINE.title - (stopWarnings.length > 0 ? LINE.warn : 0)
     const showRain = wet !== null && room >= LINE.meta
     if (showRain) room -= LINE.meta
     const showMeta = kind !== null && !stacked && room >= LINE.meta
     if (showMeta) room -= LINE.meta
-    const lines = stacked ? 2 : 1 + Math.max(0, Math.min(2, Math.floor(room / LINE.title)))
+    const lines = (stacked ? 2 : 1) + Math.max(0, Math.min(stacked ? 1 : 2, Math.floor(room / LINE.title)))
 
     const name = [
       b.estimated ? clockLabel(b.start) : `${clockLabel(b.start)} to ${clockLabel(b.end)}`,
@@ -294,9 +301,9 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
           )}
         >
           {number ? (
-            <span {...sx(tl.badge, stacked && tl.badgeStacked, active && tl.badgeActive)}>{number}</span>
+            <span {...sx(tl.badge, active && tl.badgeActive)}>{number}</span>
           ) : (
-            <span {...sx(tl.disc, stacked && tl.badgeStacked)}>
+            <span {...sx(tl.disc)}>
               <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={12} strokeWidth={1.75} aria-hidden />
             </span>
           )}
@@ -312,12 +319,15 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             ) : (
               clockRange(b.start, b.end, stacked)
             )}
+            {stacked && kind && (
+              <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={12} strokeWidth={1.75} aria-hidden {...sx(tl.timeIcon)} />
+            )}
           </span>
-          <span {...sx(tl.title, stacked && tl.wide)} style={{ WebkitLineClamp: lines }}>
+          <span {...sx(tl.title)} style={{ WebkitLineClamp: lines }}>
             {title}
           </span>
           {showMeta && (
-            <span {...sx(tl.meta, stacked && tl.wide)}>
+            <span {...sx(tl.meta)}>
               {number && (
                 <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={12} strokeWidth={1.75} aria-hidden {...sx(tl.noShrink)} />
               )}
@@ -325,16 +335,16 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             </span>
           )}
           {stopWarnings.length > 0 && (
-            <span {...sx(tl.warn, stacked && tl.wide)}>
+            <span {...sx(tl.warn)}>
               <TriangleAlert size={12} strokeWidth={2} aria-hidden {...sx(tl.noShrink)} />
-              <span {...sx(tl.warnText, stacked && tl.warnWrap)}>
-                {stopWarnings[0]!.detail}
+              <span {...sx(tl.warnText)}>
+                {stacked ? laneWarning(stopWarnings[0]!) : stopWarnings[0]!.detail}
                 {stopWarnings.length > 1 ? ` · +${stopWarnings.length - 1}` : ""}
               </span>
             </span>
           )}
           {showRain && wet && (
-            <span {...sx(tl.meta, tl.wet, stacked && tl.wide)} aria-hidden>
+            <span {...sx(tl.meta, tl.wet)} aria-hidden>
               <CloudRain size={12} strokeWidth={1.75} aria-hidden {...sx(tl.noShrink)} />
               {stacked ? `${wet.chance}%` : `${wetWord(wet.code)} likely · ${wet.chance}%`}
             </span>
@@ -358,7 +368,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
               {g.travel.label}
             </span>
           )}
-          {ahead >= FREE_LABEL_MIN && <span {...sx(tl.gapFree)}>{formatMinutes(ahead)} free</span>}
+          {ahead >= FREE_LABEL_MIN && <span {...sx(tl.gapFree, g.travel && tl.sep)}>{formatMinutes(ahead)} free</span>}
         </span>
       </div>
     )
@@ -415,56 +425,49 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
         </p>
       ) : (
         <>
-          <div {...sx(tl.summaryBlock)}>
-            <p {...sx(tl.summary)}>
-              {[
-                <span key="stops">{plural(layout.blocks.length, "stop")} on the clock</span>,
-                free > 0 && (
-                  <span key="free">
-                    {formatMinutes(free)} free{nowAt !== null ? " from now" : ""}
-                  </span>
-                ),
-                layout.conflicts.length > 0 && (
-                  <span key="check" {...sx(tl.summaryWarn)}>
-                    <TriangleAlert size={12} strokeWidth={2} aria-hidden />
-                    {layout.conflicts.length} to check
-                  </span>
-                ),
-              ]
-                .filter(Boolean)
-                .flatMap((part, i) => (i === 0 ? [part] : [<span key={`dot${i}`} aria-hidden {...sx(tl.dot)}>·</span>, part]))}
-              {nowAt !== null && <span {...sx(a.srOnly)}>Now {clockLabel(nowAt)}</span>}
-              {sky.sunset !== null && <span {...sx(a.srOnly)}>Sunset {clockLabel(sky.sunset)}</span>}
-            </p>
-            {wettest && (
-              <p {...sx(tl.summary, tl.summaryWet)}>
-                <CloudRain size={12} strokeWidth={1.75} aria-hidden />
-                {wetWord(wettest.code)} likely {clockRange(wettest.from, wettest.to)}
-                <span aria-hidden {...sx(tl.dot)}>·</span>
-                {wettest.chance}% chance
-              </p>
+          <p {...sx(tl.summary)}>
+            <span>{plural(layout.blocks.length, "timed stop")}</span>
+            {free > 0 && (
+              <span {...sx(tl.sep)}>
+                {formatMinutes(free)} free{nowAt !== null ? " from now" : ""}
+              </span>
             )}
-          </div>
+            {overlaps > 0 && (
+              <span {...sx(tl.sep, tl.summaryWarn)}>
+                <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+                {plural(overlaps, "overlap")}
+              </span>
+            )}
+            {tight > 0 && (
+              <span {...sx(tl.sep, tl.summaryWarn)}>
+                {overlaps === 0 && <TriangleAlert size={12} strokeWidth={2} aria-hidden />}
+                {plural(tight, "tight leg")}
+              </span>
+            )}
+            {nowAt !== null && <span {...sx(a.srOnly)}>Now {clockLabel(nowAt)}</span>}
+            {sky.rain.map((spell) => (
+              <span key={spell.from} {...sx(a.srOnly)}>
+                {wetWord(spell.code)} likely {clockRange(spell.from, spell.to)}, {spell.chance}% chance
+              </span>
+            ))}
+            {sky.sunset !== null && <span {...sx(a.srOnly)}>Sunset {clockLabel(sky.sunset)}</span>}
+          </p>
           <div {...sx(tl.ruler)}>
             <div {...sx(tl.canvas)} style={{ height: scale.height }}>
-              {sky.sunrise !== null && sky.sunrise > layout.start && (
-                <span aria-hidden {...sx(tl.dark)} style={{ top: 0, height: yAt(scale, sky.sunrise) }} />
-              )}
-              {sky.sunset !== null && <span aria-hidden {...sx(tl.dark)} style={{ top: yAt(scale, sky.sunset), bottom: 0 }} />}
               {sky.rain.map((spell) => (
-                <span
-                  key={spell.from}
-                  aria-hidden
-                  title={`${wetWord(spell.code)} likely, ${spell.chance}%`}
-                  {...sx(tl.rain)}
-                  style={{ top: yAt(scale, spell.from), height: yAt(scale, spell.to) - yAt(scale, spell.from) }}
-                />
+                <div key={spell.from} aria-hidden>
+                  <span {...sx(tl.rainIcon)} style={{ top: yAt(scale, spell.from) }}>
+                    <CloudRain size={12} strokeWidth={1.75} aria-hidden />
+                  </span>
+                  <span {...sx(tl.rain)} style={{ top: yAt(scale, spell.from), height: yAt(scale, spell.to) - yAt(scale, spell.from) }} />
+                </div>
               ))}
               {hours.map((t) => {
                 const y = yAt(scale, t)
-                // Now, sunrise and sunset take the hour's place when they would touch.
-                const crowded = [nowAt, sky.sunrise, sky.sunset].some((at) => at !== null && Math.abs(yAt(scale, at) - y) < 26)
-                const temp = sky.temps.get(((t % DAY_MIN) + DAY_MIN) % DAY_MIN)
+                // Now takes the hour's place when they would touch.
+                const crowded = nowAt !== null && Math.abs(yAt(scale, nowAt) - y) < 26
+                // Every third hour: enough to read the day's warming and cooling.
+                const temp = (t - layout.start) % 180 === 0 ? sky.temps.get(((t % DAY_MIN) + DAY_MIN) % DAY_MIN) : undefined
                 return (
                   <div key={t} aria-hidden>
                     <span {...sx(tl.hourRule)} style={{ top: y }} />
@@ -474,21 +477,6 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
                         {temp !== undefined && <span {...sx(tl.hourTemp)}>{formatTemp(temp, FAHRENHEIT)}</span>}
                       </span>
                     )}
-                    {t + 30 < layout.end && <span {...sx(tl.halfTick)} style={{ top: yAt(scale, t + 30) }} />}
-                  </div>
-                )
-              })}
-              {(["sunrise", "sunset"] as const).map((edge) => {
-                const at = sky[edge]
-                if (at === null) return null
-                const Icon = edge === "sunrise" ? Sunrise : Sunset
-                return (
-                  <div key={edge} aria-hidden>
-                    <span {...sx(tl.sunLine)} style={{ top: yAt(scale, at) }} />
-                    <span {...sx(tl.sunLabel)} style={{ top: yAt(scale, at) }}>
-                      <Icon size={12} strokeWidth={1.75} aria-hidden />
-                      {bareClock(at)}
-                    </span>
                   </div>
                 )
               })}
@@ -498,6 +486,19 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
               <ol {...sx(tl.track)} aria-label={`${plural(layout.blocks.length, "stop")} on the clock`}>
                 {blocks}
               </ol>
+              {(["sunrise", "sunset"] as const).map((edge) => {
+                const at = sky[edge]
+                if (at === null || at <= layout.start) return null
+                const Icon = edge === "sunrise" ? Sunrise : Sunset
+                return (
+                  <div key={edge} aria-hidden {...sx(tl.sun)} style={{ top: yAt(scale, at) }}>
+                    <span {...sx(tl.sunLabel)}>
+                      <Icon size={12} strokeWidth={1.75} aria-hidden />
+                      {edge === "sunrise" ? "Sunrise" : "Sunset"} {clockLabel(at)}
+                    </span>
+                  </div>
+                )
+              })}
               {nowAt !== null && (
                 <div aria-hidden>
                   <span {...sx(tl.now)} style={{ top: yAt(scale, nowAt) }} />

@@ -67,8 +67,9 @@ describe("DayTimeline", () => {
     renderTimeline()
     expect(stopNamed(/Dinner/)).toHaveAccessibleDescription("Length estimated, about 1 h. About 35 min by transit from Gyeongbokgung")
     expect(stopNamed(/Tea house/)).toHaveAccessibleDescription("Length estimated, about 45 min. Overlaps Gyeongbokgung")
-    expect(screen.getByText("Overlaps Gyeongbokgung")).toBeInTheDocument()
-    expect(screen.getByText("1 to check")).toBeInTheDocument()
+    // Beside the stop it overlaps the lane is narrow: the warning names it by its number.
+    expect(screen.getByText(/^Overlaps stop \d+$/)).toBeInTheDocument()
+    expect(screen.getByText("1 overlap")).toBeInTheDocument()
   })
 
   it("labels the leg between two stops, and free time worth knowing about", () => {

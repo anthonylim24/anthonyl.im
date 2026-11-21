@@ -38,11 +38,12 @@ export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: strin
 
   useEffect(() => {
     const el = scrollerRef.current
-    const current = el?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (!el || !current) return
+    if (!el) return
+    const current = el.querySelector<HTMLElement>('[aria-current="page"]')
     // The rail's own scroll only: scrollIntoView would also move the page.
+    // On the overview (outside the scroller) the days go back to the start.
     el.scrollTo({
-      left: current.offsetLeft - (el.clientWidth - current.offsetWidth) / 2,
+      left: current ? current.offsetLeft - (el.clientWidth - current.offsetWidth) / 2 : 0,
       behavior: placed.current ? scrollBehavior() : "auto",
     })
     placed.current = true
@@ -50,11 +51,13 @@ export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: strin
 
   return (
     <nav {...sx(s.rail)} aria-label="Days">
+      {/* Outside the scroller, so centring a late day never pushes it off. */}
+      <Link to={basePath} {...sx(s.railItem, s.railAll, !dayId && s.railItemOn)} aria-current={!dayId ? "page" : undefined}>
+        <LayoutGrid size={15} strokeWidth={1.75} aria-hidden />
+        Overview
+      </Link>
+      <span {...sx(s.railRule)} aria-hidden />
       <div ref={scrollerRef} {...sx(s.railScroll, FADE[clipped])} onScroll={(event) => setClipped(clippedEnds(event.currentTarget))}>
-        <Link to={basePath} {...sx(s.railItem, s.railAll, !dayId && s.railItemOn)} aria-current={!dayId ? "page" : undefined}>
-          <LayoutGrid size={15} strokeWidth={1.75} aria-hidden />
-          Overview
-        </Link>
         {trip.days.map((d, index) => (
           <Link
             key={d.id}

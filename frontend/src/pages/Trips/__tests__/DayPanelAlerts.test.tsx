@@ -74,3 +74,28 @@ describe("DayPanel list warnings", () => {
     expect(screen.queryByText(/likely ·/)).toBeNull()
   })
 })
+
+const LISBON = { lat: 38.71, lng: -9.14 }
+/** A pinned stop `km` north of the centre. */
+const pinned = (id: string, km: number, time: string, endTime: string) =>
+  makeItem({ id, title: id, time, endTime, location: { name: id, lat: LISBON.lat + km / 111.195, lng: LISBON.lng, source: "user" } })
+/** The leg line drawn under a stop, toward the next one. */
+const legUnder = (id: string) => document.getElementById(`item-${id}`)!.closest("li")!.querySelector(":scope > [aria-hidden]")?.textContent
+
+describe("DayPanel list legs", () => {
+  it("says there is no time to travel when the next stop starts before this one ends", () => {
+    const castle = pinned("Castle", 0, "10:15", "11:30")
+    const tram = pinned("Tram", 0.5, "11:00", "12:00")
+    const lunch = pinned("Lunch", 1.4, "12:30", "13:30")
+    renderDay({ id: "day-1", date: "2026-07-10", items: [castle, tram, lunch] }, { status: "none" })
+    expect(legUnder("Castle")).toBe("No time to travel")
+    expect(legUnder("Tram")).toMatch(/^900 m · \d+ min walk$/)
+  })
+
+  it("matches the overlap when the list is out of clock order", () => {
+    const tram = pinned("Tram", 0.5, "11:00", "12:00")
+    const castle = pinned("Castle", 0, "10:15", "11:30")
+    renderDay({ id: "day-1", date: "2026-07-10", items: [tram, castle] }, { status: "none" })
+    expect(legUnder("Tram")).toBe("No time to travel")
+  })
+})

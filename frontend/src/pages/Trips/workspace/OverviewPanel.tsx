@@ -83,7 +83,7 @@ export function OverviewPanel({
 
   return (
     <div {...sx(s.content)}>
-      <NowCard trip={trip} basePath={basePath} />
+      <NowCard trip={trip} basePath={basePath} forecast={forecast} />
       {description && <p {...sx(a.body, a.wrap)}>{description}</p>}
 
       <dl {...sx(s.stats)}>
@@ -166,19 +166,16 @@ export function OverviewPanel({
                   onFocus={() => onHoverDay(day.id)}
                   onBlur={() => onHoverDay(null)}
                 >
-                  <span {...sx(s.dayDate)}>
+                  <span {...sx(s.dayDate, day.date === today && s.dayDateToday)}>
                     <span {...sx(a.mono)} style={{ fontSize: "0.625rem", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                      {formatTripDate(day.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
+                      {day.date === today ? "Today" : formatTripDate(day.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
                     </span>
                     <span {...sx(s.dayDateNum)}>
                       {formatTripDate(day.date, trip.timezone, { weekday: undefined, month: undefined, day: "numeric" })}
                     </span>
                   </span>
                   <span {...sx(a.stack)} style={{ gap: "0.1875rem" }}>
-                    <span {...sx(s.dayRowTitle, a.truncate)}>
-                      {day.title || `Day ${index + 1}`}
-                      {day.date === today && <span {...sx(a.accentText)}> · Today</span>}
-                    </span>
+                    <span {...sx(s.dayRowTitle, s.dayRowTitleClamp)}>{day.title || `Day ${index + 1}`}</span>
                     <span {...sx(a.small, a.truncate)}>
                       {preview.length > 0
                         ? `${preview.join(" · ")}${stops.length > preview.length ? ` · +${stops.length - preview.length}` : ""}`
@@ -188,7 +185,7 @@ export function OverviewPanel({
                     </span>
                   </span>
                   <span {...sx(a.row)}>
-                    {forecast?.get(day.id) && <ForecastChip forecast={forecast.get(day.id)!} compact />}
+                    {forecast?.get(day.id) && <ForecastChip forecast={forecast.get(day.id)!} />}
                     {day.city && multiCity && <span {...sx(a.chip)}>{day.city}</span>}
                     <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
                   </span>

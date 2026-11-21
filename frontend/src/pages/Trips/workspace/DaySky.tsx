@@ -2,15 +2,17 @@ import type { CSSProperties } from "react"
 import { Sunrise, Sunset } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock } from "../meta"
-import { FAHRENHEIT, SKIES, formatTemp, weatherKind, type DaySky as Sky, type SkyId } from "../forecast"
+import { FAHRENHEIT, SKIES, formatTemp, weatherKind, wetSpells, wetWord, type DaySky as Sky, type SkyId } from "../forecast"
+import { clockRange } from "../timeline/timeline"
+import compassArt from "../art/compass.webp"
 import { a } from "../atlas.stylex"
 import { sky as k } from "./daySky.stylex"
 
 /** The engraving: its lines on light paper, its print on dark (see `.trips-sky-art` in index.css). */
-function Engraving({ sky, faint = false }: { sky: SkyId; faint?: boolean }) {
-  const { art, print } = SKIES[sky]
+function Engraving({ sky }: { sky: SkyId | "compass" }) {
+  const { art, print } = sky === "compass" ? { art: compassArt, print: compassArt } : SKIES[sky]
   const masks = { "--sky-ink": `url(${art})`, "--sky-print": `url(${print})` } as CSSProperties
-  return <span aria-hidden="true" {...sx(k.art, faint && k.artFaint, "trips-sky-art")} style={masks} />
+  return <span aria-hidden="true" {...sx(k.art, sky === "compass" && k.artFaint, "trips-sky-art")} style={masks} />
 }
 
 /** Skies whose word already says what falls ("Showers · 60% chance"). */
@@ -31,7 +33,7 @@ export function DaySky({ sky }: { sky: Sky }) {
   if (sky.status === "unavailable") {
     return (
       <figure {...sx(k.root)}>
-        <Engraving sky="cloudy" faint />
+        <Engraving sky="compass" />
         <figcaption {...sx(k.text)}>
           <span {...sx(k.main)}>
             <span {...sx(k.eyebrow)}>Forecast</span>
@@ -52,7 +54,7 @@ export function DaySky({ sky }: { sky: Sky }) {
             <span {...sx(k.temps)}>
               <span {...sx(k.high, k.estimate)}>
                 <span {...sx(a.srOnly)}>About </span>
-                <span aria-hidden="true">≈</span>
+                <span aria-hidden="true" {...sx(k.approx)}>≈</span>
                 {formatTemp(sky.highC, FAHRENHEIT)}
               </span>
               <span {...sx(k.low)}>
@@ -69,7 +71,12 @@ export function DaySky({ sky }: { sky: Sky }) {
 
   const live = sky.forecast
   const kind = weatherKind(live.code)
-  const chance = live.rainChance >= 30 ? `${live.rainChance}% chance${WET.has(kind.sky) ? "" : " of rain"}` : null
+  // The wettest stretch says when: "Showers 2–5 PM · 60% chance". Without one, the day's chance alone.
+  const spell = wetSpells(live.hours ?? []).reduce<ReturnType<typeof wetSpells>[number] | null>((top, s) => (!top || s.chance > top.chance ? s : top), null)
+  const wet = WET.has(kind.sky)
+  const when = spell ? `${wet ? "" : `${wetWord(spell.code).toLowerCase()} `}${clockRange(spell.from, spell.to)}` : null
+  const percent = spell ? spell.chance : live.rainChance
+  const chance = spell || live.rainChance >= 30 ? `${percent}% chance${wet || spell ? "" : " of rain"}` : null
   return (
     <figure {...sx(k.root)} title="Live forecast from Open-Meteo">
       <Engraving sky={kind.sky} />
@@ -88,6 +95,7 @@ export function DaySky({ sky }: { sky: Sky }) {
           </span>
           <span {...sx(k.word)}>
             {kind.word}
+            {when && (wet ? ` ${when}` : ` · ${when}`)}
             {chance && <span {...sx(k.chance)}> · {chance}</span>}
           </span>
         </span>

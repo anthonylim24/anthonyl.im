@@ -1,7 +1,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
-import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
+import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles, TimerOff } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
@@ -21,7 +21,7 @@ import { NowLine } from "../live/NowLine"
 import { clockIn, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
 import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
-import { legEstimate } from "../timeline/timeline"
+import { layoutDay, legEstimate } from "../timeline/timeline"
 import type { TravelMode } from "../timeline/travel"
 import { useDayView } from "./dayView"
 import { defaultCurrency } from "../budget/budget"
@@ -76,8 +76,11 @@ export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
   return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
 }
 
+/** How a leg is made, or "overlap" when the next stop starts before this one ends. */
+type LegMode = TravelMode | "overlap"
+
 /** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
-const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null; legMode: TravelMode | null }) {
+const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null; legMode: LegMode | null }) {
   const controls = useDragControls()
   const { leg, legMode, ...card } = props
   const onGrip = useCallback((event: ReactPointerEvent) => controls.start(event), [controls])
@@ -97,7 +100,7 @@ const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | n
             <span {...sx(s.gutterLine)} />
           </div>
           <p {...sx(s.leg)}>
-            {legMode && <ModeIcon mode={legMode} />}
+            {legMode === "overlap" ? <TimerOff size={12} strokeWidth={2} aria-hidden /> : legMode && <ModeIcon mode={legMode} />}
             {leg}
           </p>
         </div>
@@ -159,7 +162,10 @@ export function DayPanel({
   const { labels, legs } = useMemo(() => {
     const labels = new Map<string, string>()
     // Strings, not objects: a Sortable re-renders only when its own leg changes.
-    const legs = new Map<string, { text: string; mode: TravelMode }>()
+    const legs = new Map<string, { text: string; mode: LegMode }>()
+    // Conflict ids run in clock order, the list in itinerary order: match either way.
+    const overlaps = new Set<string>()
+    for (const { kind, ids } of layoutDay(day).conflicts) if (kind === "overlap") overlaps.add(`${ids[0]}>${ids[1]}`).add(`${ids[1]}>${ids[0]}`)
     let n = 0
     let last: ItineraryItem | null = null
     // Places parked under "To schedule" carry no number and no leg.
@@ -170,7 +176,9 @@ export function DayPanel({
       if (last && isLocated(last)) {
         // Same estimate as the timeline; none out of a flight or train booking.
         const leg = legEstimate(last, item)
-        if (leg) {
+        if (leg && overlaps.has(`${last.id}>${item.id}`)) {
+          legs.set(last.id, { text: "No time to travel", mode: "overlap" })
+        } else if (leg) {
           const d = distanceMeters({ lat: last.location.lat, lng: last.location.lng }, { lat: item.location.lat, lng: item.location.lng })
           legs.set(last.id, { text: `${formatDistance(d)} · ${leg.label}`, mode: leg.mode })
         }
@@ -178,7 +186,7 @@ export function DayPanel({
       last = item
     }
     return { labels, legs }
-  }, [planned])
+  }, [day, planned])
   const [dayView, setDayView] = useDayView()
   const currency = defaultCurrency(trip)
   const forecast = sky.status === "forecast" ? sky.forecast : undefined
@@ -303,7 +311,7 @@ export function DayPanel({
         <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
           {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
           {editable && (
-            <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={onAskAi}>
+            <button type="button" {...sx(a.btn, a.btnSm, s.ideasBtn)} disabled={locked} onClick={onAskAi}>
               {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
               {day.items.length === 0 ? "Plan this day with AI" : <span>Ideas<span {...sx(s.wideOnly)}> for this day</span></span>}
             </button>

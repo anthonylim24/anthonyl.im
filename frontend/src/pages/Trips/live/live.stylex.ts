@@ -54,6 +54,9 @@ export const live = stylex.create({
   tileNum: { fontFamily: "var(--trips-display)", fontSize: "1.5rem", lineHeight: 0.9 },
   headText: { display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: 0 },
   dayTitle: { fontSize: "1.375rem", lineHeight: 1.1 },
+  // Today's sky under the day's name: glyph, the hour's temperature, the next wet spell.
+  sky: { display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--trips-ink-secondary)", fontVariantNumeric: "tabular-nums" },
+  skyIcon: { flexShrink: 0 },
   clock: { color: "var(--trips-ink-tertiary)", alignSelf: "start", paddingTop: "0.125rem" },
   rule: { height: "1px", backgroundColor: "var(--trips-line)", borderWidth: 0, margin: 0 },
 

@@ -39,8 +39,9 @@ const SKIES = ['clear', 'partly-cloudy', 'cloudy', 'fog', 'drizzle', 'rain', 'sh
 const SKY_EDGE = 384
 /** Skies whose fine strokes (rain, drizzle) need weight to survive the downscale. */
 const SKY_WEIGHT: Record<string, number> = { showers: 0.5, drizzle: 0.6, rain: 0.4 }
-/** Fog is mist lines with no solid body: its print is its ink, and it needs darker levels to read. */
-const SKY_GAMMA: Record<string, number> = { fog: 0.6 }
+/** Stroke tone every sky is levelled to; fog's soft mist reads heavy at the same tone, so a little less. */
+const SKY_TONE: Record<string, number> = { fog: 0.42 }
+/** Fog is mist lines with no solid body: its print is its ink. */
 const LINES_ONLY = new Set(['fog'])
 const FONT = 'https://github.com/google/fonts/raw/main/ofl/fraunces/Fraunces-Italic%5BSOFT,WONK,opsz,wght%5D.ttf'
 
@@ -125,7 +126,7 @@ async function engravings() {
     const source = join(ART, 'concepts', `sky-${sky}.webp`)
     const size = Number((await $`ffprobe -v error -show_entries stream=width -of csv=p=0 ${source}`.text()).trim())
     const grey = new Uint8Array(await $`ffmpeg -loglevel error -i ${source} -vf format=gray -f rawvideo -pix_fmt gray -`.arrayBuffer())
-    const ink = level(frame(grey, size), SKY_GAMMA[sky] ?? 0.78, SKY_WEIGHT[sky] ?? 0)
+    const ink = level(frame(grey, size), SKY_TONE[sky] ?? 0.5, SKY_WEIGHT[sky] ?? 0)
     const masks = { ink, print: LINES_ONLY.has(sky) ? ink : print(ink, body(ink)) }
     for (const [kind, mask] of Object.entries(masks)) {
       const png = join(CACHE, `sky-${sky}.${kind}.png`)
