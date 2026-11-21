@@ -11,6 +11,9 @@ import {
   type WeatherFetcher,
 } from "../trips/ai"
 import { streamTripChat } from "../trips/chat"
+import { createBookingParserFromKeys, type BookingParser } from "../trips/bookingParse"
+import { config } from "../config"
+import { registerBookingRoutes } from "./tripBookings"
 import { collectCatalogPlaces, groupCatalogPlaces } from "../trips/placeCatalog"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { isNotProvisionedError, type TripStore } from "../trips/store"
@@ -61,6 +64,8 @@ export interface TripsRouterDeps {
   generateHeartbeatMs?: number
   /** Runs after the auth gate, so it can key on the signed-in user. */
   rateLimit?: MiddlewareHandler
+  /** Reads bookings out of a pasted confirmation. Undefined: built from the server's Gemini / Groq keys; null: not available (503). */
+  parseBookings?: BookingParser | null
 }
 
 const MAX_SUMMARY_POINTS = 48
@@ -323,6 +328,17 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if (needEdit && !canEdit(access)) return { error: c.json({ error: "forbidden" }, 403) }
     return { trip, access }
   }
+
+  registerBookingRoutes(trips, {
+    parse:
+      deps.parseBookings !== undefined
+        ? deps.parseBookings
+        : createBookingParserFromKeys({ geminiApiKey: config.geminiApiKey, groqApiKey: config.groqApiKey, geocode: deps.geocode }),
+    load: async (c) => {
+      await ensureSeeded(deps.store)
+      return loadTrip(c, c.req.param("id") ?? "", true)
+    },
+  })
 
   // ── Sharing: join by invite link ───────────────────────────────────────
   //
