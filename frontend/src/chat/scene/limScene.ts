@@ -18,13 +18,13 @@ import { createStage } from '../../three/stage'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
 import { skinJelly, skinnedJellyGeometry, syncJellyGeometry } from '../../three/jellyMesh'
 import { bindJellyPointer } from '../../three/jellyPointer'
-import { bodyImpulse, type Collider } from '../../three/physics'
+import { bodyImpulse, reachAlong, shapeCentre, type BodyShape, type Collider } from '../../three/physics'
 import { sound } from '../sound'
 import type { Stunt } from '../eggs'
-import { ITEMS, actionsFor, type Action, type ItemSpec, type PlaceSpec, type Trait, type Tweak } from '../world/spec'
+import { ITEMS, actionsFor, type Action, type ItemSpec, type PlaceSpec, type Shape, type Trait, type Tweak } from '../world/spec'
 import { Weather, backdropMaterial, createPlaceUniforms, easePlace } from './env'
 import { bodyRest, createItemMaterials, jellyLook, modelLook, type ToyLook } from './items'
-import { catalogKey, loadToyMesh, toyMeshNow } from './toyMesh'
+import { MODELED, catalogKey, itemBounds, loadToyMesh, toyMeshNow } from './toyMesh'
 import { QUIRKS, clink, tapTraits, tickTraits, type QuirkToy, type Stage } from './quirks'
 import { Fixture, fixtureKind } from './fixtures'
 import { SceneryStage } from './scenery'
@@ -62,6 +62,9 @@ export type LimMood = 'idle' | 'typing' | 'thinking' | 'talking' | 'happy' | 'sa
 /** Small things the page tells Lim about. */
 export type LimReaction = 'key' | 'shout' | 'wink'
 
+/** What the scene is doing while it comes up, in order. */
+export type LoadStep = 'gpu' | 'toys' | 'light' | 'warm'
+
 export type LimSceneOptions = {
   canvas: HTMLCanvasElement
   host: HTMLElement
@@ -72,7 +75,10 @@ export type LimSceneOptions = {
   onEmote?: (word: string) => void
   /** Top of Lim's head in host px, plus px per world unit. */
   onAnchor?: (x: number, y: number, unit: number) => void
+  /** The scene has drawn its first, still frame: it is built and warm, and waits for `enter()`. */
   onFirstFrame?: () => void
+  /** How far the scene has come up: `done` runs from 0 to 1 across the steps. */
+  onProgress?: (step: LoadStep, done: number) => void
   /** The GPU context was lost: nothing will draw again. Dispose and show the drawing. */
   onLost?: (reason: string) => void
   /** The world to start in (restored from a previous visit). */
@@ -121,6 +127,8 @@ export type LimScene = {
   /** Change the weather, gravity, grip or light of wherever Lim is. */
   tweak(set: Tweak): void
   clear(what: 'items' | 'place' | 'all'): void
+  /** Lim comes on stage: the clock starts, the starter toys drop in and Lim makes its entrance. Once only. */
+  enter(): void
   world(): LimWorld
   /** Something is being made (the model is thinking): Lim conjures until told to stop. */
   conjure(on: boolean, made?: boolean): void
@@ -139,6 +147,8 @@ const MAX_ITEMS = 6
 const MINI = 0.36
 /** Where the backdrop's ground meets its sky, as a fraction of the canvas height (see env.ts). */
 const HORIZON = 0.47
+const ROUND: Record<Shape, number> = { ball: 1, bean: 1, drop: 0.85, heart: 0.8, star: 0.7, cone: 0.6, disc: 0.6, ring: 0.6, cylinder: 0.5, box: 0.25 }
+
 const POKE_WORDS = ['hehe!', 'boop!', 'eep!', 'squish!', 'tee-hee', 'wobble!', 'again!']
 
 /** Gumdrop: a squat sphere, wider and flat at the base. */
@@ -230,6 +240,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     },
   })
   const { renderer } = stage
+  opts.onProgress?.('gpu', 0.2)
   renderer.setClearColor(0x000000, 0)
   const mobile = isMobile()
   const webgpu = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true
@@ -258,14 +269,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Lim ──────────────────────────────────────────────────────────
   const limRest = gumdropRest(4)
-  // Soft enough to ring for a few beats after every move, firm enough (low
+  // Soft enough to ring for several beats after every move, firm enough (low
   // beta) that impacts squash and spring back instead of settling as a pancake.
-  const LIM_STIFF = 0.115
-  const LIM_BETA = 0.28
+  const LIM_STIFF = 0.085
+  const LIM_BETA = 0.3
   const lim = new Jelly(limRest.positions, {
     stiffness: LIM_STIFF,
     beta: LIM_BETA,
-    damping: 1.25,
+    damping: 0.9,
     gravity: [0, -G, 0],
     floor: 0,
     friction: 0.45,
@@ -295,15 +306,25 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const restEyeGap = Math.hypot(eyeRests[0][0] - eyeRests[1][0], eyeRests[0][1] - eyeRests[1][1], eyeRests[0][2] - eyeRests[1][2])
   const restHeight = headTopRest[1] - baseRest[1]
 
+  // A jelly you can see into, drawn after everything solid (the floor included). It still writes depth,
+  // normals and motion like a solid, so the screen-space passes treat it as the surface it is. The
+  // outline draws after it, so Lim's own depth hides all of the shell but the band round its edge.
+  const body = limBodyColor(u, limN, anchors)
   let bodyMat: THREE.NodeMaterial
   if (u.lit) {
-    bodyMat = plastic(limBodyColor(u, limN, anchors), { normal: limN.view, glow: col(PAL.glow), rough: 0.3 })
+    bodyMat = plastic(body.color, { normal: limN.view, glow: col(PAL.glow), rough: 0.3 })
   } else {
     bodyMat = new THREE.MeshBasicNodeMaterial()
-    bodyMat.colorNode = limBodyColor(u, limN, anchors)
+    bodyMat.colorNode = body.color
   }
+  bodyMat.transparent = true
+  bodyMat.opacityNode = body.alpha
   const limMesh = new THREE.Mesh(limGeo, bodyMat)
-  const limHull = new THREE.Mesh(limGeo, hullMaterial(ink, 0.03, limN.local))
+  limMesh.renderOrder = 1
+  const hullMat = hullMaterial(ink, 0.03, limN.local)
+  hullMat.transparent = true
+  const limHull = new THREE.Mesh(limGeo, hullMat)
+  limHull.renderOrder = 2
   limMesh.frustumCulled = limHull.frustumCulled = false
   scene.add(limMesh, limHull)
 
@@ -312,11 +333,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const eyeMats = [createEyeMaterial(u, -1), createEyeMaterial(u, 1)]
   const eyeHullMat = hullMaterial(ink, 0)
   const rims: THREE.Mesh[] = []
+  // Drawn after the see-through body (as Lim's outline is), so its depth hides the half set into the jelly.
+  for (const m of [eyeHullMat, ...eyeMats.map((e) => e.mat)]) m.transparent = true
   const makeEye = (i: number) => {
     const group = new THREE.Group()
     const rim = new THREE.Mesh(sphere, eyeHullMat)
     rim.scale.setScalar(1.13)
-    group.add(new THREE.Mesh(sphere, eyeMats[i].mat), rim)
+    const ball = new THREE.Mesh(sphere, eyeMats[i].mat)
+    ball.renderOrder = rim.renderOrder = 2
+    group.add(ball, rim)
     scene.add(group)
     rims.push(rim)
     return group
@@ -407,17 +432,19 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   stage.onLost((reason) => opts.onLost?.(reason))
 
   const flat = new THREE.PlaneGeometry(1, 1)
-  const makeShadow = (tint: string | null) => {
-    const { mat, strength } = shadowMaterial(u, tint)
+  /** The toys' contact shadows share one material; each sets its own strength. */
+  const toyShadowMat = shadowMaterial(u, null)
+  const makeShadow = (mat: THREE.Material) => {
     const mesh = new THREE.Mesh(flat, mat)
     mesh.rotation.x = -Math.PI / 2
     mesh.position.y = -0.03
     mesh.renderOrder = 1
+    mesh.userData.strength = 0.3
     scene.add(mesh)
-    return { mesh, strength }
+    return { mesh }
   }
   type Shadow = ReturnType<typeof makeShadow>
-  const limShadow = makeShadow(PAL.top)
+  const limShadow = makeShadow(shadowMaterial(u, PAL.top))
 
   const ripples = Array.from({ length: 4 }, () => {
     const { mat, k } = rippleMaterial(u)
@@ -479,11 +506,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // A catalog toy is drawn as its Blender model once that has arrived; until then, and for anything else, as its jelly.
     const key = catalogKey(spec)
     const model = key ? toyMeshNow(key) : null
-    const look: ToyLook = key && model ? modelLook(ITEMS[key].spec, model, rest, u, ink) : jellyLook(spec, geo, u, ink, itemMats)
+    const look: ToyLook = key && model ? modelLook(ITEMS[key].spec, model, rest, u, itemMats) : jellyLook(spec, geo, itemMats)
     scene.add(look.group)
     castShadows(look.group)
     return {
-      spec, has, hex, jelly, geo, look, key, rest, shadow: makeShadow(null), r: rest.radius, half: rest.half,
+      spec, has, hex, jelly, geo, look, key, rest, shadow: makeShadow(toyShadowMat), r: rest.radius, half: rest.half,
       /** Drawn over everything (in hand, or on the way into Lim's mouth). */
       top: false,
       slot: 0, depth: 0.25, beta: jelly.beta, stiffness: jelly.stiffness,
@@ -607,7 +634,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   lim.translate(0, 0.81, 0)
   /** Everything the pointer can grab and that collides; items and minis come and go. */
   const bodies: Jelly[] = [lim]
-  const info = new Map<Jelly, { r: number; m: number; toy?: Toy }>([[lim, { r: 1, m: 6 }]])
+  /** A toy collides as the box its parts fill (what its model is fitted to); Lim and the minis as balls. */
+  const info = new Map<Jelly, { r: number; m: number; toy?: Toy; shape?: BodyShape }>([[lim, { r: 1, m: 6 }]])
 
   // ── State ────────────────────────────────────────────────────────
   let t = 0
@@ -1005,12 +1033,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   // ── Mini Lims (the poke-combo easter egg) ────────────────────────
   type Mini = { jelly: Jelly; geo: THREE.BufferGeometry; parts: THREE.Object3D[]; eyes: THREE.Group[]; shadow: Shadow; nextHop: number }
   let minis: Mini[] | null = null
+  // Their materials exist from the start, so the stage builds them while it loads.
+  const miniMat = new THREE.MeshBasicNodeMaterial()
+  miniMat.colorNode = limBodyColor(u, { view: normalize(normalView), spec: normalize(normalView) }, anchors).color
+  const miniHull = hullMaterial(ink, 0.02)
+  const miniShadow = shadowMaterial(u, PAL.top)
   const buildMinis = (): Mini[] => {
     const rest = gumdropRest(2)
-    const mat = new THREE.MeshBasicNodeMaterial()
-    const n = normalize(normalView)
-    mat.colorNode = limBodyColor(u, { view: n, spec: n }, anchors)
-    const hullMat = hullMaterial(ink, 0.02)
     return Array.from({ length: MINIS }, () => {
       const jelly = new Jelly(rest.positions, {
         stiffness: 0.2, beta: 0.3, damping: 1.2, gravity: [0, -16, 0], floor: 0, friction: 0.4, substeps: 2,
@@ -1018,8 +1047,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       jelly.upright = 0.14
       jelly.scale = MINI
       const geo = skinnedJellyGeometry(jelly, rest.index)
-      const mesh = new THREE.Mesh(geo, mat)
-      const hull = new THREE.Mesh(geo, hullMat)
+      const mesh = new THREE.Mesh(geo, miniMat)
+      const hull = new THREE.Mesh(geo, miniHull)
       mesh.frustumCulled = hull.frustumCulled = false
       const miniEyes = [0, 1].map((i) => {
         const group = new THREE.Group()
@@ -1028,7 +1057,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         group.add(new THREE.Mesh(sphere, eyeMats[i].mat), rim)
         return group
       })
-      const shadow = makeShadow(PAL.top)
+      const shadow = makeShadow(miniShadow)
       const parts = [mesh, hull, ...miniEyes, shadow.mesh]
       for (const p of parts) p.visible = false
       scene.add(mesh, hull, ...miniEyes)
@@ -1238,7 +1267,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (!key || toyMeshNow(key)) return
     const model = await loadToyMesh(key)
     if (!model || gone) return
-    const look = modelLook(ITEMS[key].spec, model, toy.rest, u, ink)
+    const look = modelLook(ITEMS[key].spec, model, toy.rest, u, itemMats)
     castShadows(look.group)
     const built = await renderer.compileAsync(look.group, camera, scene).then(() => true, () => false)
     if (!built || gone || !toys.includes(toy)) return look.dispose()
@@ -1250,11 +1279,21 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     look.update(toy.geo, toy.jelly)
     stage.requestRender()
   }
+  const shapeOf = (spec: ItemSpec): BodyShape => {
+    const { lo, hi } = itemBounds(spec)
+    // How round the body is: a ball meets you as a ball, a box at its corners; several parts fill their box loosely.
+    const round = spec.parts.length > 1 ? 0.55 : ROUND[spec.parts[0].shape]
+    return {
+      centre: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2],
+      half: [(hi[0] - lo[0]) / 2, (hi[1] - lo[1]) / 2, Math.max(0.04, (hi[2] - lo[2]) / 2)],
+      round,
+    }
+  }
   const addToy = (spec: ItemSpec, renew: boolean, height: number) => {
     const toy = makeToy(spec, renew)
     void dressToy(toy)
     toys.push(toy)
-    info.set(toy.jelly, { r: toy.r, m: toy.has('heavy') ? 4 : 1, toy })
+    info.set(toy.jelly, { r: toy.r, m: toy.has('heavy') ? 4 : 1, toy, shape: shapeOf(spec) })
     bodies.push(toy.jelly)
     seat(toy)
     toy.jelly.gravity = toyGravity(toy)
@@ -1264,7 +1303,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     return toy
   }
   const addFixture = (spec: ItemSpec) => {
-    const f = new Fixture(spec, u, ink)
+    const f = new Fixture(spec, itemMats)
     fixtures.push(f)
     scene.add(f.group)
     placeFixtures()
@@ -1307,7 +1346,6 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     scene.remove(toy.shadow.mesh)
     toy.look.dispose()
     toy.geo.dispose()
-    ;(toy.shadow.mesh.material as THREE.Material).dispose()
     changed()
   }
 
@@ -2012,7 +2050,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     // facing you: no folding round the grip, and the face stays in view.
     if (!flip && !spin) lim.upright = grabbed ? 0.6 : UPRIGHT
     lim.beta = flip ? 0.04 : LIM_BETA + (0.44 - LIM_BETA) * goo
-    lim.stiffness = LIM_STIFF + (0.095 - LIM_STIFF) * goo + (0.3 - LIM_STIFF) * firm
+    lim.stiffness = LIM_STIFF + (0.07 - LIM_STIFF) * goo + (0.3 - LIM_STIFF) * firm
     if (shaken > 1.6 && !grabbed) dizzy()
     prevV[0] = vbar[0]
     prevV[1] = vbar[1]
@@ -2131,6 +2169,28 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
   }
 
+  const ca: Vec3 = [0, 0, 0]
+  const cb: Vec3 = [0, 0, 0]
+  /** Where a body's shape is centred now, and how far it reaches along n (Lim: a low, wide ball). */
+  const reachOf = (body: Jelly, i: { r: number; shape?: BodyShape }, nx: number, ny: number, nz: number) =>
+    i.shape ? reachAlong(body, i.shape, nx, ny, nz) : i.r * (body === lim ? 1.16 : 1)
+  const centreOf = (body: Jelly, i: { shape?: BodyShape }, out: Vec3) => {
+    if (i.shape) return shapeCentre(body, i.shape, out)
+    out[0] = body.center[0]
+    // Lim is a gumdrop, widest at the base: its collision ball sits low
+    // and wide so toys are pushed clear of the skirt, not just the middle.
+    out[1] = body.center[1] - (body === lim ? 0.26 * lim.scale : 0)
+    out[2] = body.center[2]
+    return out
+  }
+  /** Lowest particle of a body pushed down by a contact back onto its floor (a sleeping toy has no sim to do it). */
+  const keepUp = (body: Jelly) => {
+    const ground = body.floor ?? 0
+    let low = ground
+    for (let i = 1; i < body.x.length; i += 3) if (body.x[i] < low) low = body.x[i]
+    if (low < ground) body.translate(0, ground - low, 0)
+  }
+
   const collide = () => {
     for (let a = 0; a < bodies.length; a++) {
       for (let b = a + 1; b < bodies.length; b++) {
@@ -2139,41 +2199,44 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         const ia = info.get(A)!
         const ib = info.get(B)!
         if (ia.toy?.asleep && ib.toy?.asleep) continue
-        // Lim is a gumdrop, widest at the base: its collision ball sits low
-        // and wide so toys are pushed clear of the skirt, not just the middle.
-        const low = A === lim ? 0.26 * lim.scale : 0
-        const dx = B.center[0] - A.center[0]
-        const dy = B.center[1] - (A.center[1] - low)
+        centreOf(A, ia, ca)
+        centreOf(B, ib, cb)
+        const dx = cb[0] - ca[0]
+        const dy = cb[1] - ca[1]
         // Depth counts for less against Lim, so a toy is pushed out to the side
         // of the silhouette instead of sitting in front of it.
-        const dz = (B.center[2] - A.center[2]) * (A === lim ? 0.35 : 1)
+        const dz = (cb[2] - ca[2]) * (A === lim ? 0.35 : 1)
         const dist = Math.hypot(dx, dy, dz)
-        const min = ia.r * (A === lim ? 1.16 : 1) + ib.r
-        if (dist >= min || dist < 1e-4) continue
+        if (dist < 1e-4) continue
+        const nx = dx / dist
+        const ny = dy / dist
+        const nz = dz / dist
+        // Each shape measured along the line between them: a rocket meets you nose first or side on.
+        const ra = reachOf(A, ia, nx, ny, nz)
+        const rb = reachOf(B, ib, -nx, -ny, -nz)
+        const min = ra + rb
+        if (dist >= min) continue
         // Lim opens wide for a bean in hand; don't shove it away from the mouth.
         if ((A === lim && ib.toy === held) || (B === lim && ia.toy === held)) continue
         // Nor the ball mid keepy-uppy: the header does that job.
         if (keepy && A === lim && ib.toy === keepy.toy) continue
         if (ia.toy) wakeToy(ia.toy)
         if (ib.toy) wakeToy(ib.toy)
-        const nx = dx / dist
-        const ny = dy / dist
-        const nz = dz / dist
         const wa = ib.m / (ia.m + ib.m)
         const wb = ia.m / (ia.m + ib.m)
         const pen = min - dist
         A.translate(-nx * pen * wa, -ny * pen * wa, -nz * pen * wa)
         B.translate(nx * pen * wb, ny * pen * wb, nz * pen * wb)
-        // Nothing gets pressed through the floor (a sleeping toy has no sim to push it back up).
-        for (const body of [A, B]) {
-          const ground = body.floor ?? 0
-          let low = ground
-          for (let i = 1; i < body.x.length; i += 3) if (body.x[i] < low) low = body.x[i]
-          if (low < ground) body.translate(0, ground - low, 0)
-        }
-        // Bounce apart, rub, and let the rub turn them (Lim keeps itself upright, so it only shoves).
+        // Nothing gets pressed through the floor.
+        if (ny > 0) keepUp(A)
+        if (ny < 0) keepUp(B)
+        // Where the two surfaces meet, now they are apart.
+        const px = ca[0] + nx * (ra - pen * wa)
+        const py = ca[1] + ny * (ra - pen * wa)
+        const pz = ca[2] + nz * (ra - pen * wa)
+        // Bounce apart, rub, and let the rub turn them about their real lever arms (Lim keeps itself upright, so it only shoves).
         const j = bodyImpulse(A, B, nx, ny, nz, {
-          wa, wb, ra: ia.r, rb: ib.r, restitution: 0.5, friction: 0.45, spinA: A !== lim, spinB: B !== lim,
+          wa, wb, ra, rb, restitution: 0.5, friction: 0.45, spinA: A !== lim, spinB: B !== lim,
         })
         if (j <= 0) continue
         if (A === lim && ib.toy && j > 2) quirkOf(ib.toy)?.hit?.(quirkStage, asQuirk(ib.toy), 'lim', j)
@@ -2182,20 +2245,17 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           quirkOf(ib.toy)?.hit?.(quirkStage, asQuirk(ib.toy), 'toy', j)
           if (j > 6 && t - lastClink > 0.25) {
             lastClink = t
-            clink(quirkStage, [A.center[0] + nx * ia.r, A.center[1] + ny * ia.r, A.center[2] + nz * ia.r])
+            clink(quirkStage, [px, py, pz])
           }
         }
         // Something small hitting Lim leaves a dent that rings, not a shove.
         if (A === lim && ib.toy?.has('prickly') && j > 1 && t - lastOuch > 1.4 && !grabbed) ouch(ib.toy)
         if (A === lim && j > 2) {
-          const cx = A.center[0] + nx * ia.r
-          const cy = A.center[1] - low + ny * ia.r
-          const cz = A.center[2] + nz * ia.r
-          lim.impulse([cx, cy, cz], [-nx * j * 0.9, -ny * j * 0.9, -nz * j * 0.9], 0.9)
+          lim.impulse([px, py, pz], [-nx * j * 0.9, -ny * j * 0.9, -nz * j * 0.9], 0.9)
           if (j > 7 && t - lastBonk > 0.3 && !grabbed) {
             lastBonk = t
             setAct('hit', 0.38)
-            sparkle(cx, cy, cz + 0.3, 5)
+            sparkle(px, py, pz + 0.3, 5)
             sound.bonk(Math.min(1, j / 14))
           }
         }
@@ -2578,7 +2638,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const k = 1 + lift * 0.35
     s.mesh.scale.set(size * k, size * 0.62 * k, 1)
     // Where the key casts real shadows, the blob is only the contact under the body.
-    s.strength.value = (keyShadows ? base * 0.55 : base) / (1 + lift * (keyShadows ? 4 : 1.6))
+    s.mesh.userData.strength = (keyShadows ? base * 0.55 : base) / (1 + lift * (keyShadows ? 4 : 1.6))
   }
 
   const updateCamera = (dt: number) => {
@@ -2641,6 +2701,49 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
   }
 
+  /**
+   * Builds every shader the stage may want later, now, behind the cover, so nothing compiles mid-play.
+   * Everything hidden is shown for a moment, and a probe per shared toy material sits behind the camera:
+   * each is drawn through every pass (shadow, the screen-space targets, the final image), which builds
+   * its pipelines without leaving a mark on the picture. Batched across frames so the page stays live.
+   */
+  const warm = async (report: (k: number) => void) => {
+    const ball = new THREE.SphereGeometry(0.05, 6, 4)
+    ball.setAttribute('rest', ball.attributes.position.clone())
+    ball.setAttribute('outline', new THREE.BufferAttribute(new Float32Array(ball.attributes.position.count).fill(0.01), 1))
+    const probes = [...itemMats.shaders(), toyShadowMat, miniMat, miniHull, miniShadow].map((m) => {
+      const mesh = new THREE.Mesh(ball, m)
+      mesh.frustumCulled = false
+      mesh.position.set(camera.position.x, camera.position.y, camera.position.z + 4)
+      castShadows(mesh)
+      return mesh
+    })
+    const shown: THREE.Object3D[] = []
+    scene.traverse((o) => {
+      if (o.visible) return
+      o.visible = true
+      shown.push(o)
+    })
+    const draw = () => (post ? post.render() : renderer.render(scene, camera))
+    const breathe = () => new Promise((done) => requestAnimationFrame(done))
+    await renderer.compileAsync(scene, camera)
+    report(0.3)
+    await breathe()
+    draw()
+    const BATCHES = 3
+    for (let b = 0; b < BATCHES; b++) {
+      const batch = probes.filter((_, i) => i % BATCHES === b)
+      scene.add(...batch)
+      await renderer.compileAsync(scene, camera)
+      await breathe()
+      draw()
+      scene.remove(...batch)
+      report(0.3 + (0.7 * (b + 1)) / BATCHES)
+    }
+    for (const o of shown) o.visible = false
+    ball.dispose()
+  }
+
   let first = true
   let anchorKey = ''
   const frame = (dt: number) => {
@@ -2687,6 +2790,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
       updateCamera(dt)
     }
+    const simmed = performance.now()
     easePlace(pu, site, dt > 0 ? 1 - Math.exp(-3.5 * dt) : 1)
     // With something to score in, step back far enough to see the whole court.
     const far = fixtures.length ? 1 : 0
@@ -2704,7 +2808,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (!popped) {
       // Lim is drawn as a smooth skin over the particles: all of the squash,
       // stretch and tumble, a soft-limited share of the ripples, never a crease.
-      skinJelly(limGeo, lim, flip ? 0.02 : 0.052 - 0.03 * Math.min(1, shaken), 0)
+      skinJelly(limGeo, lim, flip ? 0.02 : 0.066 - 0.04 * Math.min(1, shaken), 0)
       puffCheek()
       roundBase()
       syncJellyGeometry(limGeo)
@@ -2714,7 +2818,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     updateMinis()
     for (const toy of toys) {
       if (toy.asleep && !first) continue
-      skinJelly(toy.geo, toy.jelly, 0.045, toy.jelly.floor)
+      if (toy.look.skinned) skinJelly(toy.geo, toy.jelly, 0.045, toy.jelly.floor)
       toy.look.update(toy.geo, toy.jelly)
       toy.shadow.mesh.visible = !toy.worn && toy.look.group.visible
       updateShadow(toy.shadow, toy.jelly, 3.4 * toy.r * toy.jelly.scale, 0.24)
@@ -2723,12 +2827,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (!popped) tuftMesh.visible = tuftHull.visible = !hatOn
     weather.step(dt, t, { w: reach, h: topY }, camera, 0)
     lighting?.update(u.night.value)
+    const drawn = performance.now()
     if (post) post.render()
     else renderer.render(scene, camera)
     const sent = performance.now()
     note(cpuMs, sent - began)
     void gpuQueue?.onSubmittedWorkDone().then(() => note(gpuMs, performance.now() - sent))
-    if (import.meta.env.DEV) (window as { __limFrame?: () => void }).__limFrame?.()
+    if (import.meta.env.DEV) (window as { __limFrame?: (info: unknown, split: number[]) => void }).__limFrame?.(renderer.info.render, [simmed - began, drawn - simmed, sent - drawn])
     if (opts.onAnchor) {
       lim.attach(headTopRest, tmp)
       const [ax, ay] = toHost(tmp)
@@ -2747,6 +2852,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // Starter toys (or whatever was here last visit) drop in one after another, as their models if those come quickly.
   await Promise.race([models, new Promise((done) => setTimeout(done, 1500))])
+  opts.onProgress?.('toys', 0.35)
   for (const spec of startWith) if (fixtureKind(spec) && !fixtures.some((f) => f.kind === fixtureKind(spec))) addFixture(spec)
   startWith.filter((spec) => !fixtureKind(spec)).slice(0, MAX_ITEMS).forEach((spec, i) => {
     // Jelly beans grow back, so there is always something to feed Lim.
@@ -2759,10 +2865,33 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
   applyPlace()
   await Promise.race([lighting?.ready.catch(() => {}), new Promise((done) => setTimeout(done, 1500))])
-  await renderer.compileAsync(scene, camera)
+  opts.onProgress?.('light', 0.5)
+  await warm((k) => opts.onProgress?.('warm', 0.5 + 0.5 * k))
   opts.onTier?.(tier)
-  stage.start(frame)
-  if (!reducedMotion) {
+  // One still frame, so the page can show the stage the moment it is revealed.
+  frame(0)
+  /**
+   * Every catalog model, fetched and shaped one at a time while the page is idle, so a toy arrives as
+   * itself instead of as a jelly that turns into it. Skipped when the visitor asked to save data.
+   */
+  const prefetchModels = async () => {
+    if ((navigator as { connection?: { saveData?: boolean } }).connection?.saveData) return
+    const idle = () =>
+      new Promise<void>((done) => ('requestIdleCallback' in window ? requestIdleCallback(() => done(), { timeout: 1000 }) : setTimeout(done, 60)))
+    for (const key of MODELED) {
+      await idle()
+      if (gone) return
+      const mesh = await loadToyMesh(key)
+      if (mesh && !gone) itemMats.model(mesh, ITEMS[key].spec)
+    }
+  }
+  let entered = false
+  const enter = () => {
+    if (entered || gone) return
+    entered = true
+    stage.start(frame)
+    void prefetchModels()
+    if (reducedMotion) return
     // Entrance: pop, hop, shake it off, then look at you.
     jump(0, 4.2, 0, 0.18)
     later(0.95, () => {
@@ -3107,6 +3236,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       sparkle(tmp[0], Math.min(topY - 0.5, tmp[1] + 0.95), 0.5, 10, 1)
       sound.sparkle()
     },
+    enter,
     dispose() {
       gone = true
       clearTimeout(cheerTimer)

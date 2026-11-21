@@ -3,6 +3,7 @@ import { cleanup, render, waitFor } from '@testing-library/react'
 import type { LimSceneOptions } from '../scene/limScene'
 
 const scene = {
+  enter: vi.fn(),
   dispose: vi.fn(),
   setMood: vi.fn(),
   setNight: vi.fn(),

@@ -82,20 +82,34 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
     ray.setFromCamera(pointer.ndc, camera)
   }
 
+  /**
+   * The body under the pointer and the point of its surface you touched: of the particles the ray
+   * passes close to, the nearest along it. A bounding sphere only rules bodies out, so a long toy is
+   * not grabbed by the air beside it and a poke rings where it lands.
+   */
   const pick = (): { body: Jelly; point: THREE.Vector3 } | null => {
-    let best: { body: Jelly; point: THREE.Vector3 } | null = null
-    let bestD = Infinity
+    const { origin: o, direction: d } = ray.ray
+    let found: Jelly | null = null
+    let at = -1
+    let near = Infinity
     for (const body of bodies) {
       sphere.center.set(...body.center)
       sphere.radius = body.radius * pickScale
-      if (!ray.ray.intersectSphere(sphere, hit)) continue
-      const d = hit.distanceTo(ray.ray.origin)
-      if (d < bestD) {
-        bestD = d
-        best = { body, point: hit.clone() }
+      if (!ray.ray.intersectsSphere(sphere)) continue
+      const reach2 = (body.radius * 0.3) ** 2
+      const x = body.x
+      for (let i = 0; i < x.length; i += 3) {
+        const px = x[i] - o.x
+        const py = x[i + 1] - o.y
+        const pz = x[i + 2] - o.z
+        const t = px * d.x + py * d.y + pz * d.z
+        if (t <= 0 || t >= near || px * px + py * py + pz * pz - t * t > reach2) continue
+        near = t
+        found = body
+        at = i
       }
     }
-    return best
+    return found ? { body: found, point: hit.set(found.x[at], found.x[at + 1], found.x[at + 2]).clone() } : null
   }
 
   const poke = (body: Jelly, point: THREE.Vector3, strength = 1) => {

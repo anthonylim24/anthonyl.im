@@ -8,6 +8,7 @@ import { Effect } from 'effect'
 import { DecodeError, HttpStatusError } from '@/effect/errors'
 import { fetchExternal } from '@/effect/http'
 import { runPromise } from '@/effect/runtime'
+import type * as THREE from 'three/webgpu'
 import type { Jelly, Vec3 } from '../../three/jelly'
 import { cleanItem, ITEMS, type ItemSpec, type Part } from '../world/spec'
 
@@ -109,87 +110,35 @@ export function fitToyMesh(mesh: ToyMesh, spec: ItemSpec): Float32Array {
   return out
 }
 
-/** For each model vertex, the body particles within reach and their weights (a compressed row list). */
-export type SkinBind = { start: Uint32Array; near: Uint16Array; weight: Float32Array }
-
 /**
- * Weights fall smoothly to nothing at `reach`, so neighbouring vertices never part. They are shared
- * out where the model hugs the body and fade where it leaves it, so a stem or an ear rides rigidly.
+ * Where a model is now, as one affine map for its matrix: its rest shape through the body's turn,
+ * lean and squash (`jelly.attach`), with `wobble` of the particles' own squash and stretch blended in
+ * (`jelly.fit`), so a landing still squishes it. Lifted whole if a corner of `box` would dip under
+ * `floor`. The GPU applies it, so a toy costs the same each frame however detailed its model.
  */
-export function bindToBody(model: Float32Array, body: Float32Array, reach: number): SkinBind {
-  const count = model.length / 3
-  const r2 = reach * reach
-  const start = new Uint32Array(count + 1)
-  const near: number[] = []
-  const weight: number[] = []
-  for (let v = 0; v < count; v++) {
-    const x = model[v * 3]
-    const y = model[v * 3 + 1]
-    const z = model[v * 3 + 2]
-    const first = near.length
-    let total = 0
-    for (let p = 0; p < body.length; p += 3) {
-      const d2 = (body[p] - x) ** 2 + (body[p + 1] - y) ** 2 + (body[p + 2] - z) ** 2
-      if (d2 >= r2) continue
-      const w = (1 - d2 / r2) ** 3
-      near.push(p / 3)
-      weight.push(w)
-      total += w
+export function carryMatrix(jelly: Jelly, box: { lo: Vec3; hi: Vec3 }, floor: number, wobble: number, out: THREE.Matrix4) {
+  const { m, fit, squash, center, rest0 } = jelly
+  const e = out.elements
+  for (let row = 0; row < 3; row++) {
+    const s = squash[row] * jelly.scale
+    for (let col = 0; col < 3; col++) {
+      const k = row * 3 + col
+      // three's matrices are column-major.
+      e[col * 4 + row] = s * (m[k] + wobble * (fit[k] - m[k]))
     }
-    const share = 1 / Math.max(total, 1)
-    for (let j = first; j < weight.length; j++) weight[j] *= share
-    start[v + 1] = near.length
+    e[12 + row] = center[row] - e[row] * rest0[0] - e[4 + row] * rest0[1] - e[8 + row] * rest0[2]
   }
-  return { start, near: Uint16Array.from(near), weight: Float32Array.from(weight) }
-}
-
-/** How far a body's particles reach to carry the model: a few particle spacings. */
-export function reachOf(body: Float32Array, radius: number): number {
-  return 2.5 * Math.sqrt((4 * Math.PI * radius * radius) / (body.length / 3))
-}
-
-const ORIGIN: Vec3 = [0, 0, 0]
-const AXES: Vec3[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-const at0: Vec3 = [0, 0, 0]
-const cols: Vec3[] = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-
-/**
- * Where the model is now: its rest position through the body's turn, squash and stretch, plus its
- * weighted share of the drawn skin's give (`skin` minus the goal shape), lifted whole if it would
- * dip under `floor`. Allocates nothing.
- */
-export function carryToy(model: Float32Array, bind: SkinBind, jelly: Jelly, skin: ArrayLike<number>, out: Float32Array, floor: number) {
-  jelly.attach(ORIGIN, at0)
-  for (let k = 0; k < 3; k++) {
-    jelly.attach(AXES[k], cols[k])
-    cols[k][0] -= at0[0]
-    cols[k][1] -= at0[1]
-    cols[k][2] -= at0[2]
-  }
-  const [ax, ay, az] = cols
-  const { goal } = jelly
-  const { start, near, weight } = bind
+  e[3] = e[7] = e[11] = 0
+  e[15] = 1
   let low = Infinity
-  for (let v = 0, i = 0; i < out.length; v++, i += 3) {
-    const x = model[i]
-    const y = model[i + 1]
-    const z = model[i + 2]
-    let px = at0[0] + ax[0] * x + ay[0] * y + az[0] * z
-    let py = at0[1] + ax[1] * x + ay[1] * y + az[1] * z
-    let pz = at0[2] + ax[2] * x + ay[2] * y + az[2] * z
-    for (let j = start[v]; j < start[v + 1]; j++) {
-      const p = near[j] * 3
-      const w = weight[j]
-      px += w * (skin[p] - goal[p])
-      py += w * (skin[p + 1] - goal[p + 1])
-      pz += w * (skin[p + 2] - goal[p + 2])
-    }
-    out[i] = px
-    out[i + 1] = py
-    out[i + 2] = pz
-    if (py < low) low = py
+  for (let c = 0; c < 8; c++) {
+    const x = c & 1 ? box.hi[0] : box.lo[0]
+    const y = c & 2 ? box.hi[1] : box.lo[1]
+    const z = c & 4 ? box.hi[2] : box.lo[2]
+    low = Math.min(low, e[1] * x + e[5] * y + e[9] * z + e[13])
   }
-  if (low < floor) for (let i = 1; i < out.length; i += 3) out[i] += floor - low
+  if (low < floor) e[13] += floor - low
+  return out
 }
 
 const files = import.meta.glob<string>('../toys/*.mesh', { eager: true, query: '?url', import: 'default' })

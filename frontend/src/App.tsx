@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowDown, Moon, Plus, Sparkles, Sun, ToyBrick, Volume2, VolumeX } from "lucide-react";
 import { sx } from "./lib/utils";
@@ -8,13 +8,16 @@ import { useReducedMotion } from "./hooks/useReducedMotion";
 import { getPostHogConfig } from "./lib/analytics";
 import { syncThemeColor } from "./lib/themeColor";
 import { chatbot } from "./styles/chatbot.stylex";
+import { captionAfterCheer } from "./styles/limLoader.stylex";
 import { layout } from "./styles/common.stylex";
 import { useChat } from "./chat/useChat";
 import { MAKING_STEP_MS, makingLine, moodFor } from "./chat/chatMachine";
 import { Composer, type ComposerHandle } from "./chat/Composer";
 import { Transcript } from "./chat/Transcript";
 import { SUGGESTIONS, followUps, prefillFrom } from "./chat/suggestions";
-import { LimStage, type LimStageHandle } from "./chat/LimStage";
+import { LimStage, canRender3D, type LimStageHandle, type StageLoad } from "./chat/LimStage";
+import { LimLoader, LoadPill } from "./chat/LimLoader";
+import { blocking, initialLoader, loaderEvent, loaderReducer, revealed } from "./chat/loader";
 import { ToyCard, useThumbs } from "./chat/ToyCard";
 import { TOY_ART } from "./chat/toyArt";
 import { LimArt } from "./chat/LimArt";
@@ -62,6 +65,10 @@ const watchRoomy = (onChange: () => void) => {
   return () => mql.removeEventListener("change", onChange);
 };
 const isRoomy = () => hasMedia() && window.matchMedia(ROOMY).matches;
+/** The desktop layout, where the stage sits beside the chat rather than above it. */
+const isDesk = () => hasMedia() && window.matchMedia("(min-width: 1024px)").matches;
+/** The loading screen shows once per visit: coming back to `/` in this tab goes straight to the page. */
+let loaderSeen = false;
 
 const readStage = () => {
   try {
@@ -132,6 +139,8 @@ function App() {
   const stageRef = useRef<LimStageHandle>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const stageAreaRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const loaderRef = useRef<HTMLDivElement>(null);
   // Where a press on the grip began, and whether it has turned into a drag.
   const grip = useRef<{ from: number; moved: boolean } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -168,6 +177,9 @@ function App() {
   const [stageShare, setStageShare] = useState<number | null>(readStage);
   const [dragging, setDragging] = useState(false);
   const roomy = useSyncExternalStore(watchRoomy, isRoomy, () => true);
+  // Nothing to wait for without a GPU: the drawing is the stage, so the screen never shows.
+  const [loader, sendLoader] = useReducer(loaderReducer, loaderSeen || !canRender3D(), (seen) => initialLoader(performance.now(), seen));
+  const held = blocking(loader);
 
   const reducedMotion = useReducedMotion();
   const toyButtonRef = useRef<HTMLButtonElement>(null);
@@ -298,6 +310,28 @@ function App() {
       /* private mode */
     }
   }, [stageShare]);
+
+  const onLoad = useLatestCallback((load: StageLoad) => {
+    if (load.kind === "ready" && loader.phase !== "gone") setNotice("Lim's playground is ready.");
+    sendLoader(loaderEvent(load, performance.now()));
+  });
+  const skipLoader = useCallback(() => sendLoader({ type: "skip" }), []);
+  const loaderExited = useCallback(() => sendLoader({ type: "exited" }), []);
+
+  // The loading screen let go of the page: focus comes out of it (unless the visitor already moved it),
+  // into the composer when they chose to chat first. On a phone that would shrink the stage and raise
+  // the keyboard over the greeting, so there it lands on the conversation.
+  const loaderWas = useRef(loader.phase);
+  useEffect(() => {
+    const before = loaderWas.current;
+    loaderWas.current = loader.phase;
+    if (before !== "loading" || loader.phase === "loading") return;
+    loaderSeen = true;
+    const active = document.activeElement;
+    if (active && active !== document.body && !loaderRef.current?.contains(active)) return;
+    if (loader.phase === "chat-first" && isDesk()) composerRef.current?.focus();
+    else mainRef.current?.focus({ preventScroll: true });
+  }, [loader.phase]);
 
   // PostHog (deferred — bundle-defer-third-party)
   useEffect(() => {
@@ -466,6 +500,8 @@ function App() {
   const look = useCallback((el: Element) => stageRef.current?.lookAt(...center(el)), []);
 
   const empty = messages.length === 0;
+  // The loading pill has the caption's spot while the stage loads behind the chat.
+  const captionHidden = focused || !empty || played || loader.phase === "chat-first";
 
   /* ── Stage grip (phones) ── */
 
@@ -530,13 +566,14 @@ function App() {
         night ? "chatbot-dark" : "chatbot-shadow",
       )}
       style={rootStyle}
+      data-loader={loader.phase}
     >
-      <a href="#chat-main" {...sx(chatbot.skip)}>
+      <a href="#chat-main" inert={held} {...sx(chatbot.skip)}>
         Skip to conversation
       </a>
       <Backdrop />
 
-      <header {...sx(chatbot.top, focused && chatbot.topTucked)}>
+      <header inert={held} {...sx(chatbot.top, focused && chatbot.topTucked)}>
         <div {...sx(chatbot.brand)}>
           <LimArt mood={mood} {...sx(chatbot.brandMark)} />
           <div {...sx(chatbot.brandText)}>
@@ -608,14 +645,30 @@ function App() {
         </div>
       </header>
 
-      <div ref={stageAreaRef} {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
-        <LimStage ref={stageRef} mood={mood} night={night} graphics={graphics} onTier={setTier} onWorld={setWorld} onScore={onScore} />
-        <p {...sx(chatbot.stageCaption, (focused || !empty || played) && chatbot.stageCaptionHidden)}>
+      <div ref={stageAreaRef} inert={held} {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
+        <LimStage
+          ref={stageRef}
+          mood={mood}
+          night={night}
+          graphics={graphics}
+          onTier={setTier}
+          onWorld={setWorld}
+          onScore={onScore}
+          onLoad={onLoad}
+          revealed={revealed(loader)}
+        />
+        <p
+          {...sx(
+            chatbot.stageCaption,
+            captionHidden ? chatbot.stageCaptionHidden : loader.phase === "gone" && loader.late && captionAfterCheer.late,
+          )}
+        >
           psst — poke me, fling me, or feed me a bean
         </p>
+        <LoadPill state={loader} />
       </div>
 
-      <main id="chat-main" tabIndex={-1} {...sx(chatbot.panel)}>
+      <main ref={mainRef} id="chat-main" tabIndex={-1} inert={held} {...sx(chatbot.panel)}>
         <div
           role="separator"
           aria-orientation="horizontal"
@@ -793,6 +846,10 @@ function App() {
           }
         />
       </main>
+
+      {(loader.phase === "loading" || loader.phase === "leaving") && (
+        <LimLoader ref={loaderRef} state={loader} onSkip={skipLoader} onExited={loaderExited} />
+      )}
 
       <div role="status" aria-live="polite" {...sx(layout.srOnly)}>
         {announce}

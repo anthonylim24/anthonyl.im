@@ -65,13 +65,13 @@ export async function createThumbs(opts: { night: boolean; reducedMotion: boolea
     const pivot = new THREE.Group()
     let dispose: () => void
     if (fixtureKind(spec)) {
-      const f = new Fixture(spec, u, ink)
+      const f = new Fixture(spec, mats)
       f.place(0, 1.7)
       // Face the opening toward the viewer's left, like on the stage.
       pivot.add(f.group)
       dispose = () => f.dispose()
     } else {
-      const m = buildItemModel(spec, u, mats)
+      const m = buildItemModel(spec, mats)
       pivot.add(m.group)
       dispose = () => m.dispose()
     }

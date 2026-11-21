@@ -7,9 +7,11 @@
  * small step, with Coulomb-style friction and restitution, and keeps an inner
  * core sphere out as well so a fast body cannot tunnel through a thin one.
  *
- * `bodyImpulse` is the velocity half of a contact between two bodies treated
- * as spheres: restitution along the normal, friction across it, and the spin
- * that friction puts on each body.
+ * `reachAlong` measures a body's shape (a rounded box carried by its turn and
+ * squash) along a contact normal, so bodies meet where their surfaces do.
+ * `bodyImpulse` is the velocity half of a contact between two bodies:
+ * restitution along the normal, friction across it, and the spin that
+ * friction puts on each body about its lever arm.
  *
  * Pure math, no allocation per call.
  */
@@ -180,6 +182,32 @@ export type ContactOptions = {
  * them. Returns the normal impulse (as a closing speed), 0 if they were
  * already separating.
  */
+/**
+ * A body's collision shape: the box its parts fill, about `centre` (in the body's rest coordinates)
+ * with half sizes `half`, rounded toward the ellipsoid inside it by `round` (0 a box, 1 an ellipsoid).
+ */
+export type BodyShape = { centre: Vec3; half: Vec3; round: number }
+
+/** Where `shape`'s centre is now: carried by the body's goal (its turn, squash and scale). */
+export const shapeCentre = (jelly: Jelly, shape: BodyShape, out: Vec3): Vec3 => jelly.attach(shape.centre, out)
+
+/** How far `shape`, as the body now carries it, reaches from its centre along the unit direction n. */
+export function reachAlong(jelly: Jelly, shape: BodyShape, nx: number, ny: number, nz: number): number {
+  const { m, squash, scale } = jelly
+  const sx = squash[0] * scale * nx
+  const sy = squash[1] * scale * ny
+  const sz = squash[2] * scale * nz
+  let l1 = 0
+  let l2 = 0
+  for (let c = 0; c < 3; c++) {
+    // Each half-axis, turned and squashed into the world, projected on n.
+    const p = shape.half[c] * (m[c] * sx + m[3 + c] * sy + m[6 + c] * sz)
+    l1 += Math.abs(p)
+    l2 += p * p
+  }
+  return l1 + shape.round * (Math.sqrt(l2) - l1)
+}
+
 export function bodyImpulse(A: Jelly, B: Jelly, nx: number, ny: number, nz: number, o: ContactOptions): number {
   A.velocity(va)
   B.velocity(vb)

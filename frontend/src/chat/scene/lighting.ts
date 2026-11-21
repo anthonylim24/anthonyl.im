@@ -23,7 +23,8 @@ export type Lighting = {
   dispose(): void
 }
 
-const DAY = { env: 0.6, key: 1.6, front: 0.5, fill: 0.2, rim: 0.8 }
+// Bright and cartoonish: a strong ambient and fill keep the shadow sides light, as an animated short would.
+const DAY = { env: 0.78, key: 1.6, front: 0.55, fill: 0.38, rim: 0.8 }
 const NIGHT = { env: 0.34, key: 0.85, front: 0.5, fill: 0.35, rim: 1.4 }
 
 export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURenderer, { mobile, shadows }: { mobile: boolean; shadows: boolean }): Lighting {
@@ -48,7 +49,7 @@ export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURendere
   key.shadow.radius = 5
   scene.add(lights)
 
-  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), new THREE.ShadowNodeMaterial({ color: new THREE.Color(PAL.shadow), opacity: 0.42, depthWrite: false }))
+  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), new THREE.ShadowNodeMaterial({ color: new THREE.Color(PAL.shadow), opacity: 0.34, depthWrite: false }))
   catcher.rotation.x = -Math.PI / 2
   catcher.position.set(0, -0.04, 3)
   catcher.receiveShadow = true
@@ -77,7 +78,7 @@ export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURendere
       front.intensity = k(DAY.front, NIGHT.front)
       fill.intensity = k(DAY.fill, NIGHT.fill)
       rim.intensity = k(DAY.rim, NIGHT.rim)
-      ;(catcher.material as THREE.ShadowNodeMaterial).opacity = k(0.42, 0.6)
+      ;(catcher.material as THREE.ShadowNodeMaterial).opacity = k(0.34, 0.6)
     },
     dispose() {
       scene.remove(lights, catcher)
