@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useState } from "react"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { UndoMark } from "../../editorMachine"
 import type { Trip, TripExpense } from "../../types"
@@ -29,20 +30,33 @@ function expense(overrides: Partial<TripExpense> = {}): TripExpense {
   }
 }
 
+/** The address bar, for the deep-link tests. */
+function Address() {
+  const location = useLocation()
+  return <output data-testid="address">{location.search}</output>
+}
+
 /** The panel over a live copy of the trip, the way the workspace drives it. */
 function renderPanel(
   initial: Trip,
-  props: { editable?: boolean; locked?: boolean; viewer?: Viewer; onOpenItem?: (dayId: string, itemId: string) => void } = {},
+  props: {
+    editable?: boolean
+    locked?: boolean
+    viewer?: Viewer
+    onOpenItem?: (dayId: string, itemId: string) => void
+    /** Where the workspace is, e.g. "/trips/lisbon?tab=budget&add=expense". */
+    at?: string
+  } = {},
 ) {
   const edits: Array<{ before: Trip; after: Trip; mark?: UndoMark }> = []
   let current = initial
-  function Harness() {
+  function Harness({ locked }: { locked: boolean }) {
     const [trip, setTrip] = useState(initial)
     return (
       <BudgetPanel
         trip={trip}
         editable={props.editable ?? true}
-        locked={props.locked ?? false}
+        locked={locked}
         viewer={props.viewer ?? viewer}
         onOpenItem={props.onOpenItem}
         onEdit={(fn, mark) => {
@@ -54,8 +68,14 @@ function renderPanel(
       />
     )
   }
-  render(<Harness />)
-  return { edits, latest: () => current }
+  const tree = (locked: boolean) => (
+    <MemoryRouter initialEntries={[props.at ?? "/trips/lisbon?tab=budget"]}>
+      <Harness locked={locked} />
+      <Address />
+    </MemoryRouter>
+  )
+  const view = render(tree(props.locked ?? false))
+  return { edits, latest: () => current, setLocked: (locked: boolean) => view.rerender(tree(locked)) }
 }
 
 describe("BudgetPanel", () => {
@@ -316,5 +336,45 @@ describe("BudgetPanel", () => {
     expect(screen.getByRole("button", { name: "Log an expense" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Change budget" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Edit “Lunch”, €30" })).toBeDisabled()
+  })
+
+  it("opens the new-expense form from ?add=expense and drops it from the address", async () => {
+    renderPanel(makeTrip(), { at: "/trips/lisbon?tab=budget&add=expense" })
+    expect(await screen.findByRole("form", { name: "Log an expense" })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent(/^\?tab=budget$/))
+  })
+
+  it("holds ?add=expense while the trip is locked, then opens the form", async () => {
+    const { setLocked } = renderPanel(makeTrip({ expenses: [expense()] }), { at: "/trips/lisbon?tab=budget&add=expense", locked: true })
+    expect(screen.queryByRole("form", { name: "Log an expense" })).toBeNull()
+    expect(screen.getByTestId("address")).toHaveTextContent("add=expense")
+    setLocked(false)
+    expect(await screen.findByRole("form", { name: "Log an expense" })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId("address")).not.toHaveTextContent("add=expense"))
+  })
+
+  it("ignores ?add=expense for a viewer", async () => {
+    renderPanel(makeTrip({ expenses: [expense()] }), { at: "/trips/lisbon?tab=budget&add=expense", editable: false })
+    await waitFor(() => expect(screen.getByTestId("address")).not.toHaveTextContent("add=expense"))
+    expect(screen.queryByRole("form")).toBeNull()
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0)
+  })
+
+  it("lets an Enter that confirms a composed word through without logging", () => {
+    const { edits } = renderPanel(makeTrip())
+    fireEvent.click(screen.getByRole("button", { name: "Log an expense" }))
+    const form = screen.getByRole("form", { name: "Log an expense" })
+    const title = within(form).getByPlaceholderText("Dinner, train tickets, museum…")
+    expect(title).toHaveAttribute("maxLength", "200")
+    const composingEnter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true })
+    title.dispatchEvent(composingEnter)
+    expect(composingEnter.defaultPrevented).toBe(true)
+    const safariEnter = new KeyboardEvent("keydown", { key: "Enter", keyCode: 229, bubbles: true, cancelable: true })
+    title.dispatchEvent(safariEnter)
+    expect(safariEnter.defaultPrevented).toBe(true)
+    const plainEnter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+    title.dispatchEvent(plainEnter)
+    expect(plainEnter.defaultPrevented).toBe(false)
+    expect(edits).toHaveLength(0)
   })
 })

@@ -3,8 +3,9 @@ import { Trash2 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { ws } from "../workspace.stylex"
+import { holdEnterWhileComposing } from "../ime"
 import type { TripBudget } from "../types"
-import { formatMoney, minorDigits, parseAmount, roundMinor, type BudgetSummary } from "./budget"
+import { AMOUNT_TEXT_MAX, formatMoney, minorDigits, parseAmount, roundMinor, type BudgetSummary } from "./budget"
 import { b } from "./budget.stylex"
 import { AMOUNT_HINT, CurrencySelect } from "./CostField"
 import { useAmountDraft } from "./useAmountDraft"
@@ -189,6 +190,7 @@ function BudgetForm({
         onSave({ currency, ...(amount !== undefined ? { total: roundMinor(amount, currency) } : {}) })
       }}
       onKeyDown={(event) => {
+        holdEnterWhileComposing(event)
         if (event.key === "Escape") {
           event.stopPropagation()
           onCancel()
@@ -206,6 +208,7 @@ function BudgetForm({
             inputMode="decimal"
             autoComplete="off"
             autoFocus
+            maxLength={AMOUNT_TEXT_MAX}
             value={draft.text}
             disabled={disabled}
             placeholder={minorDigits(currency) === 0 ? "2,000,000" : "2,000"}

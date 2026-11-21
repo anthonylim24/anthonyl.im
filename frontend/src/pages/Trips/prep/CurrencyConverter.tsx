@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
-import { formatAmountInput, minorDigits } from "../budget/budget"
+import { AMOUNT_TEXT_MAX, formatAmountInput, minorDigits } from "../budget/budget"
 import { CurrencySelect } from "../budget/CostField"
 import { loadRates } from "../budget/rates"
 import { converted, rateReference, type Side } from "./conversion"
@@ -53,7 +53,7 @@ export function CurrencyConverter({ local, home, onHome }: { local: string; home
           type="text"
           inputMode="decimal"
           autoComplete="off"
-          maxLength={18}
+          maxLength={AMOUNT_TEXT_MAX}
           disabled={!ready}
           placeholder={minorDigits(code) === 0 ? "0" : "0.00"}
           value={value(side)}

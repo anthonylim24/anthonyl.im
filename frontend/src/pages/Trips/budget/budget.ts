@@ -1,3 +1,4 @@
+import { LIMITS } from "../limits"
 import type { ExpenseCategory, ItineraryItem, Trip, TripExpense, TripPerson } from "../types"
 
 // Budget maths for a trip: money formatting, the destination's currency, the
@@ -14,10 +15,12 @@ export type Rates = Readonly<Record<string, number>>
 // ── Limits (mirror server/src/trips/types.ts, so a save is never rejected) ──
 
 export const MAX_AMOUNT = 1_000_000_000
-export const TITLE_MAX = 200
-export const NAME_MAX = 80
+export const TITLE_MAX = LIMITS.expenseTitle
+export const NAME_MAX = LIMITS.personName
+/** Characters an amount field takes: "1,000,000,000.00" with room for a symbol and spaces. */
+export const AMOUNT_TEXT_MAX = 24
 const ID_MAX = 64
-const NOTES_MAX = 2000
+const NOTES_MAX = LIMITS.expenseNotes
 const SPLIT_MAX = 50
 const CODE = /^[A-Z]{3}$/
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -563,24 +566,86 @@ export interface Transfer {
   amount: number
 }
 
+/** Balances (people not yet square) up to this many are settled in the fewest transfers; 2^n subsets are weighed. */
+const EXACT_SETTLE = 12
+
+interface Units {
+  id: string
+  /** Net in the currency's minor units: positive when owed. */
+  units: number
+}
+
+const byId = (x: { id: string }, y: { id: string }) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)
+
 /**
- * Settle the balances with few transfers: the largest debtor pays the largest
- * creditor until everyone is square (at most one fewer transfer than people).
+ * Settle the balances in as few transfers as possible. Everyone square can be
+ * split into groups that each settle among themselves; a group of k people
+ * needs k − 1 transfers, so the fewest transfers come from the most groups
+ * (Ann owed 6 by Bo and Cy, 3 each, and Di owed 4 by Ed: three transfers,
+ * where paying the largest debt first would take four). Up to `EXACT_SETTLE`
+ * open balances the grouping is exact; past that, one group. Inside a group
+ * the largest debtor pays the largest creditor until it is square.
+ *
  * Works in the currency's minor units, so no transfer is under one cent (or
  * one won), and the rounding remainder is absorbed by the largest balance.
  */
 export function settleUp(list: readonly Balance[], currency: string): Transfer[] {
   const scale = 10 ** minorDigits(currency)
-  const entries = list.map((b) => ({ id: b.personId, units: Math.round(b.net * scale) }))
-  const byId = (x: { id: string }, y: { id: string }) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)
+  const entries: Units[] = list.map((b) => ({ id: b.personId, units: Math.round(b.net * scale) }))
   const drift = entries.reduce((sum, e) => sum + e.units, 0)
   if (drift !== 0 && entries.length > 0) {
     const largest = [...entries].sort((x, y) => Math.abs(y.units) - Math.abs(x.units) || byId(x, y))[0]
     largest.units -= drift
   }
-  let debtors = entries.filter((e) => e.units < 0).map((e) => ({ id: e.id, units: -e.units }))
-  let creditors = entries.filter((e) => e.units > 0).map((e) => ({ ...e }))
-  const largestFirst = (x: { id: string; units: number }, y: { id: string; units: number }) => y.units - x.units || byId(x, y)
+  const open = entries.filter((e) => e.units !== 0)
+  const groups = open.length <= EXACT_SETTLE ? zeroSumGroups(open) : [open]
+  const peak = (group: readonly Units[]) => [...group].sort((x, y) => Math.abs(y.units) - Math.abs(x.units) || byId(x, y))[0]
+  groups.sort((x, y) => Math.abs(peak(y).units) - Math.abs(peak(x).units) || byId(peak(x), peak(y)))
+  return groups.flatMap((group) => largestFirstTransfers(group, scale))
+}
+
+/**
+ * The most groups that each sum to zero, splitting `entries` (which sum to
+ * zero). best[mask] is the most zero-sum groups the people in `mask` can be
+ * peeled into, one person at a time; each time what is left sums to zero, a
+ * group has closed (the "optimal account balancing" subset recurrence).
+ */
+function zeroSumGroups(entries: readonly Units[]): Units[][] {
+  const n = entries.length
+  if (n === 0) return []
+  const full = (1 << n) - 1
+  // Float64: minor units of a large trip in won can pass 2^31; integers stay exact to 2^53.
+  const sum = new Float64Array(full + 1)
+  const best = new Uint8Array(full + 1)
+  for (let mask = 1; mask <= full; mask++) {
+    const low = mask & -mask
+    sum[mask] = sum[mask ^ low] + entries[31 - Math.clz32(low)].units
+    let most = 0
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) most = Math.max(most, best[mask ^ (1 << i)])
+    best[mask] = most + (sum[mask] === 0 ? 1 : 0)
+  }
+  const groups: Units[][] = []
+  let mask = full
+  let start = full
+  while (mask !== 0) {
+    const closes = sum[mask] === 0 ? 1 : 0
+    let i = 0
+    while (i < n && (!(mask & (1 << i)) || best[mask ^ (1 << i)] !== best[mask] - closes)) i++
+    if (i === n) return [[...entries]] // unreachable: some person always lies on a best path
+    mask ^= 1 << i
+    if (sum[mask] === 0) {
+      groups.push(entries.filter((_, j) => (start ^ mask) & (1 << j)))
+      start = mask
+    }
+  }
+  return groups
+}
+
+/** Square one group: the largest debtor pays the largest creditor, again and again. */
+function largestFirstTransfers(group: readonly Units[], scale: number): Transfer[] {
+  let debtors = group.filter((e) => e.units < 0).map((e) => ({ id: e.id, units: -e.units }))
+  let creditors = group.filter((e) => e.units > 0).map((e) => ({ ...e }))
+  const largestFirst = (x: Units, y: Units) => y.units - x.units || byId(x, y)
   const transfers: Transfer[] = []
   while (debtors.length > 0 && creditors.length > 0) {
     debtors.sort(largestFirst)

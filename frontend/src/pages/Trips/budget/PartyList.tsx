@@ -3,6 +3,7 @@ import { Plus, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { share, ws } from "../workspace.stylex"
+import { holdEnterWhileComposing } from "../ime"
 import type { TripPerson } from "../types"
 import { NAME_MAX, personLabel, type Viewer } from "./budget"
 import { b } from "./budget.stylex"
@@ -99,6 +100,7 @@ export function PartyList({
       {editable && (
         <form
           {...sx(b.addRow)}
+          onKeyDown={holdEnterWhileComposing}
           onSubmit={(event) => {
             event.preventDefault()
             const trimmed = name.trim()
