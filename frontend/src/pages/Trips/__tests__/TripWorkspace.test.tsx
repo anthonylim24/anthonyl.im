@@ -567,6 +567,8 @@ describe("TripWorkspace", () => {
         "Add places from Instagram",
         "Trip details",
         "Export to calendar",
+        "Print itinerary",
+        "Copy itinerary",
         "Duplicate trip",
         "Delete trip…",
       ])
@@ -1031,8 +1033,20 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
       expect(within(screen.getByRole("region", { name: "Day by day" })).getByText("Nothing planned")).toBeInTheDocument()
+    })
+
+    it("copies the itinerary as text and says so", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+      renderWorkspace("/trips/lisbon")
+      fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy itinerary" }))
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+      expect(writeText.mock.calls[0]![0]).toContain("Lisbon Long Weekend")
+      expect(await screen.findAllByText("Itinerary copied")).not.toHaveLength(0)
     })
 
     it("hides editing controls on a day", async () => {
@@ -1063,7 +1077,7 @@ describe("TripWorkspace", () => {
       expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
       expect(mockUpdateTrip).not.toHaveBeenCalled()
     })
 
@@ -1073,7 +1087,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText("View only")).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
     })
   })
 
@@ -1095,7 +1109,7 @@ describe("TripWorkspace", () => {
     it("has no Delete for a trip shared with everyone", async () => {
       renderWorkspace("/trips/lisbon", planned({ sharedWithAllUsers: true }))
       fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
     })
   })
 

@@ -47,6 +47,8 @@ import { OverviewPanel } from "./workspace/OverviewPanel"
 import { OverviewTabs } from "./workspace/OverviewTabs"
 import { OVERVIEW_TABS, readOverviewTab, type OverviewTab } from "./workspace/overviewTab"
 import { calendarMenuItem } from "./calendar/calendarMenu"
+import { copyMenuItem, printMenuItem } from "./print/printMenu"
+import { usePrintItinerary } from "./print/usePrintItinerary"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import { a } from "./atlas.stylex"
 import { share, ws as s } from "./workspace.stylex"
@@ -221,6 +223,17 @@ function Workspace() {
   if (view === "map" && !mapOpened) setMapOpened(true)
   /** Spoken confirmations (Undo, Redo) for screen readers. */
   const [announce, setAnnounce] = useState("")
+  /** A short visible confirmation ("Itinerary copied"); screen readers get `announce`. */
+  const [flash, setFlash] = useState<{ text: string; n: number } | null>(null)
+  const confirm = useCallback((text: string) => {
+    setAnnounce(text)
+    setFlash((last) => ({ text, n: (last?.n ?? 0) + 1 }))
+  }, [])
+  useEffect(() => {
+    if (!flash) return
+    const timer = setTimeout(() => setFlash(null), 3500)
+    return () => clearTimeout(timer)
+  }, [flash])
   const aliveRef = useRef(true)
   useEffect(() => {
     aliveRef.current = true
@@ -232,6 +245,7 @@ function Workspace() {
   const { trip, editable, locked } = editor
   const ai = editor.ai
   const forecast = useForecast(trip)
+  const printer = usePrintItinerary(trip)
 
   // The newest undo step offers a toast when it was a destructive change.
   // An older step coming back to the top (after an Undo) does not.
@@ -605,6 +619,8 @@ function Workspace() {
       ? [{ label: "Trip details", icon: <Settings2 size={16} strokeWidth={1.75} aria-hidden />, disabled: locked, onSelect: () => setDialog("details") }]
       : []),
     calendarMenuItem(trip),
+    printMenuItem(printer),
+    copyMenuItem(trip, confirm),
     {
       label: "Duplicate trip",
       icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,
@@ -872,7 +888,8 @@ function Workspace() {
       <p {...sx(a.srOnly)} role="status" aria-live="polite">
         {announce}
       </p>
-      {(toast || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
+      {printer.node}
+      {(toast || flash || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
         <div {...sx(s.dock)}>
           {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={undoLast} onExpire={expireToast} />}
           {sync.k === "conflict" && (
@@ -920,6 +937,11 @@ function Workspace() {
               <button type="button" {...sx(s.dockBtn)} onClick={() => setOverlayProblem(null)}>
                 Dismiss
               </button>
+            </div>
+          )}
+          {flash && (
+            <div key={flash.n} {...sx(s.dockItem)} aria-hidden>
+              <span {...sx(a.grow, a.wrap)}>{flash.text}</span>
             </div>
           )}
           {editor.notice && (

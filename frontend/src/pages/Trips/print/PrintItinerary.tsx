@@ -194,7 +194,12 @@ export function PrintItinerary({ trip, onDone }: { trip: Trip; onDone: () => voi
         if (dead) return
         const color = ACCENT_FILL[doc.accent]
         cancel = renderStills(
-          doc.stills.map((still) => ({ ...still, color })),
+          doc.stills.map((still) => ({
+            ...still,
+            color,
+            labels: still.key === TRIP_STILL ? undefined : still.points.map((_, i) => String(i + 1)),
+            labelColor: inkOn(color),
+          })),
           false,
           (key, url) => {
             if (dead) return
