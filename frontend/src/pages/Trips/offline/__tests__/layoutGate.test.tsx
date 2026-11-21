@@ -136,7 +136,9 @@ describe("the Trips sign-in gate and this device", () => {
     Object.assign(auth, { isLoaded: true, isSignedIn: false, userId: null, status: "ready" })
     open()
     expect(await screen.findByRole("button", { name: "Sign in to continue" })).toBeInTheDocument()
-    await waitFor(() => expect(store.size()).toBe(0))
+    // Only the owner's name stays, for any unsaved edits to find their way back.
+    await waitFor(() => expect(store.size()).toBe(1))
+    expect(await deviceOwner(store)).toBe("user_1")
   })
 
   it("signed out while offline: keeps the trips (it may not be a real sign-out) but shows none without a session", async () => {

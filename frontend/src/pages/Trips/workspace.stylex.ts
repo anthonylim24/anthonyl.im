@@ -1241,7 +1241,7 @@ export const ws = stylex.create({
     cursor: "pointer",
     position: "relative",
     outline: "none",
-    "::after": { content: '""', position: "absolute", inset: "-0.5rem" },
+    "::after": { content: '""', position: "absolute", inset: "-0.625rem" },
     ":focus-visible": { boxShadow: "0 0 0 2px var(--brand-ring)" },
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)" } },
   },

@@ -115,8 +115,9 @@ describe("the editor and this device", () => {
     mockGetTrip.mockResolvedValue({ trip: server, access: "owner" })
     open(d)
     await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledWith(expect.any(Function), "t1", expect.objectContaining({ name: "Lisbon and Porto" })))
-    expect(editor().notice).toBe("Brought back edits made on this device that hadn’t been saved. Saving them now.")
     await waitFor(() => expect(editor().sync.k).toBe("clean"))
+    // Saved: the notice says so, no longer "Saving them now".
+    await waitFor(() => expect(editor().notice).toBe("Saved the edits brought back from this device."))
     await waitFor(async () => expect(await readDraft(d.store, "u1", "t1")).toBeNull())
   })
 

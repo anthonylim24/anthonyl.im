@@ -35,6 +35,9 @@ import type { EnhancementRun, GeneratePreferences, ItineraryItem, Trip, TripColl
 const SAVE_DEBOUNCE_MS = 900
 /** Unsaved edits are written to the device this long after the last keystroke (and at once when the page hides). */
 const DRAFT_DEBOUNCE_MS = 400
+const REPLAYING = "Brought back edits made on this device that hadn’t been saved. Saving them now."
+const REPLAYED = "Saved the edits brought back from this device."
+
 /** The server's copy is kept on the device this long after it last changed. */
 const KEEP_COPY_MS = 1_500
 /** A save that failed for want of an answer is tried again after 5 s, doubling to a minute. */
@@ -142,7 +145,11 @@ export function useTripEditor() {
             if (draft && outcome !== "nothing") dispatch({ type: "RESTORE_DRAFT", doc: draft.doc, base: draft.base })
           })
           if (draft && outcome === "nothing" && owner) void dropDraft(store, owner, loaded.id)
-          if (outcome === "replay") setNotice("Brought back edits made on this device that hadn’t been saved. Saving them now.")
+          if (outcome === "replay") {
+            // The save that sends them turns this into REPLAYED, like a save problem's notice is taken down.
+            saveNoticeRef.current = REPLAYING
+            setNotice(REPLAYING)
+          }
           if (outcome === "conflict") setNotice("Edits made on this device weren’t saved, and someone has since changed the same thing. Choose whose version to keep.")
         },
         (err: unknown) => {
@@ -285,7 +292,7 @@ export function useTripEditor() {
         // Say what had to be cut to fit; the problem an earlier notice named is over.
         const stale = saveNoticeRef.current
         saveNoticeRef.current = null
-        setNotice((current) => fitted ?? (current !== null && current === stale ? null : current))
+        setNotice((current) => fitted ?? (current !== null && current === stale ? (current === REPLAYING ? REPLAYED : null) : current))
         return saved
       },
       (err: unknown) => {

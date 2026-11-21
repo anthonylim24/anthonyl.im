@@ -56,8 +56,16 @@ export async function claimDevice(store: DeviceStore, userId: string): Promise<v
   await store.set(OWNER_KEY, userId)
 }
 
-/** Signed out: forget every trip and edit kept here. */
-export const forgetDevice = (store: DeviceStore) => store.clear()
+/**
+ * Signed out: forget every trip and list kept here. Edits that never reached
+ * the server stay, for the same account to send once it signs back in (a
+ * session that lapsed mid-trip loses nothing); they are only ever read for
+ * that account, and another account signing in clears them with the rest.
+ */
+export async function forgetDevice(store: DeviceStore): Promise<void> {
+  const keys = await store.keys()
+  await Promise.all(keys.filter((key) => key !== OWNER_KEY && !key.includes(":draft:")).map((key) => store.delete(key)))
+}
 
 // Index writes read, change and write one record; two at once would lose
 // one entry, so they take turns.

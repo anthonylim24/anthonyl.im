@@ -72,13 +72,20 @@ describe("trips kept on this device", () => {
     expect(store.size()).toBe(1)
   })
 
-  it("signing out forgets everything", async () => {
+  it("signing out forgets the kept trips and list, but not edits that never reached the server", async () => {
     const store = memoryStore()
     await claimDevice(store, "u1")
     await keepTrip(store, "u1", makeTrip({ id: "t1" }))
+    await keepList(store, "u1", [])
+    await keepDraft(store, "u1", { doc: makeTrip({ id: "t2", name: "Unsaved" }), base: makeTrip({ id: "t2" }), savedAt: 1 })
     await forgetDevice(store)
-    expect(await deviceOwner(store)).toBeNull()
-    expect(store.size()).toBe(0)
+    expect((await readTrip(store, "u1", "t1")).copy).toBeNull()
+    expect(await readList(store, "u1")).toBeNull()
+    expect((await readDraft(store, "u1", "t2"))?.doc.name).toBe("Unsaved")
+    expect(await deviceOwner(store)).toBe("u1")
+    // Another account signing in still clears them.
+    await claimDevice(store, "u2")
+    expect(await readDraft(store, "u1", "t2")).toBeNull()
   })
 
   it("a device that keeps nothing reads as empty", async () => {

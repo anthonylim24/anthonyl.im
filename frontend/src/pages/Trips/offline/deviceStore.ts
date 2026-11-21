@@ -8,7 +8,9 @@ export interface DeviceStore {
   get<T>(key: string): Promise<T | null>
   set(key: string, value: unknown): Promise<void>
   delete(key: string): Promise<void>
-  /** Forget everything (sign-out, another account). */
+  /** Every key kept. */
+  keys(): Promise<string[]>
+  /** Forget everything (another account). */
   clear(): Promise<void>
 }
 
@@ -17,6 +19,7 @@ export const noStore: DeviceStore = {
   get: async () => null,
   set: async () => undefined,
   delete: async () => undefined,
+  keys: async () => [],
   clear: async () => undefined,
 }
 
@@ -27,6 +30,7 @@ export function memoryStore(): DeviceStore & { size: () => number } {
     get: async <T>(key: string) => (map.has(key) ? (structuredClone(map.get(key)) as T) : null),
     set: async (key, value) => void map.set(key, structuredClone(value)),
     delete: async (key) => void map.delete(key),
+    keys: async () => [...map.keys()],
     clear: async () => map.clear(),
     size: () => map.size,
   }
@@ -79,6 +83,7 @@ export function indexedDbStore(): DeviceStore {
     get: <T>(key: string) => run<T | null>("readonly", (s) => s.get(key), null),
     set: (key, value) => run("readwrite", (s) => s.put(value, key), undefined).then(() => undefined),
     delete: (key) => run("readwrite", (s) => s.delete(key), undefined).then(() => undefined),
+    keys: () => run<IDBValidKey[]>("readonly", (s) => s.getAllKeys(), []).then((keys) => keys.filter((key): key is string => typeof key === "string")),
     clear: () => run("readwrite", (s) => s.clear(), undefined).then(() => undefined),
   }
 }
