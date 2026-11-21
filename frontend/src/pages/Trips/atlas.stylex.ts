@@ -140,7 +140,7 @@ export const a = stylex.create({
   },
   btnDanger: {
     backgroundColor: "var(--trips-danger)",
-    color: "#ffffff",
+    color: "var(--trips-on-danger)",
   },
   // Looks 36px tall; the ::after band makes the target 44px (WCAG 2.5.5).
   btnSm: {
