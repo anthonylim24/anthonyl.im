@@ -1,11 +1,19 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { ArrowRight, ChevronRight, Sparkles } from "lucide-react"
+import { ArrowRight, ChevronRight, ClipboardPaste, PenLine, Plus, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { formatClock, formatTripDate, itemIcon, STATUS_LABEL, titleCase, todayIsoIn } from "../meta"
+import { formatTripDate, STATUS_LABEL, titleCase, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated } from "../map/geo"
 import { formatDistance } from "../reservationView"
-import type { EnhancementRun, Trip } from "../types"
+import type { EnhancementRun, ItineraryItem, Trip } from "../types"
+import { Menu, type MenuItem } from "../components/kit"
+import { ItemIcon } from "../ItemIcon"
+import { AddBookingDialog } from "../bookings/AddBookingDialog"
+import { bookingsInOrder } from "../bookings/addBookings"
+import { BookingSummaryLines } from "../bookings/BookingSummary"
+import { bk } from "../bookings/bookings.stylex"
+import { bookingWhen } from "../bookings/lines"
+import { Parts } from "./Parts"
 import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
@@ -33,6 +41,8 @@ export function OverviewPanel({
   onDismissRun,
   onStopAi,
   forecast,
+  onAddBooking,
+  onPasteBookings,
 }: {
   trip: Trip
   /** dayId → live forecast, for days in the forecast window. */
@@ -51,8 +61,13 @@ export function OverviewPanel({
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
   onStopAi: () => void
+  /** "Enter by hand": add this booking to the day and open it in the day's editor. */
+  onAddBooking?: (dayId: string, item: ItineraryItem) => void
+  /** "Paste a confirmation": open the paste sheet. */
+  onPasteBookings?: () => void
 }) {
   const [brief, setBrief] = useState<DraftBrief>(EMPTY_BRIEF)
+  const [handOpen, setHandOpen] = useState(false)
   const today = todayIsoIn(trip.timezone)
   const stats = useMemo(() => {
     let pinned = 0
@@ -75,10 +90,12 @@ export function OverviewPanel({
   const cities = new Set(trip.days.map((d) => d.city).filter(Boolean)).size
   const multiCity = cities > 1
   const empty = trip.days.every((d) => d.items.length === 0)
-  const bookings = useMemo(
-    () => trip.days.flatMap((day) => day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item }))),
-    [trip.days],
-  )
+  const bookings = useMemo(() => bookingsInOrder(trip.days), [trip.days])
+  const addItems: MenuItem[] = [
+    ...(onPasteBookings ? [{ label: "Paste a confirmation", icon: <ClipboardPaste size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPasteBookings, disabled: locked }] : []),
+    ...(onAddBooking ? [{ label: "Enter by hand", icon: <PenLine size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setHandOpen(true), disabled: locked }] : []),
+  ]
+  const canAdd = editable && addItems.length > 0
   const description = trip.appearance?.headline ?? trip.description ?? trip.appearance?.subtitle
 
   return (
@@ -196,30 +213,45 @@ export function OverviewPanel({
         </ol>
       </section>
 
-      {bookings.length > 0 && (
+      {(bookings.length > 0 || canAdd) && (
         <section aria-labelledby="bookings-title">
           <div {...sx(s.sectionHead)}>
             <h2 id="bookings-title" {...sx(a.display, s.sectionTitle)}>
               Bookings
             </h2>
-            <span {...sx(a.mono, a.muted)}>{bookings.length}</span>
+            <span {...sx(a.row)}>
+              {bookings.length > 0 && <span {...sx(a.mono, a.muted)}>{bookings.length}</span>}
+              {canAdd && (
+                <Menu
+                  label="Add booking"
+                  items={addItems}
+                  triggerStyle={[a.btn, a.btnSecondary, a.btnSm]}
+                  trigger={
+                    <>
+                      <Plus size={14} strokeWidth={2} aria-hidden />
+                      Add booking
+                    </>
+                  }
+                />
+              )}
+            </span>
           </div>
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {bookings.map(({ day, item }) => {
-              const Icon = itemIcon("reservation", undefined, item.reservation?.type)
-              return (
+          {bookings.length === 0 ? (
+            <p {...sx(a.small, bk.empty)}>Flights, stays, cars and tables you’ve booked show up here, in the order they happen.</p>
+          ) : (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {bookings.map(({ day, item }) => (
                 <li key={item.id}>
                   <Link to={`${basePath}/day/${day.id}#item-${item.id}`} {...sx(s.booking)}>
                     <span {...sx(s.iconTile)}>
-                      <Icon size={16} strokeWidth={1.75} aria-hidden />
+                      <ItemIcon kind="reservation" reservationType={item.reservation?.type} size={16} strokeWidth={1.75} aria-hidden />
                     </span>
-                    <span {...sx(a.stack)} style={{ gap: "0.125rem" }}>
-                      <span {...sx(s.dayRowTitle, a.truncate)}>{item.title || "Untitled booking"}</span>
-                      <span {...sx(a.small, a.truncate)}>
-                        {formatTripDate(day.date, trip.timezone)}
-                        {item.time ? ` · ${formatClock(item.time)}` : ""}
-                        {item.reservation?.confirmation ? ` · ${item.reservation.confirmation}` : ""}
+                    <span {...sx(bk.rowText)}>
+                      <span {...sx(s.dayRowTitle, a.wrap)}>{item.title || "Untitled booking"}</span>
+                      <span {...sx(bk.rowWhen)}>
+                        <Parts parts={[...bookingWhen(item, day), item.reservation?.confirmation?.trim() ?? ""]} />
                       </span>
+                      <BookingSummaryLines item={item} trip={trip} day={day} />
                     </span>
                     {/* The day list's status chip: mono outline, never green. */}
                     <span {...sx(a.chip, a.chipOutline, a.chipMono)}>
@@ -227,11 +259,12 @@ export function OverviewPanel({
                     </span>
                   </Link>
                 </li>
-              )
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
         </section>
       )}
+      {handOpen && onAddBooking && <AddBookingDialog trip={trip} onClose={() => setHandOpen(false)} onAdd={onAddBooking} />}
     </div>
   )
 }
