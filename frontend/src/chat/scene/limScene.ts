@@ -241,13 +241,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const u = createLimUniforms(opts.night, tier.look === 'lit')
   let lighting: Lighting | null = null
   if (tier.look === 'lit') {
-    lighting = createLighting(scene, renderer, { mobile })
+    lighting = createLighting(scene, renderer, { mobile, shadows: webgpu || !mobile })
     // WebGL2 draws the lit look straight to the canvas: the passes are WebGPU only.
     if (webgpu) post = createPost(renderer, scene, camera, { rung: tier.rung, temporal: !reducedMotion, mobile })
   }
+  const keyShadows = lighting?.shadows ?? false
   /** The lit look: every solid surface under it casts a shadow from the key. */
   const castShadows = (root: THREE.Object3D) => {
-    if (!u.lit) return
+    if (!keyShadows) return
     root.traverse((o) => {
       if (o instanceof THREE.Mesh && [o.material].flat().some((m) => m instanceof THREE.MeshPhysicalNodeMaterial)) o.castShadow = true
     })
@@ -2581,8 +2582,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     s.mesh.position.z = body.center[2]
     const k = 1 + lift * 0.35
     s.mesh.scale.set(size * k, size * 0.62 * k, 1)
-    // Under the lit look the key casts real shadows, and the blob is only the contact under the body.
-    s.strength.value = (u.lit ? base * 0.55 : base) / (1 + lift * (u.lit ? 4 : 1.6))
+    // Where the key casts real shadows, the blob is only the contact under the body.
+    s.strength.value = (keyShadows ? base * 0.55 : base) / (1 + lift * (keyShadows ? 4 : 1.6))
   }
 
   const updateCamera = (dt: number) => {

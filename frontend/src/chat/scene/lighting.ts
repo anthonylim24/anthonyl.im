@@ -3,6 +3,10 @@
  * `studio_small_08` for reflections and ambient, one large warm key from the upper left that casts
  * the only shadows, a broad front light, a cool fill and a rim. The shadows fall on a catcher over
  * the floor, so the floor keeps its own colours. Night dims the room and cools it.
+ *
+ * Phones on WebGL2 (iOS before WebGPU, older Android) get no shadow map: the iOS Simulator's WebGL2
+ * fails the shadow test everywhere, greying the whole floor, and no such phone was at hand to show
+ * otherwise. Their toys keep the blob contact shadows at full strength instead.
  */
 import * as THREE from 'three/webgpu'
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js'
@@ -12,6 +16,8 @@ import studioUrl from './studio.hdr?url'
 export type Lighting = {
   /** The environment has arrived (until then the lights alone light the stage). */
   ready: Promise<void>
+  /** The key casts real shadows (otherwise the blobs carry the contact). */
+  readonly shadows: boolean
   /** 0 by day, 1 by night, anything between while the lights change. */
   update(night: number): void
   dispose(): void
@@ -20,8 +26,8 @@ export type Lighting = {
 const DAY = { env: 0.6, key: 1.6, front: 0.5, fill: 0.2, rim: 0.8 }
 const NIGHT = { env: 0.34, key: 0.85, front: 0.5, fill: 0.35, rim: 1.4 }
 
-export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURenderer, { mobile }: { mobile: boolean }): Lighting {
-  renderer.shadowMap.enabled = true
+export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURenderer, { mobile, shadows }: { mobile: boolean; shadows: boolean }): Lighting {
+  renderer.shadowMap.enabled = shadows
   renderer.shadowMap.type = THREE.PCFShadowMap
   const lights = new THREE.Group()
   const light = (hex: string, at: [number, number, number]) => {
@@ -34,7 +40,7 @@ export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURendere
   const front = light('#FFF4E8', [0.8, 3.2, 8.4])
   const fill = light('#E4ECFF', [7.6, 2.8, 5.2])
   const rim = light('#FFFFFF', [2.4, 6, -7.6])
-  key.castShadow = true
+  key.castShadow = shadows
   key.shadow.mapSize.setScalar(mobile ? 1024 : 2048)
   Object.assign(key.shadow.camera, { left: -7, right: 7, top: 6, bottom: -5, near: 1, far: 30 })
   key.shadow.bias = -0.0004
@@ -47,6 +53,7 @@ export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURendere
   catcher.position.set(0, -0.04, 3)
   catcher.receiveShadow = true
   catcher.renderOrder = 1
+  catcher.visible = shadows
   scene.add(catcher)
 
   const dayKey = new THREE.Color('#FFF3E6')
@@ -61,6 +68,7 @@ export function createLighting(scene: THREE.Scene, renderer: THREE.WebGPURendere
 
   return {
     ready,
+    shadows,
     update(night) {
       const k = (a: number, b: number) => a + (b - a) * night
       scene.environmentIntensity = k(DAY.env, NIGHT.env)
