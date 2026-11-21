@@ -138,6 +138,8 @@ describe("itineraryText: markdown", () => {
           items: [
             makeItem({ id: "a", title: "Bar_do_Rio [rooftop]", notes: "# not a heading\n- not a list\n1. Take the metro", time: "18:00" }),
             makeItem({ id: "b", kind: "reservation", title: "Ferry", reservation: { type: "transit", status: "confirmed", confirmation: "A`B" } }),
+            makeItem({ id: "c", title: "1. Pack light" }),
+            makeItem({ id: "d", title: "# Laundry" }),
           ],
         },
       ],
@@ -147,5 +149,7 @@ describe("itineraryText: markdown", () => {
     expect(text).toContain("- **18:00** Bar\\_do\\_Rio \\[rooftop\\]  \n  \\# not a heading  \n  \\- not a list  \n  1\\. Take the metro")
     // A code span can't hold a backtick: the code is escaped text instead.
     expect(text).toContain("- Ferry · Conf A\\`B")
+    // An untimed title opens the list item: it must not nest a list or a heading.
+    expect(text).toContain("\n- 1\\. Pack light\n- \\# Laundry")
   })
 })

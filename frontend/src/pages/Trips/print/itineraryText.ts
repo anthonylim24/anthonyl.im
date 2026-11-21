@@ -108,13 +108,14 @@ function md(text: string): string {
   return text.replace(/[\\`*_[\]<>~]/g, "\\$&")
 }
 
-/** A line that must not start a heading, quote or list. */
-function mdLine(text: string): string {
-  // "# x", "> x", "- x", "+ x" escape the marker; "1. x" escapes the dot ("1\. x").
-  return md(text)
-    .replace(/^[#>+-]/, "\\$&")
-    .replace(/^(\d+)([.)])/, "$1\\$2")
-}
+/**
+ * Keep escaped text from opening a heading, quote or list at the start of a
+ * line: "# x", "- x", "+ x" escape the marker, "1. x" the dot ("1\. x").
+ */
+const blockSafe = (escaped: string) => escaped.replace(/^[#>+-]/, "\\$&").replace(/^(\d+)([.)])/, "$1\\$2")
+
+/** A line of the traveller's text that must stay a line of text. */
+const mdLine = (text: string) => blockSafe(md(text))
 
 /** Confirmation codes read as code: `ABC123`. */
 const mdCode = (code: string) => (code.includes("`") ? md(code) : `\`${code}\``)
@@ -125,7 +126,9 @@ const BREAK = "  "
 function mdStops(items: readonly ItineraryItem[], includeNotes: boolean): string[] {
   return items.map((item) => {
     const time = timeLabel(item)
-    const head = `- ${time ? `**${md(time)}** ` : ""}${stopLine(item, md, mdCode)}`
+    const line = stopLine(item, md, mdCode)
+    // Without a time the title opens the list item, where "1. x" would nest a list.
+    const head = time ? `- **${md(time)}** ${line}` : `- ${blockSafe(line)}`
     const details = detailLines(item, includeNotes).map((line) => `  ${mdLine(line)}`)
     return [head, ...details].join(`${BREAK}\n`)
   })
