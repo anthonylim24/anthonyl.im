@@ -1,5 +1,5 @@
 import { dayStarts } from "../dayClock"
-import { addDays } from "../meta"
+import { addDays, daysBetween } from "../meta"
 import { LIMITS } from "../limits"
 import { isToSchedule } from "../map/geo"
 import { makeItem, restingStatus } from "../tripEdits"
@@ -36,12 +36,22 @@ export const outOfOrder = (items: readonly ItineraryItem[]) => sortByTime(items)
 // One rule holds after every edit: day i falls on startDate + i and endDate is
 // the last day's date. The start never moves; the trip grows or shrinks at
 // its end. A plan moves with its day (stops, title, city, notes, journal, its
-// zone), and the AI's weather stays with its date, as `swap_days` keeps it on
-// the server: it was a forecast for that date, not for that plan.
+// zone), and a booking that ends on a later date moves its end by as much, so
+// a three-night stay stays three nights. The AI's weather stays with its date,
+// as `swap_days` keeps it on the server: it was a forecast for that date, not
+// for that plan.
 
 export type DayPlan = Pick<Trip, "days" | "startDate" | "endDate">
 
 export const canAddDay = (plan: Pick<DayPlan, "days">) => plan.days.length < LIMITS.days
+
+/** A booking that ends on a later date (a check-out, an arrival) keeps its length when its day moves. */
+function shiftEnds(items: ItineraryItem[], by: number): ItineraryItem[] {
+  if (!items.some((item) => item.reservation?.endDate)) return items
+  return items.map((item) =>
+    item.reservation?.endDate ? { ...item, reservation: { ...item.reservation, endDate: addDays(item.reservation.endDate, by) } } : item,
+  )
+}
 
 /** Dates from the start, in order; each day takes the weather already on its new date. */
 function redate(plan: DayPlan, days: TripDay[]): DayPlan {
@@ -49,7 +59,7 @@ function redate(plan: DayPlan, days: TripDay[]): DayPlan {
   const out = days.map((day, i) => {
     const date = addDays(plan.startDate, i)
     if (day.date === date) return day
-    const next: TripDay = { ...day, date }
+    const next: TripDay = { ...day, date, items: shiftEnds(day.items, daysBetween(day.date, date)) }
     const weather = weatherOn.get(date)
     if (weather) next.weather = weather
     else delete next.weather

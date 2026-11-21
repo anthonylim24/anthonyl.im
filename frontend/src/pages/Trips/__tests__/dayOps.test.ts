@@ -146,8 +146,24 @@ describe("moveDay", () => {
     expect(moveDay(plan(), "day-3", 1)).toBeNull()
   })
 
+  it("moves a booking's end with its day, so a stay keeps its length", () => {
+    const hotel = stop("hotel", { kind: "reservation", reservation: { type: "hotel", status: "confirmed", endDate: "2026-07-14" } })
+    const start = plan()
+    start.days[1] = { ...start.days[1]!, items: [hotel] }
+    const ends = (p: DayPlan | null) => p?.days.flatMap((d) => d.items.filter((i) => i.reservation?.endDate).map((i) => [d.date, i.reservation?.endDate]))
+    expect(ends(moveDay(start, "day-2", 1))).toEqual([["2026-07-12", "2026-07-15"]])
+    expect(ends(moveDay(start, "day-2", -1))).toEqual([["2026-07-10", "2026-07-13"]])
+    expect(ends(deleteDay(start, "day-1"))).toEqual([["2026-07-10", "2026-07-13"]])
+    expect(ends(insertDayAfter(start, "day-1"))).toEqual([["2026-07-12", "2026-07-15"]])
+    expect(ends(duplicateDay(start, "day-2"))).toEqual([
+      ["2026-07-11", "2026-07-14"],
+      ["2026-07-12", "2026-07-15"],
+    ])
+  })
+
   it("never changes the input plan", () => {
     const start = plan()
+    start.days[2] = { ...start.days[2]!, items: [stop("ferry", { kind: "reservation", reservation: { type: "ferry", status: "confirmed", endDate: "2026-07-13" } })] }
     const snapshot = JSON.stringify(start)
     moveDay(start, "day-1", 1)
     insertDayAfter(start, "day-1")

@@ -110,7 +110,7 @@ describe("IdeasPanel", () => {
     expect(day1).toHaveTextContent("Full")
   })
 
-  it("removes an idea, with an Undo toast", () => {
+  it("removes an idea and marks the step for an Undo toast (recorded once the history covers ideas)", () => {
     const state = renderIdeas(makeTrip({ ideas: [tram] }))
     fireEvent.click(screen.getByRole("button", { name: "Remove Tram 28" }))
     expect(state.trip.ideas).toEqual([])
