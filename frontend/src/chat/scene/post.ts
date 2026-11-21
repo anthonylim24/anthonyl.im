@@ -104,7 +104,9 @@ export function createPost(
         reflect.thickness.value = 0.04
         owned.push(reflect)
         // The reflection arrives already weighted by reflectivity, distance and angle (its alpha is the hit distance).
-        out = vec4(out.rgb.add(reflect.getTextureNode().rgb), out.a)
+        // It is screened on, not added: the floor is already near white in display colours, and an added
+        // reflection clips every channel there, leaving a white ghost instead of a tint.
+        out = vec4(out.rgb.add(reflect.getTextureNode().rgb.mul(vec3(out.a).sub(out.rgb).max(0))), out.a)
       }
     }
     const glow = bloom(out, 0.4, 0.5, 1)
