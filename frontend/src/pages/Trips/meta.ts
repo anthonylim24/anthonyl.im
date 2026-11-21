@@ -118,7 +118,7 @@ export function addDays(iso: string, days: number): string {
 export function formatRange(startIso: string, endIso: string): string {
   const start = noonUtc(startIso)
   const end = noonUtc(endIso)
-  const month = (d: Date) => d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+  const month = (d: Date) => cachedFormat("en-US", { month: "short", timeZone: "UTC" }).format(d)
   const sameYear = start.getUTCFullYear() === end.getUTCFullYear()
   const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth()
   const year = end.getUTCFullYear()
@@ -145,7 +145,7 @@ export function tripTiming(trip: Pick<TripSummary, "startDate" | "endDate" | "ti
     return {
       phase: "past",
       daysAway,
-      label: noonUtc(trip.startDate).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      label: cachedFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(noonUtc(trip.startDate)),
     }
   }
   if (today >= trip.startDate) {

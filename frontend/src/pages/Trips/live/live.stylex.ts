@@ -64,11 +64,14 @@ export const live = stylex.create({
   // "Now" line: what is under way, with Done at its end for editors.
   nowBar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", minWidth: 0 },
   doneBtn: { flexShrink: 0 },
-  // A stop's name that opens it in the day's list: ink, underlined only on hover.
+  // A stop's name that opens it in the day's list: ink, underlined only on
+  // hover. The ::after band makes even the one-line "Now" name a 44px target.
   stopLink: {
+    position: "relative",
     color: "inherit",
     textDecoration: "none",
     borderRadius: "4px",
+    "::after": { content: '""', position: "absolute", inset: "-0.75rem 0" },
     [HOVER]: { ":hover": { textDecoration: "underline", textDecorationThickness: "1px", textUnderlineOffset: "0.15em" } },
   },
   nowRow: {
