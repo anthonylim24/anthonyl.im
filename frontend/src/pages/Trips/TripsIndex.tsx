@@ -13,6 +13,9 @@ import { formatCoord, type AtlasPin, type LngLat } from "./map/geo"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { TripCover } from "./components/TripCover"
+import { atlasFigures } from "./live/atlasFigures"
+import { countdownLabel } from "./live/liveTrip"
+import { useNow } from "./live/useNow"
 import type { TripSummary } from "./types"
 import { a } from "./atlas.stylex"
 import { idx as s } from "./index.stylex"
@@ -29,6 +32,13 @@ const BUCKETS: Array<{ phase: TripPhase; label: string }> = [
 ]
 
 const REST_CENTER: LngLat = { lat: 22, lng: 12 }
+
+/**
+ * The cards' countdowns change at midnight in each trip's zone. A quarter-hour
+ * clock lands on every zone's midnight (all offsets are whole quarter hours)
+ * and does next to nothing in between.
+ */
+const COUNTDOWN_STEP_MS = 15 * 60_000
 
 function typing(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -62,6 +72,7 @@ export function TripsIndex() {
   const searchRef = useRef<HTMLInputElement>(null)
   const dark = useIsDark()
   const [stills, setStills] = useState<Record<string, string>>({})
+  const now = useNow(COUNTDOWN_STEP_MS)
 
   useEffect(() => {
     if (!authReady) return
@@ -137,7 +148,14 @@ export function TripsIndex() {
     // `stills` is read, not a trigger: finished pictures must not restart the queue.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trips, dark])
-  const timed = useMemo(() => (trips ?? []).map((trip) => ({ trip, timing: tripTiming(trip) })), [trips])
+  // Recomputed on each clock step, so a trip that starts at midnight moves to
+  // "Happening now" along with its chip. The chip is the precise countdown;
+  // long-past trips (no countdown) keep their month.
+  const timed = useMemo(
+    () => (trips ?? []).map((trip) => ({ trip, timing: tripTiming(trip), chip: countdownLabel(trip, now) })),
+    [trips, now],
+  )
+  const figures = useMemo(() => (trips && trips.length > 0 ? atlasFigures(trips) : null), [trips])
 
   // An Instagram link shared to the app (share sheet → /trips?url=…) goes
   // straight to the trip it most likely belongs to: the one under way, else
@@ -290,7 +308,7 @@ export function TripsIndex() {
               <span {...sx(a.truncate)}>
                 {nextUp.timing.phase === "now" ? "Now" : "Next"}: {nextUp.trip.name}
               </span>
-              <span {...sx(a.mono, a.muted, a.noShrink)}>{nextUp.timing.label}</span>
+              <span {...sx(a.mono, a.muted, a.noShrink)}>{nextUp.chip ?? nextUp.timing.label}</span>
               <ArrowRight size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink)} />
             </Link>
           )}
@@ -367,9 +385,26 @@ export function TripsIndex() {
       {trips && trips.length > 0 && (
         <section aria-labelledby="trips-list-title">
           <div {...sx(s.listHead)}>
-            <h2 id="trips-list-title" {...sx(a.display, s.listTitle)}>
-              Your trips
-            </h2>
+            <div {...sx(s.listLead)}>
+              <h2 id="trips-list-title" {...sx(a.display, s.listTitle)}>
+                Your trips
+              </h2>
+              {figures && (
+                <dl {...sx(s.figures)}>
+                  {[
+                    { value: figures.trips, one: "Trip", many: "Trips" },
+                    { value: figures.days, one: "Day", many: "Days" },
+                    { value: figures.places, one: "Place", many: "Places" },
+                    { value: figures.destinations, one: "Destination", many: "Destinations" },
+                  ].map((figure, i) => (
+                    <div key={figure.many} {...sx(s.figure, i === 0 && s.figureLead, i === 2 && s.figureRowNarrow)}>
+                      <dt {...sx(a.eyebrow)}>{figure.value === 1 ? figure.one : figure.many}</dt>
+                      <dd {...sx(s.figureValue)}>{figure.value.toLocaleString("en-US")}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
             <label {...sx(s.search)}>
               <Search size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink)} />
               <span {...sx(a.srOnly)}>Search trips</span>
@@ -413,7 +448,7 @@ export function TripsIndex() {
                   </div>
                 )}
                 <ul {...sx(s.grid, filtered.length <= 2 && s.gridFew)}>
-                  {rows.map(({ trip, timing }, order) => {
+                  {rows.map(({ trip, timing, chip }, order) => {
                     const tags = visibleTags(trip.tags)
                     const points = (trip.points ?? []).map(([lng, lat]) => ({ lat, lng }))
                     const shared = trip.sharedWithAllUsers || trip.collaborators.length > 0
@@ -442,7 +477,7 @@ export function TripsIndex() {
                             <div {...sx(s.cardBadges)}>
                               <span {...sx(s.badge)}>
                                 {timing.phase === "now" && <span {...sx(s.liveDot)} aria-hidden />}
-                                {timing.label}
+                                {chip ?? timing.label}
                               </span>
                               {trip.status === "draft" && <span {...sx(s.badge)}>Draft</span>}
                             </div>
