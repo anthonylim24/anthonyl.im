@@ -24,7 +24,8 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
-import { makeItem } from "./tripEdits"
+import { addItem, makeItem } from "./tripEdits"
+import { addBookings, type BookingEntry } from "./bookings/addBookings"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
@@ -65,6 +66,7 @@ const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => (
 const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
 const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
+const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -505,6 +507,19 @@ function Workspace() {
 
   // An overlay that fails to load or throws takes only itself down: close
   // it, keep the itinerary, and say what to do.
+  const [pasting, setPasting] = useState(false)
+  const addPasted = (entries: BookingEntry[]) => {
+    if (entries.length === 0) return
+    editor.setDays((days) => addBookings(days, entries), { label: `Added ${plural(entries.length, "booking")}`, toast: true })
+    editor.flashTouched(new Set(entries.map((e) => e.item.id)))
+  }
+  const addBookingByHand = (dayId: string, item: ItineraryItem) => {
+    editor.setDays((days) => addItem(days, dayId, item), { label: "Added a booking" })
+    navigate(`${basePath}/day/${dayId}`)
+    requestEdit(item.id)
+    setView("list")
+  }
+
   const overlayFailed = (what: string, close: () => void) => (error: Error) => {
     close()
     const stale = isChunkLoadError(error)
@@ -913,6 +928,8 @@ function Workspace() {
                   onApplyRun={editor.applyActiveRun}
                   onDismissRun={editor.dismissRun}
                   onStopAi={editor.stopAi}
+                  onAddBooking={addBookingByHand}
+                  onPasteBookings={() => setPasting(true)}
                 />
               ) : (
                 <OverlayBoundary onError={overlayFailed(`The ${tabLabel(open)} tab`, () => setTab("itinerary"))}>
@@ -1207,6 +1224,13 @@ function Workspace() {
             onAdd={addFromInstagram}
           />
         </Suspense>
+        </OverlayBoundary>
+      )}
+      {editable && pasting && (
+        <OverlayBoundary onError={overlayFailed("Paste a confirmation", () => setPasting(false))}>
+          <Suspense fallback={null}>
+            <PasteBookingsSheet trip={trip} getToken={editor.readToken} onClose={() => setPasting(false)} onAdd={addPasted} />
+          </Suspense>
         </OverlayBoundary>
       )}
       <Modal
