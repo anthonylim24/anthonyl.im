@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { mergeDays, mergeItems, rebaseTrip, sameJson } from "../tripMerge"
-import type { ItineraryItem, TripDay } from "../types"
+import { mergeDays, mergeItems, rebaseTrip, resolveTrip, sameJson } from "../tripMerge"
+import type { ItineraryItem, Trip, TripDay } from "../types"
 import { makeItem, makeTrip } from "./tripFixtures"
 
 const item = (id: string, title = id, extra: Partial<ItineraryItem> = {}) => makeItem({ id, title, ...extra })
@@ -155,5 +155,128 @@ describe("rebaseTrip: budget and the trip's lists", () => {
     const mine = { ...base, budget: { currency: "EUR", total: 100 } }
     const theirs = { ...base, budget: { currency: "EUR", total: 200 } }
     expect(rebaseTrip(base, mine, theirs)).toBeNull()
+  })
+})
+
+describe("mergeItems with a side", () => {
+  const a = item("a")
+  const b = item("b")
+  const base = [a, b]
+
+  it("gives an item both sides edited to that side", () => {
+    const mine = [item("a", "A mine"), b]
+    const theirs = [item("a", "A theirs"), b]
+    expect(mergeItems(base, mine, theirs, "mine")[0]!.title).toBe("A mine")
+    expect(mergeItems(base, mine, theirs, "theirs")[0]!.title).toBe("A theirs")
+  })
+
+  it("settles a delete against an edit by side", () => {
+    // They deleted b, the traveller edited it.
+    expect(ids(mergeItems(base, [a, item("b", "B mine")], [a], "mine"))).toEqual(["a", "b"])
+    expect(ids(mergeItems(base, [a, item("b", "B mine")], [a], "theirs"))).toEqual(["a"])
+    // The traveller deleted b, they edited it.
+    expect(ids(mergeItems(base, [a], [a, item("b", "B theirs")], "mine"))).toEqual(["a"])
+    expect(mergeItems(base, [a], [a, item("b", "B theirs")], "theirs").map((i) => i.title)).toEqual(["a", "B theirs"])
+  })
+
+  it("follows the winning side's order when both reordered", () => {
+    const c = item("c")
+    const start = [a, b, c]
+    expect(ids(mergeItems(start, [c, a, b], [b, a, c], "theirs"))).toEqual(["b", "a", "c"])
+    expect(ids(mergeItems(start, [c, a, b], [b, a, c], "mine"))).toEqual(["c", "a", "b"])
+  })
+})
+
+describe("resolveTrip", () => {
+  const T0 = "2026-01-01T00:00:00Z"
+  const T1 = "2026-01-02T00:00:00Z"
+  const fiveDays = (): Trip =>
+    makeTrip({
+      updatedAt: T0,
+      startDate: "2026-07-11",
+      endDate: "2026-07-15",
+      days: [1, 2, 3, 4, 5].map((n) => day(`d${n}`, [item(`s${n}`)], { title: `Day ${n}` })),
+    })
+  const withDay = (trip: Trip, n: number, change: (d: TripDay) => TripDay): Trip => ({
+    ...trip,
+    days: trip.days.map((d) => (d.id === `d${n}` ? change(d) : d)),
+  })
+
+  it("keeps their stop on day 5 when both renamed day 3, whichever side wins the title", () => {
+    const base = fiveDays()
+    const mine = withDay(base, 3, (d) => ({ ...d, title: "Mine" }))
+    const theirs = withDay(withDay({ ...base, updatedAt: T1 }, 3, (d) => ({ ...d, title: "Theirs" })), 5, (d) => ({
+      ...d,
+      items: [...d.items, item("t5", "Their stop")],
+    }))
+    expect(rebaseTrip(base, mine, theirs)).toBeNull()
+
+    const kept = resolveTrip(base, mine, theirs, "mine")
+    expect(kept.days[2]!.title).toBe("Mine")
+    expect(ids(kept.days[4]!.items)).toEqual(["s5", "t5"])
+    expect(kept.updatedAt).toBe(T1)
+
+    const theirsWon = resolveTrip(base, mine, theirs, "theirs")
+    expect(theirsWon.days[2]!.title).toBe("Theirs")
+    expect(ids(theirsWon.days[4]!.items)).toEqual(["s5", "t5"])
+  })
+
+  it("keeps the traveller's edits that clash with nothing when they use theirs", () => {
+    const base = fiveDays()
+    const mine = withDay({ ...base, name: "My name" }, 1, (d) => ({ ...d, items: [...d.items, item("m1", "My stop")] }))
+    const theirs = { ...base, updatedAt: T1, name: "Their name" }
+    const out = resolveTrip(base, mine, theirs, "theirs")
+    expect(out.name).toBe("Their name")
+    expect(ids(out.days[0]!.items)).toEqual(["s1", "m1"])
+  })
+
+  it("settles each clashing trip field and list entry, merging the rest", () => {
+    const expense = (id: string, title = id) => ({ id, title, amount: 10, currency: "EUR", category: "food" as const, createdAt: T0 })
+    const base = { ...fiveDays(), expenses: [expense("e1")] }
+    const mine = { ...base, name: "Mine", budget: { currency: "EUR", total: 100 }, expenses: [expense("e1", "Lunch")] }
+    const theirs = { ...base, updatedAt: T1, name: "Theirs", description: "Theirs", expenses: [expense("e1", "Dinner"), expense("e2")] }
+    const mineWins = resolveTrip(base, mine, theirs, "mine")
+    expect(mineWins).toMatchObject({ name: "Mine", description: "Theirs", budget: { currency: "EUR", total: 100 } })
+    expect(mineWins.expenses!.map((e) => e.title)).toEqual(["Lunch", "e2"])
+    const theirsWin = resolveTrip(base, mine, theirs, "theirs")
+    expect(theirsWin).toMatchObject({ name: "Theirs", description: "Theirs", budget: { currency: "EUR", total: 100 } })
+    expect(theirsWin.expenses!.map((e) => e.title)).toEqual(["Dinner", "e2"])
+  })
+
+  it("takes the chosen side's days and dates together when both changed the list of days", () => {
+    const base = fiveDays()
+    // The traveller cut the trip to four days; they added a sixth.
+    const mine = { ...base, endDate: "2026-07-14", days: base.days.slice(0, 4) }
+    const theirs = { ...base, updatedAt: T1, endDate: "2026-07-16", days: [...base.days, day("d6", [item("t6")])] }
+    expect(rebaseTrip(base, mine, theirs)).toBeNull()
+
+    const kept = resolveTrip(base, mine, theirs, "mine")
+    expect(kept.days.map((d) => d.id)).toEqual(["d1", "d2", "d3", "d4"])
+    expect(kept.endDate).toBe("2026-07-14")
+
+    const theirsWon = resolveTrip(base, mine, theirs, "theirs")
+    expect(theirsWon.days.map((d) => d.id)).toEqual(["d1", "d2", "d3", "d4", "d5", "d6"])
+    expect(theirsWon.endDate).toBe("2026-07-16")
+  })
+
+  it("settles a day one side dropped while the other changed it", () => {
+    const base = fiveDays()
+    const mine = withDay(base, 5, (d) => ({ ...d, notes: "Late checkout" }))
+    const theirs = { ...base, updatedAt: T1, endDate: "2026-07-14", days: base.days.slice(0, 4) }
+    expect(rebaseTrip(base, mine, theirs)).toBeNull()
+    const kept = resolveTrip(base, mine, theirs, "mine")
+    expect(kept.days.map((d) => d.id)).toEqual(["d1", "d2", "d3", "d4", "d5"])
+    expect(kept.days[4]!.notes).toBe("Late checkout")
+    expect(kept.endDate).toBe("2026-07-15")
+    const theirsWon = resolveTrip(base, mine, theirs, "theirs")
+    expect(theirsWon.days).toHaveLength(4)
+    expect(theirsWon.endDate).toBe("2026-07-14")
+  })
+
+  it("merges every day field, including ones added after this code was written", () => {
+    const base = fiveDays()
+    const mine = withDay(base, 2, (d) => ({ ...d, emoji: "🌊", title: "Mine" }))
+    const theirs = withDay({ ...base, updatedAt: T1 }, 2, (d) => ({ ...d, neighborhoods: ["Alfama"], title: "Theirs" }))
+    expect(resolveTrip(base, mine, theirs, "theirs").days[1]).toMatchObject({ emoji: "🌊", neighborhoods: ["Alfama"], title: "Theirs" })
   })
 })
