@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
 import { ArrowDownUp, ArrowLeft, ArrowRight, CloudSun, Lightbulb, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { formatTripDate, plural, todayIsoIn } from "../meta"
+import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
 import { formatDistance, formatWalkMinutes } from "../reservationView"
 import { addItem } from "../tripEdits"
@@ -17,6 +17,9 @@ import { Menu, type MenuItem } from "../components/kit"
 import { calendarMenuItem } from "../calendar/calendarMenu"
 import { ForecastChip } from "./ForecastChip"
 import { FAHRENHEIT, formatTemp, type DayForecast } from "../forecast"
+import { NowLine } from "../live/NowLine"
+import { clockIn, nowSlot } from "../live/liveTrip"
+import { useNow } from "../live/useNow"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type ItemCardProps } from "./ItemCard"
@@ -136,6 +139,9 @@ export function DayPanel({
   /** Where keyboard focus goes once the list has re-rendered without a stop. */
   const focusNext = useRef<string | null>(null)
   const isToday = day.date === todayIsoIn(trip.timezone)
+  const now = useNow(60_000, isToday)
+  const slot = isToday ? nowSlot(day, trip, now) : null
+  const nowLine = slot === null ? null : <NowLine key="now-line" time={formatClock(clockIn(trip.timezone, now))} />
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
   const next = dayIndex < trip.days.length - 1 ? trip.days[dayIndex + 1] : undefined
   const route = useMemo(() => dayRoute(day), [day])
@@ -358,7 +364,8 @@ export function DayPanel({
             onReorder={(items) => !locked && patchDay({ items }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })}
             {...sx(s.timeline)}
           >
-            {day.items.map((item, index) => (
+            {day.items.flatMap((item, index) => [
+              ...(slot === index && nowLine ? [nowLine] : []),
               <Sortable
                 key={item.id}
                 item={item}
@@ -381,8 +388,9 @@ export function DayPanel({
                 onHover={onHover}
                 onLocate={onLocate}
                 onAnnounce={setSpoken}
-              />
-            ))}
+              />,
+            ])}
+            {slot === day.items.length && nowLine}
           </Reorder.Group>
         )}
       </section>

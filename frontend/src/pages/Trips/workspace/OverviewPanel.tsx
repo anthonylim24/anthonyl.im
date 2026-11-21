@@ -4,13 +4,14 @@ import { ArrowRight, ChevronRight, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, itemIcon, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated } from "../map/geo"
-import { formatDistance, upcomingReservations } from "../reservationView"
+import { formatDistance } from "../reservationView"
 import type { EnhancementRun, Trip } from "../types"
 import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import type { DayForecast } from "../forecast"
 import { ForecastChip } from "./ForecastChip"
+import { NowCard } from "../live/NowCard"
 import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief } from "./AiPanels"
 
 /** The longest leg counted as walked. */
@@ -78,11 +79,11 @@ export function OverviewPanel({
     () => trip.days.flatMap((day) => day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item }))),
     [trip.days],
   )
-  const nextUp = today <= trip.endDate ? upcomingReservations(trip.days, today)[0] : undefined
   const description = trip.appearance?.headline ?? trip.description ?? trip.appearance?.subtitle
 
   return (
     <div {...sx(s.content)}>
+      <NowCard trip={trip} basePath={basePath} />
       {description && <p {...sx(a.body, a.wrap)}>{description}</p>}
 
       <dl {...sx(s.stats)}>
@@ -143,26 +144,6 @@ export function OverviewPanel({
             )}
           </div>
         </section>
-      )}
-
-      {nextUp && (
-        <Link to={`${basePath}/day/${nextUp.day.id}#item-${nextUp.item.id}`} {...sx(s.dayRow)}>
-          <span {...sx(s.dayDate)}>
-            {(() => {
-              const Icon = itemIcon("reservation", undefined, nextUp.item.reservation?.type)
-              return <Icon size={20} strokeWidth={1.5} aria-hidden />
-            })()}
-          </span>
-          <span {...sx(a.stack)} style={{ gap: "0.125rem" }}>
-            <span {...sx(a.eyebrow, a.accentText)}>Next booking</span>
-            <span {...sx(s.dayRowTitle, a.truncate)}>{nextUp.item.title}</span>
-            <span {...sx(a.small)}>
-              {formatTripDate(nextUp.day.date, trip.timezone)}
-              {nextUp.item.time ? ` · ${formatClock(nextUp.item.time)}` : ""}
-            </span>
-          </span>
-          <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
-        </Link>
       )}
 
       <section aria-labelledby="days-title">

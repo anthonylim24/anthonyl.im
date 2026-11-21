@@ -35,7 +35,7 @@ describe("NowCard before the trip", () => {
 
     const booking = within(card).getByRole("link", { name: /First booking/ })
     expect(booking).toHaveTextContent("Flight UA 893")
-    expect(booking).toHaveTextContent("Tue, May 26 · 10:40")
+    expect(booking).toHaveTextContent("Tue, May 26 · 10:40 AM")
     expect(booking).toHaveAttribute("href", `${BASE}/day/d1#item-flight`)
   })
 
@@ -50,13 +50,13 @@ describe("NowCard during the trip", () => {
     renderCard(new Date("2026-05-28T04:42:00Z")) // 13:42
     const card = screen.getByRole("region", { name: "Today · Day 3 of 12" })
     expect(within(card).getByRole("img", { name: "Thu, May 28" })).toBeInTheDocument()
-    expect(within(card).getByText("13:42")).toBeInTheDocument()
+    expect(within(card).getByText("1:42 PM")).toBeInTheDocument()
 
     expect(within(card).getByText("Gyeongbokgung Palace")).toBeInTheDocument()
-    expect(within(card).getByText("14:00")).toBeInTheDocument()
+    expect(within(card).getByText("2:00 PM")).toBeInTheDocument()
     expect(within(card).getByText("in 18 min")).toBeInTheDocument()
     // Where the walk starts from is part of the line (hidden on phones by CSS).
-    expect(within(card).getByText("Leave by 13:46").parentElement).toHaveTextContent(/14 min walk from Bukchon Hanok Village$/)
+    expect(within(card).getByText("Leave by 1:46 PM").parentElement).toHaveTextContent(/14 min walk from Bukchon Hanok Village$/)
     // Nothing is under way between stops.
     expect(within(card).queryByText("Now")).toBeNull()
 
@@ -71,7 +71,7 @@ describe("NowCard during the trip", () => {
     renderCard(new Date("2026-05-28T02:00:00Z")) // 11:00
     expect(screen.getByText("Now")).toBeInTheDocument()
     expect(screen.getByText("Bukchon Hanok Village")).toBeInTheDocument()
-    expect(screen.getByText("until 12:30")).toBeInTheDocument()
+    expect(screen.getByText("until 12:30 PM")).toBeInTheDocument()
   })
 
   it("says to leave now once the leave time has passed", () => {
@@ -81,7 +81,7 @@ describe("NowCard during the trip", () => {
 
   it("after the day's last stop, points at tomorrow's first without a countdown", () => {
     renderCard(new Date("2026-05-28T12:00:00Z")) // 21:00
-    expect(screen.getByText("08:10").parentElement).toHaveTextContent("First tomorrow · 08:10")
+    expect(screen.getByText("8:10 AM").parentElement).toHaveTextContent("First tomorrow · 8:10 AM")
     expect(screen.getByText("KTX to Busan")).toBeInTheDocument()
     expect(screen.getByRole("status")).toHaveTextContent("First tomorrow: KTX to Busan")
     expect(screen.queryByText(/^in /)).toBeNull()

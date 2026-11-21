@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { ArrowRight, ChevronRight, Navigation } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsAppName, externalMapsLink } from "@/lib/externalMaps"
-import { dayCount, formatRange, formatTripDate, plural } from "../meta"
+import { dayCount, formatClock, formatRange, formatTripDate, plural } from "../meta"
 import { ItemIcon } from "../ItemIcon"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { a } from "../atlas.stylex"
@@ -106,7 +106,7 @@ function Before({ trip, basePath, state, titleId }: { trip: Trip; basePath: stri
               <span {...sx(s.rowTitle, a.truncate)}>{first.item.title || "Untitled"}</span>
               <span {...sx(a.small, a.mono)}>
                 {formatTripDate(first.day.date, trip.timezone)}
-                {first.item.time ? ` · ${first.item.time}` : ""}
+                {first.item.time ? ` · ${formatClock(first.item.time)}` : ""}
               </span>
             </span>
             <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
@@ -134,7 +134,7 @@ function During({ trip, basePath, state, titleId }: { trip: Trip; basePath: stri
           {dayName && <p {...sx(a.display, s.dayTitle, a.wrap)}>{dayName}</p>}
         </div>
         <p {...sx(a.mono, s.clock)} title={`Local time (${trip.timezone})`}>
-          {state.clock}
+          {formatClock(state.clock)}
           <span {...sx(a.srOnly)}> local time</span>
         </p>
       </div>
@@ -143,7 +143,7 @@ function During({ trip, basePath, state, titleId }: { trip: Trip; basePath: stri
         <p {...sx(s.nowRow)}>
           <span {...sx(a.eyebrow)}>Now</span>
           <span {...sx(s.nowName, a.wrap)}>{current.item.title || "Untitled"}</span>
-          {current.end && <span {...sx(a.small, a.mono)}>until {current.end}</span>}
+          {current.end && <span {...sx(a.small, a.mono)}>until {formatClock(current.end)}</span>}
         </p>
       )}
 
@@ -204,14 +204,14 @@ function NextStop({ basePath, next, state }: { basePath: string; next: LiveNext;
     <div {...sx(s.next)}>
       <div {...sx(s.nextHead)}>
         <p {...sx(a.eyebrow)}>
-          {next.tomorrow ? "First tomorrow" : "Next"} · <span {...sx(a.ink)}>{next.start}</span>
+          {next.tomorrow ? "First tomorrow" : "Next"} · <span {...sx(a.ink)}>{formatClock(next.start)}</span>
         </p>
         {minutesToNext !== null && <p {...sx(s.countdown)}>in {durationText(minutesToNext)}</p>}
       </div>
       <p {...sx(a.display, s.nextName, a.wrap)}>{next.item.title || "Untitled"}</p>
       {travel && leaveBy && leaveIn !== null ? (
         <p {...sx(a.small, s.leave)}>
-          <span {...sx(a.mono, leaveIn <= 0 && s.leaveNow)}>{leaveIn <= 0 ? "Leave now" : `Leave by ${leaveBy}`}</span>
+          <span {...sx(a.mono, leaveIn <= 0 && s.leaveNow)}>{leaveIn <= 0 ? "Leave now" : `Leave by ${formatClock(leaveBy)}`}</span>
           <span aria-hidden>·</span>
           <span>
             {travel.label}
