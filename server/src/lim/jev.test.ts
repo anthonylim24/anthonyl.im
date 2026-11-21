@@ -11,13 +11,13 @@ describe("routeLimModel (Jev)", () => {
     delete process.env.LIM_GEMINI_MODEL;
   });
 
-  test("questions about Anthony go to Hydrogen, playing with the jelly to Carbon", async () => {
+  test("questions about Anthony go to Hydrogen, playing with the jelly to Neon", async () => {
     const anthony = await routeLimModel({ prompt: "Where has he worked?", world, apiKey: "K", fetchImpl: (async () => jevSays("anthony")) as unknown as typeof fetch });
     expect(anthony).toMatchObject({ model: ANTHONY_MODEL, route: "anthony", via: "jev" });
     expect(ANTHONY_MODEL).toBe("gemini-4-hydrogen");
     const jelly = await routeLimModel({ prompt: "kick the ball", world, apiKey: "K", fetchImpl: (async () => jevSays("jelly")) as unknown as typeof fetch });
     expect(jelly).toMatchObject({ model: JELLY_MODEL, route: "jelly", via: "jev", pJelly: 0.9 });
-    expect(JELLY_MODEL).toBe("gemini-4-carbon");
+    expect(JELLY_MODEL).toBe("gemini-4-neon");
   });
 
   test("sends one Choice question with the message, recent turns and the world", async () => {
@@ -40,8 +40,8 @@ describe("routeLimModel (Jev)", () => {
   test("no live toy world: Hydrogen, without asking Jev", async () => {
     let calls = 0;
     const fetchImpl = (async () => (calls++, jevSays("jelly"))) as unknown as typeof fetch;
-    expect(await routeLimModel({ prompt: "give him a kite", apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
-    expect(await routeLimModel({ prompt: "give him a kite", world: { ...world, unavailable: true }, apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
+    expect(await routeLimModel({ prompt: "give him a pinwheel", apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
+    expect(await routeLimModel({ prompt: "give him a pinwheel", world: { ...world, unavailable: true }, apiKey: "K", fetchImpl })).toMatchObject({ model: ANTHONY_MODEL, via: "no-world" });
     expect(calls).toBe(0);
   });
 

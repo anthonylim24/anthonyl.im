@@ -35,13 +35,13 @@ describe('LimStage', () => {
 
   it('goes live when the first frame lands before the scene is handed back', async () => {
     firstFrame = 'before'
-    const { container } = render(<LimStage mood="idle" night={false} />)
+    const { container } = render(<LimStage mood="idle" night={false} graphics="auto" />)
     await waitFor(() => expect(stageKind(container)).toBe('live'))
   })
 
   it('goes live when the first frame lands after the scene is handed back', async () => {
     firstFrame = 'after'
-    const { container } = render(<LimStage mood="idle" night={false} />)
+    const { container } = render(<LimStage mood="idle" night={false} graphics="auto" />)
     await waitFor(() => expect(stageKind(container)).toBe('live'))
   })
 })

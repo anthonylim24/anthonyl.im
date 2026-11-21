@@ -228,6 +228,12 @@ def hex_of(mat):
     return '#' + ''.join(f'{round(max(0.0, min(1.0, x)) * 255):02X}' for x in srgb)
 
 
+def is_glass(mat):
+    """Whether light passes through the material (Lim's stage draws these parts as glass in its lit look)."""
+    b = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None) if mat and mat.use_nodes else None
+    return bool(b) and b.inputs['Transmission Weight'].default_value >= 0.5
+
+
 def _sparkle(nt, b, amount, scale=320):
     """Sugar under the coat: each tiny cell tips the body's normal at random; the clear coat stays smooth."""
     tex = nt.nodes.new('ShaderNodeTexCoord')

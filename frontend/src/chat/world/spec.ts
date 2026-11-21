@@ -358,6 +358,86 @@ export const ITEMS: Record<string, { spec: ItemSpec; aliases: string[] }> = {
     aliases: ['football', 'soccerball', 'footy'],
     spec: item('soccer ball', ['bouncy'], [painted(part('ball', '#EBEBEB'), 'patches', '#2B2140')], 1.1),
   },
+  rocket: {
+    aliases: ['toy rocket', 'rocket ship'],
+    spec: item('rocket', ['hot'], [part('cylinder', '#F0524F', [0.52, 1, 0.52]), part('cone', '#FFF3DC', [0.52, 0.62, 0.52], [0, 1.6, 0]), part('ball', '#9FD3FF', [0.24, 0.24, 0.1], [0, 0.35, 0.5]), part('cone', '#FFD25E', [0.3, 0.5, 0.14], [-0.62, -0.75, 0], 28), part('cone', '#FFD25E', [0.3, 0.5, 0.14], [0.62, -0.75, 0], -28)], 1.15),
+  },
+  'bubble wand': {
+    aliases: ['bubble blower', 'bubble stick'],
+    spec: item('bubble wand', [], [part('ring', '#B9A6FF', [0.7, 0.7, 0.3]), part('cylinder', '#FF9FC5', [0.12, 0.55, 0.12], [0, -1.2, 0]), part('ball', '#FFD978', [0.16, 0.16, 0.16], [0, -1.78, 0])], 1.1),
+  },
+  'snow globe': {
+    aliases: ['snowglobe'],
+    spec: item('snow globe', ['cold'], [part('ball', '#DDF3FF', [0.9, 0.9, 0.9]), part('cylinder', '#C98A5B', [0.82, 0.32, 0.82], [0, -1.05, 0]), part('disc', '#FFD25E', [0.86, 0.08, 0.86], [0, -0.74, 0]), part('cone', '#5DAA57', [0.26, 0.4, 0.26], [0, -0.3, 0])], 1.1),
+  },
+  'lava lamp': {
+    aliases: ['lavalamp'],
+    spec: item('lava lamp', ['glowing', 'hot'], [part('cylinder', '#FF7E6B', [0.5, 0.95, 0.5]), part('cone', '#B9A6FF', [0.62, 0.5, 0.62], [0, -1.35, 0]), part('cone', '#B9A6FF', [0.34, 0.36, 0.34], [0, 1.25, 0]), part('ball', '#FFD25E', [0.28, 0.28, 0.28], [0, 0.3, 0])], 1.15),
+  },
+  'disco ball': {
+    aliases: ['mirror ball', 'discoball'],
+    spec: item('disco ball', ['musical', 'glowing'], [part('ball', '#D9DCEB'), part('cylinder', '#9A93B8', [0.14, 0.22, 0.14], [0, 1.1, 0])], 1.1),
+  },
+  'jack-in-the-box': {
+    aliases: ['jack box', 'jackbox'],
+    spec: item('jack-in-the-box', ['scary', 'musical'], [part('box', '#F0524F', [0.85, 0.85, 0.85]), part('box', '#FFD25E', [0.9, 0.1, 0.9], [0, 0.9, 0]), part('cylinder', '#B9A6FF', [0.08, 0.36, 0.08], [0.98, 0.1, 0], 90), part('ball', '#FFD978', [0.14, 0.14, 0.14], [1.36, 0.1, 0])], 1.1),
+  },
+  'rubber chicken': {
+    aliases: ['squeaky chicken'],
+    spec: item('rubber chicken', ['soft', 'bouncy'], [part('bean', '#FFE27A', [1.15, 0.5, 0.5]), part('ball', '#FFE27A', [0.42, 0.42, 0.42], [1.25, 0.35, 0]), part('cone', '#FF9A3D', [0.14, 0.22, 0.12], [1.72, 0.32, 0], -90), part('cone', '#F0524F', [0.16, 0.2, 0.08], [1.25, 0.85, 0])], 1.05),
+  },
+  magnet: {
+    aliases: ['horseshoe magnet'],
+    spec: item('magnet', ['heavy'], [part('ring', '#F0524F', [0.85, 0.85, 0.3]), part('box', '#D9DCEB', [0.26, 0.26, 0.3], [-0.6, -0.85, 0]), part('box', '#D9DCEB', [0.26, 0.26, 0.3], [0.6, -0.85, 0])], 1.1),
+  },
+  sparkler: {
+    aliases: [],
+    spec: item('sparkler', ['glowing', 'hot'], [part('ball', '#FFD25E', [0.42, 0.42, 0.42]), part('cylinder', '#9A93B8', [0.08, 0.8, 0.08], [0, -1.2, 0]), part('cylinder', '#8A5A3C', [0.1, 0.22, 0.1], [0, -1.78, 0])], 1.05),
+  },
+  umbrella: {
+    aliases: ['brolly', 'parasol'],
+    spec: item('umbrella', ['hat'], [part('cone', '#7FD6B5', [1.25, 0.55, 1.25]), part('cylinder', '#2B2140', [0.08, 0.9, 0.08], [0, -1, 0]), part('ring', '#2B2140', [0.2, 0.2, 0.08], [0.16, -1.78, 0]), part('ball', '#FFD978', [0.1, 0.1, 0.1], [0, 0.66, 0])], 1.2),
+  },
+  kite: {
+    aliases: [],
+    spec: item('kite', ['floaty'], [part('box', '#FF7E6B', [0.8, 0.8, 0.3], [0, 0, 0], 45), part('ball', '#FFD978', [0.14, 0.14, 0.08], [0, -1.2, 0]), part('ball', '#9FD3FF', [0.14, 0.14, 0.08], [0.1, -1.5, 0]), part('ball', '#B9A6FF', [0.14, 0.14, 0.08], [-0.05, -1.78, 0])], 1.15),
+  },
+  'music box': {
+    aliases: ['musicbox'],
+    spec: item('music box', ['musical'], [part('box', '#FF9FC5', [0.95, 0.6, 0.7]), part('box', '#F4F0FF', [1, 0.08, 0.75], [0, 0.68, 0]), part('cone', '#FFF3DC', [0.18, 0.3, 0.18], [0, 1.05, 0]), part('ball', '#F1D9BC', [0.1, 0.1, 0.1], [0, 1.45, 0]), part('cylinder', '#FFD25E', [0.08, 0.3, 0.08], [1.15, 0, 0], 90)], 1.1),
+  },
+  crystal: {
+    aliases: ['gem', 'gemstone', 'diamond'],
+    spec: item('crystal', ['glowing'], [part('cone', '#C7B6FF', [0.7, 0.9, 0.7], [0, 0, 0], 180), part('cone', '#C7B6FF', [0.7, 0.4, 0.7], [0, 0.7, 0])], 1.1),
+  },
+  lantern: {
+    aliases: ['paper lantern'],
+    spec: item('lantern', ['glowing', 'floaty'], [part('ball', '#FFB59E', [0.85, 0.95, 0.85]), part('cylinder', '#F0524F', [0.45, 0.1, 0.45], [0, 1, 0]), part('cylinder', '#F0524F', [0.45, 0.1, 0.45], [0, -1, 0]), part('cone', '#FFD25E', [0.12, 0.3, 0.12], [0, -1.4, 0], 180)], 1.15),
+  },
+  watermelon: {
+    aliases: ['watermelon slice', 'melon'],
+    spec: item('watermelon', ['edible'], [part('cone', '#FF6F7F', [1, 0.8, 0.32], [0, 0, 0], 180), part('box', '#5DAA57', [1.05, 0.12, 0.36], [0, 0.88, 0]), part('ball', '#2B2140', [0.08, 0.12, 0.08], [-0.3, 0.2, 0.3]), part('ball', '#2B2140', [0.08, 0.12, 0.08], [0.3, 0.2, 0.3]), part('ball', '#2B2140', [0.08, 0.12, 0.08], [0, -0.2, 0.3])], 1.1),
+  },
+  'ice cream': {
+    aliases: ['ice cream cone', 'icecream'],
+    spec: item('ice cream', ['edible', 'cold'], [part('cone', '#E9B97A', [0.55, 0.95, 0.55], [0, 0, 0], 180), part('ball', '#FF9FC5', [0.68, 0.62, 0.68], [0, 1.15, 0]), part('ball', '#F0524F', [0.16, 0.16, 0.16], [0, 1.78, 0]), part('ball', '#FF9FC5', [0.14, 0.2, 0.12], [0.5, 0.75, 0.3])], 1.05),
+  },
+  robot: {
+    aliases: ['toy robot', 'robo'],
+    spec: item('robot', ['heavy', 'musical'], [part('box', '#9FD3FF', [0.75, 0.8, 0.6]), part('box', '#D9DCEB', [0.55, 0.45, 0.5], [0, 1.3, 0]), part('ball', '#F0524F', [0.12, 0.12, 0.12], [0, 1.78, 0]), part('cylinder', '#D9DCEB', [0.12, 0.5, 0.12], [-0.95, 0, 0]), part('cylinder', '#D9DCEB', [0.12, 0.5, 0.12], [0.95, 0, 0]), part('box', '#2B2140', [0.4, 0.12, 0.1], [0, 1.35, 0.5])], 1.15),
+  },
+  'whoopee cushion': {
+    aliases: ['whoopie cushion'],
+    spec: item('whoopee cushion', ['soft'], [part('ball', '#FF6F9C', [1.15, 0.42, 1]), part('cylinder', '#FF6F9C', [0.2, 0.25, 0.2], [1.15, 0, 0], 90)], 1.1),
+  },
+  'spinning top': {
+    aliases: ['humming top'],
+    spec: item('spinning top', ['musical'], [part('cone', '#7FD6B5', [0.9, 0.6, 0.9], [0, 0, 0], 180), part('cylinder', '#FFD25E', [0.95, 0.12, 0.95], [0, 0.55, 0]), part('ball', '#FF9FC5', [0.5, 0.3, 0.5], [0, 0.8, 0]), part('cylinder', '#B9A6FF', [0.1, 0.35, 0.1], [0, 1.3, 0])], 1.1),
+  },
+  mushroom: {
+    aliases: ['toadstool'],
+    spec: item('mushroom', ['bouncy', 'soft'], [part('cylinder', '#FFF3DC', [0.45, 0.6, 0.45]), part('ball', '#F0524F', [1.15, 0.62, 1.15], [0, 0.95, 0]), part('ball', '#FFFFFF', [0.18, 0.18, 0.08], [-0.5, 1.25, 0.6]), part('ball', '#FFFFFF', [0.18, 0.18, 0.08], [0.4, 1.35, 0.55]), part('ball', '#FFFFFF', [0.16, 0.16, 0.08], [0.05, 0.95, 1])], 1.1),
+  },
   // A hoop and a goal are drawn by scene/fixtures.ts; the parts are their colours (frame, then net or board) and a rough likeness.
   hoop: {
     aliases: ['basketball hoop', 'basket', 'basketball net'],

@@ -5,6 +5,7 @@ import { stage as s, chatbot } from '@/styles/chatbot.stylex'
 import { LimArt } from './LimArt'
 import type { Stunt } from './eggs'
 import type { LimMood, LimReaction, LimScene, LimWorld, Score, ScoreEvent } from './scene/limScene'
+import type { Graphics, Tier } from './scene/quality'
 import type { WorldOp } from './world/spec'
 import { loadWorld, saveWorld } from './world/worldApi'
 
@@ -55,12 +56,18 @@ const sceneOf = (state: StageState) => (state.kind === 'ready' || state.kind ===
 export function LimStage({
   mood,
   night,
+  graphics,
+  onTier,
   onWorld,
   onScore,
   ref,
 }: {
   mood: LimMood
   night: boolean
+  /** Auto, High or Low (see `scene/quality.ts`). A change builds the scene again. */
+  graphics: Graphics
+  /** Where the stage is running: the look and, under Auto, how much of it this device keeps up with. */
+  onTier?: (tier: Tier) => void
   /** The items or the place changed (also called once when the scene comes up); null once there is no live scene. */
   onWorld?: (world: LimWorld | null) => void
   onScore?: (event: ScoreEvent) => void
@@ -89,10 +96,14 @@ export function LimStage({
 
   const onWorldRef = useRef(onWorld)
   const onScoreRef = useRef(onScore)
+  const onTierRef = useRef(onTier)
+  // Auto gave up the lit look mid-visit: the scene is built again on the toon look.
+  const [rebuilds, setRebuilds] = useState(0)
   useLayoutEffect(() => {
     initial.current = { mood, night }
     onWorldRef.current = onWorld
     onScoreRef.current = onScore
+    onTierRef.current = onTier
   })
 
   const emote = useCallback((word: string) => {
@@ -177,6 +188,9 @@ export function LimStage({
         canvas: gl,
         host,
         reducedMotion,
+        graphics,
+        onTier: (tier) => onTierRef.current?.(tier),
+        onRebuild: () => setRebuilds((n) => n + 1),
         night: initial.current.night,
         mood: initial.current.mood,
         onEmote: emote,
@@ -228,7 +242,7 @@ export function LimStage({
       teardown()
       setStage({ kind: 'drawing' })
     }
-  }, [reducedMotion, emote, setStage])
+  }, [reducedMotion, graphics, rebuilds, emote, setStage])
 
   useEffect(() => {
     scene?.setMood(mood)

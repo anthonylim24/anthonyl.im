@@ -164,6 +164,43 @@ export const sound = {
   sparkle() {
     ;[1568, 2093, 2637].forEach((f, i) => tone({ f: [[0, f], [0.1, f]], gain: 0.05, dur: 0.16, delay: i * 0.045 }))
   },
+  /** A melody: semitones above A4, one every `step` seconds. */
+  tune(semis: readonly number[], step = 0.16, type: OscillatorType = 'triangle') {
+    semis.forEach((n, i) => {
+      const f = 440 * 2 ** (n / 12)
+      tone({ type, f: [[0, f], [step, f]], gain: 0.08, dur: step * 1.6, delay: i * step })
+    })
+  },
+  squawk() {
+    tone({ type: 'sawtooth', f: [[0, 900], [0.08, 1500], [0.32, 520]], gain: 0.1, dur: 0.34, wobble: [42, 120] })
+  },
+  toot() {
+    tone({ type: 'sawtooth', f: [[0, 110], [0.18, 82], [0.5, 64]], gain: 0.16, dur: 0.55, wobble: [23, 14] })
+    hiss(0.05, 0.4, 300)
+  },
+  /** A spinning top's drone, falling as it slows. */
+  hum(dur = 2.4) {
+    tone({ type: 'triangle', f: [[0, 330], [dur, 180]], gain: 0.07, dur, attack: 0.15, wobble: [9, 6] })
+  },
+  beep() {
+    const f = [880, 1175, 988][Math.floor(Math.random() * 3)]
+    tone({ type: 'square', f: [[0, f], [0.06, f]], gain: 0.04, dur: 0.08 })
+  },
+  clink() {
+    const f = 1900 + Math.random() * 500
+    tone({ f: [[0, f], [0.2, f]], gain: 0.06, dur: 0.22 })
+  },
+  /** A fizzing fuse or a sparkler. */
+  fizz(dur = 0.4) {
+    hiss(0.06, dur, 5200, 0, 'highpass')
+  },
+  /** Soap bubbles popping, a few at a time. */
+  bubbles(count = 4) {
+    for (let i = 0; i < count; i++) tone({ f: [[0, 1300 + Math.random() * 900], [0.04, 2600]], gain: 0.05, dur: 0.05, delay: 0.25 + i * (0.12 + Math.random() * 0.2) })
+  },
+  rain(dur = 2) {
+    hiss(0.05, dur, 2600, 0, 'bandpass')
+  },
   /** Dance floor: kick on every step, hat on the off-beat, a bass note per bar. */
   beat(step: number) {
     if (step % 2 === 0) tone({ f: [[0, 150], [0.11, 46]], gain: 0.55, dur: 0.16 })

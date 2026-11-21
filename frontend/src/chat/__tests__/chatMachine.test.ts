@@ -95,8 +95,8 @@ describe('chatReducer', () => {
     expect(chatReducer(ordering, { type: 'STREAM_END', replyId: 'r1', content: 'x' })).toBe(ordering)
     // A failure mid-order is Lim's to own up to (ORDER_RESULT), not a chat error.
     expect(chatReducer(ordering, { type: 'FAIL', replyId: 'r1', error: 'x', partial: null })).toBe(ordering)
-    const done = chatReducer(ordering, { type: 'ORDER_RESULT', replyId: 'r1', text: 'A kite!', order: '@@world {...}' })
-    expect(reply(done)).toMatchObject({ content: 'A kite!', sent: '@@world {...}', status: 'done' })
+    const done = chatReducer(ordering, { type: 'ORDER_RESULT', replyId: 'r1', text: 'A pinwheel!', order: '@@world {...}' })
+    expect(reply(done)).toMatchObject({ content: 'A pinwheel!', sent: '@@world {...}', status: 'done' })
     expect(done.lastOutcome).toBe('local')
   })
 

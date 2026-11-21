@@ -28,6 +28,7 @@ import {
   normalLocal,
   normalView,
   normalize,
+  output,
   positionLocal,
   positionViewDirection,
   positionWorld,
@@ -36,6 +37,7 @@ import {
   saturate,
   sin,
   smoothstep,
+  toneMapping,
   uniform,
   uv,
   vec2,
@@ -135,8 +137,13 @@ export type FaceName = keyof typeof FACES
 
 /* ── Shared uniforms ─────────────────────────────────────────────── */
 
-export function createLimUniforms(night: boolean) {
+/**
+ * `lit` picks the look for the scene's whole life: the toon gel, or physically lit sorbet plastic
+ * under the studio's environment and lights (see `lighting.ts`). Every material factory reads it.
+ */
+export function createLimUniforms(night: boolean, lit = false) {
   return {
+    lit,
     night: uniform(night ? 1 : 0),
     time: uniform(0),
     sad: uniform(0),
@@ -250,6 +257,60 @@ export function gel(n: V3, spec: V3, o: GelOptions): V3 {
   return c
 }
 
+type LitOptions = {
+  rough?: number
+  coat?: number
+  coatRough?: number | F
+  sheen?: number
+  /** Light that bleeds through the thin far edge, which the lit look keeps as a glow. */
+  glow?: V3
+  normal?: V3
+}
+
+/** The Blender studio's view transform (Khronos PBR Neutral, +0.3 EV), applied per lit material so the unlit sky, floor and ink keep their exact colours. */
+const EXPOSURE = 2 ** 0.3
+
+/**
+ * Sorbet plastic, as the Blender renders draw it: a soft dielectric under a clear coat, lit by the
+ * studio. `albedo` is the colour the toon look would shade; the glow stands in for subsurface light.
+ */
+export function plastic(albedo: V3, o: LitOptions = {}): THREE.MeshPhysicalNodeMaterial {
+  const m = new THREE.MeshPhysicalNodeMaterial()
+  m.colorNode = albedo
+  m.roughness = o.rough ?? 0.32
+  m.clearcoat = o.coat ?? 1
+  if (typeof o.coatRough === 'number' || o.coatRough === undefined) m.clearcoatRoughness = (o.coatRough as number | undefined) ?? 0.06
+  else m.clearcoatRoughnessNode = o.coatRough
+  if (o.sheen) {
+    m.sheen = o.sheen
+    m.sheenNode = albedo.mul(o.sheen)
+    m.sheenRoughness = 0.6
+  }
+  if (o.normal) m.normalNode = o.normal
+  if (o.glow) {
+    const n = o.normal ?? normalize(normalView)
+    const thin = pow(float(1).sub(saturate(dot(n, positionViewDirection))), 1.5)
+    m.emissiveNode = o.glow.mul(thin.mul(saturate(float(0.35).sub(dot(n, LIGHT)))).mul(0.35))
+  }
+  m.outputNode = toneMapping(THREE.NeutralToneMapping, float(EXPOSURE), output)
+  return m
+}
+
+/**
+ * Clear glass for the lit look (a snow globe's dome, a crystal, an ice cube): tinted, thin face-on and
+ * denser at the rim, under the studio's reflections. It is blended, not transmissive, because the
+ * floor and sky are transparent (they fade into the page) and transmission sees only opaque surfaces.
+ * Writing no depth keeps it out of the screen-space passes, which would grain it with occlusion.
+ */
+export function glassMaterial(u: LimUniforms, hex: string): THREE.MeshPhysicalNodeMaterial {
+  const m = new THREE.MeshPhysicalNodeMaterial({ transparent: true, depthWrite: false, roughness: 0.05, ior: 1.45 })
+  m.colorNode = col(hex).mul(mix(float(1), float(0.86), u.night))
+  const rim = pow(float(1).sub(saturate(dot(normalize(normalView), positionViewDirection))), 2)
+  m.opacityNode = mix(float(0.12), float(0.8), rim)
+  m.outputNode = toneMapping(THREE.NeutralToneMapping, float(EXPOSURE), output)
+  return m
+}
+
 /**
  * The clip position with its depth pulled most of the way to the near plane while `on` is 1, so a
  * toy in hand draws in front of everything yet still hides its own far side. The near plane is
@@ -303,9 +364,9 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
   const s = skin(u, base, length(rest.sub(vec3(0, -0.45, 0.55))))
   // The highlight keeps off the face: nothing glossy crosses a brow or an eye.
   const gloss = float(1).sub(front.mul(float(1).sub(smoothstep(a.eyeY + 0.43, a.eyeY + 0.5, rest.y))))
-  let c = gel(n.view, n.spec, { ...s, window, gloss })
+  let c = u.lit ? s.base : gel(n.view, n.spec, { ...s, window, gloss })
   // At night the jelly glows a little from inside.
-  c = c.add(s.rim.mul(u.night).mul(0.07))
+  c = c.add(s.rim.mul(u.night).mul(u.lit ? 0.03 : 0.07))
 
   // The back of the head isn't blank: a small swirl, like the knot on a balloon.
   const back = smoothstep(0.3, 0.55, rn.z.negate())
@@ -379,12 +440,11 @@ export function createEyeMaterial(lim: LimUniforms, side: number) {
     heart: uniform(0),
     dizzy: uniform(0),
   }
-  const mat = new THREE.MeshBasicNodeMaterial()
   const p = positionLocal.xy as V2
   const nv = normalize(normalView)
   const lit = dot(nv, LIGHT)
 
-  let c: V3 = mix(col(PAL.eyeShade), col('#FFFFFF'), smoothstep(-0.3, 0.6, lit))
+  let c: V3 = lim.lit ? col('#FFFFFF') : mix(col(PAL.eyeShade), col('#FFFFFF'), smoothstep(-0.3, 0.6, lit))
   const q = p.sub(u.look)
   const r = length(q)
   const ang = atan(q.y, q.x)
@@ -428,13 +488,15 @@ export function createEyeMaterial(lim: LimUniforms, side: number) {
   const s = skin(lim, mix(col(PAL.bottom), col(PAL.top), 0.62), float(0.75))
   // Lids take the same ramp as the skin around them, so a shut eye melts into the face.
   const lidWrap = saturate(lit.add(0.45).div(1.45))
-  const lidCol = mix(mix(s.shade, s.base, smoothstep(0.12, 0.54, lidWrap)), s.light, smoothstep(0.74, 0.94, lidWrap).mul(0.42))
+  const lidCol = lim.lit ? s.base : mix(mix(s.shade, s.base, smoothstep(0.12, 0.54, lidWrap)), s.light, smoothstep(0.74, 0.94, lidWrap).mul(0.42))
   const lidNight = lidCol.add(s.rim.mul(lim.night).mul(0.07))
   const closing = float(1).sub(smoothstep(0.85, 1, u.lidTop))
   const lash = aaStep(abs(ly.sub(topLine)).sub(0.05), 0.02).mul(closing)
   const lashBot = aaStep(abs(p.y.sub(botLine)).sub(0.05), 0.02).mul(float(1).sub(smoothstep(0.75, 0.95, u.lidBot)))
   c = mix(c, lidNight, max(topLid, botLid))
   c = mix(c, inkOf(lim), max(lash.mul(float(1).sub(botLid)), lashBot))
+  if (lim.lit) return { mat: plastic(c, { rough: 0.2, coatRough: 0.02 }), u }
+  const mat = new THREE.MeshBasicNodeMaterial()
   mat.colorNode = c
   return { mat, u }
 }
@@ -474,10 +536,11 @@ export function paintMask(kind: Paint, d: V3): F {
 export type ToyPaint = { kind: Paint; ink: string; shade: string; dir: V3 }
 
 export function toyMaterial(u: LimUniforms, hex: string, shadeHex: string, paint?: ToyPaint) {
-  const mat = new THREE.MeshBasicNodeMaterial()
   const n = normalize(normalView)
   const mask = paint && paint.kind !== 'plain' ? paintMask(paint.kind, paint.dir) : null
   const base = mask && paint ? mix(col(hex), col(paint.ink), mask) : col(hex)
+  if (u.lit) return plastic(base.mul(mix(float(1), float(0.86), u.night)), { glow: col(hex) })
+  const mat = new THREE.MeshBasicNodeMaterial()
   const shade = mask && paint ? mix(col(shadeHex), col(paint.shade), mask) : col(shadeHex)
   mat.colorNode = gel(n, n, {
     base: base.mul(mix(float(1), float(0.8), u.night)),
@@ -504,7 +567,16 @@ export type FloorPlace = {
 }
 
 export function floorMaterial(u: LimUniforms, place: FloorPlace) {
-  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true })
+  const mat = u.lit ? new THREE.MeshStandardNodeMaterial({ transparent: true }) : new THREE.MeshBasicNodeMaterial({ transparent: true })
+  if (mat instanceof THREE.MeshStandardNodeMaterial) {
+    // Unlit all the same (the floor keeps its exact colours and takes shadows from the catcher), but
+    // it tells the reflection pass how polished it is: the studio's floor a little, the disco floor more.
+    mat.lights = false
+    // Premultiplied, so its own opacity, not its reflectivity, weighs what it leaves in the reflection pass's targets.
+    mat.premultipliedAlpha = true
+    mat.metalnessNode = float(0.22).mul(float(1).sub(place.amount)).add(u.disco.mul(0.3))
+    mat.roughnessNode = float(0.06)
+  }
   const wp = positionWorld.xz as V2
   const grid = wp.mul(1.5)
   const cell = fract(grid).sub(0.5)
@@ -612,6 +684,13 @@ export function bubbleMaterial(u: LimUniforms) {
   const glint = float(1).sub(smoothstep(0.1, 0.2, length(n.xy.sub(vec2(-0.42, 0.45)))))
   mat.colorNode = mix(mix(col('#CFE9FF'), col('#B7A4FF'), u.night), vec3(1, 1, 1), glint)
   mat.opacityNode = fres.mul(0.8).add(0.3).add(glint.mul(0.7)).min(1)
+  return mat
+}
+
+/** The pool of light a glowing toy throws on the floor; each instance's colour carries its tint and strength. */
+export function floorGlowMaterial() {
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+  mat.opacityNode = pow(saturate(float(1).sub(length(uv().sub(0.5)).mul(2))), 2)
   return mat
 }
 

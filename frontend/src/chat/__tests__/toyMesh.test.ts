@@ -47,7 +47,20 @@ describe('toy meshes', () => {
     const mesh = parseToyMesh(encode([0, 0, 0, 1, 0, 0, 0, 2, -1], [0, 1, 2], [[0, 3, 0xf0524f]]))
     expect(Array.from(mesh.positions)).toEqual([0, 0, 0, 1, 0, 0, 0, 2, -1])
     expect(Array.from(mesh.index)).toEqual([0, 1, 2])
-    expect(mesh.groups).toEqual([{ start: 0, count: 3, color: '#F0524F' }])
+    expect(mesh.groups).toEqual([{ start: 0, count: 3, color: '#F0524F', glass: false }])
+  })
+
+  it('reads a glass part apart from its colour', () => {
+    const mesh = parseToyMesh(encode([0, 0, 0, 1, 0, 0, 0, 2, -1], [0, 1, 2], [[0, 3, (1 << 24) | 0xddf3ff]]))
+    expect(mesh.groups).toEqual([{ start: 0, count: 3, color: '#DDF3FF', glass: true }])
+  })
+
+  it('ships the snow globe dome, the crystal and the ice cube as glass', () => {
+    const glassy = (key: string) => shipped(key).groups.filter((g) => g.glass).map((g) => g.color)
+    expect(glassy('snow globe')).toEqual(['#DDF3FF'])
+    expect(glassy('crystal')).toEqual(['#C7B6FF'])
+    expect(glassy('ice cube')).toEqual(['#BFE6FF', '#FFFFFF'])
+    expect(glassy('rocket')).toEqual([])
   })
 
   it('refuses a file that is not a toy mesh or is cut short', () => {
@@ -139,7 +152,7 @@ describe('the ink line on a model', () => {
     const mesh: ToyMesh = {
       positions,
       index: Uint16Array.from(index),
-      groups: [{ start: 0, count: 12, color: '#F0524F' }, { start: 12, count: 6, color: '#111111' }],
+      groups: [{ start: 0, count: 12, color: '#F0524F', glass: false }, { start: 12, count: 6, color: '#111111', glass: false }],
     }
     const width = outlineWidths(mesh, positions, 0.016)
     expect(width[0]).toBeCloseTo(0.016, 6)

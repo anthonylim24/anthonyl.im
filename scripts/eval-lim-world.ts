@@ -7,7 +7,7 @@
  *
  * With JEV_API_KEY and no model argument, each case is routed by Jev
  * (`server/src/lim/jev.ts`) as in production, and Jev's routing is scored
- * too: chat must go to Hydrogen ("anthony"), orders to Carbon ("jelly").
+ * too: chat must go to Hydrogen ("anthony"), orders to Neon ("jelly").
  * `--route-only` scores Jev's routing alone, with no Gemini calls.
  *
  * Chat messages must be answered in prose. Orders must come back as a
@@ -153,7 +153,7 @@ for (const set of routeOnly ? [] : [...new Set(jobs.map((j) => j.set))]) {
 }
 let routeOk = true;
 if (useJev) {
-  // Chat belongs on Hydrogen ("anthony"), orders on Carbon ("jelly"). No-scene cases skip Jev by design.
+  // Chat belongs on Hydrogen ("anthony"), orders on Neon ("jelly"). No-scene cases skip Jev by design.
   const judged = rows.filter((r) => r.via !== "no-world");
   const wrong = judged.filter((r) => r.route !== (r.expect === "chat" ? "anthony" : "jelly"));
   const times = judged.map((r) => r.jevMs ?? 0).sort((a, b) => a - b);

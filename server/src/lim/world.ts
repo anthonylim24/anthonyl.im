@@ -14,7 +14,9 @@
 export const ITEM_IDS = [
   "bean", "gumball", "ball", "apple", "donut", "cupcake", "chili", "party hat", "crown", "sunglasses",
   "teddy", "pillow", "drum", "balloon", "duck", "cactus", "ghost", "ice cube", "star", "heart",
-  "basketball", "soccer ball", "hoop", "goal",
+  "basketball", "soccer ball", "rocket", "bubble wand", "snow globe", "lava lamp", "disco ball", "jack-in-the-box",
+  "rubber chicken", "magnet", "sparkler", "umbrella", "kite", "music box", "crystal", "lantern", "watermelon", "ice cream",
+  "robot", "whoopee cushion", "spinning top", "mushroom", "hoop", "goal",
 ] as const;
 export const PLACE_IDS = ["beach", "snow", "space", "meadow", "underwater", "volcano", "haunted", "disco"] as const;
 export const SHAPES = ["ball", "box", "cylinder", "cone", "disc", "drop", "star", "heart", "bean", "ring"] as const;

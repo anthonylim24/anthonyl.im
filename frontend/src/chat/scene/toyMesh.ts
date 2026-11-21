@@ -14,12 +14,14 @@ import { cleanItem, ITEMS, type ItemSpec, type Part } from '../world/spec'
 /** World radius of a size-1 item's body. */
 export const ITEM_R = 0.3
 
-export type ToyGroup = { start: number; count: number; color: string }
+/** One colour of the model; `glass` parts let light through (the lit look draws them as glass). */
+export type ToyGroup = { start: number; count: number; color: string; glass: boolean }
 /** Positions (three.js axes, standing on y = 0), triangles, and one index range per colour. */
 export type ToyMesh = { positions: Float32Array; index: Uint16Array; groups: ToyGroup[] }
 export type Box = { lo: Vec3; hi: Vec3 }
 
 const TAG = 0x31594f54
+const GLASS = 1 << 24
 
 export function parseToyMesh(buffer: ArrayBuffer): ToyMesh {
   const view = new DataView(buffer)
@@ -33,10 +35,12 @@ export function parseToyMesh(buffer: ArrayBuffer): ToyMesh {
   const groups: ToyGroup[] = []
   let at = 40
   for (let g = 0; g < count; g++, at += 12) {
+    const word = view.getUint32(at + 8, true)
     groups.push({
       start: view.getUint32(at, true),
       count: view.getUint32(at + 4, true),
-      color: `#${view.getUint32(at + 8, true).toString(16).padStart(6, '0').toUpperCase()}`,
+      color: `#${(word & 0xffffff).toString(16).padStart(6, '0').toUpperCase()}`,
+      glass: (word & GLASS) !== 0,
     })
   }
   const packed = new Uint16Array(buffer, at, vertices * 3)

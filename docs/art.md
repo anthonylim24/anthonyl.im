@@ -4,7 +4,7 @@ Some art on the site is made offline and committed: Lim's toy box and the models
 
 | Set | Source | Output | Shown by |
 |-----|--------|--------|----------|
-| Toys | `art/toys.py`: each catalog toy in `chat/world/spec.ts` modelled by hand after the concept sheet `art/concepts/toybox.webp` (ChatGPT Image) | `src/chat/toys/<key>.webp` (240 px still) and `<key>.turn.webp` (24 frames of one turn, 160 px each, in one strip) | `ToyCard.tsx` via `chat/toyArt.ts` |
+| Toys | `art/toys.py`: each catalog toy in `chat/world/spec.ts` modelled by hand after the concept sheet `art/concepts/toybox.webp` (ChatGPT Image) | `src/chat/toys/<key>.webp` (240 px still) and `<key>.turn.webp` (48 frames of one turn, 160 px each, in one strip, played over 1.6 s at 30 fps) | `ToyCard.tsx` via `chat/toyArt.ts` |
 | Stage models | The same `art/toys.py` builders at stage detail, every catalog toy but the hoop and the goal | `src/chat/toys/<key>.mesh` (at most 3000 triangles, 11 to 28 kB) | `modelLook` in `chat/scene/items.ts` via `chat/scene/toyMesh.ts` |
 | Seals | `art/seals.py`: a wax puddle in the badge's `sealInk`, pressed with a beaded ring and its Fraunces monogram | `src/breathflow/seals/<badge id>.webp` (144 px) | `WaxSeal` in `BadgeGrid.tsx` |
 | Engravings | `art/concepts/<name>.webp`, black ink on white from ChatGPT Image | `src/pages/Trips/art/<name>.webp` (640 px alpha mask) | `Engraving` in `pages/Trips/components/kit.tsx` |

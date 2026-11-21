@@ -25,8 +25,12 @@ import { ITEMS, actionsFor, type Action, type ItemSpec, type PlaceSpec, type Tra
 import { Weather, backdropMaterial, createPlaceUniforms, easePlace } from './env'
 import { bodyRest, createItemMaterials, jellyLook, modelLook, type ToyLook } from './items'
 import { catalogKey, loadToyMesh, toyMeshNow } from './toyMesh'
+import { QUIRKS, clink, tapTraits, tickTraits, type QuirkToy, type Stage } from './quirks'
 import { Fixture, fixtureKind } from './fixtures'
 import { SceneryStage } from './scenery'
+import { createLighting, type Lighting } from './lighting'
+import { createPost, type Post } from './post'
+import { isMobile, median, ours, readFit, saveFit, shed, startTier, strike, type Graphics, type Rung, type Strikes, type Tier } from './quality'
 import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
 import {
   CONFETTI,
@@ -38,12 +42,14 @@ import {
   col,
   createEyeMaterial,
   createLimUniforms,
+  floorGlowMaterial,
   floorMaterial,
   gel,
   haloMaterial,
   hullMaterial,
   inkOf,
   limBodyColor,
+  plastic,
   rippleMaterial,
   shadowMaterial,
   smoothNormals,
@@ -75,6 +81,12 @@ export type LimSceneOptions = {
   onWorld?: (world: LimWorld) => void
   /** Something went through the hoop or into the goal. */
   onScore?: (event: ScoreEvent) => void
+  /** The visitor's graphics setting (see `quality.ts`); Auto when left out. */
+  graphics?: Graphics
+  /** The tier the stage runs at, once it starts and whenever Auto moves it. */
+  onTier?: (tier: Tier) => void
+  /** Auto gave up the lit look: build the scene again (it will start on the toon look). */
+  onRebuild?: () => void
 }
 
 /** Points so far: the visitor's shots against Lim's. */
@@ -183,13 +195,64 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const startWith = opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]
   // The starter toys' models download while the GPU starts.
   const models = Promise.all(startWith.map(catalogKey).filter((key) => key !== null).map(loadToyMesh))
-  const stage = await createStage({ canvas, host, reducedMotion, alpha: true })
+  const graphics = opts.graphics ?? 'auto'
+  let post: Post | null = null
+  let tier: Tier = { look: 'toon' }
+  let strikes: Strikes = { count: 0, at: 0 }
+  const born = performance.now()
+  // What each recent frame cost the main thread and the GPU, so a capped display is not taken for a slow one.
+  const cpuMs: number[] = []
+  const gpuMs: number[] = []
+  const note = (into: number[], ms: number) => {
+    into.push(ms)
+    if (into.length > 60) into.shift()
+  }
+  const stage = await createStage({
+    canvas,
+    host,
+    reducedMotion,
+    alpha: true,
+    shed: (slow) => {
+      if (!ours(Math.max(median(cpuMs), median(gpuMs)), slow.median)) return true
+      if (graphics !== 'auto') return false
+      const judged = strike(strikes, performance.now(), born, slow.median)
+      strikes = judged.strikes
+      // Not yet: an empty answer would let the stage lower its resolution instead.
+      if (!judged.act) return true
+      const next = shed(tier, slow)
+      if (JSON.stringify(next) === JSON.stringify(tier)) return false
+      tier = next
+      saveFit(next)
+      opts.onTier?.(next)
+      if (next.look === 'toon') opts.onRebuild?.()
+      else setRung(next.rung)
+      return true
+    },
+  })
   const { renderer } = stage
   renderer.setClearColor(0x000000, 0)
+  const mobile = isMobile()
+  const webgpu = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true
+  const gpuQueue = (renderer.backend as { device?: GPUDevice }).device?.queue
+  tier = startTier(graphics, { webgpu, mobile, still: reducedMotion }, readFit())
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 80)
-  const u = createLimUniforms(opts.night)
+  const u = createLimUniforms(opts.night, tier.look === 'lit')
+  let lighting: Lighting | null = null
+  if (tier.look === 'lit') {
+    lighting = createLighting(scene, renderer, { mobile, shadows: webgpu || !mobile })
+    // WebGL2 draws the lit look straight to the canvas: the passes are WebGPU only.
+    if (webgpu) post = createPost(renderer, scene, camera, { rung: tier.rung, temporal: !reducedMotion, mobile })
+  }
+  const keyShadows = lighting?.shadows ?? false
+  /** The lit look: every solid surface under it casts a shadow from the key. */
+  const castShadows = (root: THREE.Object3D) => {
+    if (!keyShadows) return
+    root.traverse((o) => {
+      if (o instanceof THREE.Mesh && [o.material].flat().some((m) => m instanceof THREE.MeshPhysicalNodeMaterial)) o.castShadow = true
+    })
+  }
   const ink = inkOf(u)
   const emote = (word: string) => opts.onEmote?.(word)
 
@@ -232,8 +295,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const restEyeGap = Math.hypot(eyeRests[0][0] - eyeRests[1][0], eyeRests[0][1] - eyeRests[1][1], eyeRests[0][2] - eyeRests[1][2])
   const restHeight = headTopRest[1] - baseRest[1]
 
-  const bodyMat = new THREE.MeshBasicNodeMaterial()
-  bodyMat.colorNode = limBodyColor(u, limN, anchors)
+  let bodyMat: THREE.NodeMaterial
+  if (u.lit) {
+    bodyMat = plastic(limBodyColor(u, limN, anchors), { normal: limN.view, glow: col(PAL.glow), rough: 0.3 })
+  } else {
+    bodyMat = new THREE.MeshBasicNodeMaterial()
+    bodyMat.colorNode = limBodyColor(u, limN, anchors)
+  }
   const limMesh = new THREE.Mesh(limGeo, bodyMat)
   const limHull = new THREE.Mesh(limGeo, hullMaterial(ink, 0.03, limN.local))
   limMesh.frustumCulled = limHull.frustumCulled = false
@@ -260,8 +328,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     [[0.02, 0.86, 0.04], [0.03, 1.03, 0.04], [0.09, 1.18, 0.04], [0.21, 1.27, 0.04], [0.33, 1.27, 0.04], [0.42, 1.21, 0.04]],
     [0.085, 0.08, 0.07, 0.06, 0.048, 0.034],
   )
-  const tuftMat = new THREE.MeshBasicNodeMaterial()
-  {
+  let tuftMat: THREE.NodeMaterial = new THREE.MeshBasicNodeMaterial()
+  if (u.lit) {
+    const tinted = mix(col(PAL.top), u.tint as unknown as V3, u.tintAmt)
+    tuftMat = plastic(mix(tinted, col('#D9939B'), u.sad.mul(0.4)).mul(mix(float(1), float(0.86), u.night)), { glow: col(PAL.glow) })
+  } else {
     const n = normalize(normalView)
     const tinted = mix(col(PAL.top), u.tint as unknown as V3, u.tintAmt)
     tuftMat.colorNode = gel(n, n, {
@@ -279,6 +350,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const tuftHull = new THREE.Mesh(tuft.geo, hullMaterial(ink, 0.026))
   tuftMesh.frustumCulled = tuftHull.frustumCulled = false
   scene.add(tuftMesh, tuftHull)
+  castShadows(limMesh)
+  castShadows(tuftMesh)
 
   // A nose bubble for naps: swells on the out-breath, pops when Lim wakes.
   const noseRest = surfacePoint(limRest.positions, [0.1, anchors.eyeY - 0.2, 0.97]).p
@@ -315,6 +388,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   floor.position.z = 3
   // A hair below the contact plane, so the ink line closes under every body.
   floor.position.y = -0.045
+  const setRung = (rung: Rung) => post?.setRung(rung)
   scene.add(floor)
   // The sky rides on the camera, far behind everything, so it always fills the view.
   const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), backdropMaterial(pu))
@@ -407,6 +481,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const model = key ? toyMeshNow(key) : null
     const look: ToyLook = key && model ? modelLook(ITEMS[key].spec, model, rest, u, ink) : jellyLook(spec, geo, u, ink, itemMats)
     scene.add(look.group)
+    castShadows(look.group)
     return {
       spec, has, hex, jelly, geo, look, key, rest, shadow: makeShadow(null), r: rest.radius, half: rest.half,
       /** Drawn over everything (in hand, or on the way into Lim's mouth). */
@@ -430,6 +505,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       /** Its centre a frame ago: a score is a crossing. */
       prev: [0, 0, 0] as Vec3,
       scoredAt: -9,
+      memo: {} as Record<string, number>,
     }
   }
   type Toy = ReturnType<typeof makeToy>
@@ -468,8 +544,16 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   dust.mesh.renderOrder = 2
   const stars = new Pool(starGeometry(4, 0.34), plain(), 40, { gravity: 3, drag: 2.2, billboard: true, shape: popIn })
   const hearts = new Pool(heartGeometry(), plain(), 24, { gravity: -1.1, drag: 1.4, billboard: true, flutter: 1.8, shape: popIn })
-  const pools = [confetti, dust, stars, hearts]
+  const bubbles = new Pool(new THREE.SphereGeometry(1, 14, 10), bubbleMaterial(u), 24, { gravity: -1.4, drag: 1.1, flutter: 1.2, shape: popIn })
+  const pools = [confetti, dust, stars, hearts, bubbles]
   for (const p of pools) scene.add(p.mesh)
+  /** Light on the floor under glowing toys, laid out afresh every frame. */
+  const glows = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), floorGlowMaterial(), 8)
+  glows.count = 0
+  glows.frustumCulled = false
+  glows.renderOrder = 2
+  glows.setColorAt(0, new THREE.Color())
+  scene.add(glows)
 
   // ── Layout ───────────────────────────────────────────────────────
   let halfW = 2.5
@@ -577,6 +661,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let dizzyUntil = 0
   let nextOrbit = 0
   let lastBonk = -1
+  let lastClink = -1
   let lastShout = -9
   let lastKey = 0
   let inflate = 0
@@ -672,16 +757,40 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       d.angle = -Math.PI / 2
     }
   }
-  const sparkle = (x: number, y: number, z: number, count: number, power = 1) => {
+  const sparkle = (x: number, y: number, z: number, count: number, power = 1, colours?: readonly string[]) => {
     if (reducedMotion) return
     for (let k = 0; k < count; k++) {
       const a = Math.random() * Math.PI * 2
-      const s = stars.spawn(k % 3 ? '#FFD25E' : '#FFFFFF', 0.45 + Math.random() * 0.35, 0.07 + Math.random() * 0.08)
+      const hex = colours ? colours[Math.floor(Math.random() * colours.length)] : k % 3 ? '#FFD25E' : '#FFFFFF'
+      const s = stars.spawn(hex, 0.45 + Math.random() * 0.35, 0.07 + Math.random() * 0.08)
       s.p.set(x, y, z)
       s.v.set(Math.cos(a) * 3 * power, Math.sin(a) * 3 * power + 1, 0)
       s.spin = (Math.random() - 0.5) * 12
     }
   }
+  /** Flakes thrown up from a point that flutter down and settle: feathers, seeds, rain. */
+  const flakes = (at: Vec3, count: number, power: number, colours: readonly string[]) => {
+    if (reducedMotion) return
+    for (let k = 0; k < count; k++) {
+      const c = confetti.spawn(colours[k % colours.length], 1.6 + Math.random() * 1.2)
+      c.p.set(at[0] + (Math.random() - 0.5) * 0.3, at[1], at[2] + (Math.random() - 0.5) * 0.2)
+      const a = Math.random() * Math.PI * 2
+      const s = (0.6 + Math.random() * 1.6) * power
+      c.v.set(Math.cos(a) * s, (2 + Math.random() * 2.4) * power, Math.sin(a) * s * 0.4)
+      c.axis.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
+      c.spin = (Math.random() - 0.5) * 14
+    }
+  }
+  const blow = (at: Vec3, count: number) => {
+    if (reducedMotion) return
+    for (let k = 0; k < count; k++) {
+      const b = bubbles.spawn('#ffffff', 1.8 + Math.random() * 1.2, 0.08 + Math.random() * 0.1)
+      b.p.set(at[0] + (Math.random() - 0.5) * 0.3, at[1], at[2] + 0.2)
+      b.v.set((Math.random() - 0.5) * 1.6, 0.8 + Math.random() * 1.2, (Math.random() - 0.5) * 0.4)
+    }
+  }
+  const glowTint = new THREE.Color()
+  const glowAt = new THREE.Matrix4()
   const love = (count: number) => {
     if (reducedMotion) return
     lim.attach(headTopRest, tmp)
@@ -786,6 +895,88 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (popped) return
     dance = { t0: t, until: t + dur, step: -1, lean: 0 }
     setAct('happy', dur)
+  }
+
+  // ── Toy quirks (quirks.ts): the stage's own effects, handed to each toy ──
+  const quirkToys = new WeakMap<Toy, QuirkToy>()
+  const asQuirk = (toy: Toy) => {
+    let q = quirkToys.get(toy)
+    if (!q) {
+      q = {
+        key: toy.key,
+        has: toy.has,
+        center: toy.jelly.center,
+        get held() {
+          return held === toy
+        },
+        kick(vx, vy, vz) {
+          wakeToy(toy)
+          toy.jelly.kick(vx, vy, vz)
+        },
+        spin(wx, wy, wz) {
+          wakeToy(toy)
+          toy.jelly.spin(wx, wy, wz)
+        },
+        memo: toy.memo,
+      }
+      quirkToys.set(toy, q)
+    }
+    return q
+  }
+  const onStage = (toy: Toy) => toy.eatenAt < 0 && toy.backAt < 0 && !toy.worn
+  const quirkOf = (toy: Toy) => (toy.key ? QUIRKS[toy.key] : undefined)
+  const quirkStage: Stage = {
+    get t() {
+      return t
+    },
+    get night() {
+      return u.night.value as number
+    },
+    get toys() {
+      return toys.filter(onStage).map(asQuirk)
+    },
+    sparkle: (at, count, power, colours) => sparkle(at[0], at[1], at[2] + 0.2, count, power, colours),
+    flakes,
+    bubbles: blow,
+    puff: (at, count, power, radius) => puff(at[0], at[2], count, power, radius),
+    glow(toy, hex, strength) {
+      if (glows.count >= glows.instanceMatrix.count) return
+      // Brighter at night, fainter the higher the toy floats; past 1 in the lit look, so the bloom catches it.
+      const k = strength * (0.4 + 0.6 * (u.night.value as number)) * Math.max(0, 1 - toy.center[1] / 4) * (u.lit ? 1.6 : 1)
+      if (k < 0.02) return
+      glowAt.makeScale(2.2, 1, 2.2).setPosition(toy.center[0], 0.02, toy.center[2])
+      glows.setMatrixAt(glows.count, glowAt)
+      glows.setColorAt(glows.count, glowTint.set(hex).multiplyScalar(k))
+      glows.count++
+    },
+    later,
+    emote,
+    lim: {
+      center: lim.center,
+      get dancing() {
+        return !!dance && t < dance.until
+      },
+      kick: (vx, vy, vz) => lim.kick(vx, vy, vz),
+      face: setAct,
+      dance: startDance,
+      dizzy: () => dizzy(),
+      sleepy: () => nod('sleepy'),
+      point(at) {
+        tuft.flick(Math.sign(at[0] - lim.center[0]) * 2.4, 0.6, 0)
+      },
+    },
+  }
+  /** Each toy's quirk and traits for this frame, and the floor glow they leave. */
+  const tickQuirks = (dt: number) => {
+    glows.count = 0
+    for (const toy of toys) {
+      if (!onStage(toy)) continue
+      const q = asQuirk(toy)
+      quirkOf(toy)?.tick?.(quirkStage, q, dt)
+      tickTraits(quirkStage, q, toy.hex)
+    }
+    glows.instanceMatrix.needsUpdate = true
+    if (glows.instanceColor) glows.instanceColor.needsUpdate = true
   }
   const startSpin = (turns: number, dur: number) => {
     spin = { t0: t, dur, turns, at: 0 }
@@ -921,6 +1112,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Feeding ──────────────────────────────────────────────────────
   const eat = (toy: Toy) => {
+    quirkOf(toy)?.eaten?.(quirkStage, asQuirk(toy))
     toy.eatenAt = t
     toy.jelly.gravity = [0, 0, 0]
     toy.jelly.anchor = { target: mouthAt, k: 420, c: 30 }
@@ -1047,6 +1239,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const model = await loadToyMesh(key)
     if (!model || gone) return
     const look = modelLook(ITEMS[key].spec, model, toy.rest, u, ink)
+    castShadows(look.group)
     const built = await renderer.compileAsync(look.group, camera, scene).then(() => true, () => false)
     if (!built || gone || !toys.includes(toy)) return look.dispose()
     look.group.visible = toy.look.group.visible
@@ -1055,6 +1248,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.look = look
     scene.add(look.group)
     look.update(toy.geo, toy.jelly)
+    stage.requestRender()
   }
   const addToy = (spec: ItemSpec, renew: boolean, height: number) => {
     const toy = makeToy(spec, renew)
@@ -1603,6 +1797,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         body.kick((Math.random() - 0.5) * 1.5, 3 + Math.random() * 1.5, 0)
         body.spin(0, 0, (Math.random() - 0.5) * 9)
         sound.squeak()
+        const q = asQuirk(toy)
+        tapTraits(quirkStage, q)
+        quirkOf(toy)?.tap?.(quirkStage, q)
         return
       }
       if (body !== lim) {
@@ -1979,6 +2176,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           wa, wb, ra: ia.r, rb: ib.r, restitution: 0.5, friction: 0.45, spinA: A !== lim, spinB: B !== lim,
         })
         if (j <= 0) continue
+        if (A === lim && ib.toy && j > 2) quirkOf(ib.toy)?.hit?.(quirkStage, asQuirk(ib.toy), 'lim', j)
+        if (ia.toy && ib.toy && j > 3) {
+          quirkOf(ia.toy)?.hit?.(quirkStage, asQuirk(ia.toy), 'toy', j)
+          quirkOf(ib.toy)?.hit?.(quirkStage, asQuirk(ib.toy), 'toy', j)
+          if (j > 6 && t - lastClink > 0.25) {
+            lastClink = t
+            clink(quirkStage, [A.center[0] + nx * ia.r, A.center[1] + ny * ia.r, A.center[2] + nz * ia.r])
+          }
+        }
         // Something small hitting Lim leaves a dent that rings, not a shove.
         if (A === lim && ib.toy?.has('prickly') && j > 1 && t - lastOuch > 1.4 && !grabbed) ouch(ib.toy)
         if (A === lim && j > 2) {
@@ -2371,7 +2577,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     s.mesh.position.z = body.center[2]
     const k = 1 + lift * 0.35
     s.mesh.scale.set(size * k, size * 0.62 * k, 1)
-    s.strength.value = base / (1 + lift * 1.6)
+    // Where the key casts real shadows, the blob is only the contact under the body.
+    s.strength.value = (keyShadows ? base * 0.55 : base) / (1 + lift * (keyShadows ? 4 : 1.6))
   }
 
   const updateCamera = (dt: number) => {
@@ -2437,6 +2644,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let first = true
   let anchorKey = ''
   const frame = (dt: number) => {
+    const began = performance.now()
     if (dt > 0) {
       t += dt
       u.time.value = t
@@ -2454,6 +2662,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
       snatch()
       stepToys(dt)
+      tickQuirks(dt)
       collide()
       referee()
       for (const body of bodies) {
@@ -2513,7 +2722,12 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const hatOn = toys.some((toy) => toy.worn === 'hat')
     if (!popped) tuftMesh.visible = tuftHull.visible = !hatOn
     weather.step(dt, t, { w: reach, h: topY }, camera, 0)
-    renderer.render(scene, camera)
+    lighting?.update(u.night.value)
+    if (post) post.render()
+    else renderer.render(scene, camera)
+    const sent = performance.now()
+    note(cpuMs, sent - began)
+    void gpuQueue?.onSubmittedWorkDone().then(() => note(gpuMs, performance.now() - sent))
     if (import.meta.env.DEV) (window as { __limFrame?: () => void }).__limFrame?.()
     if (opts.onAnchor) {
       lim.attach(headTopRest, tmp)
@@ -2544,7 +2758,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.look.update(toy.geo, toy.jelly)
   }
   applyPlace()
+  await Promise.race([lighting?.ready.catch(() => {}), new Promise((done) => setTimeout(done, 1500))])
   await renderer.compileAsync(scene, camera)
+  opts.onTier?.(tier)
   stage.start(frame)
   if (!reducedMotion) {
     // Entrance: pop, hop, shake it off, then look at you.
@@ -2897,6 +3113,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       host.removeEventListener('pointerdown', onTap)
       pointer.dispose()
       scenery.dispose()
+      post?.dispose()
+      lighting?.dispose()
       stage.dispose()
       scene.traverse((o) => {
         if (o instanceof THREE.Mesh) {

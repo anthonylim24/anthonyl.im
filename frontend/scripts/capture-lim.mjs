@@ -5,6 +5,7 @@
  * Requires Vite on :5173 (a dev build, which exposes the scene as
  * `window.__lim`). Usage:
  *   node scripts/capture-lim.mjs <out-dir>
+ *   LIM_GRAPHICS=low node scripts/capture-lim.mjs <out-dir>   (auto, high or low; default auto)
  */
 import { chromium, devices } from "@playwright/test"
 import { mkdir } from "node:fs/promises"
@@ -12,6 +13,7 @@ import path from "node:path"
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173"
 const OUT = process.argv[2] ?? "screenshots/lim"
+const GRAPHICS = process.env.LIM_GRAPHICS ?? "auto"
 await mkdir(OUT, { recursive: true })
 
 const browser = await chromium.launch({
@@ -27,6 +29,11 @@ async function open(opts) {
     if (m.type() === "error" && /THREE|WebGPU|chat/.test(m.text())) errors.push(m.text().slice(0, 240))
   })
   p.on("pageerror", (e) => errors.push(String(e).slice(0, 240)))
+  await p.addInitScript((graphics) => {
+    localStorage.removeItem("lim-graphics-fit")
+    if (graphics === "auto") localStorage.removeItem("lim-graphics")
+    else localStorage.setItem("lim-graphics", graphics)
+  }, GRAPHICS)
   await p.goto(BASE + "/")
   await p.waitForFunction(() => Boolean(window.__lim), null, { timeout: 60_000 })
   await p.evaluate(async () => {
@@ -78,6 +85,15 @@ for (const id of ["meadow", "beach", "snow", "space", "underwater", "volcano", "
   await desk.waitForTimeout(3200)
   await shot(desk, `place-${id}`)
 }
+
+// Lights out, in the studio and in one place.
+await desk.keyboard.press("Alt+Shift+KeyS")
+await desk.waitForTimeout(2500)
+await shot(desk, "night-meadow")
+await desk.evaluate(() => window.__lim.clear("place"))
+await desk.waitForTimeout(2500)
+await shot(desk, "night-studio")
+await desk.keyboard.press("Alt+Shift+KeyS")
 
 const phone = await open({ ...devices["iPhone 14"] })
 await phone.evaluate(() => {
