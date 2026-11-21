@@ -5,7 +5,6 @@ import * as stylex from "@stylexjs/stylex"
 
 const PHONE = "@media (max-width: 639.98px)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
-const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
 
 export const bk = stylex.create({
   // ── Editor ────────────────────────────────────────────
@@ -122,5 +121,4 @@ export const bk = stylex.create({
   rowWhen: { fontFamily: "var(--trips-mono)", fontSize: "0.75rem", letterSpacing: "0.02em", color: "var(--trips-ink-secondary)", fontVariantNumeric: "tabular-nums" },
   empty: { paddingBlock: "0.75rem", borderBottomWidth: "1px", borderBottomStyle: "solid", borderBottomColor: "var(--trips-line)" },
   typePills: { display: "flex", flexWrap: "wrap", gap: "0.5rem" },
-  focusRing: { outline: "none", ":focus-visible": { boxShadow: ring } },
 })
