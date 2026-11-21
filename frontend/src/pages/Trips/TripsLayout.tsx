@@ -9,6 +9,8 @@ import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 import { a } from "./atlas.stylex"
 import { shell as s } from "./index.stylex"
+import { Engraving } from "./components/kit"
+import compass from "./art/compass.webp"
 import { TripChatLauncher } from "./TripChatLauncher"
 
 const DEV_BEARER: string | null =
@@ -78,7 +80,7 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
       <SignedOut>
         <div {...sx(s.gate)}>
           <div {...sx(s.gateInner)}>
-            <CompassMark size={40} />
+            <Engraving src={compass} />
             <h1 {...sx(a.display, s.gateTitle)}>
               Sign in to <span {...sx(a.italic)}>Trips</span>
             </h1>

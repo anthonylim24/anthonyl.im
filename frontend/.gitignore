@@ -32,3 +32,7 @@ dist-ssr
 
 # Vite dependency pre-bundle cache
 .vite/
+
+# Blender renders, HDRI and fonts for art/render.ts
+/art/.cache/
+/art/__pycache__/

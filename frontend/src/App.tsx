@@ -16,6 +16,7 @@ import { Transcript } from "./chat/Transcript";
 import { SUGGESTIONS, followUps, prefillFrom } from "./chat/suggestions";
 import { LimStage, type LimStageHandle } from "./chat/LimStage";
 import { ToyCard, useThumbs } from "./chat/ToyCard";
+import { TOY_ART } from "./chat/toyArt";
 import { LimArt } from "./chat/LimArt";
 import { caretPoint } from "./chat/caret";
 import { konami, stuntFor, type Stunt } from "./chat/eggs";
@@ -156,7 +157,7 @@ function App() {
 
   const reducedMotion = useReducedMotion();
   const toyButtonRef = useRef<HTMLButtonElement>(null);
-  const thumbs = useThumbs(toyOpen && world !== null, night, reducedMotion);
+  const thumbs = useThumbs(toyOpen && world !== null && made.items.length > 0, night, reducedMotion);
   // For screen readers: the stage itself is hidden from them.
   const onScore = useCallback((e: ScoreEvent) => {
     const what = e.kind === "hoop" ? `${e.points} points` : "a goal";
@@ -684,8 +685,15 @@ function App() {
                   <>
                     <p {...sx(chatbot.toyLabel)}>Give Lim</p>
                     <div {...sx(chatbot.toyGrid)}>
-                      {[...Object.values(ITEMS).map((x) => x.spec), ...made.items].map((spec) => (
-                        <ToyCard key={spec.name} spec={spec} thumbs={thumbs} onGive={() => give({ op: "item", spec }, `Gave Lim: ${spec.name}.`)} />
+                      {[...Object.entries(ITEMS).map(([key, x]) => ({ spec: x.spec, art: TOY_ART[key] })), ...made.items.map((spec) => ({ spec, art: undefined }))].map(({ spec, art }) => (
+                        <ToyCard
+                          key={spec.name}
+                          spec={spec}
+                          art={art}
+                          thumbs={thumbs}
+                          reducedMotion={reducedMotion}
+                          onGive={() => give({ op: "item", spec }, `Gave Lim: ${spec.name}.`)}
+                        />
                       ))}
                     </div>
                     <p {...sx(chatbot.toyLabel)}>Take Lim to</p>

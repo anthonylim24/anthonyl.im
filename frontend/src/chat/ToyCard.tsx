@@ -3,12 +3,13 @@ import { sx } from '@/styles/merge'
 import { chatbot } from '@/styles/chatbot.stylex'
 import type { ItemSpec } from './world/spec'
 import type { Thumbs } from './scene/thumbs'
+import { loadTurn, type ToyArt } from './toyArt'
 
 /**
- * The toy box's picture renderer: made the first time the box opens (it
- * shares the 3D scene's chunk, which is loaded by then) and kept, so the
- * pictures are instant from then on. Null until ready, or where there is no
- * GPU: the cards then show a colour swatch.
+ * The live picture renderer for toys Lim made up, which have no pre-render:
+ * made the first time the box opens with one (it shares the 3D scene's chunk,
+ * which is loaded by then) and kept. Null until ready, or where there is no
+ * GPU: those cards then show a colour swatch.
  */
 export function useThumbs(open: boolean, night: boolean, reducedMotion: boolean): Thumbs | null {
   const [thumbs, setThumbs] = useState<Thumbs | null>(null)
@@ -40,15 +41,21 @@ export function useThumbs(open: boolean, night: boolean, reducedMotion: boolean)
   return thumbs
 }
 
-/** One toy: its model on top, its name below. The model turns while the card is hovered or focused. */
-export function ToyCard({ spec, thumbs, onGive }: { spec: ItemSpec; thumbs: Thumbs | null; onGive: () => void }) {
+type Props = { spec: ItemSpec; art?: ToyArt; thumbs: Thumbs | null; reducedMotion: boolean; onGive: () => void }
+
+/** One toy: its picture on top, its name below. The toy turns once when the card is hovered or focused. */
+export function ToyCard({ spec, art, thumbs, reducedMotion, onGive }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [turning, setTurning] = useState(false)
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !thumbs) return
+    if (art || !canvas || !thumbs) return
     return thumbs.mount(canvas, spec)
-  }, [thumbs, spec])
-  const spin = (on: boolean) => thumbs?.spin(on ? canvasRef.current : null)
+  }, [art, thumbs, spec])
+  const spin = (on: boolean) => {
+    if (!art) thumbs?.spin(on ? canvasRef.current : null)
+    else if (on && !reducedMotion) void loadTurn(art.turn).then((ready) => ready && setTurning(true))
+  }
   return (
     <button
       type="button"
@@ -60,8 +67,19 @@ export function ToyCard({ spec, thumbs, onGive }: { spec: ItemSpec; thumbs: Thum
       {...sx(chatbot.toyCard)}
     >
       <span aria-hidden="true" {...sx(chatbot.toyPic)}>
-        {!thumbs && <span {...sx(chatbot.toySwatch)} style={{ backgroundColor: spec.parts[0].color }} />}
-        <canvas ref={canvasRef} {...sx(chatbot.toyCanvas, !thumbs && chatbot.toyCanvasOff)} />
+        {art ? (
+          <>
+            <img src={art.still} alt="" decoding="async" draggable={false} {...sx(chatbot.toyImg, turning && chatbot.toyHidden)} />
+            {turning && (
+              <span onAnimationEnd={() => setTurning(false)} {...sx(chatbot.toyTurn)} style={{ backgroundImage: `url(${art.turn})` }} />
+            )}
+          </>
+        ) : (
+          <>
+            {!thumbs && <span {...sx(chatbot.toySwatch)} style={{ backgroundColor: spec.parts[0].color }} />}
+            <canvas ref={canvasRef} {...sx(chatbot.toyCanvas, !thumbs && chatbot.toyHidden)} />
+          </>
+        )}
       </span>
       <span {...sx(chatbot.toyName)}>{spec.name}</span>
     </button>

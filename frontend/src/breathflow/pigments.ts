@@ -33,3 +33,12 @@ export function sessionPigment(id: TechniqueId, theme: OrbTheme): Pigment {
   if (theme.id === DEFAULT_ORB_THEME_ID) return techniquePigment(id)
   return { name: theme.name, mass: theme.colors[0], glaze: theme.colors[1] }
 }
+
+const SEAL_INKS = Object.values(TECHNIQUE_PIGMENTS).map((p) => p.mass)
+
+/** Stable wax colour per badge. */
+export function sealInk(id: string): string {
+  let h = 0
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0
+  return SEAL_INKS[Math.abs(h) % SEAL_INKS.length]
+}

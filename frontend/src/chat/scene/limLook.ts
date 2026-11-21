@@ -10,6 +10,8 @@ import {
   abs,
   atan,
   attribute,
+  cameraNear,
+  cameraProjectionMatrix,
   cameraViewMatrix,
   color,
   cos,
@@ -22,6 +24,7 @@ import {
   max,
   min,
   mix,
+  modelViewProjection,
   normalLocal,
   normalView,
   normalize,
@@ -247,7 +250,19 @@ export function gel(n: V3, spec: V3, o: GelOptions): V3 {
   return c
 }
 
-export function hullMaterial(ink: V3, width: number, normal: V3 = normalLocal) {
+/**
+ * The clip position with its depth pulled most of the way to the near plane while `on` is 1, so a
+ * toy in hand draws in front of everything yet still hides its own far side. The near plane is
+ * found through the projection, so it holds for WebGPU's depth range and WebGL's.
+ */
+export function nearDepth(on: F) {
+  const clip = modelViewProjection as unknown as Node<'vec4'>
+  const plane = cameraProjectionMatrix.mul(vec4(0, 0, cameraNear.negate(), 1))
+  const near = plane.z.div(plane.w).mul(clip.w)
+  return vec4(clip.xy, mix(clip.z, near.add(clip.z.sub(near).mul(0.05)), on), clip.w)
+}
+
+export function hullMaterial(ink: V3, width: number | F, normal: V3 = normalLocal) {
   const m = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide })
   m.positionNode = positionLocal.add(normal.mul(width))
   m.colorNode = ink

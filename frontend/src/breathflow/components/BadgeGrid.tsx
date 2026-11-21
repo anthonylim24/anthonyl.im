@@ -1,16 +1,13 @@
 import type { CSSProperties } from 'react'
 import { BADGES } from '../gamify/badges'
-import { TECHNIQUE_PIGMENTS } from '../pigments'
+import { sealInk } from '../pigments'
 import { sx, stylex } from '@/styles/merge'
 
-const SEAL_INKS = Object.values(TECHNIQUE_PIGMENTS).map((p) => p.mass)
-
-/** Stable wax colour per badge. */
-export function sealInk(id: string): string {
-  let h = 0
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0
-  return SEAL_INKS[Math.abs(h) % SEAL_INKS.length]
-}
+const files = import.meta.glob<string>('../seals/*.webp', { eager: true, query: '?url', import: 'default' })
+/** Earned seals are Blender renders of pressed wax (`bun art/render.ts seals`), keyed by badge id. */
+export const SEAL_ART: Record<string, string> = Object.fromEntries(
+  Object.entries(files).map(([path, url]) => [path.slice('../seals/'.length, -'.webp'.length), url]),
+)
 
 const styles = stylex.create({
   grid: {
@@ -45,6 +42,19 @@ const styles = stylex.create({
   sealSmall: {
     width: '2.4rem',
     height: '2.4rem',
+  },
+  wax: {
+    flexShrink: 0,
+    display: 'block',
+    width: '3.3rem',
+    height: '3.3rem',
+    margin: '-0.2rem',
+    transform: 'rotate(var(--bf-tilt))',
+    userSelect: 'none',
+  },
+  waxSmall: {
+    width: '2.8rem',
+    height: '2.8rem',
   },
   monogram: {
     fontFamily: '"Fraunces", ui-serif, Georgia, serif',
@@ -83,10 +93,12 @@ const styles = stylex.create({
   },
 })
 
-/** A pressed wax seal; unearned seals are a pencilled ring. */
+/** A pressed wax seal; unearned seals are a pencilled ring. A badge without a render keeps the painted seal. */
 export function WaxSeal({ id, name, earned, small = false }: { id: string; name: string; earned: boolean; small?: boolean }) {
   const tilt = ((id.length * 37) % 17) - 8
   const vars = { '--bf-wax': sealInk(id), '--bf-tilt': `${tilt}deg` } as CSSProperties
+  const art = earned ? SEAL_ART[id] : undefined
+  if (art) return <img src={art} alt="" decoding="async" draggable={false} {...sx(styles.wax, small && styles.waxSmall)} style={vars} />
   return (
     <span aria-hidden="true" {...sx(styles.seal, small && styles.sealSmall, !earned && styles.locked)} style={vars}>
       <span {...sx(styles.monogram, !earned && styles.lockedMonogram)}>{name.charAt(0)}</span>

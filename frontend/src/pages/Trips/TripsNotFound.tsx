@@ -2,6 +2,8 @@ import { Link } from "react-router-dom"
 import { sx } from "@/styles/merge"
 import { a } from "./atlas.stylex"
 import { shell as s } from "./index.stylex"
+import { Engraving } from "./components/kit"
+import serpent from "./art/serpent.webp"
 
 /** `/:tripId` matches first, so unknown ids never hit the splat 404. */
 export function isMissingTripError(message: string): boolean {
@@ -13,6 +15,7 @@ export function TripsNotFound() {
   return (
     <div {...sx(s.gate)}>
       <div {...sx(s.gateInner)}>
+        <Engraving src={serpent} />
         <p {...sx(a.eyebrow)}>404 · Off the map</p>
         <h1 {...sx(a.display, s.gateTitle)}>
           Here be <span {...sx(a.italic)}>dragons.</span>
