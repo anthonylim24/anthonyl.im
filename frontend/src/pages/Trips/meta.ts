@@ -191,13 +191,18 @@ export function parseClock(text: string): string | null {
 
 // ── Icons + labels ───────────────────────────────────────────────────────
 
+// Car rental is "car", never "…rental": lodging.ts reads /rental/ as a place to sleep.
 export const RESERVATION_TYPES = [
   "flight",
   "hotel",
+  "car",
+  "train",
+  "bus",
+  "ferry",
+  "transit",
   "meal",
   "bar",
   "experience",
-  "transit",
   "event",
   "appointment",
 ] as const
