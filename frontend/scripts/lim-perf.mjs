@@ -2,7 +2,9 @@
 // boots, while new toys arrive, while things happen, and at rest. Needs the Vite dev server (it drives
 // the scene through the dev-only `window.__lim`).
 //
-//   node scripts/lim-perf.mjs [--graphics high|low|auto] [--throttle 4] [--runs 3] [--toys rocket,duck] [--json out.json] [--profile spawn.cpuprofile]
+//   node scripts/lim-perf.mjs [--graphics high|low|auto] [--throttle 4] [--runs 3] [--toys rocket,duck] [--json out.json] [--profile spawn.cpuprofile] [--slow 1]
+//
+// --slow lists each phase's frames over 33 ms and its long tasks, by ms into the phase, with the scene's split.
 //
 // Every run is a first visit: a fresh browser with no shader cache, since a warm cache hides compile stalls.
 // LIM_PERF_URL overrides http://localhost:5173/.
@@ -29,6 +31,16 @@ function cpu(split, from, to) {
     return v.length ? `${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}/${v.at(-1).toFixed(0)}` : '-'
   }
   return { sim: part(1), skin: part(2), render: part(3) }
+}
+
+/** Frames over 33 ms and long tasks in a phase, by ms into it: the place to look for a hitch's cause. */
+function hitches(frames, split, long, from, to) {
+  const t = frames.filter((x) => x >= from && x <= to)
+  const near = (at) => split.find(([s]) => s >= at - 40 && s <= at)?.slice(1).map((v) => +v.toFixed(1)) ?? null
+  return [
+    ...t.slice(1).flatMap((x, i) => (x - t[i] > 33.4 ? [{ at: Math.round(t[i] - from), frame: +(x - t[i]).toFixed(1), split: near(x) }] : [])),
+    ...long.filter(([s]) => s >= from && s <= to).map(([s, d]) => ({ at: Math.round(s - from), longTask: Math.round(d) })),
+  ].sort((a, b) => a.at - b.at)
 }
 
 function stats(frames, long, from, to) {
@@ -132,6 +144,7 @@ async function run() {
   await page.waitForTimeout(4000)
   await mark('end')
   const data = await page.evaluate(() => window.__perf)
+  const models = await page.evaluate(() => performance.getEntriesByType('resource').filter((e) => e.name.endsWith('.mesh')).map((e) => [e.startTime, e.responseEnd]))
   await browser.close()
   const m = data.marks
   const gpu = data.gpu.filter(([at]) => at >= m.idle).map(([, ms]) => ms).sort((a, b) => a - b)
@@ -142,6 +155,10 @@ async function run() {
     spawn: { ...stats(data.frames, data.long, m.spawn, m.events), ...cpu(data.split, m.spawn, m.events) },
     events: { ...stats(data.frames, data.long, m.events, m.idle), ...cpu(data.split, m.events, m.idle) },
     idle: { ...stats(data.frames, data.long, m.idle, m.end), ...cpu(data.split, m.idle, m.end) },
+    hitches: Object.fromEntries(
+      [['boot', m.boot, m.spawn], ['spawn', m.spawn, m.events], ['events', m.events, m.idle], ['idle', m.idle, m.end]].map(([k, from, to]) => [k, hitches(data.frames, data.split, data.long, from, to)]),
+    ),
+    modelsMs: models.length ? [Math.round(Math.min(...models.map(([a]) => a)) - m.boot), Math.round(Math.max(...models.map(([, b]) => b)) - m.boot)] : null,
     idleDrawCalls: data.calls.at(-1) ?? null,
     idleGpuMs: gpu.length ? { p50: +gpu[gpu.length >> 1].toFixed(2), p95: +gpu[Math.floor(gpu.length * 0.95)].toFixed(2) } : null,
     errors,
@@ -156,6 +173,8 @@ for (const [i, r] of results.entries()) {
   const gpu = r.idleGpuMs ? `, idle GPU ${r.idleGpuMs.p50} ms (p95 ${r.idleGpuMs.p95}), ${r.idleDrawCalls} draws` : ''
   console.log(`run ${i + 1}: first frame ${r.firstFrameMs} ms (scene ${r.sceneMs} ms)${gpu}${r.errors.length ? `, ${r.errors.length} console errors` : ''}`)
   console.table(Object.fromEntries(['boot', 'spawn', 'events', 'idle'].map((k) => [k, r[k]])))
+  if (args.slow && r.modelsMs) console.log(`  models fetched from +${r.modelsMs[0]} to +${r.modelsMs[1]} ms after boot`)
+  if (args.slow) for (const [k, list] of Object.entries(r.hitches)) for (const h of list) console.log(`  ${k} +${h.at} ms`, h.longTask ? `long task ${h.longTask} ms` : `frame ${h.frame} ms, sim/skin/render ${h.split?.join('/') ?? '-'}`)
   for (const e of r.errors.slice(0, 5)) console.log('  error:', e)
 }
 if (args.json) await writeFile(args.json, JSON.stringify({ graphics, throttle, results }, null, 2))

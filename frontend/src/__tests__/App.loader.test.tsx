@@ -73,11 +73,9 @@ describe('Lim page loading screen', () => {
     act(() => vi.advanceTimersByTime(800))
     expect(screen.queryByRole('dialog', { hidden: true })).toBeNull()
 
-    // A graphics change loads the scene again.
     report({ kind: 'loading', step: 'code', done: 0 })
     expect(screen.queryByRole('dialog', { hidden: true })).toBeNull()
 
-    // And coming back to the page later in the visit.
     cleanup()
     render(
       <MemoryRouter>

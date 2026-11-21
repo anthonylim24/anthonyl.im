@@ -36,6 +36,7 @@ async function open(opts) {
   }, GRAPHICS)
   await p.goto(BASE + "/")
   await p.waitForFunction(() => Boolean(window.__lim), null, { timeout: 60_000 })
+  await p.getByRole("dialog", { name: "Setting the jelly" }).waitFor({ state: "detached", timeout: 30_000 })
   await p.evaluate(async () => {
     const spec = await import("/src/chat/world/spec.ts")
     window.__I = spec.ITEMS

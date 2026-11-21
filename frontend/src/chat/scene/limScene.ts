@@ -572,6 +572,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const stars = new Pool(starGeometry(4, 0.34), plain(), 40, { gravity: 3, drag: 2.2, billboard: true, shape: popIn })
   const hearts = new Pool(heartGeometry(), plain(), 24, { gravity: -1.1, drag: 1.4, billboard: true, flutter: 1.8, shape: popIn })
   const bubbles = new Pool(new THREE.SphereGeometry(1, 14, 10), bubbleMaterial(u), 24, { gravity: -1.4, drag: 1.1, flutter: 1.2, shape: popIn })
+  bubbles.mesh.renderOrder = 3
   const pools = [confetti, dust, stars, hearts, bubbles]
   for (const p of pools) scene.add(p.mesh)
   /** Light on the floor under glowing toys, laid out afresh every frame. */
@@ -2726,10 +2727,20 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     })
     const draw = () => (post ? post.render() : renderer.render(scene, camera))
     const breathe = () => new Promise((done) => requestAnimationFrame(done))
+    // The first frames that move anything run the simulation cold, slow enough to stall the entrance.
+    // A few real ones here, behind the cover, get it compiled for these very bodies. (Reduced motion
+    // never moves anything.)
+    const rehearse = () => {
+      if (reducedMotion) return
+      rehearsing = true
+      for (let k = 0; k < 6; k++) frame(1 / 60)
+      rehearsing = false
+    }
     await renderer.compileAsync(scene, camera)
     report(0.3)
     await breathe()
     draw()
+    rehearse()
     const BATCHES = 3
     for (let b = 0; b < BATCHES; b++) {
       const batch = probes.filter((_, i) => i % BATCHES === b)
@@ -2737,6 +2748,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       await renderer.compileAsync(scene, camera)
       await breathe()
       draw()
+      rehearse()
       scene.remove(...batch)
       report(0.3 + (0.7 * (b + 1)) / BATCHES)
     }
@@ -2745,6 +2757,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
 
   let first = true
+  let rehearsing = false
   let anchorKey = ''
   const frame = (dt: number) => {
     const began = performance.now()
@@ -2844,7 +2857,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         opts.onAnchor(ax, ay, unit)
       }
     }
-    if (first) {
+    if (first && !rehearsing) {
       first = false
       opts.onFirstFrame?.()
     }
