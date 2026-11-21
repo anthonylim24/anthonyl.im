@@ -55,6 +55,8 @@ const PhotorealOverlay = lazyRetry(() => import("./photoreal/PhotorealOverlay"))
 
 const PHOTOREAL_READY = photorealAvailable()
 const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => ({ default: m.BudgetPanel })))
+const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
+const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
@@ -816,7 +818,7 @@ function Workspace() {
           <OverviewTabs
             tab={tab}
             onTab={setTab}
-            only={OVERVIEW_PANELS}
+            badges={tabBadges(trip)}
             render={(open) =>
               open === "itinerary" ? (
                       <OverviewPanel
@@ -854,6 +856,10 @@ function Workspace() {
                           }}
                         />
                       )}
+                      {open === "checklist" && (
+                        <ChecklistPanel trip={trip} editable={editable} locked={locked} people={trip.party} onEdit={editor.edit} />
+                      )}
+                      {open === "essentials" && <EssentialsPanel trip={trip} />}
                     </div>
                   </Suspense>
                 </OverlayBoundary>
@@ -1206,8 +1212,11 @@ function Workspace() {
   )
 }
 
-/** The overview tabs whose panels this build has. */
-const OVERVIEW_PANELS: readonly OverviewTab[] = ["itinerary", "budget"]
+/** "3 left" beside Checklist while anything is unticked. */
+function tabBadges(trip: Trip): Partial<Record<OverviewTab, string>> {
+  const open = (trip.checklist ?? []).filter((item) => !item.done).length
+  return open > 0 ? { checklist: `${open} left` } : {}
+}
 
 const tabLabel = (tab: OverviewTab) => OVERVIEW_TABS.find((t) => t.id === tab)?.label.toLowerCase() ?? tab
 
