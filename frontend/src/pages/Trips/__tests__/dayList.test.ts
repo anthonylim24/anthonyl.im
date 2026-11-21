@@ -113,10 +113,39 @@ describe("dayList past and current", () => {
     expect(dayList(day([museum]), min("11:05")).past.has("Museum")).toBe(true)
   })
 
-  it("marks nothing on any other day", () => {
+  it("marks nothing by the clock on any other day", () => {
     const list = dayList(plan, null)
     expect(list.past.size).toBe(0)
     expect(list.current).toBeNull()
+  })
+
+  it("reads done and skipped from the stop, on any day, and never calls them under way", () => {
+    const marked = day([stop("Temple", "09:00", "10:00", 0, { status: "completed" }), stop("Lunch", "11:00", "12:00", 0, { status: "skipped" }), stop("Later", undefined, undefined, 0, { status: "completed" })])
+    const other = dayList(marked, null)
+    expect([...other.past]).toEqual(["Temple", "Lunch", "Later"])
+    expect([...other.skipped]).toEqual(["Lunch"])
+    expect(dayList(marked, min("09:30")).current).toBeNull()
+    expect(dayList(marked, min("11:30")).current).toBeNull()
+  })
+
+  it("runs a stop after midnight on the day's own clock: at 23:30 the 01:00 bar is still ahead", () => {
+    const night = day([stop("Dinner", "19:00", "21:00"), stop("Bar", "23:00", "00:30"), stop("Club", "01:00", "03:00")])
+    const late = dayList(night, min("23:30"))
+    expect(late.current).toBe("Bar")
+    expect(late.past.has("Club")).toBe(false)
+    // At 00:30 the day's clock reads 24:30: the bar has just ended, the club is ahead.
+    const after = dayList(night, 24 * 60 + 30)
+    expect([...after.past]).toEqual(["Dinner", "Bar"])
+    expect(after.current).toBeNull()
+    expect(dayList(night, 24 * 60 + 90).current).toBe("Club")
+  })
+})
+
+describe("dayList skipped legs", () => {
+  it("runs the leg around a skipped stop, from the stop before it to the one after", () => {
+    const list = dayList(day([stop("A", "09:00", "10:00", 0), stop("Skip", "10:30", "11:00", 0.5, { status: "skipped" }), stop("B", "12:00", "13:00", 1)]), null)
+    expect(list.legs.has("Skip")).toBe(false)
+    expect(list.legs.get("B")).toMatchObject({ distance: "1000 m", travel: "12 min walk", free: "1 h 48 free" })
   })
 })
 
@@ -124,7 +153,17 @@ describe("dayList done", () => {
   const plan = day([stop("Temple", "09:00", "10:00"), stop("Lunch", "11:00", "12:00"), stop("Garden", "13:00", "14:00"), stop("Later")])
 
   it("folds the run of finished stops at the head of the list", () => {
-    expect(dayList(plan, min("12:30")).done).toEqual({ length: 2, stops: ["Temple", "Lunch"], from: min("09:00"), to: min("12:00") })
+    expect(dayList(plan, min("12:30")).done).toEqual({ length: 2, stops: ["Temple", "Lunch"], skipped: 0, from: min("09:00"), to: min("12:00") })
+  })
+
+  it("folds stops marked done or skipped with them, before the clock gets there", () => {
+    const marked = day([
+      stop("Temple", "09:00", "10:00"),
+      stop("Lunch", "11:00", "12:00", 0, { status: "completed" }),
+      stop("Garden", "13:00", "14:00", 0, { status: "skipped" }),
+      stop("Tea", "15:00", "16:00"),
+    ])
+    expect(dayList(marked, min("10:30")).done).toEqual({ length: 3, stops: ["Temple", "Lunch", "Garden"], skipped: 1, from: min("09:00"), to: min("14:00") })
   })
 
   it("is empty before the first stop ends, and on any other day", () => {
