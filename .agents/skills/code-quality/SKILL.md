@@ -48,7 +48,7 @@ Networks drop, models return half a JSON object, GPUs are missing, a tab stays o
 
 - **Errors are values with names.** On the frontend, `Schema.TaggedError` and `Effect.catchTag`; on the server, thrown errors reach `app.onError` and answer JSON with a `requestId`. No bare `catch {}`. If you catch, you either recover fully or add context and pass it on.
 - **Degrade, do not fail.** A draft that could not fill day 7 returns the other days plus `incompleteDays`. A dead 3D overlay closes itself inside an `OverlayBoundary` and the page keeps working. A missing key falls back to the keyless path. Ask "what is the most useful thing still possible?"
-- **Everything that waits has a deadline.** 6 s for the concierge's follow-up chips, 4 s per readiness check, 10 s for the Clerk proxy. An await with no timeout is a hang you have not met yet.
+- **Everything that waits has a deadline.** 2 s for the Jev router, 6 s for the concierge's follow-up chips, 4 s per readiness check, 10 s for the Clerk proxy. An await with no timeout is a hang you have not met yet.
 - **Retry only what is safe to repeat.** Reads retry once on a network error. Writes never retry silently.
 - **People see sentences.** "Couldn't reach the map service. Your changes are saved." Never a stack trace, a status code alone, or a pipeline log. The detail goes to the log and the telemetry beacon.
 

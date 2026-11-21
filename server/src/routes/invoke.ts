@@ -6,7 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { SYSTEM_PROMPT } from "./constants";
 import { geminiTextStream, type GeminiTurn } from "../geminiText";
-import { GEMINI_MODEL } from "../igPlaces/gemini";
+import { routeLimModel } from "../lim/jev";
 import { worldPrompt } from "../lim/world";
 
 const invoke = new Hono();
@@ -40,7 +40,7 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
 
   return streamSSE(c, async (stream) => {
     try {
-      const chunks = await openLimStream({ prompt, messages, system, signal });
+      const chunks = await openLimStream({ prompt, messages, world, system, signal });
       for await (const content of chunks) {
         // JSON encode to preserve newlines and special characters
         await stream.writeSSE({ data: JSON.stringify(content) });
@@ -60,23 +60,27 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
 type LimRequest = {
   prompt: string;
   messages: GeminiTurn[];
+  world: z.infer<typeof invokeSchema>["world"];
   system: string;
   signal: AbortSignal;
 };
 
 /**
- * Lim answers on the app's Gemini model. If the Gemini stream cannot be
- * opened (no key, quota, outage), the previous model on Groq answers instead,
- * unless the visitor already left, when opening a second paid stream would
- * only bill for nobody.
+ * Jev (lim/jev.ts) picks the Gemini model: Hydrogen for regular chat, Neon
+ * for playing with the jelly (toy-world orders and the toys Lim invents).
+ * If the Gemini stream cannot be opened (no key, quota, outage), the previous
+ * model on Groq answers instead, unless the visitor already left, when
+ * opening a second paid stream would only bill for nobody.
  */
-async function openLimStream({ prompt, messages, system, signal }: LimRequest): Promise<AsyncIterable<string>> {
+async function openLimStream({ prompt, messages, world, system, signal }: LimRequest): Promise<AsyncIterable<string>> {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY missing");
-    console.info(`[invoke] ${GEMINI_MODEL}`);
+    const { model, route, via, pJelly } = await routeLimModel({ prompt, messages, world, signal });
+    console.info(`[invoke] ${model} (route=${route ?? "-"} via=${via}${pJelly === undefined ? "" : ` pJelly=${pJelly.toFixed(2)}`})`);
     return await geminiTextStream({
       apiKey,
+      model,
       system,
       messages: [...messages, { role: "user", content: prompt }],
       signal: AbortSignal.any([AbortSignal.timeout(120_000), signal]),

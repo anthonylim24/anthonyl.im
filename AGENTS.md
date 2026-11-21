@@ -291,7 +291,7 @@ Full list: [`docs/env.md`](docs/env.md). Schema: `server/src/config.ts`; fronten
 
 - No variable is required at boot; a missing key degrades its feature.
 - `CLERK_SECRET_KEY` is required in production; without it every Clerk-gated route answers 401.
-- `GEMINI_API_KEY` is the primary model everywhere (Gemini 4 Neon, `gemini-4-neon`); `GROQ_API_KEY` is the backup.
+- `GEMINI_API_KEY` is the primary model everywhere (Gemini 4 Neon, `gemini-4-neon`), except Lim's chat, where Jev (`JEV_API_KEY`) sends regular chat to Gemini 4 Hydrogen and toy generation to Neon; `GROQ_API_KEY` is the backup.
 - `IG_DEV_BEARER` / `VITE_DEV_BEARER` are a local-only Clerk bypass, ignored (with a loud warning) when `NODE_ENV=production`. **Never** set them in production or PR previews.
 
 ---
