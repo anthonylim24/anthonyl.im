@@ -1398,17 +1398,30 @@ export const ws = stylex.create({
 
   // ── Ideas ─────────────────────────────────────────────
   ideaList: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column" },
+  // A narrow row (a phone, a long name) drops its buttons to a line of their
+  // own rather than squeezing the name to a few characters.
   ideaRow: {
     display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    columnGap: "0.75rem",
+    rowGap: "0.25rem",
     minHeight: "3.5rem",
     paddingBlock: "0.625rem",
     borderBottomWidth: "1px",
     borderBottomStyle: "solid",
     borderBottomColor: "var(--trips-line)",
   },
-  ideaText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
+  ideaIcon: { display: "grid", flexShrink: 0, paddingTop: "0.1875rem", color: "var(--trips-ink-tertiary)" },
+  ideaText: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.1875rem",
+    flexGrow: 1,
+    flexBasis: "12rem",
+    minWidth: 0,
+    alignSelf: "center",
+  },
   ideaTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
-  ideaActions: { display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0 },
+  ideaActions: { display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0, marginInlineStart: "auto" },
 })

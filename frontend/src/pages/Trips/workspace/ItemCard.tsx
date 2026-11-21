@@ -31,7 +31,8 @@ import { duplicateItem, moveItem, moveItemToDay, setItemTime, toggledStatus, unp
 import { Menu, type MenuItem } from "../components/kit"
 import { DayPicker } from "./DayPicker"
 import { composing } from "./ime"
-import { normalizeLink, stopLink, withLink, type StopLink } from "./stopLinks"
+import { normalizeLink, stopLink, withLink } from "./stopLinks"
+import { LinkChip } from "./LinkChip"
 import { clockMinutes, clockRange } from "../timeline/timeline"
 import { CostField } from "../budget/CostField"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
@@ -829,17 +830,6 @@ function LocationField({
         </ul>
       )}
     </div>
-  )
-}
-
-/** A link out by the site's name, in a new tab. */
-function LinkChip({ link }: { link: StopLink }) {
-  return (
-    <a href={link.href} target="_blank" rel="noreferrer" {...sx(s.linkChip)} title={link.href}>
-      <ExternalLink size={12} strokeWidth={2} aria-hidden {...sx(a.noShrink)} />
-      <span {...sx(s.linkText)}>{link.label}</span>
-      <span {...sx(a.srOnly)}> (opens in a new tab)</span>
-    </a>
   )
 }
 
