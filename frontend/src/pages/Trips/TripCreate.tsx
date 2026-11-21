@@ -144,7 +144,9 @@ export function TripCreate() {
   const finalName = name.trim() || autoName(places)
   const head = places[0]
   // The question stands while the first place is still the one that couldn't be found.
-  const askZone = unplaced !== null && head !== undefined && !head.city && placeKey(head.name) === placeKey(unplaced)
+  // A place found on the map can still lack a zone this browser knows (an empty one, or a newer IANA name).
+  const askZone =
+    unplaced !== null && head !== undefined && !validZone(head.city?.timezone) && placeKey(head.name) === placeKey(unplaced)
   const pins = useMemo<AtlasPin[]>(
     () =>
       places.flatMap((p) =>
@@ -220,6 +222,8 @@ export function TripCreate() {
     }
     if (!timezone) {
       setUnplaced(first.name)
+      // A zone picked for another place is not this one's.
+      setZone(null)
       stop()
       return
     }
@@ -360,7 +364,9 @@ export function TripCreate() {
                     Time zone for {head!.name}
                   </label>
                   <p id={`${formId}-zone-why`} {...sx(a.small)}>
-                    The map couldn’t find “{head!.name}”, so pick its time zone. Times on the trip follow it.
+                    {head!.city
+                      ? `The map found “${head!.name}” but not its time zone, so pick it. Times on the trip follow it.`
+                      : `The map couldn’t find “${head!.name}”, so pick its time zone. Times on the trip follow it.`}
                   </p>
                   <TimeZoneField
                     ref={zoneRef}

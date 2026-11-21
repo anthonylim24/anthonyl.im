@@ -270,6 +270,23 @@ describe("TripCreate", () => {
     expect(input.center).toBeUndefined()
   })
 
+  it("asks for the time zone when the map finds the place but not a zone this browser knows", async () => {
+    mockSearchCities.mockResolvedValue([{ ...lisbon, timezone: "" }])
+    renderCreate("/trips/new?ai=0")
+    await pickCity("Lis", /Lisbon/)
+
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    const zone = await screen.findByRole("combobox", { name: "Time zone for Lisbon" })
+    expect(screen.getByText("The map found “Lisbon” but not its time zone, so pick it. Times on the trip follow it.")).toBeInTheDocument()
+    expect(mockCreateTrip).not.toHaveBeenCalled()
+
+    fireEvent.change(zone, { target: { value: "lisbon" } })
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: /^Lisbon/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))
+    expect(mockCreateTrip.mock.calls[0]![1]).toMatchObject({ timezone: "Europe/Lisbon", center: { lat: 38.71667, lng: -9.13333 } })
+  })
+
   it("ignores Enter while an IME is still composing", async () => {
     renderCreate("/trips/new?ai=0")
     fireEvent.change(destinations(), { target: { value: "서울" } })
