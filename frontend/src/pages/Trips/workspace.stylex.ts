@@ -98,6 +98,11 @@ const sweep = stylex.keyframes({
   "100%": { backgroundPosition: "-200% 0" },
 })
 
+const fadeIn = stylex.keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
+})
+
 const slideUp = stylex.keyframes({
   from: { opacity: 0, transform: "translateY(16px)" },
   to: { opacity: 1, transform: "none" },
@@ -312,6 +317,70 @@ export const ws = stylex.create({
   },
   // Days with nothing planned: lighter numeral, still clearly a link.
   railEmpty: { fontWeight: 400, color: "var(--trips-ink-tertiary)" },
+
+  // ── Day layout switch ─────────────────────────────────
+  viewSwitch: { display: "inline-grid", flexShrink: 0 },
+  viewSwitchBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.375rem",
+    minHeight: "2.25rem",
+    minWidth: "2.75rem",
+    paddingInline: { default: "0.625rem", "@media (min-width: 480px)": "0.875rem" },
+    fontSize: "0.8125rem",
+  },
+
+  // ── Overview tabs ─────────────────────────────────────
+  tabs: {
+    display: "flex",
+    gap: { default: "1rem", "@media (min-width: 640px)": "1.25rem" },
+    paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
+    overflowX: "auto",
+    scrollbarWidth: "none",
+    borderBottomWidth: "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: "var(--trips-line)",
+  },
+  tab: {
+    flexShrink: 0,
+    // A grid so the mono count sits on the label's baseline, centred as a pair.
+    display: "inline-grid",
+    gridAutoFlow: "column",
+    alignItems: "baseline",
+    alignContent: "center",
+    gap: "0.375rem",
+    minHeight: "2.75rem",
+    paddingInline: "0.125rem",
+    marginBottom: "-1px",
+    borderBottomWidth: "2px",
+    borderBottomStyle: "solid",
+    borderBottomColor: "transparent",
+    fontSize: "0.875rem",
+    fontWeight: 600,
+    color: "var(--trips-ink-secondary)",
+    backgroundColor: "transparent",
+    cursor: "pointer",
+    outline: "none",
+    transitionProperty: "color, border-color",
+    transitionDuration: "160ms",
+    ":focus-visible": { boxShadow: "inset 0 0 0 2px var(--brand-ring)", borderRadius: "0.375rem" },
+    [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
+  },
+  tabOn: { color: "var(--trips-ink)", borderBottomColor: "var(--trips-ink)" },
+  tabBadge: {
+    minWidth: "1.25rem",
+    paddingInline: "0.375rem",
+    paddingBlock: "0.0625rem",
+    borderRadius: "999px",
+    backgroundColor: "var(--trips-sunken)",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.6875rem",
+    fontWeight: 400,
+    textAlign: "center",
+    color: "var(--trips-ink-secondary)",
+  },
+  tabPanel: { outline: "none", ":focus-visible": { boxShadow: "inset 0 0 0 2px var(--brand-ring)" } },
 
   // ── Content ───────────────────────────────────────────
   content: {
@@ -844,6 +913,24 @@ export const ws = stylex.create({
     [REDUCE]: { animationName: "none" },
   },
   placeTitle: { fontSize: "1.5rem", lineHeight: 1.05 },
+  /** The stop's photo across the top of the place card, bled to its edges. */
+  placePhoto: {
+    display: "block",
+    width: "calc(100% + 2rem)",
+    marginTop: "-1rem",
+    marginInline: "-1rem",
+    marginBottom: "0.125rem",
+    aspectRatio: "16 / 9",
+    maxHeight: "11rem",
+    objectFit: "cover",
+    borderTopLeftRadius: "1.125rem",
+    borderTopRightRadius: "1.125rem",
+    backgroundColor: "var(--trips-sunken)",
+    animationName: fadeIn,
+    animationDuration: "320ms",
+    animationTimingFunction: "var(--trips-ease-out)",
+    [REDUCE]: { animationName: "none" },
+  },
 
   // ── Dock (notice / undo) ──────────────────────────────
   dock: {

@@ -6,6 +6,7 @@ import { externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
+import { CostField } from "../budget/CostField"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
@@ -31,6 +32,8 @@ export interface ItemCardProps {
   flash: boolean
   near: LngLat | null
   dayOptions: DayOption[]
+  /** Currency a new cost starts in (the trip's budget, else its local money). */
+  currency: string
   onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
   /** The item left this day (moved to another): the list moves focus on. */
@@ -62,6 +65,7 @@ export const ItemCard = memo(function ItemCard({
   flash,
   near,
   dayOptions,
+  currency,
   onChange,
   onDelete,
   onHover,
@@ -347,6 +351,9 @@ export const ItemCard = memo(function ItemCard({
                       ))}
                     </select>
                   </label>
+                )}
+                {item.kind !== "note" && (
+                  <CostField value={item.cost} defaultCurrency={currency} disabled={locked} onChange={(cost) => patch({ cost })} />
                 )}
                 {dayOptions.length > 1 && (
                   <label>

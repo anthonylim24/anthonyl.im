@@ -219,6 +219,26 @@ describe("TripWorkspace", () => {
       expect(rail.getByRole("link", { name: /^Day 2, .*0 items$/ })).not.toHaveAttribute("aria-current")
     })
 
+    it("opens the tab named in ?tab=, counts what is left to tick, and goes back to the itinerary", async () => {
+      const trip = planned()
+      trip.checklist = [
+        { id: "c1", text: "Passport", done: false, group: "documents", createdAt: "2026-01-01T00:00:00Z" },
+        { id: "c2", text: "Charger", done: true, group: "packing", createdAt: "2026-01-01T00:00:00Z" },
+      ]
+      renderWorkspace("/trips/lisbon?tab=checklist", trip)
+
+      const tabs = within(await screen.findByRole("tablist", { name: "Trip overview" }))
+      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Budget", "Checklist1 1 left", "Essentials"])
+      // The count is shown as "1" and read as "1 left".
+      expect(tabs.getByRole("tab", { name: "Checklist 1 left" })).toHaveAttribute("aria-selected", "true")
+      expect(await screen.findByRole("heading", { name: "Documents" })).toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Day by day" })).toBeNull()
+
+      fireEvent.mouseDown(tabs.getByRole("tab", { name: "Itinerary" }), { button: 0 })
+      expect(await screen.findByRole("region", { name: "Day by day" })).toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: "Documents" })).toBeNull()
+    })
+
     it("maps one pin per day, with every located stop as a dot and no routes", async () => {
       const trip = planned()
       trip.days[1] = {
@@ -548,6 +568,8 @@ describe("TripWorkspace", () => {
         "Add places from Instagram",
         "Trip details",
         "Export to calendar",
+        "Print itinerary",
+        "Copy itinerary",
         "Duplicate trip",
         "Delete trip…",
       ])
@@ -1012,8 +1034,20 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
       expect(within(screen.getByRole("region", { name: "Day by day" })).getByText("Nothing planned")).toBeInTheDocument()
+    })
+
+    it("copies the itinerary as text and says so", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+      renderWorkspace("/trips/lisbon")
+      fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy itinerary" }))
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+      expect(writeText.mock.calls[0]![0]).toContain("Lisbon Long Weekend")
+      expect(await screen.findAllByText("Itinerary copied")).not.toHaveLength(0)
     })
 
     it("hides editing controls on a day", async () => {
@@ -1044,7 +1078,7 @@ describe("TripWorkspace", () => {
       expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
       expect(mockUpdateTrip).not.toHaveBeenCalled()
     })
 
@@ -1054,7 +1088,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText("View only")).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
     })
   })
 
@@ -1076,7 +1110,7 @@ describe("TripWorkspace", () => {
     it("has no Delete for a trip shared with everyone", async () => {
       renderWorkspace("/trips/lisbon", planned({ sharedWithAllUsers: true }))
       fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
     })
   })
 

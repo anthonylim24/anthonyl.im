@@ -1650,3 +1650,69 @@ describe("enhancement run lifecycle", () => {
     expect((await store.getRun(trip.id, "run-done"))!.appliedSuggestionIds).toEqual(["sug-swap"])
   })
 })
+
+describe("planning extras (budget, party, expenses, checklist, item cost)", () => {
+  async function patch(app: Hono, id: string, body: unknown) {
+    return app.request(`/api/trips/${id}`, { method: "PATCH", headers: AUTH, body: JSON.stringify(body) })
+  }
+  async function read(app: Hono, id: string) {
+    const res = await app.request(`/api/trips/${id}`, { headers: AUTH })
+    expect(res.status).toBe(200)
+    return ((await res.json()) as { trip: Record<string, unknown> & { days: Array<{ id: string; date: string; items: unknown[] }> } }).trip
+  }
+
+  test("are stored and read back, not stripped by the schema", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const fresh = await read(app, trip.id)
+    const day = fresh.days[0]!
+    const extras = {
+      budget: { currency: "JPY", total: 300000 },
+      party: [{ id: "p-1", name: "Anthony", userId: "user-1" }, { id: "p-2", name: "Sam" }],
+      expenses: [
+        {
+          id: "e-1",
+          title: "Sushi",
+          amount: 12000,
+          currency: "JPY",
+          category: "food",
+          date: day.date,
+          paidBy: "p-1",
+          splitWith: ["p-1", "p-2"],
+          createdAt: "2026-07-10T12:00:00.000Z",
+        },
+      ],
+      checklist: [{ id: "c-1", text: "Passport", done: false, group: "documents", assignee: "p-2", createdAt: "2026-07-01T00:00:00.000Z" }],
+      days: fresh.days.map((d, i) =>
+        i === 0
+          ? { ...d, items: [{ id: "i-1", kind: "place", title: "Tsukiji", status: "none", createdBy: "user", cost: { amount: 3500, currency: "JPY" } }] }
+          : d,
+      ),
+    }
+    expect((await patch(app, trip.id, extras)).status).toBe(200)
+    const saved = await read(app, trip.id)
+    expect(saved.budget).toEqual(extras.budget)
+    expect(saved.party).toEqual(extras.party)
+    expect(saved.expenses).toEqual(extras.expenses)
+    expect(saved.checklist).toEqual(extras.checklist)
+    expect((saved.days[0]!.items[0] as { cost: unknown }).cost).toEqual({ amount: 3500, currency: "JPY" })
+  })
+
+  test("a patch that does not name them keeps them; budget null clears the budget", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    await patch(app, trip.id, { budget: { currency: "EUR", total: 900 }, checklist: [] })
+    await patch(app, trip.id, { name: "Renamed" })
+    expect((await read(app, trip.id)).budget).toEqual({ currency: "EUR", total: 900 })
+    expect((await patch(app, trip.id, { budget: null })).status).toBe(200)
+    expect("budget" in (await read(app, trip.id))).toBe(false)
+  })
+
+  test("refuses a bad currency code or a negative amount", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    expect((await patch(app, trip.id, { budget: { currency: "euro" } })).status).toBe(400)
+    const bad = [{ id: "e", title: "x", amount: -1, currency: "EUR", category: "food", createdAt: "now" }]
+    expect((await patch(app, trip.id, { expenses: bad })).status).toBe(400)
+  })
+})

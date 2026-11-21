@@ -168,6 +168,76 @@ describe("TripsIndex", () => {
     expect(within(list).getByText("Jan 2026")).toBeInTheDocument()
   })
 
+  it("puts a precise countdown on each card, and the same one on the “Next” link", async () => {
+    mockListTrips.mockResolvedValue([
+      makeSummary({ id: "rome", name: "Rome Soon", startDate: "2026-07-08", endDate: "2026-07-12", center: { lat: 41.9, lng: 12.5 } }),
+      makeSummary({ id: "paris", name: "Paris Lately", startDate: "2026-05-28", endDate: "2026-06-01" }),
+      done,
+    ])
+    renderIndex()
+
+    const card = (name: string) => screen.getByRole("heading", { level: 4, name }).closest("article")!
+    await screen.findByRole("heading", { level: 4, name: "Rome Soon" })
+    // Days, not "3 weeks": in the last month people count the days.
+    expect(within(card("Rome Soon")).getByText("In 23 days")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Next: Rome Soon/ })).toHaveTextContent("In 23 days")
+    expect(within(card("Paris Lately")).getByText("Ended 2 weeks ago")).toBeInTheDocument()
+    // Long past: the month, as before.
+    expect(within(card("Oslo Winter")).getByText("Jan 2026")).toBeInTheDocument()
+  })
+
+  it("counts down in the trip's own time zone", async () => {
+    // 12:00 UTC on 15 Jun is already 16 Jun in Auckland, still 15 Jun in Honolulu.
+    mockListTrips.mockResolvedValue([
+      makeSummary({ id: "akl", name: "Auckland", startDate: "2026-06-16", endDate: "2026-06-20", timezone: "Pacific/Auckland" }),
+      makeSummary({ id: "hnl", name: "Honolulu", startDate: "2026-06-16", endDate: "2026-06-20", timezone: "Pacific/Honolulu" }),
+    ])
+    renderIndex()
+    await screen.findByRole("heading", { level: 4, name: "Auckland" })
+    const card = (name: string) => screen.getByRole("heading", { level: 4, name }).closest("article")!
+    expect(within(card("Auckland")).getByText("Day 1 of 5")).toBeInTheDocument()
+    expect(within(card("Honolulu")).getByText("Tomorrow")).toBeInTheDocument()
+  })
+
+  it("sums up every trip beside the heading", async () => {
+    mockListTrips.mockResolvedValue([
+      { ...done, placeCount: 12 },
+      { ...later, placeCount: 3 },
+      { ...soon, placeCount: 20 },
+      { ...live, placeCount: 7, destinations: ["Seoul", " lisbon "] },
+    ])
+    renderIndex()
+    await screen.findByRole("heading", { level: 4, name: "Seoul Now" })
+
+    const figure = (term: string) => screen.getByText(term, { selector: "dt" }).nextElementSibling?.textContent
+    expect(figure("Trips")).toBe("4")
+    // 5 + 5 + 5 + 8 days by their dates.
+    expect(figure("Days")).toBe("23")
+    expect(figure("Places")).toBe("42")
+    // Oslo, Kyoto, Lisbon, Porto, Seoul: Lisbon counts once whatever its case.
+    expect(figure("Destinations")).toBe("5")
+
+    // Lifetime figures: a search does not change them.
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "oslo" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["Oslo Winter"]))
+    expect(figure("Trips")).toBe("4")
+  })
+
+  it("names a single figure in the singular, and shows none without trips", async () => {
+    mockListTrips.mockResolvedValue([makeSummary({ id: "one", name: "One Day", startDate: "2026-07-01", endDate: "2026-07-01", placeCount: 1 })])
+    const { unmount } = renderIndex()
+    await screen.findByRole("heading", { level: 4, name: "One Day" })
+    for (const term of ["Trip", "Day", "Place", "Destination"]) {
+      expect(screen.getByText(term, { selector: "dt" }).nextElementSibling).toHaveTextContent("1")
+    }
+    unmount()
+
+    mockListTrips.mockResolvedValue([])
+    renderIndex()
+    await screen.findByRole("link", { name: "Plan your first trip" })
+    expect(document.querySelectorAll("dt")).toHaveLength(0)
+  })
+
   it("drops the headings when a search narrows four trips to three or fewer", async () => {
     mockListTrips.mockResolvedValue([
       done,

@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useTabTitle } from "@/hooks/useTabTitle"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
@@ -36,13 +37,22 @@ import type { HistoryEntry, Sync } from "./editorMachine"
 import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
+import { useStopPhoto } from "./stopPhoto"
+import { useForecast } from "./forecast"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
-import { calendarMenuItem } from "./calendar/calendarMenu"
+import { OverviewTabs, type TabBadge } from "./workspace/OverviewTabs"
+import { OVERVIEW_TABS, readOverviewTab, type OverviewTab } from "./workspace/overviewTab"
+import { calendarMenuItem, exportCalendar } from "./calendar/calendarMenu"
+import { tripCommands } from "./command/tripCommands"
+import { useRegisterCommands } from "./command/CommandContext"
+import { COPY_MESSAGE, copyItinerary } from "./print/copyItinerary"
+import { copyMenuItem, printMenuItem } from "./print/printMenu"
+import { usePrintItinerary } from "./print/usePrintItinerary"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import { a } from "./atlas.stylex"
 import { share, ws as s } from "./workspace.stylex"
@@ -50,6 +60,9 @@ import { share, ws as s } from "./workspace.stylex"
 const PhotorealOverlay = lazyRetry(() => import("./photoreal/PhotorealOverlay"))
 
 const PHOTOREAL_READY = photorealAvailable()
+const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => ({ default: m.BudgetPanel })))
+const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
+const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
@@ -133,6 +146,28 @@ function UndoToast({ entry, hold, onUndo, onExpire }: { entry: HistoryEntry; hol
   )
 }
 
+/** The selected stop's photo at the top of the map's place card; nothing while there is none. */
+function PlacePhoto({ item, city }: { item: ItineraryItem; city: string }) {
+  const lat = item.location?.lat
+  const lng = item.location?.lng
+  const category = item.reservation?.type ?? item.location?.category
+  const stop = typeof lat === "number" && typeof lng === "number" ? { id: item.id, title: item.location?.name || item.title, lat, lng, category } : null
+  const photo = useStopPhoto(stop, city, 720)
+  const [failed, setFailed] = useState<string | null>(null)
+  if (photo.status !== "ready" || failed === photo.url) return null
+  return (
+    <img
+      key={photo.url}
+      src={photo.url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      {...sx(s.placePhoto)}
+      onError={() => setFailed(photo.url)}
+    />
+  )
+}
+
 /**
  * One workspace per trip. Going from one trip to another (Duplicate, browser
  * Back) starts a fresh one, so nothing from the last trip (a pending AI
@@ -166,6 +201,20 @@ function Workspace() {
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
+  const tab = readOverviewTab(searchParams.get("tab"))
+  const setTab = useCallback(
+    (next: OverviewTab) =>
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev)
+          if (next === "itinerary") params.delete("tab")
+          else params.set("tab", next)
+          return params
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  )
   /** What this opening of the Instagram import has added: one undo step, one toast. */
   const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
   /** Offered after the traveller adds or changes where they sleep. */
@@ -178,6 +227,17 @@ function Workspace() {
   if (view === "map" && !mapOpened) setMapOpened(true)
   /** Spoken confirmations (Undo, Redo) for screen readers. */
   const [announce, setAnnounce] = useState("")
+  /** A short visible confirmation ("Itinerary copied"); screen readers get `announce`. */
+  const [flash, setFlash] = useState<{ text: string; n: number } | null>(null)
+  const confirm = useCallback((text: string) => {
+    setAnnounce(text)
+    setFlash((last) => ({ text, n: (last?.n ?? 0) + 1 }))
+  }, [])
+  useEffect(() => {
+    if (!flash) return
+    const timer = setTimeout(() => setFlash(null), 3500)
+    return () => clearTimeout(timer)
+  }, [flash])
   const aliveRef = useRef(true)
   useEffect(() => {
     aliveRef.current = true
@@ -188,6 +248,8 @@ function Workspace() {
 
   const { trip, editable, locked } = editor
   const ai = editor.ai
+  const forecast = useForecast(trip)
+  const printer = usePrintItinerary(trip)
 
   // The newest undo step offers a toast when it was a destructive change.
   // An older step coming back to the top (after an Undo) does not.
@@ -486,6 +548,45 @@ function Workspace() {
     }
   }
 
+  // openInstagram resets a ref; a stable wrapper keeps that out of render.
+  const importFromInstagram = useLatestCallback(() => openInstagram([]))
+  const copyFromPalette = useLatestCallback(() => {
+    if (!trip) return
+    void copyItinerary(trip).then((result) => {
+      const message = COPY_MESSAGE[result]
+      if (message) confirm(message)
+    })
+  })
+  const printFromPalette = printer.print
+  const paletteCommands = useMemo(
+    () =>
+      trip
+        ? tripCommands({
+            trip,
+            basePath,
+            navigate,
+            dayId: dayId ?? null,
+            locked,
+            actions: {
+              share: () => setDialog("share"),
+              ...(editable
+                ? {
+                    improve: () => setDialog({ ai: "trip" }),
+                    details: () => setDialog("details"),
+                    instagram: importFromInstagram,
+                  }
+                : {}),
+              exportCalendar: () => exportCalendar(trip),
+              print: printFromPalette,
+              copyText: copyFromPalette,
+              openTab: (next) => navigate(next === "itinerary" ? basePath : `${basePath}?tab=${next}`),
+            },
+          })
+        : [],
+    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette],
+  )
+  useRegisterCommands("trip", paletteCommands)
+
   if (editor.state.s === "loading") {
     return (
       <div {...sx(s.root)} role="status" aria-label="Loading trip">
@@ -561,6 +662,8 @@ function Workspace() {
       ? [{ label: "Trip details", icon: <Settings2 size={16} strokeWidth={1.75} aria-hidden />, disabled: locked, onSelect: () => setDialog("details") }]
       : []),
     calendarMenuItem(trip),
+    printMenuItem(printer),
+    copyMenuItem(trip, confirm),
     {
       label: "Duplicate trip",
       icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,
@@ -683,7 +786,7 @@ function Workspace() {
                 </button>
               )}
               {editable && (
-                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={locked} onClick={() => openInstagram([])}>
+                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm, s.wideOnly)} disabled={locked} onClick={() => openInstagram([])}>
                   <IgGlyph size={14} />
                   From Instagram
                 </button>
@@ -768,23 +871,59 @@ function Workspace() {
             onStopAi={editor.stopAi}
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
             onInstagram={openInstagram}
+            forecast={forecast.get(day.id)}
           />
         ) : (
-          <OverviewPanel
-            trip={trip}
-            basePath={basePath}
-            editable={editable}
-            locked={locked}
-            drafting={running === "draft"}
-            enhancing={running === "trip"}
-            applying={ai.k === "applying"}
-            run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
-            dayOptions={editor.dayOptions}
-            onDraft={(brief) => void draft(brief)}
-            onHoverDay={(id) => setHotId(id ? `${DAY_PIN}${id}` : null)}
-            onApplyRun={editor.applyActiveRun}
-            onDismissRun={editor.dismissRun}
-            onStopAi={editor.stopAi}
+          <OverviewTabs
+            tab={tab}
+            onTab={setTab}
+            badges={tabBadges(trip)}
+            render={(open) =>
+              open === "itinerary" ? (
+                      <OverviewPanel
+                  trip={trip}
+                  forecast={forecast}
+                  basePath={basePath}
+                  editable={editable}
+                  locked={locked}
+                  drafting={running === "draft"}
+                  enhancing={running === "trip"}
+                  applying={ai.k === "applying"}
+                  run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
+                  dayOptions={editor.dayOptions}
+                  onDraft={(brief) => void draft(brief)}
+                  onHoverDay={(id) => setHotId(id ? `${DAY_PIN}${id}` : null)}
+                  onApplyRun={editor.applyActiveRun}
+                  onDismissRun={editor.dismissRun}
+                  onStopAi={editor.stopAi}
+                />
+              ) : (
+                <OverlayBoundary onError={overlayFailed(`The ${tabLabel(open)} tab`, () => setTab("itinerary"))}>
+                  <Suspense fallback={<PanelLoading />}>
+                    <div {...sx(s.content)}>
+                      {open === "budget" && (
+                        <BudgetPanel
+                          trip={trip}
+                          editable={editable}
+                          locked={locked}
+                          viewer={viewer}
+                          onEdit={editor.edit}
+                          onOpenItem={(itemDayId, itemId) => {
+                            navigate(`${basePath}/day/${itemDayId}`)
+                            requestEdit(itemId)
+                            setView("list")
+                          }}
+                        />
+                      )}
+                      {open === "checklist" && (
+                        <ChecklistPanel trip={trip} editable={editable} locked={locked} people={trip.party} onEdit={editor.edit} />
+                      )}
+                      {open === "essentials" && <EssentialsPanel trip={trip} />}
+                    </div>
+                  </Suspense>
+                </OverlayBoundary>
+              )
+            }
           />
         )}
       </div>
@@ -792,7 +931,8 @@ function Workspace() {
       <p {...sx(a.srOnly)} role="status" aria-live="polite">
         {announce}
       </p>
-      {(toast || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
+      {printer.node}
+      {(toast || flash || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
         <div {...sx(s.dock)}>
           {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={undoLast} onExpire={expireToast} />}
           {sync.k === "conflict" && (
@@ -840,6 +980,11 @@ function Workspace() {
               <button type="button" {...sx(s.dockBtn)} onClick={() => setOverlayProblem(null)}>
                 Dismiss
               </button>
+            </div>
+          )}
+          {flash && (
+            <div key={flash.n} {...sx(s.dockItem)} aria-hidden>
+              <span {...sx(a.grow, a.wrap)}>{flash.text}</span>
             </div>
           )}
           {editor.notice && (
@@ -895,6 +1040,7 @@ function Workspace() {
             )}
             {active && (
               <aside {...sx(s.placeCard)} aria-label="Selected place">
+                <PlacePhoto key={active.item.id} item={active.item} city={active.day.city ?? trip.destinations[0] ?? ""} />
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
                     <p {...sx(a.eyebrow)}>
@@ -1127,6 +1273,22 @@ function Workspace() {
         </Suspense>
         </OverlayBoundary>
       )}
+    </div>
+  )
+}
+
+/** The count of unticked things beside Checklist, read as "3 left". */
+function tabBadges(trip: Trip): Partial<Record<OverviewTab, TabBadge>> {
+  const open = (trip.checklist ?? []).filter((item) => !item.done).length
+  return open > 0 ? { checklist: { text: String(open), label: `${open} left` } } : {}
+}
+
+const tabLabel = (tab: OverviewTab) => OVERVIEW_TABS.find((t) => t.id === tab)?.label.toLowerCase() ?? tab
+
+function PanelLoading() {
+  return (
+    <div {...sx(s.content)} role="status" aria-label="Loading">
+      <Spinner />
     </div>
   )
 }

@@ -112,6 +112,37 @@ describe("buildTripChatContext", () => {
     expect(ctx).toContain("dayId=day-40")
     expect(ctx.length).toBeLessThan(60_000)
   })
+
+  it("leaves out the planning section when the trip has no money or checklist", () => {
+    expect(buildTripChatContext(makeTrip())).not.toContain("PLANNING")
+  })
+
+  it("summarises budget, stop costs, spend, travellers and open to-dos", () => {
+    const trip = makeTrip()
+    trip.days[1]!.items[0]!.cost = { amount: 30000, currency: "JPY" }
+    trip.budget = { currency: "JPY", total: 200000 }
+    trip.party = [
+      { id: "p1", name: "Ana" },
+      { id: "p2", name: "Ben" },
+    ]
+    trip.expenses = [
+      { id: "e1", title: "Hotel", amount: 90000, currency: "JPY", category: "lodging", createdAt: "2026-01-02T00:00:00Z" },
+      { id: "e2", title: "eSIM", amount: 12, currency: "USD", category: "other", createdAt: "2026-01-02T00:00:00Z" },
+    ]
+    trip.checklist = [
+      { id: "c1", text: "Passport", done: true, group: "documents", createdAt: "2026-01-02T00:00:00Z" },
+      { id: "c2", text: "Book the Ghibli Museum", done: false, group: "todo", assignee: "Ben", createdAt: "2026-01-02T00:00:00Z" },
+    ]
+    const ctx = buildTripChatContext(trip, "day-2")
+    expect(ctx).toContain("PLANNING:")
+    expect(ctx).toContain("Budget: 200000 JPY")
+    expect(ctx).toContain("Planned stop costs: 30000 JPY across 1 stops")
+    expect(ctx).toContain("Spent so far (logged expenses): 90000 JPY + 12 USD in 2 entries")
+    expect(ctx).toContain("Travellers: Ana, Ben")
+    expect(ctx).toContain("Checklist: 1 of 2 done; open: Book the Ghibli Museum (todo, Ben)")
+    expect(ctx).not.toContain("Passport (documents")
+    expect(ctx).toContain("cost 30000 JPY")
+  })
 })
 
 describe("buildTripChatSystemInstruction", () => {

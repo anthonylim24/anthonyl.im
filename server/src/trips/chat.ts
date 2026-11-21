@@ -125,11 +125,52 @@ function fmtItem(item: ItineraryItem, next?: ItineraryItem): string {
     if (item.reservation.contact) extra.push(`contact ${clip(item.reservation.contact, 80)}`)
   }
   if (item.status && item.status !== "none" && STATUS_WORDS[item.status]) extra.push(STATUS_WORDS[item.status]!)
+  if (item.cost) extra.push(`cost ${fmtMoney(item.cost.amount, item.cost.currency)}`)
   if (item.notes) extra.push(`note: ${clip(item.notes, MAX_NOTE)}`)
   const here = itemPoint(item)
   const there = itemPoint(next)
   const leg = here && there && next ? `\n        ↳ to ${clip(next.title, 40)}: ${describeWalk(here, there)}` : ""
   return `    - ${bits.join(" ")}${extra.length ? ` (${extra.join("; ")})` : ""}${leg}`
+}
+
+function fmtMoney(amount: number, currency: string): string {
+  return `${Math.round(amount * 100) / 100} ${currency}`
+}
+
+/** Sums by currency, largest first: "1200 KRW + 40 USD". */
+function fmtTotals(rows: readonly { amount: number; currency: string }[]): string {
+  const sums = new Map<string, number>()
+  for (const r of rows) sums.set(r.currency, (sums.get(r.currency) ?? 0) + r.amount)
+  return [...sums.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .map(([currency, amount]) => fmtMoney(amount, currency))
+    .join(" + ")
+}
+
+const MAX_OPEN_TASKS = 12
+
+/** Budget, spend, party and the open to-dos, when the trip has any. */
+function fmtPlanning(trip: Trip): string | null {
+  const lines: string[] = []
+  const costs = trip.days.flatMap((d) => d.items.flatMap((i) => (i.cost ? [i.cost] : [])))
+  const expenses = trip.expenses ?? []
+  if (trip.budget?.total !== undefined) lines.push(`Budget: ${fmtMoney(trip.budget.total, trip.budget.currency)}`)
+  else if (trip.budget) lines.push(`Budget currency: ${trip.budget.currency} (no total set)`)
+  if (costs.length) lines.push(`Planned stop costs: ${fmtTotals(costs)} across ${costs.length} stops`)
+  if (expenses.length) lines.push(`Spent so far (logged expenses): ${fmtTotals(expenses)} in ${expenses.length} entries`)
+  if (trip.party?.length) lines.push(`Travellers: ${trip.party.map((p) => clip(p.name, 40)).join(", ")}`)
+  const checklist = trip.checklist ?? []
+  if (checklist.length) {
+    const open = checklist.filter((c) => !c.done)
+    const shown = open
+      .slice(0, MAX_OPEN_TASKS)
+      .map((c) => `${clip(c.text, 80)} (${c.group}${c.assignee ? `, ${clip(c.assignee, 30)}` : ""})`)
+    lines.push(
+      `Checklist: ${checklist.length - open.length} of ${checklist.length} done` +
+        (shown.length ? `; open: ${shown.join("; ")}${open.length > shown.length ? `; +${open.length - shown.length} more` : ""}` : ""),
+    )
+  }
+  return lines.length ? `PLANNING:\n${lines.map((l) => `- ${l}`).join("\n")}` : null
 }
 
 function relativeDay(date: string, today: string): string {
@@ -308,6 +349,8 @@ export function buildTripChatContext(
       (trip.description ? `\nDescription: ${clip(trip.description, 600)}` : "") +
       (trip.appearance?.headline ? `\nHeadline: ${clip(trip.appearance.headline, 400)}` : ""),
   )
+  const planning = fmtPlanning(trip)
+  if (planning) sections.push(planning)
 
   if (trip.days.length === 0) {
     sections.push("ALL DAYS: (none yet)")
