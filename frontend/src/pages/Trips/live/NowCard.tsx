@@ -5,7 +5,7 @@ import { sx } from "@/styles/merge"
 import { externalMapsAppName, externalMapsLink } from "@/lib/externalMaps"
 import { dayCount, formatClock, formatRange, formatTripDate, plural } from "../meta"
 import { FAHRENHEIT, formatTemp, weatherKind, wetSpells, wetWord, type DayForecast } from "../forecast"
-import { clockRange } from "../timeline/timeline"
+import { clockLabel, clockRange } from "../timeline/timeline"
 import { formatMinutes } from "../timeline/travel"
 import { ItemIcon } from "../ItemIcon"
 import { Parts } from "../workspace/Parts"
@@ -227,8 +227,9 @@ function During({
 }
 
 /**
- * Today's sky in one line: "57° now · Showers 2–5 PM" (this hour's
- * temperature, then the wet spell under way or still to come), or the day's
+ * Today's sky in one line: "57° now · Showers 2–5 PM", or "Showers until
+ * 5 PM" once it has begun (this hour's temperature, then the wet spell under
+ * way or still to come), or the day's
  * sky word once no wet spell is left. Without hourly data, the day's high.
  */
 function SkyLine({ forecast, clock }: { forecast: DayForecast; clock: string }) {
@@ -237,7 +238,12 @@ function SkyLine({ forecast, clock }: { forecast: DayForecast; clock: string }) 
   const spell = wetSpells(forecast.hours ?? []).find((wet) => wet.to > minute)
   const Icon = weatherKind(spell?.code ?? forecast.code).icon
   const temp = hour ? `${formatTemp(hour.tempC, FAHRENHEIT)} now` : `High ${formatTemp(forecast.highC, FAHRENHEIT)}`
-  const words = spell ? `${wetWord(spell.code)} ${clockRange(spell.from, spell.to, "prose")}` : weatherKind(forecast.code).word
+  // Under way, only its end is news: "Showers until 5 PM".
+  const words = !spell
+    ? weatherKind(forecast.code).word
+    : spell.from <= minute
+      ? `${wetWord(spell.code)} until ${clockLabel(spell.to).replace(":00 ", " ")}`
+      : `${wetWord(spell.code)} ${clockRange(spell.from, spell.to, "prose")}`
   return (
     <p {...sx(a.small, s.sky)} title="Forecast from Open-Meteo">
       <Icon size={16} strokeWidth={1.75} aria-hidden {...sx(s.skyIcon)} />

@@ -16,7 +16,7 @@ import { share, ws as s } from "../workspace.stylex"
 import { Menu, type MenuItem } from "../components/kit"
 import { calendarMenuItem } from "../calendar/calendarMenu"
 import { DaySky } from "./DaySky"
-import type { DaySky as Sky } from "../forecast"
+import { weatherKind, wetDuring, wetSpells, type DaySky as Sky, type WetSpell } from "../forecast"
 import { NowLine } from "../live/NowLine"
 import { clockIn, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
@@ -30,7 +30,7 @@ import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type CardConflict, type ItemCardProps } from "./ItemCard"
 import { dayList, type Leg } from "./dayList"
 import { Parts } from "./Parts"
-import { rainBrief, reworkLabel, stopAlerts } from "./stopAlerts"
+import { rainBrief, stopAlerts } from "./stopAlerts"
 
 export interface DayPanelProps {
   trip: Trip
@@ -79,7 +79,7 @@ export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
   return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
 }
 
-type SortableProps = ItemCardProps & { leg: Leg | null }
+type SortableProps = ItemCardProps & { leg: Leg | null; legWet: number | null }
 
 /** Rebuilt with every edit to the day, so compared by their words, not by identity. */
 const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict"])
@@ -91,7 +91,7 @@ const sameProps = (prev: SortableProps, next: SortableProps) =>
 /** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
 const Sortable = memo(function Sortable(props: SortableProps) {
   const controls = useDragControls()
-  const { leg, ...card } = props
+  const { leg, legWet, ...card } = props
   const onGrip = useCallback((event: ReactPointerEvent) => controls.start(event), [controls])
   return (
     <Reorder.Item
@@ -102,14 +102,19 @@ const Sortable = memo(function Sortable(props: SortableProps) {
       style={{ position: "relative", listStyle: "none" }}
       whileDrag={{ scale: 1.02, zIndex: 5 }}
     >
-      {leg && <LegRow leg={leg} />}
+      {leg && <LegRow leg={leg} wet={legWet} />}
       <ItemCard {...card} onGrip={onGrip} />
     </Reorder.Item>
   )
 }, sameProps)
 
-/** The way into a stop: "940 m · 12 min walk · 1 h 08 free", then "Leave by 3:18 PM" on its own line. */
-function LegRow({ leg }: { leg: Leg }) {
+/**
+ * The way into a stop: "940 m · 12 min walk · 1 h 08 free", then "Leave by
+ * 3:18 PM" on its own line. `wet`: the WMO code of what falls on the way, drawn
+ * after the journey as on the timeline.
+ */
+function LegRow({ leg, wet }: { leg: Leg; wet: number | null }) {
+  const Wet = wet === null ? null : weatherKind(wet).icon
   return (
     <div {...sx(s.item)} aria-hidden>
       <div {...sx(s.gutter)} style={{ paddingTop: 0 }}>
@@ -118,7 +123,21 @@ function LegRow({ leg }: { leg: Leg }) {
       <p {...sx(s.leg)}>
         {leg.mode === "overlap" ? <TimerOff size={12} strokeWidth={2} aria-hidden /> : <ModeIcon mode={leg.mode} />}
         <span>
-          <Parts parts={leg.text.split(" · ")} />
+          <Parts
+            parts={[
+              leg.distance,
+              <>
+                {leg.travel}
+                {Wet && (
+                  <>
+                    {" "}
+                    <Wet size={12} strokeWidth={1.75} aria-hidden {...sx(s.legWet)} />
+                  </>
+                )}
+              </>,
+              leg.free,
+            ]}
+          />
         </span>
         {leg.leave && <span {...sx(s.legLeave)}>{leg.leave}</span>}
       </p>
@@ -182,6 +201,8 @@ export function DayPanel({
   const currency = defaultCurrency(trip)
   const forecast = sky.status === "forecast" ? sky.forecast : undefined
   const alerts = useMemo(() => stopAlerts(day, forecast?.hours), [day, forecast])
+  const spells = useMemo(() => wetSpells(forecast?.hours ?? []), [forecast])
+  const legWet = (leg: Leg | undefined) => (leg?.on ? (wetDuring(spells, leg.on.from, leg.on.to)?.code ?? null) : null)
   const summary =
     [stops > 0 ? plural(stops, "stop") : null, meters > 100 ? formatDistance(meters) : null, toSchedule > 0 ? `${toSchedule} to schedule` : null]
       .filter(Boolean)
@@ -195,18 +216,6 @@ export function DayPanel({
 
   const patchDay = (patch: Partial<TripDay>, undo?: UndoMark) =>
     onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...patch } : d)), undo)
-
-  // One "Rework around the showers" per wet spell: on the first stop still ahead that meets it.
-  const reworkOn = useMemo(() => {
-    const on = new Map<string, string>()
-    const spells = new Set<number>()
-    for (const [id, alert] of alerts) {
-      if (!alert.rain || list.past.has(id) || spells.has(alert.rain.spell.from)) continue
-      spells.add(alert.rain.spell.from)
-      on.set(id, reworkLabel(alert.rain.spell))
-    }
-    return on
-  }, [alerts, list])
 
   // The card names the other stop in a clash by its number on the map, as the pins do.
   const conflicts = useMemo(() => {
@@ -237,9 +246,15 @@ export function DayPanel({
   const hidden = list.done && !foldOpen ? list.done.length : 0
   const shown = hidden > 0 ? day.items.slice(hidden) : day.items
 
-  const rework = useLatestCallback((id: string) => {
-    const rain = alerts.get(id)?.rain
-    if (rain) onAskAi(rainBrief(rain.spell))
+  const rework = useLatestCallback((spell: WetSpell) => onAskAi(rainBrief(spell)))
+  // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
+  const findStop = useLatestCallback((id: string) => {
+    const item = day.items.find((i) => i.id === id)
+    if (item && isLocated(item)) onLocate(id)
+    else {
+      setDayView("list")
+      onHover(id)
+    }
   })
 
   // A deleted or moved stop takes focus with it; hand it to its neighbour
@@ -356,7 +371,13 @@ export function DayPanel({
               {summary && <span {...sx(a.small)}>{summary}</span>}
             </div>
           </div>
-          <DaySky sky={sky} day={day} />
+          <DaySky
+            sky={sky}
+            day={day}
+            now={clock === null ? null : clockMinutes(clock)}
+            onStop={findStop}
+            onRework={editable && !locked ? rework : undefined}
+          />
         </div>
         <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
           {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
@@ -436,15 +457,7 @@ export function DayPanel({
             now={isToday ? clockIn(trip.timezone, now) : undefined}
             forecast={forecast}
             fold={{ open: foldOpen, onToggle: toggleFold }}
-            onSelect={(id) => {
-              const item = day.items.find((i) => i.id === id)
-              // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
-              if (item && isLocated(item)) onLocate(id)
-              else {
-                setDayView("list")
-                onHover(id)
-              }
-            }}
+            onSelect={findStop}
           />
         ) : (
           <Reorder.Group
@@ -486,8 +499,10 @@ export function DayPanel({
                   conflict={conflicts.get(item.id) ?? null}
                   rain={alerts.get(item.id)?.rain?.text ?? null}
                   rainHeavy={alerts.get(item.id)?.rain?.heavy ?? false}
+                  rainCode={alerts.get(item.id)?.rain?.spell.code ?? null}
                   past={list.past.has(item.id)}
                   leg={list.legs.get(item.id) ?? null}
+                  legWet={legWet(list.legs.get(item.id))}
                   editable={editable}
                   locked={locked}
                   hot={hotId === item.id}
@@ -502,8 +517,6 @@ export function DayPanel({
                   onGone={leave}
                   onHover={onHover}
                   onLocate={onLocate}
-                  rework={reworkOn.get(item.id) ?? null}
-                  onRework={editable ? rework : undefined}
                   onAnnounce={setSpoken}
                 />,
               ]

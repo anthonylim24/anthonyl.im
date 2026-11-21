@@ -101,13 +101,6 @@ export function clockLabel(minutes: number): string {
   return formatClock(`${hh}:${mm}`)
 }
 
-/** How long a stop with no end time probably takes. Booking type wins over the place's category. */
-/**
- * "8:00–9:30 AM", "11:30 AM–1 PM", or with `bare` (a narrow column beside the
- * ruler's own AM / PM) "10:15–11:30". Whole hours in a range drop ":00" only
- * when both ends are whole and the range names its half of the day, so "2–5 PM"
- * but "2:00–5:30 PM" and a bare "11:00–12:00".
- */
 /**
  * A span of the clock. `card`: "11:00 AM–12:00 PM", minutes always, so a list of
  * them lines up. `lane`: "11:00–12:00" for a narrow column under a ruler that
@@ -124,6 +117,7 @@ export function clockRange(from: number, to: number, style: "card" | "lane" | "p
   return halfA === halfB ? `${timeA}–${timeB} ${halfB}` : `${timeA} ${halfA}–${timeB} ${halfB}`
 }
 
+/** How long a stop with no end time probably takes. Booking type wins over the place's category. */
 export function typicalMinutes(item: Pick<ItineraryItem, "kind" | "reservation" | "location">): number {
   const keys = [item.kind === "reservation" ? item.reservation?.type : undefined, item.location?.category]
   for (const key of keys) {

@@ -9,8 +9,10 @@ const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const PHONE = "@media (max-width: 639.98px)"
 /** Hour labels, then a gutter for the rain band, then the track the stops sit on. */
 // Hour labels (3rem, 2.5rem on phones) | sunrise and sunset | the rain band | the stops.
-const TRACK = { default: "4.75rem", [PHONE]: "4.0625rem" }
-const SUN_SLOT = { default: "3rem", [PHONE]: "2.5rem" }
+// The gutter, left to right: hour labels, the sun's mark, 4px, the rain band, 4px, the stops.
+const TRACK = { default: "4.75rem", [PHONE]: "4.1875rem" }
+/** Where the sun's mark sits, measured from the stops (its line starts there, clear of the rain band). */
+const SUN_MARK = { default: "-1.75rem", [PHONE]: "-1.6875rem" }
 
 export const tl = stylex.create({
   root: { display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: 0 },
@@ -80,8 +82,8 @@ export const tl = stylex.create({
   // band: their glyph there, and a dashed hairline under the stops.
   rain: {
     position: "absolute",
-    left: { default: "3.8125rem", [PHONE]: "3.3125rem" },
-    width: { default: "9px", [PHONE]: "8px" },
+    left: { default: "4rem", [PHONE]: "3.5rem" },
+    width: { default: "8px", [PHONE]: "7px" },
     borderRadius: "1px",
     backgroundImage: "repeating-linear-gradient(-60deg, var(--trips-ink-tertiary) 0 1.5px, transparent 1.5px 4.5px)",
     pointerEvents: "none",
@@ -89,17 +91,21 @@ export const tl = stylex.create({
   rainStrong: {
     backgroundImage: "repeating-linear-gradient(-60deg, var(--trips-ink-secondary) 0 2px, transparent 2px 4px)",
   },
+  // The band hangs from its glyph: drawn over the band's head on the canvas,
+  // so it needs no room above the ruler.
   rainMark: {
     position: "absolute",
     top: 0,
     left: "50%",
     display: "flex",
-    transform: "translate(-50%, calc(-100% - 2px))",
+    paddingBottom: "2px",
+    transform: "translateX(-50%)",
+    backgroundColor: "var(--trips-canvas)",
     color: "var(--trips-ink-secondary)",
   },
   sun: {
     position: "absolute",
-    left: SUN_SLOT,
+    left: TRACK,
     right: "2px",
     height: 0,
     borderTopWidth: "1px",
@@ -109,7 +115,7 @@ export const tl = stylex.create({
   },
   sunMark: {
     position: "absolute",
-    left: 0,
+    left: SUN_MARK,
     top: 0,
     transform: "translateY(-50%)",
     display: "grid",

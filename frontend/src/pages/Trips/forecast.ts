@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Effect } from "effect"
-import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, CloudSunRain, Sun, type LucideIcon } from "lucide-react"
+import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSun, CloudSunRain, Snowflake, Sun, type LucideIcon } from "lucide-react"
 import { fetchExternal, parseJson } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
 import { addDays, todayIsoIn } from "./meta"
@@ -105,7 +105,7 @@ export const SKIES: Record<SkyId, { icon: LucideIcon; art: string }> = {
   drizzle: { icon: CloudDrizzle, art: drizzleArt },
   rain: { icon: CloudRain, art: rainArt },
   showers: { icon: CloudSunRain, art: showersArt },
-  snow: { icon: CloudSnow, art: snowArt },
+  snow: { icon: Snowflake, art: snowArt },
   thunder: { icon: CloudLightning, art: thunderArt },
 }
 

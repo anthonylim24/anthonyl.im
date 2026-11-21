@@ -48,7 +48,7 @@ describe("dayList Anytime", () => {
 describe("dayList legs", () => {
   it("draws no leg into or between Anytime stops", () => {
     const list = dayList(day([stop("A", "09:00", "10:00", 0), stop("B", "11:00", "12:00", 1), stop("C", undefined, undefined, 2), stop("D", undefined, undefined, 3)]), null)
-    expect(list.legs.get("B")?.text).toMatch(/^1000 m · 12 min walk · 48 min free$/)
+    expect(list.legs.get("B")).toMatchObject({ distance: "1000 m", travel: "12 min walk", free: "48 min free" })
     expect(list.legs.has("C")).toBe(false)
     expect(list.legs.has("D")).toBe(false)
   })
@@ -60,25 +60,25 @@ describe("dayList legs", () => {
 
   it("says there is no time to travel into an overlapping stop", () => {
     const list = dayList(day([stop("A", "10:15", "11:30", 0), stop("B", "11:00", "12:00", 0.5)]), null)
-    expect(list.legs.get("B")).toEqual({ text: "No time to travel", leave: null, mode: "overlap" })
+    expect(list.legs.get("B")).toEqual({ distance: null, travel: "No time to travel", free: null, leave: null, mode: "overlap", on: null })
   })
 
   it("adds the timeline's free time and when to leave, counted from now on today", () => {
     const plan = day([stop("Lunch", "12:30", "13:30", 0), stop("Gion", "15:30", "18:00", 0.94)])
-    expect(dayList(plan, null).legs.get("Gion")).toEqual({ text: "940 m · 12 min walk · 1 h 48 free", leave: "Leave by 3:18 PM", mode: "walk" })
-    expect(dayList(plan, min("14:10")).legs.get("Gion")).toEqual({ text: "940 m · 12 min walk · 1 h 08 free", leave: "Leave by 3:18 PM", mode: "walk" })
+    expect(dayList(plan, null).legs.get("Gion")).toEqual({ distance: "940 m", travel: "12 min walk", free: "1 h 48 free", leave: "Leave by 3:18 PM", mode: "walk", on: { from: min("15:18"), to: min("15:30") } })
+    expect(dayList(plan, min("14:10")).legs.get("Gion")).toMatchObject({ free: "1 h 08 free", leave: "Leave by 3:18 PM" })
     // Past the time to leave there is nothing free to name.
-    expect(dayList(plan, min("15:20")).legs.get("Gion")).toEqual({ text: "940 m · 12 min walk", leave: null, mode: "walk" })
+    expect(dayList(plan, min("15:20")).legs.get("Gion")).toMatchObject({ free: null, leave: null })
   })
 
   it("finds the gap when the list runs against the clock", () => {
     const list = dayList(day([stop("Late", "15:30", "18:00", 0.94), stop("Early", "12:30", "13:30", 0)]), null)
-    expect(list.legs.get("Early")?.text).toBe("940 m · 12 min walk · 1 h 48 free")
+    expect(list.legs.get("Early")?.free).toBe("1 h 48 free")
   })
 
   it("names no free time under a quarter of an hour", () => {
     const list = dayList(day([stop("A", "09:00", "10:00", 0), stop("B", "10:20", "11:00", 0.94)]), null)
-    expect(list.legs.get("B")).toEqual({ text: "940 m · 12 min walk", leave: null, mode: "walk" })
+    expect(list.legs.get("B")).toMatchObject({ distance: "940 m", travel: "12 min walk", free: null, leave: null })
   })
 })
 

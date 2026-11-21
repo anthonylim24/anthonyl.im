@@ -136,9 +136,9 @@ describe("NowCard sky line", () => {
     expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Showers 2–5 PM`)
   })
 
-  it("keeps the spell while it is under way", () => {
+  it("says when the spell ends while it is under way", () => {
     renderCard(new Date("2026-05-28T06:30:00Z"), seoulTrip(), new Map([["d3", SHOWERY]])) // 15:30
-    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Showers 2–5 PM`)
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Showers until 5 PM`)
   })
 
   it("says the day's sky once the spell is over", () => {

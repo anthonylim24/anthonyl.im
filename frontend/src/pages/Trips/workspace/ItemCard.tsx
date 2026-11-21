@@ -1,6 +1,6 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { isToSchedule, TO_SCHEDULE } from "../map/geo"
-import { ArrowDown, ArrowUp, ChevronDown, CloudRain, Copy, ExternalLink, GripVertical, Lightbulb, MapPin, MapPinOff, Trash2, TriangleAlert } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, CloudRain, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2, TriangleAlert } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
@@ -19,6 +19,7 @@ import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
 import { ItemIcon } from "../ItemIcon"
+import { weatherKind } from "../forecast"
 
 /** A clash with an earlier stop, and that stop's map number (else its title) to name it by: "Overlaps ②". */
 export type CardConflict = ConflictAlert & { otherNumber: number | null; otherTitle: string }
@@ -36,10 +37,10 @@ export interface ItemCardProps {
   rain: string | null
   /** The rain is 70% likely or more, or a storm. */
   rainHeavy: boolean
+  /** The WMO code of what falls: its glyph, the same as the timeline's. */
+  rainCode: number | null
   /** Over by now (today only): set back in secondary ink. */
   past: boolean
-  /** "Rework around the showers": on the one stop that leads its wet spell. */
-  rework: string | null
   editable: boolean
   locked: boolean
   hot: boolean
@@ -58,8 +59,6 @@ export interface ItemCardProps {
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
   onGrip?: (event: ReactPointerEvent) => void
-  /** Opens "Ideas for this day" briefed on the rain this stop meets. */
-  onRework?: (id: string) => void
   /** Spoken confirmation after a keyboard reorder. */
   onAnnounce?: (message: string) => void
 }
@@ -79,8 +78,8 @@ export const ItemCard = memo(function ItemCard({
   conflict,
   rain,
   rainHeavy,
+  rainCode,
   past,
-  rework,
   editable,
   locked,
   hot,
@@ -95,7 +94,6 @@ export const ItemCard = memo(function ItemCard({
   onHover,
   onLocate,
   onGrip,
-  onRework,
   onAnnounce,
   onGone,
 }: ItemCardProps) {
@@ -113,6 +111,7 @@ export const ItemCard = memo(function ItemCard({
   const rowRef = useRef<HTMLDivElement>(null)
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
   const canEdit = editable && !locked
+  const RainIcon = rainCode === null ? CloudRain : weatherKind(rainCode).icon
   const name = `“${item.title || "Untitled"}”`
   const move = (step: -1 | 1) => onChange((days) => moveItem(days, dayId, item.id, step), { label: `Moved ${name}`, key: `move:${item.id}` })
 
@@ -264,7 +263,7 @@ export const ItemCard = memo(function ItemCard({
             )}
             {rain && (
               <span {...sx(s.cardAlert, s.cardRain, rainHeavy && s.cardRainHeavy)}>
-                <CloudRain size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
+                <RainIcon size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
                 <span {...sx(a.wrap)}>
                   <Parts parts={rain.split(" · ")} />
                 </span>
@@ -287,15 +286,6 @@ export const ItemCard = memo(function ItemCard({
           )}
           <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
         </button>
-        {/* Beside the card's row, never inside it: a button cannot hold another. */}
-        {rework && onRework && !past && (
-          <div {...sx(s.cardFoot)}>
-            <button type="button" {...sx(s.rework)} disabled={locked} onClick={() => onRework(item.id)}>
-              <Lightbulb size={13} strokeWidth={1.75} aria-hidden />
-              {rework}
-            </button>
-          </div>
-        )}
 
         {open && (
           <div id={panelId} {...sx(s.editor)}>

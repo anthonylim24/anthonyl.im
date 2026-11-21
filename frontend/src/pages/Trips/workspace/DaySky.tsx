@@ -1,18 +1,28 @@
 import type { CSSProperties } from "react"
-import { Sunrise, Sunset } from "lucide-react"
+import { Lightbulb } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock } from "../meta"
-import { FAHRENHEIT, SKIES, formatTemp, weatherKind, wetSpells, wetWord, type DaySky as Sky, type SkyId } from "../forecast"
+import { FAHRENHEIT, SKIES, formatTemp, weatherKind, wetSpells, wetWord, type DaySky as Sky, type SkyId, type WetSpell } from "../forecast"
 import { clockRange, layoutDay, stopNumbers, stopTitle } from "../timeline/timeline"
+import { StopRef } from "../timeline/StopRef"
+import { reworkLabel } from "./stopAlerts"
 import type { TripDay } from "../types"
 import compassArt from "../art/compass.webp"
 import { a } from "../atlas.stylex"
 import { sky as k } from "./daySky.stylex"
 
-/** The engraving: its lines inked in the theme's secondary ink (see `.trips-sky-art` in index.css). An estimate is drawn fainter. */
+/**
+ * The engraving: its lines inked in the theme's secondary ink, a sky on a
+ * paper plate on dark (see `.trips-sky-art` in index.css). An estimate is
+ * drawn fainter; the compass of a missing forecast fainter still, with no plate.
+ */
 function Engraving({ sky, faint = false }: { sky: SkyId | "compass"; faint?: boolean }) {
-  const art = sky === "compass" ? compassArt : SKIES[sky].art
-  return <span aria-hidden="true" {...sx(k.art, sky === "compass" && k.artFaint, faint && k.artEstimate, "trips-sky-art")} style={{ "--sky-ink": `url(${art})` } as CSSProperties} />
+  const compass = sky === "compass"
+  return (
+    <span aria-hidden="true" {...sx(k.art, compass && k.artFaint, faint && k.artEstimate, !compass && "trips-sky-plate")}>
+      <span {...sx(k.ink, "trips-sky-art")} style={{ "--sky-ink": `url(${compass ? compassArt : SKIES[sky].art})` } as CSSProperties} />
+    </span>
+  )
 }
 
 /** Skies whose word already says what falls ("Showers · 60% chance"). */
@@ -20,35 +30,80 @@ const WET: ReadonlySet<SkyId> = new Set(["drizzle", "rain", "showers", "snow", "
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
-/** What a wet window means for the plan: "meets stop 5", "after your last stop". */
-function meets(day: TripDay | undefined, from: number, to: number): { text: string; hits: boolean } | null {
+interface Hit {
+  id: string
+  number: number | null
+  title: string
+}
+
+/**
+ * What a wet window means for the plan: the stops it falls on and when it
+ * meets them, or where it falls between them ("After your last stop").
+ * `ahead`: some stop it falls on is not over yet.
+ */
+type Meets = { hits: Hit[]; from: number; to: number; ahead: boolean } | { text: string }
+
+function meets(day: TripDay | undefined, from: number, to: number, now: number | null): Meets | null {
   if (!day) return null
   const { blocks } = layoutDay(day)
   if (blocks.length === 0) return null
   const numbers = stopNumbers(day)
   const titles = new Map(day.items.map((item) => [item.id, stopTitle(item)]))
-  // A stop off the map has no number: it is named instead.
-  const hit = blocks.filter((b) => b.start < to && b.end > from).map((b) => (numbers.has(b.itemId) ? `stop ${numbers.get(b.itemId)}` : titles.get(b.itemId)!))
-  if (hit.length) return { text: hit.length === 1 ? `meets ${hit[0]}` : `meets ${hit.length} stops`, hits: true }
-  if (from >= Math.max(...blocks.map((b) => b.end))) return { text: "after your last stop", hits: false }
-  if (to <= Math.min(...blocks.map((b) => b.start))) return { text: "before your first stop", hits: false }
-  return { text: "between your stops", hits: false }
+  const wet = blocks.filter((b) => b.start < to && b.end > from)
+  if (wet.length) {
+    return {
+      hits: wet.map((b) => ({ id: b.itemId, number: numbers.get(b.itemId) ?? null, title: titles.get(b.itemId)! })),
+      from: Math.max(from, Math.min(...wet.map((b) => b.start))),
+      to: Math.min(to, Math.max(...wet.map((b) => b.end))),
+      ahead: now === null || wet.some((b) => b.end > now),
+    }
+  }
+  if (from >= Math.max(...blocks.map((b) => b.end))) return { text: "After your last stop" }
+  if (to <= Math.min(...blocks.map((b) => b.start))) return { text: "Before your first stop" }
+  return { text: "Between your stops" }
 }
 
-/** Sunrise and sunset, in the eyebrow's line so they never float apart from the sky. */
+/** "Falls on ⑤ Gion and Hanami-koji · 3:30–5 PM": each stop a button that finds it. */
+function FallsOn({ hits, from, to, onStop }: { hits: Hit[]; from: number; to: number; onStop?: (id: string) => void }) {
+  const ref = (hit: Hit, named: boolean) => {
+    const label = (
+      <>
+        <StopRef number={hit.number} title={hit.title} style={k.badge} />
+        {named && hit.number !== null && <span {...sx(k.hitTitle)}> {hit.title}</span>}
+      </>
+    )
+    return onStop ? (
+      <button key={hit.id} type="button" onClick={() => onStop(hit.id)} {...sx(a.focusable, k.stopLink)} aria-label={named || hit.number === null ? undefined : `stop ${hit.number}, ${hit.title}`}>
+        {label}
+      </button>
+    ) : (
+      <span key={hit.id}>{label}</span>
+    )
+  }
+  const shown = hits.slice(0, 3)
+  return (
+    <span {...sx(k.consequence)}>
+      Falls on{" "}
+      {shown.length === 1
+        ? ref(shown[0]!, true)
+        : shown.map((hit, i) => (
+            <span key={hit.id}>
+              {i > 0 && (i === shown.length - 1 && hits.length <= 3 ? " and " : ", ")}
+              {ref(hit, false)}
+            </span>
+          ))}
+      {hits.length > 3 && ` and ${hits.length - 3} more`}
+      <span {...sx(k.meetsWhen)}> · {clockRange(from, to, "prose")}</span>
+    </span>
+  )
+}
+
+/** Sunrise and sunset in words beside the eyebrow; phones keep the sunset. */
 function Light({ sunrise, sunset }: { sunrise: string; sunset: string }) {
   return (
     <span {...sx(k.light)}>
-      <span {...sx(k.lightPart)}>
-        <Sunrise size={12} strokeWidth={1.75} aria-hidden />
-        <span {...sx(a.srOnly)}>Sunrise </span>
-        {formatClock(sunrise)}
-      </span>
-      <span {...sx(k.lightPart)}>
-        <Sunset size={12} strokeWidth={1.75} aria-hidden />
-        <span {...sx(a.srOnly)}>Sunset </span>
-        {formatClock(sunset)}
-      </span>
+      <span {...sx(k.lightPart, k.sunrise)}>Sunrise {formatClock(sunrise)}</span>
+      <span {...sx(k.lightPart)}>Sunset {formatClock(sunset)}</span>
     </span>
   )
 }
@@ -59,10 +114,25 @@ function Light({ sunrise, sunset }: { sunrise: string; sunset: string }) {
  * for the plan on a line of its own, and the light. A live forecast says
  * "Forecast"; the plan's own weather for days out of the forecast's reach is
  * set as an estimate. While a forecast is on its way the place is held so
- * the header does not jump. One grid: on phones the words run full width
- * under the engraving and the temperatures.
+ * the header does not jump. One grid: the engraving on the left, the lines
+ * beside it, at every width.
  */
-export function DaySky({ sky, day }: { sky: Sky; day?: TripDay }) {
+export function DaySky({
+  sky,
+  day,
+  now = null,
+  onStop,
+  onRework,
+}: {
+  sky: Sky
+  day?: TripDay
+  /** On today, minutes from midnight in the trip's zone. */
+  now?: number | null
+  /** Find a stop the rain falls on (the map for a pinned stop). */
+  onStop?: (id: string) => void
+  /** Ask Ideas to rework the day around the wet window. */
+  onRework?: (spell: WetSpell) => void
+}) {
   if (sky.status === "none") return null
   if (sky.status === "loading") return <div {...sx(k.root, k.holding)} aria-busy="true" aria-label="Loading the forecast" />
   if (sky.status === "unavailable") {
@@ -115,10 +185,12 @@ export function DaySky({ sky, day }: { sky: Sky; day?: TripDay }) {
   // The wettest stretch says when: "Showers 2–5 PM · 60% chance". Without one, the day's chance alone.
   const spell = wetSpells(live.hours ?? []).reduce<ReturnType<typeof wetSpells>[number] | null>((top, s) => (!top || s.chance > top.chance ? s : top), null)
   const wet = WET.has(kind.sky)
-  const when = spell ? `${wet ? "" : `${wetWord(spell.code).toLowerCase()} `}${clockRange(spell.from, spell.to, "prose")}` : null
+  // Wet with no hour at even odds: it comes and goes, and no stop can be named.
+  const scattered = !spell && (live.hours?.length ?? 0) > 0 && (wet || live.rainChance >= 30)
+  const when = spell ? `${wet ? "" : `${wetWord(spell.code).toLowerCase()} `}${clockRange(spell.from, spell.to, "prose")}` : scattered && wet ? "on and off" : null
   const percent = spell ? spell.chance : live.rainChance
   const chance = spell || live.rainChance >= 30 ? `${percent}% chance${wet || spell ? "" : " of rain"}` : null
-  const consequence = spell ? meets(day, spell.from, spell.to) : null
+  const consequence = spell ? meets(day, spell.from, spell.to, now) : null
   return (
     <figure {...sx(k.root)} title="Live forecast from Open-Meteo">
       <Engraving sky={kind.sky} />
@@ -141,7 +213,19 @@ export function DaySky({ sky, day }: { sky: Sky; day?: TripDay }) {
         {when && (wet ? ` ${when}` : ` · ${when}`)}
         {chance && <span {...sx(k.chance)}> · {chance}</span>}
       </span>
-      {consequence && <span {...sx(k.meets, consequence.hits && k.consequence)}>{capital(consequence.text)}</span>}
+      {consequence && (
+        <span {...sx(k.meets)}>
+          {"hits" in consequence ? <FallsOn hits={consequence.hits} from={consequence.from} to={consequence.to} onStop={onStop} /> : consequence.text}
+          {spell && "hits" in consequence && consequence.ahead && onRework && (
+            <button type="button" onClick={() => onRework(spell)} aria-label={reworkLabel(spell)} {...sx(a.focusable, k.rework)}>
+              <Lightbulb size={13} strokeWidth={1.75} aria-hidden />
+              <span {...sx(k.reworkLong)}>{reworkLabel(spell)}</span>
+              <span {...sx(k.reworkShort)}>Rework</span>
+            </button>
+          )}
+        </span>
+      )}
+      {scattered && <span {...sx(k.meets)}>No hour more likely than not</span>}
     </figure>
   )
 }

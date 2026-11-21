@@ -48,12 +48,12 @@ describe("OverviewPanel day rows", () => {
     expect(within(row).getByText(/A very long day title/)).not.toHaveTextContent("Today")
   })
 
-  it("shows the high over the low, and the chance of rain only from 30%", () => {
+  it("shows the high over the low, and the chance of what falls only from 30%", () => {
     const [high, low] = FAHRENHEIT ? ["59°", "46°"] : ["15°", "8°"]
     const row = renderOverview(60)
     expect(within(row).getByText(high)).toBeInTheDocument()
     expect(within(row).getByText(low)).toBeInTheDocument()
-    expect(within(row).getByText("60% rain")).toBeInTheDocument()
+    expect(within(row).getByText("60% showers")).toBeInTheDocument()
     expect(within(row).getByText(`${high} / ${low} · Showers 60%`)).toBeInTheDocument()
   })
 

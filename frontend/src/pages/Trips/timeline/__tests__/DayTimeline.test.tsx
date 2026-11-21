@@ -77,13 +77,13 @@ describe("DayTimeline", () => {
     renderTimeline()
     expect(screen.getByText("~35 min by transit")).toBeInTheDocument()
     expect(screen.getByText("1 h 25 free")).toBeInTheDocument()
-    expect(screen.getByText("2 h 25 free")).toBeInTheDocument()
+    expect(screen.getByText(/timed stops, 2 h 25 free/)).toBeInTheDocument()
     expect(screen.getByText("Leave by 5:25 PM")).toBeInTheDocument()
   })
 
   it("counts no free time once the day's stops are over", () => {
     renderTimeline(undefined, { now: "23:30" })
-    expect(screen.getByText(/^\d+ timed stops$/)).toBeInTheDocument()
+    expect(screen.getByText(/^\d+ timed stops/)).toBeInTheDocument()
     expect(screen.queryByText(/free/)).toBeNull()
   })
 
@@ -168,7 +168,7 @@ describe("DayTimeline", () => {
 
   it("draws the now line only when now falls on the ruler", () => {
     const { rerender, container } = renderTimeline(undefined, { now: "14:30" })
-    expect(screen.getByText("Now 2:30 PM")).toBeInTheDocument()
+    expect(screen.getByText(/, now 2:30 PM/)).toBeInTheDocument()
     expect(within(container).getByText("Now")).toBeInTheDocument()
 
     const day = dayWith([flight, palace, tea])

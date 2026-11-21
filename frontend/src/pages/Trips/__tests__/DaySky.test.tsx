@@ -43,10 +43,27 @@ describe("DaySky", () => {
     const forecast = day({ hours: hours((h) => h >= 14 && h <= 16, 81) })
     const lunch = makeItem({ id: "lunch", title: "Lunch", time: "12:30", endTime: "13:30" })
     const walk = makeItem({ id: "walk", title: "Old town walk", time: "15:30", endTime: "18:00" })
-    const { unmount } = render(<DaySky sky={{ status: "forecast", forecast }} day={{ id: "d1", date: "2026-07-10", items: [lunch, walk] }} />)
-    expect(screen.getByText("Meets Old town walk")).toBeInTheDocument()
+    const onStop = vi.fn()
+    const onRework = vi.fn()
+    const { unmount } = render(
+      <DaySky sky={{ status: "forecast", forecast }} day={{ id: "d1", date: "2026-07-10", items: [lunch, walk] }} onStop={onStop} onRework={onRework} />,
+    )
+    // Off the map the stop is named; the time is when the rain meets it.
+    expect(screen.getByRole("figure")).toHaveTextContent("Falls on Old town walk · 3:30–5:00 PM")
+    fireEvent.click(screen.getByRole("button", { name: "Old town walk" }))
+    expect(onStop).toHaveBeenCalledWith("walk")
+    fireEvent.click(screen.getByRole("button", { name: "Rework around the showers" }))
+    expect(onRework).toHaveBeenCalledWith(expect.objectContaining({ from: 14 * 60, to: 17 * 60, chance: expect.any(Number) }))
     unmount()
     render(<DaySky sky={{ status: "forecast", forecast }} day={{ id: "d1", date: "2026-07-10", items: [lunch] }} />)
     expect(screen.getByText("After your last stop")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Rework/ })).toBeNull()
+  })
+
+  it("offers no rework once the stops it falls on are over", () => {
+    const forecast = day({ hours: hours((h) => h >= 14 && h <= 16, 81) })
+    const walk = makeItem({ id: "walk", title: "Old town walk", time: "15:30", endTime: "18:00" })
+    render(<DaySky sky={{ status: "forecast", forecast }} day={{ id: "d1", date: "2026-07-10", items: [walk] }} now={18 * 60 + 30} onRework={vi.fn()} />)
+    expect(screen.queryByRole("button", { name: /Rework/ })).toBeNull()
   })
 })

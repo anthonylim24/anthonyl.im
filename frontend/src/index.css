@@ -1121,11 +1121,23 @@ html.dark .trips[data-trip-accent="violet"] {
 }
 
 /* The day's sky engraving (workspace/DaySky.tsx): its lines as an alpha mask
-   (--sky-ink), filled with the secondary ink, so on dark paper the same lines
-   are light, like a white-line engraving, with no plate behind them. */
+   (--sky-ink), filled with the secondary ink. Light lines on dark paper read as
+   a negative (a black sun, clouds lit from below), so on dark the engraving is
+   printed on a feathered, lamp-lit oval of paper in dark ink: the sun and the
+   cloud tops stay the lightest mass, as on light paper. */
 .trips-sky-art {
   -webkit-mask-image: var(--sky-ink);
   mask-image: var(--sky-ink);
+}
+html.dark .trips .trips-sky-plate,
+.trips.dark .trips-sky-plate,
+:root.dark .trips .trips-sky-plate {
+  background-image: radial-gradient(closest-side, rgb(214 209 198 / 0.9) 42%, rgb(214 209 198 / 0.42) 76%, transparent);
+}
+html.dark .trips .trips-sky-plate > .trips-sky-art,
+.trips.dark .trips-sky-plate > .trips-sky-art,
+:root.dark .trips .trips-sky-plate > .trips-sky-art {
+  background-color: #1d2024;
 }
 
 .atlas-pin {

@@ -109,23 +109,22 @@ describe("DayPanel list legs", () => {
 })
 
 describe("DayPanel rework around the rain", () => {
-  it("asks Ideas to rework the day around the wet window", () => {
+  it("asks Ideas to rework the day around the wet window, from the day's sky", () => {
     const onAskAi = vi.fn()
     renderDay({ id: "day-1", date: "2026-07-10", items: [lunch, walk] }, { status: "forecast", forecast: SHOWERY }, { editable: true, onAskAi })
-    const card = document.getElementById("item-it-walk")!.closest("li")!
-    fireEvent.click(within(card).getByRole("button", { name: "Rework around the showers" }))
+    const [only, ...more] = screen.getAllByRole("button", { name: "Rework around the showers" })
+    expect(more).toHaveLength(0)
+    // In the sky band, so the list and the timeline both have it; never on a card.
+    expect(only!.closest("figure")).not.toBeNull()
+    fireEvent.click(only!)
     expect(onAskAi).toHaveBeenCalledWith(expect.stringMatching(/^Showers likely 2–5 PM \(60% chance\)\. .*indoor/))
-    expect(screen.getAllByRole("button", { name: "Rework around the showers" })).toHaveLength(1)
   })
 
-  it("offers it once per wet spell, on the first stop that meets it", () => {
+  it("says on each card when the rain meets it", () => {
     const tea = makeItem({ id: "it-tea", title: "Tea", time: "14:15", endTime: "15:00" })
     renderDay({ id: "day-1", date: "2026-07-10", items: [lunch, tea, walk] }, { status: "forecast", forecast: SHOWERY }, { editable: true })
     expect(document.getElementById("item-it-tea")).toHaveTextContent("Showers likely · 60%")
     expect(document.getElementById("item-it-walk")).toHaveTextContent(/Showers until 5(:00)? PM · 60%/)
-    const [only] = screen.getAllByRole("button", { name: "Rework around the showers" })
-    expect(only!.closest("li")).toBe(document.getElementById("item-it-tea")!.closest("li"))
-    expect(screen.getAllByRole("button", { name: "Rework around the showers" })).toHaveLength(1)
   })
 
   it("is not offered on a trip the traveller cannot edit", () => {

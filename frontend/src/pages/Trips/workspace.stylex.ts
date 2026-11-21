@@ -880,6 +880,7 @@ export const ws = stylex.create({
     color: "var(--trips-ink-tertiary)",
   },
   legLeave: { gridColumn: 2, color: "var(--trips-ink-secondary)" },
+  legWet: { display: "inline", verticalAlign: "-0.125rem" },
   // Today's finished stops, folded: in the cards' column, spaced like a card.
   // Flush on a phone: the next stop still to come has to clear the tab bar.
   foldRow: { listStyle: "none", paddingBlock: { default: "0.3125rem", [PHONE_W]: 0 } },

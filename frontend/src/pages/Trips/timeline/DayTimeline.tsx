@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react"
-import { Footprints, Hourglass, Plane, Route, Sunrise, Sunset, TrainFront, TriangleAlert } from "lucide-react"
+import { Footprints, Plane, Route, Sunrise, Sunset, TrainFront, TriangleAlert } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { ItemIcon } from "../ItemIcon"
@@ -60,7 +60,8 @@ export interface DayTimelineProps {
   fold?: { open: boolean; onToggle: () => void }
 }
 
-const PX_PER_MIN = 1.2
+/** An hour is 60px: a long stop stays a card, not a tall empty box; short ones grow to their minimum. */
+const PX_PER_MIN = 1
 /** Blocks sit 1px inside their minutes so the hour rule between two shows. */
 const INSET = 1
 /** The smallest block is still a 44px target with a time and a title. */
@@ -494,41 +495,33 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
         </p>
       ) : (
         <>
-          <p {...sx(tl.summary)}>
-            <span {...sx(a.srOnly)}>{plural(layout.blocks.length, "timed stop")}</span>
-            {free > 0 && (
-              <span {...sx(tl.summaryPart)}>
-                <Hourglass size={12} strokeWidth={1.75} aria-hidden />
-                {formatMinutes(free)} free{since !== null ? " from now" : ""}
-              </span>
-            )}
-            {overlaps > 0 && (
-              <span {...sx(tl.summaryPart, tl.summaryWarn)}>
-                <TriangleAlert size={12} strokeWidth={2} aria-hidden />
-                {plural(overlaps, "overlap")}
-              </span>
-            )}
-            {tight > 0 && (
-              <span {...sx(tl.summaryPart, tl.summaryWarn)}>
-                <TriangleAlert size={12} strokeWidth={2} aria-hidden />
-                {plural(tight, "tight leg")}
-              </span>
-            )}
+          {/* Said for a screen reader; the sky band names the light and each leg its free time. */}
+          <p {...sx(a.srOnly)}>
+            {plural(layout.blocks.length, "timed stop")}
+            {free > 0 && `, ${formatMinutes(free)} free${since !== null ? " from now" : ""}`}
             {(["sunrise", "sunset"] as const).map((edge) =>
-              sky[edge] !== null && sky[edge] > layout.start ? (
-                <span key={edge} {...sx(tl.summaryPart)}>
-                  {edge === "sunrise" ? <Sunrise size={12} strokeWidth={1.75} aria-hidden /> : <Sunset size={12} strokeWidth={1.75} aria-hidden />}
-                  {edge === "sunrise" ? "Sunrise" : "Sunset"} {clockLabel(sky[edge])}
-                </span>
-              ) : null,
+              sky[edge] !== null && sky[edge] > layout.start ? `, ${edge === "sunrise" ? "sunrise" : "sunset"} ${clockLabel(sky[edge])}` : null,
             )}
-            {nowAt !== null && <span {...sx(a.srOnly)}>Now {clockLabel(nowAt)}</span>}
-            {sky.rain.map((spell) => (
-              <span key={spell.from} {...sx(a.srOnly)}>
-                {wetWord(spell.code)} likely {clockRange(spell.from, spell.to, "prose")}, {spell.chance}% chance
-              </span>
-            ))}
+            {nowAt !== null && `, now ${clockLabel(nowAt)}`}
+            {sky.rain.map((spell) => `, ${wetWord(spell.code).toLowerCase()} likely ${clockRange(spell.from, spell.to, "prose")}, ${spell.chance}% chance`)}
           </p>
+          {/* Clashes are the one thing a glance at the ruler can miss. */}
+          {(overlaps > 0 || tight > 0) && (
+            <p {...sx(tl.summary)}>
+              {overlaps > 0 && (
+                <span {...sx(tl.summaryPart, tl.summaryWarn)}>
+                  <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+                  {plural(overlaps, "overlap")}
+                </span>
+              )}
+              {tight > 0 && (
+                <span {...sx(tl.summaryPart, tl.summaryWarn)}>
+                  <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+                  {plural(tight, "tight leg")}
+                </span>
+              )}
+            </p>
+          )}
           {folding && (
             <DoneFold count={folding.ids.length} from={folding.from} to={folding.to} open={open} onToggle={toggle} controls={`${baseId}-stops`} />
           )}

@@ -1,6 +1,6 @@
 import { distanceMeters, isLocated, splitDay } from "../map/geo"
 import { formatDistance } from "../reservationView"
-import { clockMinutes, layoutDay, legEstimate, legWords, type TimelineGap } from "../timeline/timeline"
+import { clockMinutes, layoutDay, leaveAt, legEstimate, legWords, type TimelineGap } from "../timeline/timeline"
 import type { TravelMode } from "../timeline/travel"
 import type { ItineraryItem, TripDay } from "../types"
 
@@ -13,11 +13,17 @@ import type { ItineraryItem, TripDay } from "../types"
 export type LegMode = TravelMode | "overlap"
 
 export interface Leg {
-  /** "940 m · 12 min walk · 1 h 08 free", or "No time to travel". */
-  text: string
-  /** "Leave by 3:18 PM": when to set off, from the timeline's words, on a line of its own. */
+  /** "940 m"; none into an overlapping stop. */
+  distance: string | null
+  /** "12 min walk", or "No time to travel". */
+  travel: string
+  /** "1 h 08 free", from the timeline's words. */
+  free: string | null
+  /** "Leave by 3:18 PM": when to set off, on a line of its own. */
   leave: string | null
   mode: LegMode
+  /** Minutes from midnight: from setting off to arriving, to meet the weather with. */
+  on: { from: number; to: number } | null
 }
 
 /** Today's stops at the head of the list that are over, folded into one row. */
@@ -84,13 +90,19 @@ export function dayList(day: TripDay, now: number | null): DayList {
     if (!leg) continue
     const key = `${from.id}>${to.id}`
     if (overlaps.has(key)) {
-      legs.set(to.id, { text: "No time to travel", leave: null, mode: "overlap" })
+      legs.set(to.id, { distance: null, travel: "No time to travel", free: null, leave: null, mode: "overlap", on: null })
       continue
     }
     const gap = gaps.get(key)
     const words = gap ? legWords(gap, now) : { free: null, leave: null }
-    const text = [formatDistance(distanceMeters(from.location, to.location)), leg.label, words.free].filter(Boolean).join(" · ")
-    legs.set(to.id, { text, leave: words.leave, mode: leg.mode })
+    legs.set(to.id, {
+      distance: formatDistance(distanceMeters(from.location, to.location)),
+      travel: leg.label,
+      free: words.free,
+      leave: words.leave,
+      mode: leg.mode,
+      on: gap ? { from: leaveAt(gap), to: gap.to } : null,
+    })
   }
 
   const past = new Set<string>()

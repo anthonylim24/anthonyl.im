@@ -1,9 +1,9 @@
 import { sx } from "@/styles/merge"
-import { FAHRENHEIT, forecastLine, formatTemp, weatherKind, type DayForecast } from "../forecast"
+import { FAHRENHEIT, forecastLine, formatTemp, weatherKind, wetWord, type DayForecast } from "../forecast"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 
-/** A day row's live forecast in the overview: the sky's glyph, the high over the low, and the chance of rain when it is worth a look. */
+/** A day row's live forecast in the overview: the sky's glyph, the high over the low, and the chance of what falls when it is worth a look ("60% showers", "70% snow"). */
 export function ForecastChip({ forecast }: { forecast: DayForecast }) {
   const Icon = weatherKind(forecast.code).icon
   return (
@@ -16,7 +16,7 @@ export function ForecastChip({ forecast }: { forecast: DayForecast }) {
       </span>
       {forecast.rainChance >= 30 && (
         <span {...sx(s.rowSkyChance)} aria-hidden>
-          {forecast.rainChance}% rain
+          {forecast.rainChance}% {wetWord(forecast.code).toLowerCase()}
         </span>
       )}
     </span>
