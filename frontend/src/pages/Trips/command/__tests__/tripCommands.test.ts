@@ -78,12 +78,17 @@ describe("tripCommands", () => {
       "Improve with AI",
       "Export to calendar",
       "Copy itinerary as text",
+      "Budget",
+      "Checklist",
+      "Essentials",
     ])
     byId(commands, "trip:share").run()
     expect(share).toHaveBeenCalledTimes(1)
     byId(commands, "trip:tab-budget").run()
-    expect(openTab).toHaveBeenCalledWith("budget")
-    expect(commands.filter((c) => c.group === "Go to").map((c) => c.title)).toEqual(["Itinerary", "Budget", "Checklist", "Essentials"])
+    expect(openTab).toHaveBeenLastCalledWith("budget")
+    expect(commands.filter((c) => c.group === "Go to").map((c) => c.title)).toEqual(["Itinerary"])
+    byId(commands, "trip:tab-itinerary").run()
+    expect(openTab).toHaveBeenLastCalledWith("itinerary")
   })
 
   it("turns off what cannot run: nothing to export, or the editor held by AI", () => {

@@ -58,8 +58,8 @@ const dayTitle = (day: TripDay, index: number, timezone: string) =>
 
 const stopCount = (day: TripDay) => day.items.filter((item) => item.kind !== "section").length
 
-const TABS: ReadonlyArray<{ tab: TripTab; title: string; icon: Command["icon"]; keywords: string[] }> = [
-  { tab: "itinerary", title: "Itinerary", icon: List, keywords: ["plan", "schedule", "days"] },
+/** Workspace tabs offered as actions. "Itinerary" is a way back, so it sits under Go to. */
+const TAB_ACTIONS: ReadonlyArray<{ tab: TripTab; title: string; icon: Command["icon"]; keywords: string[] }> = [
   { tab: "budget", title: "Budget", icon: Wallet, keywords: ["money", "costs", "expenses", "spend", "split"] },
   { tab: "checklist", title: "Checklist", icon: ListChecks, keywords: ["packing", "to do", "todo", "documents"] },
   { tab: "essentials", title: "Essentials", icon: Info, keywords: ["info", "emergency", "currency", "visa", "plugs"] },
@@ -105,6 +105,12 @@ export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = n
     { id: "trip:instagram", title: "Add places from Instagram", icon: IgGlyph, keywords: ["import", "reel", "post", "ig"], disabled: locked },
     actions.instagram,
   )
+  const openTab = actions.openTab
+  if (openTab) {
+    for (const { tab, title, icon, keywords } of TAB_ACTIONS) {
+      commands.push({ id: `trip:tab-${tab}`, title, group: "Actions", icon, keywords, run: () => openTab(tab) })
+    }
+  }
 
   // ── Go to ───────────────────────────────────────────
   const dayIndex = dayId ? trip.days.findIndex((day) => day.id === dayId) : -1
@@ -144,11 +150,15 @@ export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = n
       })
     }
   }
-  const openTab = actions.openTab
   if (openTab) {
-    for (const { tab, title, icon, keywords } of TABS) {
-      commands.push({ id: `trip:tab-${tab}`, title, group: "Go to", icon, keywords, run: () => openTab(tab) })
-    }
+    commands.push({
+      id: "trip:tab-itinerary",
+      title: "Itinerary",
+      group: "Go to",
+      icon: List,
+      keywords: ["plan", "schedule", "days"],
+      run: () => openTab("itinerary"),
+    })
   }
 
   // ── Days ────────────────────────────────────────────

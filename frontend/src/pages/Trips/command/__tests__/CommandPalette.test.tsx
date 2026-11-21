@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { StrictMode, useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
@@ -238,6 +238,45 @@ describe("command palette", () => {
     renderPalette(<CommandButton />)
     fireEvent.click(screen.getByRole("button", { name: "Search" }))
     expect(await screen.findByRole("combobox")).toBeInTheDocument()
+  })
+})
+
+describe("under StrictMode", () => {
+  beforeEach(() => stubMatchMedia(false))
+
+  it("registers once, runs a chosen command once, and gives focus back", async () => {
+    const share = vi.fn()
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/trips/lisbon"]}>
+          <CommandProvider>
+            <button type="button">Before</button>
+            <Registrar commands={[command("share", "Share trip", share)]} />
+          </CommandProvider>
+        </MemoryRouter>
+      </StrictMode>,
+    )
+    const before = screen.getByRole("button", { name: "Before" })
+    before.focus()
+    pressModK(before)
+    let input = await screen.findByRole("combobox")
+    await waitFor(() => expect(input).toHaveFocus())
+    // React replays effects on mount: the palette must stay open and focused.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.getByRole("combobox")).toHaveFocus()
+    fireEvent.change(input, { target: { value: "share" } })
+    expect(options().map((option) => option.textContent)).toEqual(["Share trip"])
+    fireEvent.keyDown(input, { key: "Enter" })
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(before).toHaveFocus())
+
+    pressModK(before)
+    input = await screen.findByRole("combobox")
+    await waitFor(() => expect(input).toHaveFocus())
+    fireEvent.keyDown(input, { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("combobox")).toBeNull())
+    await waitFor(() => expect(before).toHaveFocus())
+    expect(share).toHaveBeenCalledTimes(1)
   })
 })
 
