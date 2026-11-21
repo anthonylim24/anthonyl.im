@@ -23,7 +23,6 @@ function makeStage(toys: QuirkToy[], night = 0) {
   const seen = { emotes: [] as string[], faces: [] as string[], glows: [] as string[], sleepy: 0, dizzy: 0, particles: 0 }
   const s: Stage & { advance(seconds: number): void } = {
     t: 0,
-    still: false,
     night,
     toys,
     sparkle: () => void seen.particles++,

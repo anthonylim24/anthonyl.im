@@ -2,7 +2,7 @@
  * What toys do on their own: each catalog toy has a quirk (the rocket takes off, the music box lulls
  * Lim to sleep), and every toy, an invented one too, answers by its traits. A quirk is made only of
  * the stage's own pieces (`Stage`), so it plays the same in the toon and lit looks. Under reduced
- * motion the stage drops particles and motion, and the sounds and words remain.
+ * motion the scene is a still picture that takes no taps, so no quirk runs.
  *
  * Nothing here is saved: a quirk's state lives in the toy's `memo` and goes with the toy.
  */
@@ -23,9 +23,8 @@ export type QuirkToy = {
 }
 
 export type Stage = {
-  /** Seconds on the scene clock (frozen under reduced motion). */
+  /** Seconds on the scene clock. */
   readonly t: number
-  readonly still: boolean
   /** 0 by day, 1 by night. */
   readonly night: number
   readonly toys: readonly QuirkToy[]
@@ -174,7 +173,6 @@ export const QUIRKS: Record<string, Quirk> = {
   },
   magnet: {
     tick(s, toy, dt) {
-      if (s.still) return
       for (const other of s.toys) {
         if (other === toy || other.held) continue
         const dx = toy.center[0] - other.center[0]

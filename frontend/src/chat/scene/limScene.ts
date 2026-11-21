@@ -910,12 +910,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           return held === toy
         },
         kick(vx, vy, vz) {
-          if (reducedMotion) return
           wakeToy(toy)
           toy.jelly.kick(vx, vy, vz)
         },
         spin(wx, wy, wz) {
-          if (reducedMotion) return
           wakeToy(toy)
           toy.jelly.spin(wx, wy, wz)
         },
@@ -931,7 +929,6 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     get t() {
       return t
     },
-    still: reducedMotion,
     get night() {
       return u.night.value as number
     },
@@ -943,7 +940,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     bubbles: blow,
     puff: (at, count, power, radius) => puff(at[0], at[2], count, power, radius),
     glow(toy, hex, strength) {
-      if (reducedMotion || glows.count >= glows.instanceMatrix.count) return
+      if (glows.count >= glows.instanceMatrix.count) return
       // Brighter at night, fainter the higher the toy floats; past 1 in the lit look, so the bloom catches it.
       const k = strength * (0.4 + 0.6 * (u.night.value as number)) * Math.max(0, 1 - toy.center[1] / 4) * (u.lit ? 1.6 : 1)
       if (k < 0.02) return
@@ -959,9 +956,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       get dancing() {
         return !!dance && t < dance.until
       },
-      kick(vx, vy, vz) {
-        if (!reducedMotion) lim.kick(vx, vy, vz)
-      },
+      kick: (vx, vy, vz) => lim.kick(vx, vy, vz),
       face: setAct,
       dance: startDance,
       dizzy: () => dizzy(),
