@@ -100,11 +100,16 @@ describe("foldLine", () => {
 
 describe("endFor", () => {
   it("keeps an end later the same day", () => {
-    expect(endFor(600, "11:30")).toEqual({ minutes: 690, nextDay: false })
+    expect(endFor(600, "11:30")).toBe(690)
   })
 
   it("reads an earlier end as after midnight when the night is short", () => {
-    expect(endFor(22 * 60, "01:30")).toEqual({ minutes: 90, nextDay: true })
+    expect(endFor(22 * 60, "01:30")).toBe(1530)
+  })
+
+  it("keeps counting on the day's clock for a stop that starts after midnight", () => {
+    // A 1 AM club (1500 on the day's clock) that closes at 4.
+    expect(endFor(1500, "04:00")).toBe(1680)
   })
 
   it("drops an end before the start that would make a day-long event", () => {
@@ -142,7 +147,7 @@ describe("tripToIcs", () => {
   })
 
   it("gives a start with no end a default length", () => {
-    const t = trip({ days: [{ id: "d1", date: "2026-07-10", items: [stop({ time: "9:05" })] }] })
+    const t = trip({ days: [{ id: "d1", date: "2026-07-10", items: [stop({ time: "09:05" })] }] })
     const [event] = events(tripToIcs(t, { now: NOW }).text)
     expect(event).toContain("DTSTART;TZID=Asia/Tokyo:20260710T090500")
     expect(event).toContain("DURATION:PT1H")
@@ -268,6 +273,136 @@ describe("tripToIcs", () => {
     ])
     expect(all).toContain("DTSTART;TZID=America/New_York:20260308T100000")
   })
+
+  it("puts a stop after midnight on the next date, on the day's own clock", () => {
+    const t = trip({
+      days: [
+        {
+          id: "d1",
+          date: "2026-07-31",
+          items: [
+            stop({ id: "dinner", title: "Dinner", time: "19:00", endTime: "21:00" }),
+            stop({ id: "bar", title: "Bar", time: "23:00" }),
+            stop({ id: "club", title: "Club", time: "01:00", endTime: "04:00" }),
+          ],
+        },
+      ],
+    })
+    const [, bar, club] = events(tripToIcs(t, { now: NOW }).text)
+    expect(bar).toContain("DTSTART;TZID=Asia/Tokyo:20260731T230000")
+    expect(club).toContain("DTSTART;TZID=Asia/Tokyo:20260801T010000")
+    expect(club).toContain("DTEND;TZID=Asia/Tokyo:20260801T040000")
+  })
+
+  it("ends a cross-zone flight at its arrival, in the arrival zone", () => {
+    const flight = (id: string, time: string, endTime: string, reservation: Partial<NonNullable<ItineraryItem["reservation"]>>) =>
+      stop({
+        id,
+        kind: "reservation",
+        title: id,
+        time,
+        endTime,
+        status: "booked",
+        reservation: { type: "flight", status: "confirmed", ...reservation },
+      })
+    const t = trip({
+      timezone: "America/Los_Angeles",
+      days: [
+        // SFO 08:00 PDT → HNL 10:45 HST, the same date.
+        { id: "d1", date: "2026-07-10", items: [flight("SFO-HNL", "08:00", "10:45", { endTimezone: "Pacific/Honolulu" })] },
+        // HNL 13:00 HST → Tokyo 16:30 JST the next date: earlier on the clock than the old 12-hour guess allowed.
+        {
+          id: "d2",
+          date: "2026-07-12",
+          timezone: "Pacific/Honolulu",
+          items: [flight("HNL-NRT", "13:00", "16:30", { endTimezone: "Asia/Tokyo" })],
+        },
+        // LAX 22:30 → SYD 06:45 two dates later, with the date given.
+        {
+          id: "d3",
+          date: "2026-07-20",
+          items: [flight("LAX-SYD", "22:30", "06:45", { endTimezone: "Australia/Sydney", endDate: "2026-07-22" })],
+        },
+      ],
+    })
+    const text = tripToIcs(t, { now: NOW }).text
+    const [sfo, hnl, lax] = events(text)
+    expect(sfo).toContain("DTSTART;TZID=America/Los_Angeles:20260710T080000")
+    expect(sfo).toContain("DTEND;TZID=Pacific/Honolulu:20260710T104500")
+    expect(hnl).toContain("DTSTART;TZID=Pacific/Honolulu:20260712T130000")
+    expect(hnl).toContain("DTEND;TZID=Asia/Tokyo:20260713T163000")
+    expect(lax).toContain("DTEND;TZID=Australia/Sydney:20260722T064500")
+    // One VTIMEZONE for each zone an event is written in.
+    const zones = lines(text).filter((l) => l.startsWith("TZID:"))
+    expect(zones.sort()).toEqual(["TZID:America/Los_Angeles", "TZID:Asia/Tokyo", "TZID:Australia/Sydney", "TZID:Pacific/Honolulu"])
+  })
+
+  it("reads an arrival that lands before it leaves as no arrival", () => {
+    const t = trip({
+      days: [
+        {
+          id: "d1",
+          date: "2026-07-10",
+          items: [
+            stop({
+              kind: "reservation",
+              time: "10:00",
+              endTime: "09:00",
+              reservation: { type: "flight", status: "confirmed", endTimezone: "Asia/Tokyo", endDate: "2026-07-10" },
+            }),
+          ],
+        },
+      ],
+    })
+    const [event] = events(tripToIcs(t, { now: NOW }).text)
+    expect(event).toContain("DURATION:PT1H")
+  })
+
+  it("writes each day in its own zone", () => {
+    const t = trip({
+      days: [
+        { id: "d1", date: "2026-07-10", items: [stop({ time: "10:00" })] },
+        { id: "d2", date: "2026-07-11", timezone: "Asia/Seoul", items: [stop({ id: "it-2", time: "10:00" })] },
+      ],
+    })
+    const text = tripToIcs(t, { now: NOW }).text
+    const [tokyo, seoul] = events(text)
+    expect(tokyo).toContain("DTSTART;TZID=Asia/Tokyo:20260710T100000")
+    expect(seoul).toContain("DTSTART;TZID=Asia/Seoul:20260711T100000")
+    expect(lines(text).filter((l) => l.startsWith("TZID:"))).toEqual(["TZID:Asia/Tokyo", "TZID:Asia/Seoul"])
+  })
+
+  it("reminds three hours before a flight and an hour before other bookings, never for ordinary stops", () => {
+    const t = trip({
+      days: [
+        {
+          id: "d1",
+          date: "2026-07-10",
+          items: [
+            stop({ id: "fl", kind: "reservation", title: "NH 7", time: "08:00", reservation: { type: "flight", status: "confirmed" } }),
+            stop({ id: "meal", kind: "reservation", title: "Sushi", time: "19:00", reservation: { type: "meal", status: "confirmed" } }),
+            stop({ id: "museum", title: "Museum", time: "12:00", status: "booked" }),
+            stop({ id: "walk", title: "Walk", time: "15:00" }),
+            stop({ id: "hotel", kind: "reservation", title: "Hotel", reservation: { type: "hotel", status: "confirmed" } }),
+            stop({ id: "gone", kind: "reservation", title: "Show", time: "21:00", status: "skipped", reservation: { type: "event", status: "confirmed" } }),
+          ],
+        },
+      ],
+    })
+    const [flight, meal, museum, walk, hotel, gone] = events(tripToIcs(t, { now: NOW }).text)
+    const triggers = (event: string[] | undefined) => event!.filter((l) => l.startsWith("TRIGGER:"))
+    expect(triggers(flight)).toEqual(["TRIGGER:-PT3H"])
+    expect(flight).toContain("ACTION:DISPLAY")
+    expect(flight!.indexOf("BEGIN:VALARM")).toBeLessThan(flight!.indexOf("END:VALARM"))
+    expect(triggers(meal)).toEqual(["TRIGGER:-PT1H"])
+    expect(triggers(museum)).toEqual(["TRIGGER:-PT1H"])
+    expect(triggers(walk)).toEqual([])
+    // All day: no hour to ring at.
+    expect(triggers(hotel)).toEqual([])
+    // Skipped: cancelled, and silent.
+    expect(triggers(gone)).toEqual([])
+    expect(gone).toContain("STATUS:CANCELLED")
+  })
 })
 
 describe("time zones", () => {
@@ -312,8 +447,9 @@ describe("calendarMenuItem", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
       expect(this.download).toBe("tokyo-2026.ics")
     })
+    // The exporter is a lazy chunk: the click lands once it has loaded.
     calendarMenuItem(trip()).onSelect()
-    expect(click).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(click).toHaveBeenCalledTimes(1))
     expect(blobs[0]!.type).toBe("text/calendar;charset=utf-8")
     expect(await blobs[0]!.text()).toContain("BEGIN:VCALENDAR")
     create.mockRestore()
