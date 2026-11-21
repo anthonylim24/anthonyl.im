@@ -220,7 +220,7 @@ function During({
 
       {/* Announce a new next stop, never the minute-by-minute countdown. */}
       <p {...sx(a.srOnly)} role="status">
-        {next ? `${next.tomorrow ? "First tomorrow" : "Next"}: ${next.item.title || "Untitled"}` : ""}
+        {next ? `${next.when === "tomorrow" ? "First tomorrow" : "Next"}: ${next.item.title || "Untitled"}` : ""}
       </p>
     </>
   )
@@ -264,7 +264,7 @@ function NextStop({ basePath, next, state }: { basePath: string; next: LiveNext;
     <div {...sx(s.next)}>
       <div {...sx(s.nextHead)}>
         <p {...sx(a.eyebrow)}>
-          {next.tomorrow ? "First tomorrow" : "Next"} · <span {...sx(a.ink)}>{formatClock(next.start)}</span>
+          {next.when === "tomorrow" ? "First tomorrow" : "Next"} · <span {...sx(a.ink)}>{formatClock(next.start ?? undefined)}</span>
         </p>
         {minutesToNext !== null && <p {...sx(s.countdown)}>in {formatMinutes(minutesToNext)}</p>}
       </div>
@@ -293,7 +293,7 @@ function NextStop({ basePath, next, state }: { basePath: string; next: LiveNext;
           </a>
         )}
         <Link to={dayLink(basePath, next.day, next.item)} {...sx(a.btn, maps ? a.btnSecondary : a.btnPrimary, s.action)}>
-          {next.tomorrow ? "Open tomorrow" : "Open today"}
+          {next.when === "tomorrow" ? "Open tomorrow" : "Open today"}
           <ArrowRight size={16} strokeWidth={1.75} aria-hidden />
         </Link>
       </div>
