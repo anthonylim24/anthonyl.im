@@ -113,8 +113,10 @@ export function createPost(
     if (screen && temporal) {
       const resolved = traa(out, scenePass.getTextureNode('depth'), scenePass.getTextureNode('velocity'), camera)
       owned.push(resolved)
-      // TRAA writes an opaque alpha; the canvas is clear wherever the scene was.
-      out = vec4((resolved as unknown as Node<'vec4'>).rgb, color.a)
+      // TRAA writes an opaque alpha, so the frame's own goes back on (the canvas is clear where the scene isn't).
+      // Its colour is averaged over jittered frames and can outrun that alpha where the floor fades out; a
+      // premultiplied pixel brighter than its alpha is invalid, and WebKit smears it along the row.
+      out = vec4((resolved as unknown as Node<'vec4'>).rgb.min(vec3(color.a)), color.a)
     }
     return out
   }
