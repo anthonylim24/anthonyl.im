@@ -93,7 +93,7 @@ describe("the Trips sign-in gate and this device", () => {
     document.cookie = `__session=${token("user_1")}`
     open()
     expect(await screen.findByText("Index · copy · user_1")).toBeInTheDocument()
-    expect(screen.getByRole("status", { name: "" })).toHaveTextContent("Offline · showing what’s saved on this device")
+    await waitFor(() => expect(screen.getByRole("status", { name: "" })).toHaveTextContent("Offline · showing what’s saved on this device"))
     expect(screen.queryByText("Chat")).toBeNull()
     expect(screen.queryByRole("link", { name: "New trip" })).toBeNull()
   })

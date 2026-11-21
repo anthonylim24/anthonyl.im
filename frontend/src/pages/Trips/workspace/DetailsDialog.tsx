@@ -408,10 +408,10 @@ export function DetailsDialog({
                   options={[
                     {
                       value: "ideas",
-                      title: `Save ${lostStops === 1 ? "its stop" : `their ${plural(lostStops, "stop")}`} to Ideas`,
+                      title: `Save ${lostStops === 1 ? "its stop" : `their ${plural(lostStops, "stop")}`} to the wishlist`,
                       hint: ideasFit
-                        ? "They wait in the trip’s Ideas until you put them on a day."
-                        : `Ideas holds ${LIMITS.ideas} places and doesn’t have room for these.`,
+                        ? "They wait on the trip’s wishlist until you put them on a day."
+                        : `The wishlist holds ${LIMITS.ideas} places and doesn’t have room for these.`,
                       disabled: !ideasFit,
                     },
                     { value: "delete", title: lostStops === 1 ? "Remove it" : "Remove them", hint: "You can undo this right after saving." },

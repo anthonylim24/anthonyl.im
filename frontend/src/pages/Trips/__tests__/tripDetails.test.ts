@@ -138,7 +138,7 @@ describe("applyDetailsPatch", () => {
     expect([next.startDate, next.endDate]).toEqual(["2026-06-11", "2026-06-13"])
   })
 
-  it("sends stops on days that fall outside to Ideas, without section headings", () => {
+  it("sends stops on days that fall outside to the wishlist, without section headings", () => {
     const next = applyDetailsPatch(makeTrip({ ...trip, ideas: [stop("idea")] }), {
       dates: { startDate: "2026-06-10", endDate: "2026-06-11", plan: "keep", outside: "ideas" },
     })

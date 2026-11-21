@@ -74,14 +74,14 @@ describe("DetailsDialog", () => {
     expect(onApply).toHaveBeenCalledWith({ dates: { startDate: "2026-06-11", endDate: "2026-06-13", plan: "shift", outside: "ideas" } })
   })
 
-  it("lists the days that fall outside and saves their stops to Ideas by default", () => {
+  it("lists the days that fall outside and saves their stops to the wishlist by default", () => {
     const { onApply, dialog } = renderDialog()
     pickDates(dialog, "Thursday, June 11, 2026", "Saturday, June 13, 2026")
     fireEvent.click(dialog.getByRole("radio", { name: /Keep plans on their dates/ }))
 
     const lost = dialog.getByRole("group", { name: "This day falls outside the new dates" })
     expect(within(lost).getByRole("listitem")).toHaveTextContent("Day 1 · Wed, Jun 10 · Arrival2 stops")
-    expect(within(lost).getByRole("radio", { name: /Save their 2 stops to Ideas/ })).toHaveAttribute("aria-checked", "true")
+    expect(within(lost).getByRole("radio", { name: /Save their 2 stops to the wishlist/ })).toHaveAttribute("aria-checked", "true")
 
     fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
     expect(onApply).toHaveBeenCalledWith({ dates: { startDate: "2026-06-11", endDate: "2026-06-13", plan: "keep", outside: "ideas" } })

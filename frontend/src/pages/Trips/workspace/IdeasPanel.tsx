@@ -46,7 +46,7 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
   }
 
   const remove = (idea: ItineraryItem) => {
-    onEdit((doc) => removeIdea(doc, idea.id), { label: `Removed “${idea.title}” from ideas`, toast: true })
+    onEdit((doc) => removeIdea(doc, idea.id), { label: `Removed “${idea.title}” from the wishlist`, toast: true })
     setAnnouncement(`Removed ${idea.title}`)
   }
 
@@ -54,7 +54,7 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
     const index = trip.days.findIndex((d) => d.id === dayId)
     if (index < 0) return
     const label = `Added “${idea.title}” to day ${index + 1}`
-    onEdit((doc) => ideaToDay(doc, idea.id, dayId), { label })
+    onEdit((doc) => ideaToDay(doc, idea.id, dayId), { label, toast: true })
     setAnnouncement(`Added ${idea.title} to day ${index + 1}`)
   }
 
@@ -72,7 +72,7 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
       </p>
       <header {...sx(a.stack)} style={{ gap: "0.375rem" }}>
         <h2 id={`${uid}-title`} {...sx(a.eyebrow)}>
-          Ideas
+          Wishlist
         </h2>
         <p {...sx(a.body, a.muted, a.wrap)} style={{ margin: 0 }}>
           Places you might fit in. Add one to a day when you know where it goes.
@@ -99,7 +99,7 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
           {editable ? "Nothing saved yet. Search for a place above, or use Save for later on any stop." : "Nothing saved for later yet."}
         </p>
       ) : (
-        <ul {...sx(s.ideaList)} aria-label={plural(ideas.length, "idea")}>
+        <ul {...sx(s.ideaList)} aria-label={plural(ideas.length, "place") + " on the wishlist"}>
           {ideas.map((idea) => (
             <IdeaRow
               key={idea.id}

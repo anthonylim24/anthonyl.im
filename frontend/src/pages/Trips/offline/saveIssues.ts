@@ -91,7 +91,7 @@ function where(path: readonly (string | number)[]): string {
       return dayField ? `Day ${nth}’s ${dayField}` : `Day ${nth}`
     }
     case "ideas":
-      return nth ? of("an idea") : "The list of ideas"
+      return nth ? of("a wishlist place") : "The wishlist"
     case "expenses":
       return nth ? of("an expense") : "The list of expenses"
     case "checklist":

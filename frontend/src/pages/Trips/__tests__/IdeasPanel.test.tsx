@@ -47,7 +47,7 @@ function renderIdeas(trip: Trip, { editable = true, locked = false } = {}) {
 describe("IdeasPanel", () => {
   it("says what it is for when nothing is saved", () => {
     renderIdeas(makeTrip())
-    expect(screen.getByRole("heading", { name: "Ideas" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Wishlist" })).toBeInTheDocument()
     expect(screen.getByText(/Nothing saved yet/)).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Save a place for later" })).toHaveAttribute("maxlength", String(LIMITS.itemTitle))
   })
@@ -62,7 +62,7 @@ describe("IdeasPanel", () => {
     fireEvent.click(screen.getByRole("option", { name: "Add “Pastéis de Belém” without a pin" }))
     expect(state.trip.ideas?.map((idea) => idea.title)).toEqual(["Pastéis de Belém"])
     expect(state.marks[state.marks.length - 1]).toEqual({ label: "Saved “Pastéis de Belém” for later" })
-    expect(within(screen.getByRole("list", { name: "1 idea" })).getByText("Pastéis de Belém")).toBeInTheDocument()
+    expect(within(screen.getByRole("list", { name: "1 place on the wishlist" })).getByText("Pastéis de Belém")).toBeInTheDocument()
   })
 
   it("shows an idea's address and https links only, each opening in a new tab", () => {
@@ -95,7 +95,7 @@ describe("IdeasPanel", () => {
     fireEvent.click(day2)
     expect(state.trip.days[1]!.items.map((item) => item.id)).toEqual(["lunch", "idea-tram", "park", "ig-1"])
     expect(state.trip.ideas).toEqual([])
-    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Added “Tram 28” to day 2" })
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Added “Tram 28” to day 2", toast: true })
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.getByRole("status")).toHaveTextContent("Added Tram 28 to day 2")
   })
@@ -114,7 +114,7 @@ describe("IdeasPanel", () => {
     const state = renderIdeas(makeTrip({ ideas: [tram] }))
     fireEvent.click(screen.getByRole("button", { name: "Remove Tram 28" }))
     expect(state.trip.ideas).toEqual([])
-    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Removed “Tram 28” from ideas", toast: true })
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Removed “Tram 28” from the wishlist", toast: true })
     expect(screen.getByText(/Nothing saved yet/)).toBeInTheDocument()
   })
 
