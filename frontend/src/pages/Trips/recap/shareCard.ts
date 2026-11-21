@@ -128,6 +128,21 @@ function drawChart(ctx: CanvasRenderingContext2D, recap: Recap) {
   ctx.stroke()
 }
 
+/** The words of `text` that fit on one line of `width`, and the rest (empty when all fit). */
+function splitLine(ctx: CanvasRenderingContext2D, text: string, width: number): [string, string] {
+  const words = text.split(/\s+/).filter(Boolean)
+  let line = ""
+  let used = 0
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word
+    if (line && ctx.measureText(next).width > width) break
+    line = next
+    used += 1
+  }
+  if (!line) return [fit(ctx, text, width), ""]
+  return [ctx.measureText(line).width > width ? fit(ctx, line, width) : line, words.slice(used).join(" ")]
+}
+
 /** Paint the card. */
 export function drawRecapCard(ctx: CanvasRenderingContext2D, recap: Recap) {
   const lines = recapCardLines(recap)
@@ -147,7 +162,8 @@ export function drawRecapCard(ctx: CanvasRenderingContext2D, recap: Recap) {
   ctx.fillText(fit(ctx, lines.eyebrow, TEXT_WIDTH), LEFT, 120)
   tracked(ctx, "0px")
 
-  // The name as a map title: as large as fits, down to 64 px, then shortened.
+  // The name as a map title: as large as fits on one line, down to 64 px;
+  // longer, two lines at 56 px, the second shortened if it must be.
   ctx.fillStyle = INK
   let size = 92
   ctx.font = `400 ${size}px ${DISPLAY}`
@@ -155,7 +171,14 @@ export function drawRecapCard(ctx: CanvasRenderingContext2D, recap: Recap) {
     size -= 4
     ctx.font = `400 ${size}px ${DISPLAY}`
   }
-  ctx.fillText(fit(ctx, lines.name, TEXT_WIDTH), LEFT - 4, 222)
+  if (ctx.measureText(lines.name).width <= TEXT_WIDTH) {
+    ctx.fillText(lines.name, LEFT - 4, 222)
+  } else {
+    ctx.font = `400 56px ${DISPLAY}`
+    const [first, rest] = splitLine(ctx, lines.name, TEXT_WIDTH)
+    ctx.fillText(first, LEFT - 3, 184)
+    if (rest) ctx.fillText(fit(ctx, rest, TEXT_WIDTH), LEFT - 3, 246)
+  }
 
   // Figures: serif numerals over mono labels, hairlines between.
   let x = LEFT
