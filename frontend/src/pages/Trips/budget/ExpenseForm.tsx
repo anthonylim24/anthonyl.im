@@ -3,9 +3,11 @@ import { Check, Trash2 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { ws } from "../workspace.stylex"
+import { holdEnterWhileComposing } from "../ime"
 import { formatTripDate } from "../meta"
 import type { ExpenseCategory, Trip, TripPerson } from "../types"
 import {
+  AMOUNT_TEXT_MAX,
   CATEGORY_LABEL,
   EXPENSE_CATEGORIES,
   minorDigits,
@@ -129,6 +131,7 @@ export function ExpenseForm({
       noValidate
       onSubmit={submit}
       onKeyDown={(event) => {
+        holdEnterWhileComposing(event)
         if (event.key === "Escape") {
           event.stopPropagation()
           onCancel()
@@ -160,6 +163,7 @@ export function ExpenseForm({
             type="text"
             inputMode="decimal"
             autoComplete="off"
+            maxLength={AMOUNT_TEXT_MAX}
             value={amount.text}
             disabled={disabled}
             placeholder={minorDigits(fields.currency) === 0 ? "0" : "0.00"}

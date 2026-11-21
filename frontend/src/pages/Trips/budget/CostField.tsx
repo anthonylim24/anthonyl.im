@@ -2,8 +2,9 @@ import { useId, useState } from "react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { ws } from "../workspace.stylex"
+import { holdEnterWhileComposing } from "../ime"
 import type { Money } from "../types"
-import { currencyChoices, minorDigits, roundMinor } from "./budget"
+import { AMOUNT_TEXT_MAX, currencyChoices, minorDigits, roundMinor } from "./budget"
 import { b } from "./budget.stylex"
 import { useAmountDraft } from "./useAmountDraft"
 
@@ -80,8 +81,10 @@ export function CostField({
           type="text"
           inputMode="decimal"
           autoComplete="off"
+          maxLength={AMOUNT_TEXT_MAX}
           value={draft.text}
           disabled={disabled}
+          onKeyDown={holdEnterWhileComposing}
           placeholder={minorDigits(currency) === 0 ? "0" : "0.00"}
           aria-invalid={draft.bad || undefined}
           aria-describedby={draft.bad ? errorId : undefined}

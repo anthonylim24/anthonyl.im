@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen } from "@testing-library/react"
-import type { DayForecast } from "../forecast"
+import type { DayForecast, TypicalDay } from "../forecast"
+import type { Holiday } from "../holidays"
 import { DaySky } from "../workspace/DaySky"
+import { ForecastChip } from "../workspace/ForecastChip"
 import { makeItem } from "./tripFixtures"
 
 const hours = (wet: (h: number) => boolean, code: number) =>
@@ -65,5 +67,56 @@ describe("DaySky", () => {
     const walk = makeItem({ id: "walk", title: "Old town walk", time: "15:30", endTime: "18:00" })
     render(<DaySky sky={{ status: "forecast", forecast }} day={{ id: "d1", date: "2026-07-10", items: [walk] }} now={18 * 60 + 30} onRework={vi.fn()} />)
     expect(screen.queryByRole("button", { name: /Rework/ })).toBeNull()
+  })
+
+  describe("past the forecast's reach", () => {
+    const typical: TypicalDay = { date: "2026-12-24", highC: 7, lowC: 0, rainChance: 40, code: 3, years: 3 }
+
+    it("says it is the weather typical of the dates, not a forecast", () => {
+      render(<DaySky sky={{ status: "typical", typical }} />)
+      const figure = screen.getByRole("figure")
+      expect(figure).toHaveTextContent("Typical for late December")
+      expect(figure).toHaveTextContent("based on the last 3 years, not a forecast")
+      expect(figure).toHaveTextContent("Mostly grey · Rain on 4 days in 10")
+      expect(figure).toHaveTextContent(/About ≈\s?(7|45)°, low (0|32)°/)
+      expect(figure).not.toHaveTextContent("Forecast")
+      expect(figure).not.toHaveTextContent("chance")
+    })
+
+    it("names fewer years when the archive had fewer", () => {
+      render(<DaySky sky={{ status: "typical", typical: { ...typical, years: 1 } }} />)
+      expect(screen.getByRole("figure")).toHaveTextContent("based on the last year")
+    })
+  })
+
+  describe("public holidays", () => {
+    const christmas: Holiday = { date: "2026-12-25", name: "Christmas Day", localName: "성탄절", country: "KR" }
+
+    it("adds a quiet line under the sky", () => {
+      render(<DaySky sky={{ status: "forecast", forecast: day({}) }} holidays={[christmas]} />)
+      expect(screen.getByRole("figure")).toHaveTextContent("Christmas Day · public holiday: shops and museums may close or keep short hours")
+      expect(screen.getByTitle("성탄절")).toBeInTheDocument()
+    })
+
+    it("stands alone when there is no sky to show, and draws nothing without either", () => {
+      const { container, unmount } = render(<DaySky sky={{ status: "none" }} holidays={[christmas]} />)
+      expect(container).toHaveTextContent("Christmas Day · public holiday")
+      unmount()
+      const empty = render(<DaySky sky={{ status: "none" }} holidays={[]} />)
+      expect(empty.container).toBeEmptyDOMElement()
+    })
+  })
+})
+
+describe("ForecastChip", () => {
+  it("sets a typical day apart from a forecast", () => {
+    const { unmount } = render(<ForecastChip typical={{ date: "2026-12-24", highC: 7, lowC: 0, rainChance: 60, code: 61, years: 3 }} />)
+    expect(screen.getByText("Typical")).toBeInTheDocument()
+    expect(screen.getByTitle(/Not a forecast/)).toHaveTextContent(/Typical for late December, not a forecast/)
+    expect(screen.queryByText(/60%/)).toBeNull()
+    unmount()
+    render(<ForecastChip forecast={day({ rainChance: 60 })} />)
+    expect(screen.getByText("60% showers")).toBeInTheDocument()
+    expect(screen.queryByText("Typical")).toBeNull()
   })
 })

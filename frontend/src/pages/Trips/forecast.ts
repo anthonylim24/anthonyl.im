@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState } from "react"
 import { Effect } from "effect"
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSun, CloudSunRain, Snowflake, Sun, type LucideIcon } from "lucide-react"
 import { fetchExternal, parseJson } from "../../effect/http"
+import { TimeoutError } from "../../effect/errors"
 import { runPromise } from "../../effect/runtime"
 import { addDays, todayIsoIn } from "./meta"
 import { dayRoute } from "./map/geo"
+import { useClimate, type TypicalDay } from "./climate"
+import { perPlace, placesQuery } from "./openMeteo"
+import { wmoSky, type SkyId } from "./wmo"
 import type { Trip, TripDay } from "./types"
 import clearArt from "./art/sky-clear.webp"
 import partlyCloudyArt from "./art/sky-partly-cloudy.webp"
@@ -17,8 +21,13 @@ import snowArt from "./art/sky-snow.webp"
 import thunderArt from "./art/sky-thunder.webp"
 
 // Live daily forecast for the days Open-Meteo covers (today and the next 15),
-// read at each day's own place. Keyless and best-effort: a failure shows
-// nothing, and the AI's `day.weather` (if any) stays the fallback.
+// read at each day's own place, every place in one request. Keyless and
+// best-effort: a failure shows nothing, and the AI's `day.weather` (if any)
+// stays the fallback. Days past the forecast's reach get the weather typical
+// of their dates instead (`climate.ts`), always set apart from a forecast.
+
+export type { SkyId } from "./wmo"
+export type { TypicalDay } from "./climate"
 
 export interface DayForecast {
   date: string
@@ -56,25 +65,26 @@ export interface ForecastRequest {
 
 /** Open-Meteo forecasts today plus 15 days. */
 export const FORECAST_DAYS = 16
-const MAX_REQUESTS = 6
 const TTL_MS = 30 * 60_000
+/** A forecast that has not come by then is not coming. */
+const DEADLINE = "10 seconds"
 
-/** One decimal (~11 km): days in the same city share a request. */
+/** One decimal (~11 km): days in the same city share a place. */
 const round1 = (n: number) => Math.round(n * 10) / 10
 
 /**
- * The requests that cover this trip's forecastable days. A day is read at its
- * first pinned stop, else at the day before's place, else the trip's centre;
- * days whose places round to the same point share one request.
+ * The places that cover this trip's days from `from` to `to` (ISO dates,
+ * inclusive; `to` null for no end). A day is read at its first pinned stop,
+ * else at the day before's place, else the trip's centre; days whose places
+ * round to the same point share one entry.
  */
-export function forecastRequests(trip: Pick<Trip, "days" | "center">, today: string): ForecastRequest[] {
-  const last = addDays(today, FORECAST_DAYS - 1)
+export function placeGroups(trip: Pick<Trip, "days" | "center">, from: string, to: string | null): ForecastRequest[] {
   const groups = new Map<string, ForecastRequest>()
   let carry = trip.center ? { lat: trip.center.lat, lng: trip.center.lng } : null
   for (const day of trip.days) {
     const first = dayRoute(day)[0]
     if (first) carry = first
-    if (!carry || day.date < today || day.date > last) continue
+    if (!carry || day.date < from || (to !== null && day.date > to)) continue
     const lat = round1(carry.lat)
     const lng = round1(carry.lng)
     const key = `${lat},${lng}`
@@ -87,10 +97,13 @@ export function forecastRequests(trip: Pick<Trip, "days" | "center">, today: str
       groups.set(key, { key, lat, lng, start: day.date, end: day.date, days: new Map([[day.id, day.date]]) })
     }
   }
-  return [...groups.values()].slice(0, MAX_REQUESTS)
+  return [...groups.values()]
 }
 
-export type SkyId = "clear" | "partly-cloudy" | "cloudy" | "fog" | "drizzle" | "rain" | "showers" | "snow" | "thunder"
+/** The places that cover this trip's forecastable days (today and the next 15). */
+export function forecastRequests(trip: Pick<Trip, "days" | "center">, today: string): ForecastRequest[] {
+  return placeGroups(trip, today, addDays(today, FORECAST_DAYS - 1))
+}
 
 /**
  * Each sky has a small glyph for tight rows and an engraving for the day header:
@@ -109,19 +122,6 @@ export const SKIES: Record<SkyId, { icon: LucideIcon; art: string }> = {
   thunder: { icon: CloudLightning, art: thunderArt },
 }
 
-/** WMO codes in order; the first row that matches names the sky. */
-const CODES: ReadonlyArray<readonly [(code: number) => boolean, string, SkyId]> = [
-  [(c) => c === 0, "Clear", "clear"],
-  [(c) => c <= 2, "Partly cloudy", "partly-cloudy"],
-  [(c) => c === 3, "Overcast", "cloudy"],
-  [(c) => c === 45 || c === 48, "Fog", "fog"],
-  [(c) => c >= 51 && c <= 57, "Drizzle", "drizzle"],
-  [(c) => c >= 61 && c <= 67, "Rain", "rain"],
-  [(c) => c >= 80 && c <= 82, "Showers", "showers"],
-  [(c) => (c >= 71 && c <= 77) || c === 85 || c === 86, "Snow", "snow"],
-  [(c) => c >= 95, "Thunderstorms", "thunder"],
-]
-
 export interface Kind {
   word: string
   sky: SkyId
@@ -131,7 +131,7 @@ export interface Kind {
 
 /** WMO code → a word, a glyph and an engraving. */
 export function weatherKind(code: number): Kind {
-  const [, word, sky] = CODES.find(([test]) => test(code)) ?? [null, "Cloudy", "cloudy" as const]
+  const { word, sky } = wmoSky(code)
   return { word, sky, ...SKIES[sky] }
 }
 
@@ -153,21 +153,30 @@ export function skyFromText(text: string): SkyId {
 }
 
 /**
- * What the day header shows about the sky: the live forecast, the AI's
- * expected weather when the day is out of the forecast's reach, a reserved
- * place while a forecast is on its way, or nothing.
+ * What the day header shows about the sky: the live forecast; for a day out
+ * of its reach, the weather typical of that date (history), else the AI's
+ * expected weather; a reserved place while either is on its way; or nothing.
  */
 export type DaySky =
   | { status: "forecast"; forecast: DayForecast }
+  /** Past the forecast's reach: what the same dates were like in recent years. Never a forecast. */
+  | { status: "typical"; typical: TypicalDay }
   | { status: "expected"; highC: number; lowC: number; word: string; sky: SkyId }
   | { status: "loading" }
   /** In the forecast's reach, but the forecast did not come. */
   | { status: "unavailable"; retry?: () => void }
   | { status: "none" }
 
+/**
+ * The live forecast first. Past its reach, the measured history of the date
+ * beats the plan's guess; the guess shows only once the history has not come
+ * (or has no data for the place).
+ */
 export function daySky(day: Pick<TripDay, "id" | "weather">, forecasts: Forecasts): DaySky {
   const live = forecasts.byDay.get(day.id)
   if (live) return { status: "forecast", forecast: live }
+  const typical = forecasts.typical?.get(day.id)
+  if (typical) return { status: "typical", typical }
   if (forecasts.pending.has(day.id)) return { status: "loading" }
   if (day.weather) {
     const { highC, lowC, condition } = day.weather
@@ -307,34 +316,49 @@ export function readDaily(daily: OpenMeteoDaily | undefined, hourly?: OpenMeteoH
   return out
 }
 
-const fetchForecastEffect = Effect.fn("Forecast.fetch")(function* (req: ForecastRequest, signal?: AbortSignal) {
+const fetchForecastEffect = Effect.fn("Forecast.fetch")(function* (reqs: readonly ForecastRequest[], signal?: AbortSignal) {
   const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${req.lat}&longitude=${req.lng}` +
+    `https://api.open-meteo.com/v1/forecast?${placesQuery(reqs)}` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset` +
     `&hourly=temperature_2m,precipitation_probability,weather_code` +
-    `&timezone=auto&start_date=${req.start}&end_date=${req.end}`
-  const res = yield* fetchExternal(url, { signal })
-  if (!res.ok) return [] as DayForecast[]
-  const body = yield* parseJson<{ daily?: OpenMeteoDaily; hourly?: OpenMeteoHourly }>(res)
-  return readDaily(body.daily, body.hourly)
+    `&timezone=auto`
+  const res = yield* fetchExternal(url, { signal }).pipe(
+    Effect.timeoutFail({ duration: DEADLINE, onTimeout: () => new TimeoutError({ message: "The forecast took too long" }) }),
+  )
+  if (!res.ok) return reqs.map(() => [] as DayForecast[])
+  type Place = { daily?: OpenMeteoDaily; hourly?: OpenMeteoHourly }
+  const body = yield* parseJson<Place | Place[]>(res)
+  return perPlace(body, reqs.length).map((place) => readDaily(place?.daily, place?.hourly))
 })
 
 const cache = new Map<string, { at: number; rows: DayForecast[] }>()
 
-async function loadForecast(req: ForecastRequest, signal: AbortSignal): Promise<DayForecast[]> {
-  const id = `${req.key}:${req.start}:${req.end}`
-  const hit = cache.get(id)
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.rows
-  const rows = await runPromise(fetchForecastEffect(req, signal))
+const cacheId = (req: ForecastRequest) => `${req.key}:${req.start}:${req.end}`
+
+function fresh(req: ForecastRequest): DayForecast[] | null {
+  const hit = cache.get(cacheId(req))
+  return hit && Date.now() - hit.at < TTL_MS ? hit.rows : null
+}
+
+/** Each request's rows, in order: fresh ones from the cache, every other place in one request. */
+async function loadForecasts(reqs: readonly ForecastRequest[], signal: AbortSignal): Promise<DayForecast[][]> {
+  const ask = reqs.filter((req) => !fresh(req))
+  const answers = ask.length ? await runPromise(fetchForecastEffect(ask, signal)) : []
+  const asked = new Map(ask.map((req, i) => [req, answers[i] ?? []]))
   // A failed or empty answer is not kept, so trying again asks the service again.
-  if (rows.length) cache.set(id, { at: Date.now(), rows })
-  return rows
+  for (const [req, rows] of asked) if (rows.length) cache.set(cacheId(req), { at: Date.now(), rows })
+  return reqs.map((req) => asked.get(req) ?? fresh(req) ?? [])
 }
 
 export interface Forecasts {
-  /** dayId → that day's live forecast, for the days that have one. */
+  /** dayId → that day's live forecast, for the days that have one. Live only, never the typical weather. */
   byDay: ReadonlyMap<string, DayForecast>
-  /** Days a forecast has been asked for and has not answered yet. */
+  /**
+   * dayId → the weather typical of its date, for days past the forecast's
+   * reach that have it. Optional so a literal written before it existed still types.
+   */
+  typical?: ReadonlyMap<string, TypicalDay>
+  /** Days a forecast (or their typical weather) has been asked for and has not answered yet. */
   pending: ReadonlySet<string>
   /** Days in the forecast's reach that it did not answer (the service failed or had no row). */
   missing: ReadonlySet<string>
@@ -345,6 +369,11 @@ export interface Forecasts {
 export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | null): Forecasts {
   const today = trip ? todayIsoIn(trip.timezone) : ""
   const requests = useMemo(() => (trip ? forecastRequests(trip, today) : []), [trip, today])
+  // Past the forecast's reach, the history of the date: its own request and
+  // state, so a slow archive never holds up the forecast, and a failed one
+  // never marks a far day as a missing forecast.
+  const beyond = useMemo(() => (trip ? placeGroups(trip, addDays(today, FORECAST_DAYS), null) : []), [trip, today])
+  const climate = useClimate(beyond, today)
   // Only a change of place or dates refetches, not every edit to a stop.
   const signature = requests.map((r) => `${r.key}:${r.start}:${r.end}:${[...r.days.keys()].join("|")}`).join(";")
   const [loaded, setLoaded] = useState<{ signature: string; byDay: ReadonlyMap<string, DayForecast> }>({ signature: "", byDay: NONE })
@@ -354,26 +383,25 @@ export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | n
   useEffect(() => {
     if (!requests.length) return
     const controller = new AbortController()
-    void Promise.all(requests.map((req) => loadForecast(req, controller.signal).then((rows) => ({ req, rows })).catch(() => null))).then(
-      (results) => {
+    void loadForecasts(requests, controller.signal)
+      .catch(() => requests.map(() => [] as DayForecast[]))
+      .then((answers) => {
         if (controller.signal.aborted) return
         const byDay = new Map<string, DayForecast>()
-        for (const result of results) {
-          if (!result) continue
-          const byDate = new Map(result.rows.map((row) => [row.date, row]))
-          for (const [dayId, date] of result.req.days) {
+        requests.forEach((req, i) => {
+          const byDate = new Map((answers[i] ?? []).map((row) => [row.date, row]))
+          for (const [dayId, date] of req.days) {
             const row = byDate.get(date)
             if (row) byDay.set(dayId, row)
           }
-        }
+        })
         setLoaded({ signature: asking, byDay })
-      },
-    )
+      })
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `asking` is the identity of `requests` and the attempt
   }, [asking])
 
-  return useMemo(() => {
+  const live = useMemo((): Forecasts => {
     const asked = requests.flatMap((req) => [...req.days.keys()])
     if (loaded.signature === asking) {
       const missing = new Set(asked.filter((id) => !loaded.byDay.has(id)))
@@ -383,6 +411,15 @@ export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | n
     if (loaded.signature.startsWith(`${signature}#`)) return { byDay: loaded.byDay, pending: new Set(asked.filter((id) => !loaded.byDay.has(id))), missing: EMPTY }
     return { byDay: NONE, pending: new Set(asked), missing: EMPTY }
   }, [loaded, asking, signature, requests])
+
+  return useMemo(
+    () => ({
+      ...live,
+      typical: climate.typical,
+      pending: climate.pending.size ? new Set([...live.pending, ...climate.pending]) : live.pending,
+    }),
+    [live, climate],
+  )
 }
 
 const NONE: ReadonlyMap<string, DayForecast> = new Map()

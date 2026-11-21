@@ -13,7 +13,7 @@ import { ws as s } from "../workspace.stylex"
 import { Spinner } from "../components/kit"
 import { LIMITS } from "../limits"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { composing } from "./ime"
+import { composing } from "../ime"
 
 // One input adds anything to a day. Typing searches real places (pinned on
 // the map the moment you pick one); the same text can instead become a note,

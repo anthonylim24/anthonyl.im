@@ -16,7 +16,7 @@ import { draftNotice, elapsedText } from "./draftCopy"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { LIMITS } from "./limits"
 import { CityField } from "./components/CityField"
-import { isComposing } from "./ime"
+import { composing } from "./ime"
 import { DateRange } from "./components/DateRange"
 import { Spinner } from "./components/kit"
 import { TimeZoneField } from "./components/TimeZoneField"
@@ -320,7 +320,7 @@ export function TripCreate() {
           onSubmit={(event) => void submit(event)}
           onKeyDown={(event) => {
             // Enter that confirms an IME composition (Korean, Japanese) must not create the trip.
-            if (event.key === "Enter" && isComposing(event)) event.preventDefault()
+            if (event.key === "Enter" && composing(event)) event.preventDefault()
           }}
           noValidate
         >

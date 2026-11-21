@@ -9,7 +9,7 @@ import type { Trip, TripAccent, TripStatus } from "../types"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { CityField } from "../components/CityField"
-import { isComposing } from "../ime"
+import { composing } from "../ime"
 import { DateRange } from "../components/DateRange"
 import { Modal } from "../components/kit"
 import { d } from "./details.stylex"
@@ -305,7 +305,7 @@ export function DetailsDialog({
         }}
         onKeyDown={(event) => {
           // Enter that confirms an IME composition must not save the dialog.
-          if (event.key === "Enter" && isComposing(event)) event.preventDefault()
+          if (event.key === "Enter" && composing(event)) event.preventDefault()
         }}
       >
         <label>

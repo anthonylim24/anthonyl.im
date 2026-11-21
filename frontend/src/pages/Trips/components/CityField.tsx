@@ -3,7 +3,7 @@ import { MapPin, RotateCcw, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { exactCity } from "../cityMatch"
-import { isComposing } from "../ime"
+import { composing } from "../ime"
 import { searchCities, type CityResult } from "../geocode"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
@@ -120,7 +120,7 @@ export function CityField({
   }, [enterPending, loading, submitLatest])
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (isComposing(event)) return
+    if (composing(event)) return
     if (event.key === "Backspace" && !text && values.length > 0) {
       onRemove(values.length - 1)
       return

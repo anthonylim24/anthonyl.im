@@ -3,7 +3,7 @@ import { Clock } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
-import { isComposing } from "../ime"
+import { composing } from "../ime"
 import { allZones, matchZones, offsetOf, ZONE_LIMIT, zoneParts } from "../timeZones"
 
 // A searchable select over every IANA time zone the browser knows, for a
@@ -37,7 +37,7 @@ export const TimeZoneField = forwardRef<
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (isComposing(event)) return
+    if (composing(event)) return
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault()
       setOpen(true)
