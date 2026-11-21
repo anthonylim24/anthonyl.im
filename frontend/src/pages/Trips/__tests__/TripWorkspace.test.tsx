@@ -210,7 +210,9 @@ describe("TripWorkspace", () => {
       expect(booking).toHaveAttribute("href", "/trips/lisbon/day/day-1#item-it-fado")
       expect(booking).toHaveTextContent("8:00 PM")
       expect(booking).toHaveTextContent("FD-2291")
-      expect(booking).toHaveTextContent("Confirmed")
+      // The same word as the day's stop card, in a mono outline chip.
+      expect(booking).toHaveTextContent("Booked")
+      expect(booking).not.toHaveTextContent("Confirmed")
 
       // The rail links the overview and each day.
       const rail = within(screen.getByRole("navigation", { name: "Days" }))
@@ -382,8 +384,9 @@ describe("TripWorkspace", () => {
     it("lists the day's items and numbers only the located ones", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
 
-      expect(await screen.findByRole("textbox", { name: "Day title" })).toHaveValue("Arrival")
-      expect(screen.getByText(/Day 1 of 2 · Friday, July 10/)).toBeInTheDocument()
+      const title = await screen.findByRole("textbox", { name: "Day title" })
+      expect(title).toHaveValue("Arrival")
+      expect(title.closest("header")).toHaveTextContent(/Day 1 of 2 · Friday, July 10/)
 
       const plan = within(screen.getByRole("region", { name: "Day 1 plan" }))
       expect(plan.getAllByRole("listitem")).toHaveLength(4)
@@ -401,7 +404,8 @@ describe("TripWorkspace", () => {
 
       const map = within(screen.getByRole("region", { name: "Map of day 1 with 2 pinned stops" }))
       expect(map.getAllByRole("button").map((b) => b.textContent)).toEqual(["Pin 1: Time Out Market", "Pin 2: Fado dinner"])
-      expect(map.getByText("Day 1 · Lisbon · 2 places")).toBeInTheDocument()
+      // Counted as the day header counts: stops, and how many of them have a pin.
+      expect(map.getByText("Day 1 · Lisbon · 2 of 3 stops")).toBeInTheDocument()
 
       expect(within(screen.getByRole("navigation", { name: "Days" })).getByRole("link", { name: /^Day 1,/ })).toHaveAttribute(
         "aria-current",
@@ -508,7 +512,7 @@ describe("TripWorkspace", () => {
       const order = () =>
         plan()
           .getAllByRole("listitem")
-          .map((li) => li.querySelector("[id^='item-']")?.id)
+          .flatMap((li) => li.querySelector("[id^='item-']")?.id ?? [])
       const row = (name: RegExp) => plan().getByRole("button", { name, expanded: false })
 
       await screen.findByRole("textbox", { name: "Day title" })
@@ -519,9 +523,12 @@ describe("TripWorkspace", () => {
       expect(order()).toEqual(["item-it-cash", "item-it-market", "item-it-cafe", "item-it-fado"])
       expect(screen.getByText("Time Out Market moved down, now 2 of 4.")).toHaveAttribute("aria-live", "polite")
 
+      expect(plan().queryByRole("heading", { name: "Anytime" })).toBeNull()
       fireEvent.keyDown(row(/Fado dinner/), { key: "ArrowUp", altKey: true })
       expect(order()).toEqual(["item-it-cash", "item-it-market", "item-it-fado", "item-it-cafe"])
       expect(screen.getByText("Fado dinner moved up, now 3 of 4.")).toBeInTheDocument()
+      // The untimed cafe now follows the last timed stop: it waits under Anytime.
+      expect(plan().getByRole("heading", { name: "Anytime" })).toBeInTheDocument()
       // Pin numbers follow the new order.
       expect(screen.getByRole("button", { name: "Show Time Out Market on the map" })).toHaveTextContent("1")
       expect(screen.getByRole("button", { name: "Show Fado dinner on the map" })).toHaveTextContent("2")

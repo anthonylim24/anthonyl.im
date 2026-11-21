@@ -28,6 +28,7 @@ export const tl = stylex.create({
     color: "var(--trips-ink-secondary)",
   },
 
+  summaryLight: { display: "inline-flex", alignItems: "center", gap: "0.25rem" },
   summaryWarn: { display: "inline-flex", alignItems: "center", gap: "0.25rem", color: "var(--trips-ink)" },
   // " · " before every part after the first: a wrapped line starts with it, never ends with it.
   sep: { "::before": { content: '"·"', marginRight: "0.625rem", color: "var(--trips-ink-tertiary)" } },
@@ -69,56 +70,62 @@ export const tl = stylex.create({
 
   // ── Weather on the ruler ─────────────────────────────
   // Rain is never drawn over a stop: a hatched band in the gutter between the
-  // hours and the track, under a rain glyph, plus a line on each stop it meets.
-  // Sunrise and sunset are dashed hairlines across the track, over the stops
-  // like the Now line, each named at its right end.
+  // hours and the track, headed by its glyph and chance, plus a line on each
+  // stop it meets. A soaking or a storm is inked darker. Sunrise and sunset
+  // are dashed hairlines under the stops (seen between them), marked by their
+  // glyph in the gutter and named with the time in the summary line.
   rain: {
     position: "absolute",
-    left: { default: "3.5rem", [PHONE]: "2.9375rem" },
-    width: { default: "6px", [PHONE]: "5px" },
+    left: { default: "3.375rem", [PHONE]: "2.875rem" },
+    width: { default: "9px", [PHONE]: "8px" },
     borderRadius: "1px",
-    backgroundImage: "repeating-linear-gradient(-60deg, color-mix(in srgb, var(--trips-ink-tertiary) 70%, transparent) 0 1.5px, transparent 1.5px 4.5px)",
+    backgroundImage: "repeating-linear-gradient(-60deg, var(--trips-ink-tertiary) 0 1.5px, transparent 1.5px 4.5px)",
     pointerEvents: "none",
   },
-  rainIcon: {
+  rainStrong: {
+    backgroundImage: "repeating-linear-gradient(-60deg, var(--trips-ink-secondary) 0 2px, transparent 2px 4px)",
+  },
+  rainMark: {
     position: "absolute",
-    left: { default: "calc(3.5rem + 3px)", [PHONE]: "calc(2.9375rem + 2.5px)" },
+    top: 0,
+    left: "50%",
+    transform: "translateX(-50%)",
     display: "flex",
-    transform: "translate(-50%, calc(-100% - 3px))",
-    color: "var(--trips-ink-tertiary)",
-    pointerEvents: "none",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "1px",
+    paddingTop: "1px",
+    paddingBottom: "3px",
+    backgroundColor: "var(--trips-canvas)",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.625rem",
+    lineHeight: 1,
+    letterSpacing: "-0.02em",
+    fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap",
+    color: "var(--trips-ink-secondary)",
   },
   sun: {
     position: "absolute",
     left: TRACK,
     right: 0,
-    zIndex: 2,
     height: 0,
     borderTopWidth: "1px",
     borderTopStyle: "dashed",
     borderTopColor: "var(--trips-ink-tertiary)",
     pointerEvents: "none",
   },
-  sunLabel: {
+  sunMark: {
     position: "absolute",
-    right: "0.375rem",
+    right: "100%",
     top: 0,
     transform: "translateY(-50%)",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "0.25rem",
-    height: "1.125rem",
-    paddingInline: "0.4375rem",
+    display: "grid",
+    placeItems: "center",
+    width: "1rem",
+    height: "1rem",
     borderRadius: "999px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--trips-line-strong)",
     backgroundColor: "var(--trips-canvas)",
-    fontFamily: "var(--trips-mono)",
-    fontSize: "0.625rem",
-    lineHeight: 1,
-    fontVariantNumeric: "tabular-nums",
-    whiteSpace: "nowrap",
     color: "var(--trips-ink-secondary)",
   },
   track: {
@@ -168,6 +175,8 @@ export const tl = stylex.create({
   blockEstimated: { borderBottomStyle: "dashed" },
   // Runs past the bottom of the ruler: open at the bottom edge.
   blockRunsOn: { borderBottomWidth: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  // Done for today: quieter, so what is still ahead leads.
+  blockPast: { backgroundColor: "var(--trips-canvas)", borderColor: "var(--trips-line)" },
   blockHot: { boxShadow: "0 0 0 1px var(--trips-ink-tertiary), var(--trips-shadow-2)" },
   blockActive: {
     borderColor: "var(--trips-ink)",
@@ -192,6 +201,7 @@ export const tl = stylex.create({
     backgroundColor: "var(--ta-fill)",
     color: "var(--ta-on)",
   },
+  badgePast: { backgroundColor: "transparent", color: "var(--ta)", boxShadow: "inset 0 0 0 1.5px var(--ta-fill)" },
   badgeActive: { backgroundColor: "var(--trips-ink)", color: "var(--trips-canvas)" },
   disc: {
     gridRow: "1 / span 2",
@@ -234,6 +244,7 @@ export const tl = stylex.create({
     lineHeight: "1.125rem",
     color: "var(--trips-ink)",
   },
+  titlePast: { color: "var(--trips-ink-secondary)", fontWeight: 500 },
   meta: {
     gridColumn: "2",
     display: "flex",
@@ -260,6 +271,7 @@ export const tl = stylex.create({
     color: "var(--trips-ink)",
   },
   wet: { color: "var(--trips-ink-secondary)" },
+  wetStrong: { color: "var(--trips-ink)", fontWeight: 600 },
   warnText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   noShrink: { flexShrink: 0 },
 
@@ -324,6 +336,7 @@ export const tl = stylex.create({
       backgroundColor: "var(--ta-fill)",
     },
   },
+  nowTemp: { color: "var(--trips-ink-tertiary)", fontWeight: 400, letterSpacing: 0 },
   nowLabel: {
     position: "absolute",
     left: 0,

@@ -156,6 +156,9 @@ const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=sw
 
 async function settle(p, ms = 1500) {
   await p.waitForLoadState("networkidle").catch(() => {})
+  // The map engine is a lazy chunk: until it mounts the pane shows its placeholder pins.
+  await p.waitForSelector(".maplibregl-canvas", { timeout: 30_000 }).catch(() => {})
+  await p.waitForLoadState("networkidle").catch(() => {})
   await p
     .waitForFunction(() => {
       const canvas = document.querySelector(".maplibregl-canvas")

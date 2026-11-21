@@ -77,6 +77,13 @@ describe("DayTimeline", () => {
     expect(screen.getByText("≈ 35 min by transit")).toBeInTheDocument()
     expect(screen.getByText("1 h 25 free")).toBeInTheDocument()
     expect(screen.getByText("2 h 25 free")).toBeInTheDocument()
+    expect(screen.getByText("leave 5:25 PM")).toBeInTheDocument()
+  })
+
+  it("counts no free time once the day's stops are over", () => {
+    renderTimeline(undefined, { now: "23:30" })
+    expect(screen.getByText(/^\d+ timed stops$/)).toBeInTheDocument()
+    expect(screen.queryByText(/free/)).toBeNull()
   })
 
   it("measures no leg out of a flight, which lands somewhere else", () => {

@@ -1,10 +1,22 @@
-import { describe, expect, it, vi } from "vitest"
-import { render, screen, within } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import type { DayForecast } from "../forecast"
 import type { TripDay } from "../types"
 import { DayPanel, type DayPanelProps } from "../workspace/DayPanel"
+import { scrollUnderRail } from "../workspace/scroll"
 import { makeItem, makeTrip } from "./tripFixtures"
+
+vi.mock("../workspace/scroll", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../workspace/scroll")>()),
+  scrollUnderRail: vi.fn(),
+}))
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  vi.mocked(scrollUnderRail).mockClear()
+})
 
 /** Showers (WMO 81) likely from 14:00 to 17:00, dry otherwise. */
 const SHOWERY: DayForecast = {
@@ -21,10 +33,10 @@ const SHOWERY: DayForecast = {
   })),
 }
 
-function renderDay(day: TripDay, sky: DayPanelProps["sky"]) {
+function renderDay(day: TripDay, sky: DayPanelProps["sky"], props: Partial<DayPanelProps> = {}) {
   const trip = makeTrip({ days: [day] })
   const noop = vi.fn()
-  return render(
+  const panel = (day: TripDay, weather = sky) => (
     <MemoryRouter>
       <DayPanel
         trip={trip}
@@ -52,11 +64,17 @@ function renderDay(day: TripDay, sky: DayPanelProps["sky"]) {
         onApplyRun={noop}
         onDismissRun={noop}
         onStopAi={noop}
-        sky={sky}
+        sky={weather}
+        {...props}
       />
-    </MemoryRouter>,
+    </MemoryRouter>
   )
+  const view = render(panel(day))
+  return { ...view, rerenderDay: (next: TripDay, weather = sky) => view.rerender(panel(next, weather)) }
 }
+
+/** Long enough for the open-on-Now scroll to have run: it waits a frame or two for the day to hold still. */
+const frames = () => new Promise((done) => setTimeout(done, 200))
 
 const lunch = makeItem({ id: "it-lunch", title: "Lunch", time: "12:30", endTime: "13:30" })
 const walk = makeItem({ id: "it-walk", title: "Old town walk", time: "15:30", endTime: "18:00" })
@@ -97,5 +115,114 @@ describe("DayPanel list legs", () => {
     const castle = pinned("Castle", 0, "10:15", "11:30")
     renderDay({ id: "day-1", date: "2026-07-10", items: [tram, castle] }, { status: "none" })
     expect(legUnder("Tram")).toBe("No time to travel")
+  })
+})
+
+describe("DayPanel rework around the rain", () => {
+  it("asks Ideas to rework the day around the wet window", () => {
+    const onAskAi = vi.fn()
+    renderDay({ id: "day-1", date: "2026-07-10", items: [lunch, walk] }, { status: "forecast", forecast: SHOWERY }, { editable: true, onAskAi })
+    const card = document.getElementById("item-it-walk")!.closest("li")!
+    fireEvent.click(within(card).getByRole("button", { name: "Rework around the showers" }))
+    expect(onAskAi).toHaveBeenCalledWith(expect.stringMatching(/^Showers likely 2–5 PM \(60% chance\)\. .*indoor/))
+    expect(screen.getAllByRole("button", { name: "Rework around the showers" })).toHaveLength(1)
+  })
+
+  it("offers it once per wet spell, on the first stop that meets it", () => {
+    const tea = makeItem({ id: "it-tea", title: "Tea", time: "14:15", endTime: "15:00" })
+    renderDay({ id: "day-1", date: "2026-07-10", items: [lunch, tea, walk] }, { status: "forecast", forecast: SHOWERY }, { editable: true })
+    expect(screen.getAllByText("Showers likely · 60% chance")).toHaveLength(2)
+    const [only] = screen.getAllByRole("button", { name: "Rework around the showers" })
+    expect(only!.closest("li")).toBe(document.getElementById("item-it-tea")!.closest("li"))
+    expect(screen.getAllByRole("button", { name: "Rework around the showers" })).toHaveLength(1)
+  })
+
+  it("is not offered on a trip the traveller cannot edit", () => {
+    renderDay({ id: "day-1", date: "2026-07-10", items: [lunch, walk] }, { status: "forecast", forecast: SHOWERY })
+    expect(screen.queryByRole("button", { name: "Rework around the showers" })).toBeNull()
+  })
+})
+
+describe("DayPanel Anytime", () => {
+  it("heads the untimed stops after the last timed one, with no time and no leg into them", () => {
+    const castle = pinned("Castle", 0, "10:15", "11:30")
+    const tram = pinned("Tram", 0.5, "12:00", "13:00")
+    const bookshop = makeItem({ id: "Bookshop", title: "Bookshop", location: { name: "Bookshop", lat: LISBON.lat + 1 / 111.195, lng: LISBON.lng, source: "user" } })
+    renderDay({ id: "day-1", date: "2026-07-10", items: [castle, tram, bookshop] }, { status: "none" })
+    const heading = screen.getByRole("heading", { name: "Anytime" })
+    expect(heading.closest("li")!.nextElementSibling!.querySelector("#item-Bookshop")).not.toBeNull()
+    expect(legUnder("Castle")).toMatch(/ walk$/)
+    expect(legUnder("Tram")).toBeUndefined()
+    expect(screen.queryByText("––")).toBeNull()
+  })
+
+  it("is not drawn on a day with no times", () => {
+    renderDay({ id: "day-1", date: "2026-07-10", items: [makeItem({ id: "a", title: "A" }), makeItem({ id: "b", title: "B" })] }, { status: "none" })
+    expect(screen.queryByRole("heading", { name: "Anytime" })).toBeNull()
+  })
+})
+
+describe("DayPanel opening today", () => {
+  const breakfast = makeItem({ id: "it-breakfast", title: "Breakfast", time: "09:00", endTime: "10:00" })
+  const today = { id: "day-1", date: "2026-07-10", items: [breakfast, lunch, walk] }
+  /** Lisbon runs on UTC+1 in July. */
+  const at = (lisbon: string) => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(`2026-07-10T${lisbon}:00+01:00`))
+    // happy-dom lays nothing out; every element counts as showing.
+    vi.spyOn(Element.prototype, "getClientRects").mockReturnValue({ length: 1 } as unknown as DOMRectList)
+  }
+
+  it("scrolls past what is done to Now", async () => {
+    at("14:00")
+    renderDay(today, { status: "none" })
+    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledTimes(1))
+    expect(scrollUnderRail).toHaveBeenCalledWith(document.querySelector("[data-now]"))
+  })
+
+  it("lands on the stop under way when it fits", async () => {
+    at("13:00")
+    renderDay(today, { status: "none" })
+    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledWith(document.getElementById("item-it-lunch")))
+  })
+
+  it("scrolls once per visit to the day", async () => {
+    at("14:00")
+    const { rerenderDay } = renderDay(today, { status: "none" })
+    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledTimes(1))
+    rerenderDay({ ...today, items: [...today.items, makeItem({ id: "it-late", title: "Late" })] })
+    await frames()
+    expect(scrollUnderRail).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves the page alone when a stop is already selected", async () => {
+    at("14:00")
+    renderDay(today, { status: "none" }, { activeId: "it-walk" })
+    await frames()
+    expect(scrollUnderRail).not.toHaveBeenCalled()
+  })
+
+  it("waits for the forecast, which changes the height above Now", async () => {
+    at("14:00")
+    const { rerenderDay } = renderDay(today, { status: "loading" })
+    await frames()
+    expect(scrollUnderRail).not.toHaveBeenCalled()
+    rerenderDay(today, { status: "forecast", forecast: SHOWERY })
+    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledTimes(1))
+  })
+
+  it("leaves a page the traveller has already moved", async () => {
+    at("14:00")
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(200)
+    renderDay(today, { status: "none" })
+    await frames()
+    expect(scrollUnderRail).not.toHaveBeenCalled()
+  })
+
+  it("leaves the page alone before the first stop ends", async () => {
+    at("09:30")
+    renderDay(today, { status: "none" })
+    await frames()
+    expect(scrollUnderRail).not.toHaveBeenCalled()
   })
 })

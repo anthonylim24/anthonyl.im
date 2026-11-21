@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { BedDouble, Coffee, MapPin, Plane, StickyNote, Ticket } from "lucide-react"
+import { BedDouble, Church, Coffee, Landmark, MapPin, Mosque, Plane, StickyNote, Ticket } from "lucide-react"
 import {
   addDays,
   dayCount,
@@ -172,6 +172,16 @@ describe("itemIcon", () => {
     expect(itemIcon("reservation", undefined, "flight")).toBe(Plane)
     expect(itemIcon("reservation", undefined, "hotel")).toBe(BedDouble)
     expect(itemIcon("place", "cafe")).toBe(Coffee)
+  })
+
+  it("gives places of worship their own icon, however the category is written", () => {
+    expect(itemIcon("place", "temple")).toBe(Landmark)
+    expect(itemIcon("place", "shrine")).toBe(Landmark)
+    expect(itemIcon("place", " Temple ")).toBe(Landmark)
+    expect(itemIcon("place", "Place of worship")).toBe(Landmark)
+    expect(itemIcon("place", "place-of-worship")).toBe(Landmark)
+    expect(itemIcon("place", "cathedral")).toBe(Church)
+    expect(itemIcon("place", "mosque")).toBe(Mosque)
   })
 
   it("falls back for unknown or missing types", () => {

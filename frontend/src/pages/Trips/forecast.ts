@@ -172,7 +172,7 @@ export type DaySky =
   | { status: "expected"; highC: number; lowC: number; word: string; sky: SkyId }
   | { status: "loading" }
   /** In the forecast's reach, but the forecast did not come. */
-  | { status: "unavailable" }
+  | { status: "unavailable"; retry?: () => void }
   | { status: "none" }
 
 export function daySky(day: Pick<TripDay, "id" | "weather">, forecasts: Forecasts): DaySky {
@@ -183,7 +183,7 @@ export function daySky(day: Pick<TripDay, "id" | "weather">, forecasts: Forecast
     const { highC, lowC, condition } = day.weather
     return { status: "expected", highC, lowC, word: condition, sky: skyFromText(condition) }
   }
-  return forecasts.missing.has(day.id) ? { status: "unavailable" } : { status: "none" }
+  return forecasts.missing.has(day.id) ? { status: "unavailable", retry: forecasts.retry } : { status: "none" }
 }
 
 /** "HH:mm" → minutes from midnight. */
@@ -226,6 +226,9 @@ export function wetWord(code: number): string {
   if (sky === "thunder") return "Storms"
   return "Rain"
 }
+
+/** Rain that should change the plan, not just be noted: 70% or more, or any storm. */
+export const soaking = (spell: Pick<WetSpell, "chance" | "code">) => spell.chance >= 70 || weatherKind(spell.code).sky === "thunder"
 
 /** The wettest spell that touches [from, to), if any. */
 export function wetDuring(spells: readonly WetSpell[], from: number, to: number): WetSpell | null {
@@ -333,7 +336,8 @@ async function loadForecast(req: ForecastRequest, signal: AbortSignal): Promise<
   const hit = cache.get(id)
   if (hit && Date.now() - hit.at < TTL_MS) return hit.rows
   const rows = await runPromise(fetchForecastEffect(req, signal))
-  cache.set(id, { at: Date.now(), rows })
+  // A failed or empty answer is not kept, so trying again asks the service again.
+  if (rows.length) cache.set(id, { at: Date.now(), rows })
   return rows
 }
 
@@ -344,6 +348,8 @@ export interface Forecasts {
   pending: ReadonlySet<string>
   /** Days in the forecast's reach that it did not answer (the service failed or had no row). */
   missing: ReadonlySet<string>
+  /** Ask again for the days that are missing. */
+  retry?: () => void
 }
 
 export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | null): Forecasts {
@@ -352,6 +358,8 @@ export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | n
   // Only a change of place or dates refetches, not every edit to a stop.
   const signature = requests.map((r) => `${r.key}:${r.start}:${r.end}:${[...r.days.keys()].join("|")}`).join(";")
   const [loaded, setLoaded] = useState<{ signature: string; byDay: ReadonlyMap<string, DayForecast> }>({ signature: "", byDay: NONE })
+  const [attempt, setAttempt] = useState(0)
+  const asking = `${signature}#${attempt}`
 
   useEffect(() => {
     if (!requests.length) return
@@ -368,18 +376,23 @@ export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | n
             if (row) byDay.set(dayId, row)
           }
         }
-        setLoaded({ signature, byDay })
+        setLoaded({ signature: asking, byDay })
       },
     )
     return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` is the identity of `requests`
-  }, [signature])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `asking` is the identity of `requests` and the attempt
+  }, [asking])
 
   return useMemo(() => {
     const asked = requests.flatMap((req) => [...req.days.keys()])
-    if (loaded.signature === signature) return { byDay: loaded.byDay, pending: EMPTY, missing: new Set(asked.filter((id) => !loaded.byDay.has(id))) }
+    if (loaded.signature === asking) {
+      const missing = new Set(asked.filter((id) => !loaded.byDay.has(id)))
+      return { byDay: loaded.byDay, pending: EMPTY, missing, retry: missing.size ? () => setAttempt((n) => n + 1) : undefined }
+    }
+    // Trying again keeps the days that did answer and holds the place of the rest.
+    if (loaded.signature.startsWith(`${signature}#`)) return { byDay: loaded.byDay, pending: new Set(asked.filter((id) => !loaded.byDay.has(id))), missing: EMPTY }
     return { byDay: NONE, pending: new Set(asked), missing: EMPTY }
-  }, [loaded, signature, requests])
+  }, [loaded, asking, signature, requests])
 }
 
 const NONE: ReadonlyMap<string, DayForecast> = new Map()

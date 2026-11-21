@@ -1,11 +1,12 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { isToSchedule, TO_SCHEDULE } from "../map/geo"
-import { ArrowDown, ArrowUp, ChevronDown, CloudRain, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2, TriangleAlert } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, CloudRain, Copy, ExternalLink, GripVertical, Lightbulb, MapPin, MapPinOff, Trash2, TriangleAlert } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
+import { clockMinutes, clockRange } from "../timeline/timeline"
 import { CostField } from "../budget/CostField"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
@@ -27,6 +28,12 @@ export interface ItemCardProps {
   conflict: string | null
   /** "Showers likely · 60% chance": rain is likely while it is on. */
   rain: string | null
+  /** The rain is 70% likely or more, or a storm. */
+  rainHeavy: boolean
+  /** Over by now (today only): set back in secondary ink. */
+  past: boolean
+  /** "Rework around the showers": on the one stop that leads its wet spell. */
+  rework: string | null
   editable: boolean
   locked: boolean
   hot: boolean
@@ -45,6 +52,8 @@ export interface ItemCardProps {
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
   onGrip?: (event: ReactPointerEvent) => void
+  /** Opens "Ideas for this day" briefed on the rain this stop meets. */
+  onRework?: (id: string) => void
   /** Spoken confirmation after a keyboard reorder. */
   onAnnounce?: (message: string) => void
 }
@@ -63,6 +72,9 @@ export const ItemCard = memo(function ItemCard({
   pinLabel,
   conflict,
   rain,
+  rainHeavy,
+  past,
+  rework,
   editable,
   locked,
   hot,
@@ -77,6 +89,7 @@ export const ItemCard = memo(function ItemCard({
   onHover,
   onLocate,
   onGrip,
+  onRework,
   onAnnounce,
   onGone,
 }: ItemCardProps) {
@@ -151,6 +164,7 @@ export const ItemCard = memo(function ItemCard({
   }
 
   const pinned = pinLabel !== null
+  const [start, end] = [clockMinutes(item.time), clockMinutes(item.endTime)]
   const sub = item.location?.address || firstLine(item.notes)
   const category = item.kind === "reservation" ? titleCase(item.reservation?.type ?? "Booking") : item.location?.category ? titleCase(item.location.category) : null
   const maps = pinned || item.location?.address ? externalMapsLink({ name: item.location?.name ?? item.title, address: item.location?.address, lat: item.location?.lat, lng: item.location?.lng }) : null
@@ -162,7 +176,7 @@ export const ItemCard = memo(function ItemCard({
         {pinned ? (
           <button
             type="button"
-            {...sx(s.marker, s.markerPinned, active && s.markerActive)}
+            {...sx(s.marker, s.markerPinned, past && s.markerPast, active && s.markerActive)}
             aria-label={`Show ${item.title || "this stop"} on the map`}
             onClick={() => onLocate(item.id)}
           >
@@ -197,26 +211,22 @@ export const ItemCard = memo(function ItemCard({
             onAnnounce?.(`${item.title || "Stop"} moved ${step < 0 ? "up" : "down"}, now ${index + step + 1} of ${count}.`)
           }}
         >
+          {/* Empty for an Anytime stop, so every title keeps one indent. */}
           <span {...sx(s.cardTimeCol)}>
-            {item.time ? (
+            {item.time && (
               <>
-                <span {...sx(s.cardTime)}>{formatClock(item.time)}</span>
+                <span {...sx(s.cardTime, past && s.cardTimePast)}>{formatClock(item.time)}</span>
                 {item.endTime && <span {...sx(s.cardTimeEnd)}>{formatClock(item.endTime)}</span>}
               </>
-            ) : (
-              <span {...sx(s.cardTimeEnd)} aria-hidden>
-                ––
-              </span>
             )}
           </span>
           <span {...sx(s.cardText)}>
             {item.time && (
               <span {...sx(s.cardTimeTop)}>
-                {formatClock(item.time)}
-                {item.endTime ? ` – ${formatClock(item.endTime)}` : ""}
+                {start !== null && end !== null && end !== start ? clockRange(start, end) : formatClock(item.time)}
               </span>
             )}
-            <span {...sx(s.cardTitle, a.wrap, !item.title && s.cardTitleEmpty)}>
+            <span {...sx(s.cardTitle, a.wrap, past && s.cardTitlePast, !item.title && s.cardTitleEmpty)}>
               {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
             </span>
             {(category || sub || item.status !== "none") && (
@@ -237,7 +247,7 @@ export const ItemCard = memo(function ItemCard({
               </span>
             )}
             {rain && (
-              <span {...sx(s.cardAlert, s.cardRain)}>
+              <span {...sx(s.cardAlert, s.cardRain, rainHeavy && s.cardRainHeavy)}>
                 <CloudRain size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
                 <span {...sx(a.wrap)}>{rain}</span>
               </span>
@@ -259,6 +269,15 @@ export const ItemCard = memo(function ItemCard({
           )}
           <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
         </button>
+        {/* Beside the card's row, never inside it: a button cannot hold another. */}
+        {rework && onRework && !past && (
+          <div {...sx(s.cardFoot)}>
+            <button type="button" {...sx(s.rework)} disabled={locked} onClick={() => onRework(item.id)}>
+              <Lightbulb size={13} strokeWidth={1.75} aria-hidden />
+              {rework}
+            </button>
+          </div>
+        )}
 
         {open && (
           <div id={panelId} {...sx(s.editor)}>

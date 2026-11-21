@@ -1104,9 +1104,34 @@ html.dark .trips[data-trip-accent="violet"] {
    here. MapLibre owns `transform` on the button; every visual transform
    lives on the inner body. */
 
-/* The day's sky engraving (workspace/DaySky.tsx): its lines on light paper,
-   its print (bodies filled, lines cut out) on dark paper, so it never reads
-   as a negative. The masks arrive as --sky-ink / --sky-print. */
+/* The day's sky engraving (workspace/DaySky.tsx): its lines on light paper;
+   on dark paper its print, a feathered oval plate with the lines cut out (an
+   almanac vignette), in tertiary ink so the plate never outshines the page.
+   The masks arrive as --sky-ink / --sky-print. */
+/* A timeline lane beside an overlapping stop names the other stop in the longest form it fits. */
+.trips-lane {
+  container-type: inline-size;
+}
+.trips-lane-warn > span + span {
+  display: none;
+}
+@container (max-width: 10.5rem) {
+  .trips-lane-warn > span:first-child {
+    display: none;
+  }
+  .trips-lane-warn > span:nth-child(2) {
+    display: inline;
+  }
+}
+@container (max-width: 7.5rem) {
+  .trips-lane-warn > span:nth-child(2) {
+    display: none;
+  }
+  .trips-lane-warn > span:nth-child(3) {
+    display: inline;
+  }
+}
+
 .trips-sky-art {
   -webkit-mask-image: var(--sky-ink);
   mask-image: var(--sky-ink);
@@ -1115,6 +1140,7 @@ html.dark .trips .trips-sky-art,
 .trips.dark .trips-sky-art {
   -webkit-mask-image: var(--sky-print);
   mask-image: var(--sky-print);
+  background-color: var(--trips-ink-tertiary);
 }
 
 .atlas-pin {

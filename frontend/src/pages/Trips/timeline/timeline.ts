@@ -102,11 +102,13 @@ export function clockLabel(minutes: number): string {
 /**
  * "8:00–9:30 AM", "11:30 AM–1 PM", or with `bare` (a narrow column beside the
  * ruler's own AM / PM) "10:15–11:30". Whole hours in a range drop ":00" only
- * when both ends are whole, so "2–5 PM" but "2:00–5:30 PM".
+ * when both ends are whole and the range names its half of the day, so "2–5 PM"
+ * but "2:00–5:30 PM" and a bare "11:00–12:00".
  */
 export function clockRange(from: number, to: number, bare = false): string {
   const [a, b] = [clockLabel(from), clockLabel(to)]
-  const whole = a.includes(":00 ") && b.includes(":00 ")
+  // Bare ranges keep their minutes: "11:00–12:00" reads as a time, "11–12" as a count.
+  const whole = !bare && a.includes(":00 ") && b.includes(":00 ")
   const trim = (label: string) => (whole ? label.replace(":00", "") : label)
   const [timeA, halfA] = trim(a).split(" ")
   const [timeB, halfB] = trim(b).split(" ")

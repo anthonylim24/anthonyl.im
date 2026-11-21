@@ -1,10 +1,10 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
 import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles, TimerOff } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
-import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
+import { dayRoute, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
 import { formatDistance } from "../reservationView"
 import { addItem } from "../tripEdits"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
@@ -21,14 +21,15 @@ import { NowLine } from "../live/NowLine"
 import { clockIn, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
 import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
-import { layoutDay, legEstimate } from "../timeline/timeline"
-import type { TravelMode } from "../timeline/travel"
+import { clockMinutes } from "../timeline/timeline"
 import { useDayView } from "./dayView"
 import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type ItemCardProps } from "./ItemCard"
-import { stopAlerts } from "./stopAlerts"
+import { dayList, type LegMode } from "./dayList"
+import { scroller, scrollUnderRail } from "./scroll"
+import { rainBrief, reworkLabel, stopAlerts } from "./stopAlerts"
 
 export interface DayPanelProps {
   trip: Trip
@@ -52,7 +53,8 @@ export interface DayPanelProps {
   onAdded: (id: string) => void
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
-  onAskAi: () => void
+  /** Opens "Ideas for this day", with a brief already written when one is given. */
+  onAskAi: (prompt?: string) => void
   onClear: () => void
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
@@ -75,9 +77,6 @@ export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
   })
   return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
 }
-
-/** How a leg is made, or "overlap" when the next stop starts before this one ends. */
-type LegMode = TravelMode | "overlap"
 
 /** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
 const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null; legMode: LegMode | null }) {
@@ -149,8 +148,10 @@ export function DayPanel({
   const focusNext = useRef<string | null>(null)
   const isToday = day.date === todayIsoIn(trip.timezone)
   const now = useNow(60_000, isToday)
+  const clock = isToday ? clockIn(trip.timezone, now) : null
+  const list = useMemo(() => dayList(day, clockMinutes(clock ?? undefined)), [day, clock])
   const slot = isToday ? nowSlot(day, trip, now) : null
-  const nowLine = slot === null ? null : <NowLine key="now-line" time={formatClock(clockIn(trip.timezone, now))} />
+  const nowLine = slot === null || clock === null ? null : <NowLine key="now-line" time={formatClock(clock)} />
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
   const next = dayIndex < trip.days.length - 1 ? trip.days[dayIndex + 1] : undefined
   const route = useMemo(() => dayRoute(day), [day])
@@ -159,34 +160,6 @@ export function DayPanel({
   const toSchedule = parked.filter((i) => i.kind !== "section" && i.kind !== "note").length
   const meters = routeMeters(route)
 
-  const { labels, legs } = useMemo(() => {
-    const labels = new Map<string, string>()
-    // Strings, not objects: a Sortable re-renders only when its own leg changes.
-    const legs = new Map<string, { text: string; mode: LegMode }>()
-    // Conflict ids run in clock order, the list in itinerary order: match either way.
-    const overlaps = new Set<string>()
-    for (const { kind, ids } of layoutDay(day).conflicts) if (kind === "overlap") overlaps.add(`${ids[0]}>${ids[1]}`).add(`${ids[1]}>${ids[0]}`)
-    let n = 0
-    let last: ItineraryItem | null = null
-    // Places parked under "To schedule" carry no number and no leg.
-    for (const item of planned) {
-      if (!isLocated(item)) continue
-      n += 1
-      labels.set(item.id, String(n))
-      if (last && isLocated(last)) {
-        // Same estimate as the timeline; none out of a flight or train booking.
-        const leg = legEstimate(last, item)
-        if (leg && overlaps.has(`${last.id}>${item.id}`)) {
-          legs.set(last.id, { text: "No time to travel", mode: "overlap" })
-        } else if (leg) {
-          const d = distanceMeters({ lat: last.location.lat, lng: last.location.lng }, { lat: item.location.lat, lng: item.location.lng })
-          legs.set(last.id, { text: `${formatDistance(d)} · ${leg.label}`, mode: leg.mode })
-        }
-      }
-      last = item
-    }
-    return { labels, legs }
-  }, [day, planned])
   const [dayView, setDayView] = useDayView()
   const currency = defaultCurrency(trip)
   const forecast = sky.status === "forecast" ? sky.forecast : undefined
@@ -204,6 +177,67 @@ export function DayPanel({
 
   const patchDay = (patch: Partial<TripDay>, undo?: UndoMark) =>
     onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...patch } : d)), undo)
+
+  // One "Rework around the showers" per wet spell: on the first stop still ahead that meets it.
+  const reworkOn = useMemo(() => {
+    const on = new Map<string, string>()
+    const spells = new Set<number>()
+    for (const [id, alert] of alerts) {
+      if (!alert.rain || list.past.has(id) || spells.has(alert.rain.spell.from)) continue
+      spells.add(alert.rain.spell.from)
+      on.set(id, reworkLabel(alert.rain.spell))
+    }
+    return on
+  }, [alerts, list])
+
+  const rework = useLatestCallback((id: string) => {
+    const rain = alerts.get(id)?.rain
+    if (rain) onAskAi(rainBrief(rain.spell))
+  })
+
+  // Opening today: past what is done, to the stop under way (when it fits
+  // with Now in the top half) or to Now. Once per visit, never over a stop
+  // already selected or a page the traveller has already moved.
+  const openOnNow = useLatestCallback(() => {
+    const root = rootRef.current
+    const marker = root?.querySelector<HTMLElement>("[data-now]")
+    if (!root || !marker || list.past.size === 0 || activeId || edit || marker.getClientRects().length === 0) return
+    const box = scroller(marker)
+    if ((box ? box.scrollTop : window.scrollY) > 0) return
+    // The card in the list, or the block on the timeline, whichever is showing.
+    const current = [...root.querySelectorAll<HTMLElement>("[id^='item-'], [data-timeline-stop]")].find(
+      (el) => list.current !== null && (el.id === `item-${list.current}` || el.dataset.timelineStop === list.current),
+    )
+    const fits = current && marker.getBoundingClientRect().top - current.getBoundingClientRect().top < window.innerHeight / 2
+    scrollUnderRail(fits ? current : marker)
+  })
+  const opened = useRef<string | null>(null)
+  const settled = sky.status !== "loading"
+  useEffect(() => {
+    if (!isToday || !settled || opened.current === day.id) return
+    // Measured once the day holds still: after the workspace has put it back
+    // at the top, the panel has risen in and the cards have taken in the
+    // forecast (each moves Now). Up to 1.5 s, then it goes as it stands.
+    const start = performance.now()
+    let last: number | null = null
+    let frame = requestAnimationFrame(function step() {
+      const marker = rootRef.current?.querySelector("[data-now]")
+      const top = marker?.getBoundingClientRect().top ?? null
+      // The rise-in can hold its first frame for a frame or two, so also ask it.
+      const rising = (document.getAnimations?.() ?? []).some((animation) => {
+        const effect = animation.effect as KeyframeEffect | null
+        return !!marker && !!effect?.target?.contains(marker) && animation.playState !== "finished" && effect.getTiming().iterations !== Infinity
+      })
+      if ((top === null || top !== last || rising) && performance.now() - start < 1500) {
+        last = top
+        frame = requestAnimationFrame(step)
+        return
+      }
+      opened.current = day.id
+      openOnNow()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [day.id, isToday, settled, openOnNow])
 
   // A deleted or moved stop takes focus with it; hand it to its neighbour
   // so a keyboard user carries on from where they were.
@@ -262,9 +296,22 @@ export function DayPanel({
   return (
     <div {...sx(s.content)} key={day.id} ref={rootRef}>
       <header {...sx(s.dayHead)}>
-        <p {...sx(a.eyebrow)}>
-          Day {dayIndex + 1} of {trip.days.length} · {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
-          {isToday && <span {...sx(s.tripText)}> · Today</span>}
+        {/* "·" + a no-break space: a wrapped line never ends on a separator. */}
+        <p {...sx(a.eyebrow, s.dayEyebrow)}>
+          <Link to={basePath} {...sx(s.eyebrowTrip, a.truncate)} aria-label={`${trip.name || "Trip"}, trip overview`}>
+            {trip.name || "Trip"}
+          </Link>
+          <span {...sx(s.dayEyebrowPart)}>
+            <span {...sx(s.phoneOnly)} aria-hidden>
+              {"·\u00a0"}
+            </span>
+            Day {dayIndex + 1} of {trip.days.length}
+          </span>
+          <span {...sx(s.dayEyebrowPart, s.wideOnlyPart)}>
+            {" ·\u00a0"}
+            {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
+          </span>
+          {isToday && <span {...sx(s.dayEyebrowPart, s.tripText)}>{" ·\u00a0"}Today</span>}
         </p>
         <div {...sx(s.dayHeadTop)}>
           <div {...sx(s.dayHeadMain)}>
@@ -306,12 +353,12 @@ export function DayPanel({
               {summary && <span {...sx(a.small)}>{summary}</span>}
             </div>
           </div>
-          <DaySky sky={sky} />
+          <DaySky sky={sky} day={day} />
         </div>
         <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
           {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
           {editable && (
-            <button type="button" {...sx(a.btn, a.btnSm, s.ideasBtn)} disabled={locked} onClick={onAskAi}>
+            <button type="button" {...sx(a.btn, a.btnSm, s.ideasBtn)} disabled={locked} onClick={() => onAskAi()}>
               {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
               {day.items.length === 0 ? "Plan this day with AI" : <span>Ideas<span {...sx(s.wideOnly)}> for this day</span></span>}
             </button>
@@ -405,17 +452,26 @@ export function DayPanel({
           >
             {day.items.flatMap((item, index) => [
               ...(slot === index && nowLine ? [nowLine] : []),
+              ...(list.anytimeAt === index
+                ? [
+                    <li key="anytime" {...sx(s.sectionRow)}>
+                      <h3 {...sx(a.eyebrow)}>Anytime</h3>
+                    </li>,
+                  ]
+                : []),
               <Sortable
                 key={item.id}
                 item={item}
                 dayId={day.id}
                 index={index}
                 count={day.items.length}
-                pinLabel={labels.get(item.id) ?? null}
+                pinLabel={list.labels.get(item.id) ?? null}
                 conflict={alerts.get(item.id)?.conflict ?? null}
-                rain={alerts.get(item.id)?.rain ?? null}
-                leg={legs.get(item.id)?.text ?? null}
-                legMode={legs.get(item.id)?.mode ?? null}
+                rain={alerts.get(item.id)?.rain?.text ?? null}
+                rainHeavy={alerts.get(item.id)?.rain?.heavy ?? false}
+                past={list.past.has(item.id)}
+                leg={list.legs.get(item.id)?.text ?? null}
+                legMode={list.legs.get(item.id)?.mode ?? null}
                 editable={editable}
                 locked={locked}
                 hot={hotId === item.id}
@@ -430,6 +486,8 @@ export function DayPanel({
                 onGone={leave}
                 onHover={onHover}
                 onLocate={onLocate}
+                rework={reworkOn.get(item.id) ?? null}
+                onRework={editable ? rework : undefined}
                 onAnnounce={setSpoken}
               />,
             ])}

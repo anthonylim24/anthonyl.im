@@ -53,12 +53,12 @@ describe("OverviewPanel day rows", () => {
     const row = renderOverview(60)
     expect(within(row).getByText(high)).toBeInTheDocument()
     expect(within(row).getByText(low)).toBeInTheDocument()
-    expect(within(row).getByText("60%")).toBeInTheDocument()
+    expect(within(row).getByText("60% rain")).toBeInTheDocument()
     expect(within(row).getByText(`${high} / ${low} · Showers 60%`)).toBeInTheDocument()
   })
 
   it("leaves a low chance of rain out", () => {
     const row = renderOverview(20)
-    expect(within(row).queryByText("20%")).toBeNull()
+    expect(within(row).queryByText(/20%/)).toBeNull()
   })
 })

@@ -16,7 +16,7 @@ export function ForecastChip({ forecast }: { forecast: DayForecast }) {
       </span>
       {forecast.rainChance >= 30 && (
         <span {...sx(s.rowSkyChance)} aria-hidden>
-          {forecast.rainChance}%
+          {forecast.rainChance}% rain
         </span>
       )}
     </span>

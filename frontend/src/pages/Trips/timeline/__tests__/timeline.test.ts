@@ -326,5 +326,6 @@ describe("clockRange", () => {
 
   it("leaves the half of the day to the ruler when bare", () => {
     expect(clockRange(10 * 60 + 15, 11 * 60 + 30, true)).toBe("10:15–11:30")
+    expect(clockRange(11 * 60, 12 * 60, true)).toBe("11:00–12:00")
   })
 })

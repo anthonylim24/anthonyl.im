@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { HourForecast } from "../forecast"
 import { TO_SCHEDULE } from "../map/geo"
 import type { ItineraryItem, TripDay } from "../types"
-import { stopAlerts } from "../workspace/stopAlerts"
+import { rainBrief, stopAlerts } from "../workspace/stopAlerts"
 import { makeItem } from "./tripFixtures"
 
 const KYOTO = { lat: 35.0, lng: 135.77 }
@@ -42,7 +42,8 @@ describe("stopAlerts", () => {
 
   it("says what falls and how likely while a stop is on", () => {
     const alerts = stopAlerts(day([stop("Lunch", "12:30", "13:30"), stop("Gion", "15:30", "18:00"), stop("Dinner", "18:30", "20:30")]), SHOWERY)
-    expect(alerts.get("Gion")).toEqual({ conflict: null, rain: "Showers likely · 60% chance" })
+    expect(alerts.get("Gion")?.conflict).toBeNull()
+    expect(alerts.get("Gion")?.rain).toMatchObject({ text: "Showers likely · 60% chance", heavy: false, spell: { from: 14 * 60, to: 17 * 60 } })
     expect(alerts.has("Lunch")).toBe(false)
     expect(alerts.has("Dinner")).toBe(false)
   })
@@ -50,7 +51,7 @@ describe("stopAlerts", () => {
   it("reads a stop with no end time for as long as it usually takes", () => {
     // A museum runs about two hours: 13:00 reaches the 14:00 showers.
     const museum = stop("Museum", "13:00", undefined, { location: { name: "Museum", category: "museum", source: "user" } })
-    expect(stopAlerts(day([museum]), SHOWERY).get("Museum")?.rain).toBe("Showers likely · 60% chance")
+    expect(stopAlerts(day([museum]), SHOWERY).get("Museum")?.rain?.text).toBe("Showers likely · 60% chance")
   })
 
   it("leaves untimed and parked places alone", () => {
@@ -61,5 +62,29 @@ describe("stopAlerts", () => {
 
   it("says nothing without a forecast or a clash", () => {
     expect(stopAlerts(day([stop("A", "09:00", "10:00"), stop("B", "15:00", "16:00")]), undefined).size).toBe(0)
+  })
+})
+
+/** The same afternoon with the wet hours swapped for `code` at `chance`. */
+const wet = (chance: number, code: number): HourForecast[] => SHOWERY.map((hour) => (hour.rainChance === 60 ? { ...hour, rainChance: chance, code } : hour))
+
+describe("stopAlerts heavy rain", () => {
+  const gion = day([stop("Gion", "15:30", "18:00")])
+
+  it("is set at weight from 70%", () => {
+    expect(stopAlerts(gion, wet(69, 63)).get("Gion")?.rain?.heavy).toBe(false)
+    expect(stopAlerts(gion, wet(70, 63)).get("Gion")?.rain).toMatchObject({ text: "Rain likely · 70% chance", heavy: true })
+  })
+
+  it("is set at weight for any storm", () => {
+    expect(stopAlerts(gion, wet(55, 95)).get("Gion")?.rain).toMatchObject({ text: "Storms likely · 55% chance", heavy: true })
+  })
+})
+
+describe("rainBrief", () => {
+  it("briefs Ideas with the wet window and asks for indoor places", () => {
+    const brief = rainBrief({ from: 14 * 60, to: 17 * 60, chance: 60, code: 81 })
+    expect(brief).toMatch(/^Showers likely 2–5 PM \(60% chance\)\. /)
+    expect(brief).toContain("indoor")
   })
 })

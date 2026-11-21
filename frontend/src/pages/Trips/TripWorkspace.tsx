@@ -30,7 +30,7 @@ import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
-import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
+import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry, Sync } from "./editorMachine"
 import { scrollBehavior } from "./workspace/scroll"
@@ -91,7 +91,7 @@ function typing(target: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable || Boolean(target.closest('[role="dialog"], [role="menu"]'))
 }
 
-type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip" }
+type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip"; prompt?: string }
 
 /** Long enough to read and reach (WCAG 2.2.1); paused while hovered or focused. */
 const UNDO_TOAST_MS = 12_000
@@ -381,6 +381,9 @@ function Workspace() {
   const near = useMemo<LngLat | null>(() => (nearLat === null || nearLng === null ? null : { lat: nearLat, lng: nearLng }), [nearLat, nearLng])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
+  // The map chip counts stops as the day header does: "9 stops", or "7 of 9 stops" while some have no pin.
+  const dayStops = day ? splitDay(day).planned.filter((item) => item.kind !== "section" && item.kind !== "note").length : 0
+  const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
   const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
@@ -858,7 +861,7 @@ function Workspace() {
             onAdded={onAdded}
             onHover={setHotId}
             onLocate={locate}
-            onAskAi={() => setDialog({ ai: "day" })}
+            onAskAi={(prompt) => setDialog({ ai: "day", prompt })}
             onClear={() => setDialog("clear")}
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
@@ -1023,7 +1026,13 @@ function Workspace() {
           >
             <p {...sx(s.mapChip)}>
               <span {...sx(a.truncate)}>
-                {day ? `Day ${dayIndex + 1}${day.city ? ` · ${day.city}` : ""}` : "All days"} · {plural(day ? pins.length : dots.length, "place")}
+                {[
+                  day ? `Day ${dayIndex + 1}` : "All days",
+                  day?.city,
+                  !day ? plural(dots.length, "place") : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </p>
             {day && PHOTOREAL_READY && pins.length > 0 && (
@@ -1037,10 +1046,11 @@ function Workspace() {
                 <PlacePhoto key={active.item.id} item={active.item} city={active.day.city ?? trip.destinations[0] ?? ""} />
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
+                    {/* "·" + a no-break space: a wrapped line never ends on a separator. */}
                     <p {...sx(a.eyebrow)}>
                       {tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`}
-                      {active.item.time ? ` · ${formatClock(active.item.time)}` : ""}
-                      {active.item.location?.category ? ` · ${titleCase(active.item.location.category)}` : ""}
+                      {active.item.time ? ` ·\u00a0${formatClock(active.item.time)}` : ""}
+                      {active.item.location?.category ? ` ·\u00a0${titleCase(active.item.location.category)}` : ""}
                     </p>
                     <h3 {...sx(a.display, s.placeTitle, a.wrap)}>{active.item.title || active.item.location?.name}</h3>
                   </div>
@@ -1158,6 +1168,7 @@ function Workspace() {
       <AiSheet
         open={typeof dialog === "object" && dialog !== null}
         scope={typeof dialog === "object" && dialog !== null ? dialog.ai : "trip"}
+        prompt={typeof dialog === "object" && dialog !== null ? dialog.prompt : undefined}
         dayLabel={day ? day.title || formatTripDate(day.date, trip.timezone, { weekday: "long" }) : undefined}
         hasItems={hasItems}
         onClose={() => setDialog(null)}

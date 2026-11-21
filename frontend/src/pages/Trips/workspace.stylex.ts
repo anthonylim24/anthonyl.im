@@ -81,6 +81,8 @@ export const share = stylex.create({
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const NARROW = "@media (max-width: 1023.98px)"
 const WIDE = "@media (min-width: 1024px)"
+/** Where the compact trip header gives way (`headCompactHide`). */
+const PHONE_W = "@media (max-width: 639.98px)"
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
 
 const riseIn = stylex.keyframes({
@@ -279,7 +281,11 @@ export const ws = stylex.create({
     flexGrow: 1,
     minWidth: 0,
     gap: "0.375rem",
-    paddingInlineStart: "0.5rem",
+    // The gap after the rule sits outside the scrollport, so a day scrolled
+    // under the fade never touches the rule; the padding keeps the first
+    // day's focus ring inside it.
+    marginInlineStart: "0.5rem",
+    paddingInlineStart: "0.25rem",
     paddingInlineEnd: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
     paddingBlock: "0.625rem",
     overflowX: "auto",
@@ -444,6 +450,13 @@ export const ws = stylex.create({
     minWidth: 0,
   },
   statFirst: { borderLeftWidth: 0 },
+  // Two columns on a narrow phone: the third tile starts a row, so it takes the row's rule, not a column's.
+  statRowStart: { borderLeftWidth: { default: "1px", "@media (max-width: 419.98px)": 0 } },
+  statSecondRow: {
+    borderTopWidth: { default: 0, "@media (max-width: 419.98px)": "1px" },
+    borderTopStyle: "solid",
+    borderTopColor: "var(--trips-line)",
+  },
   statValue: { fontFamily: "var(--trips-display)", fontSize: "2rem", lineHeight: 1, color: "var(--trips-ink)" },
 
   // Overview day rows
@@ -505,7 +518,8 @@ export const ws = stylex.create({
   rowSkyIcon: { gridRow: "1 / span 2", color: "var(--trips-ink-secondary)" },
   rowSkyTemps: { display: "flex", alignItems: "baseline", gap: "0.25rem", lineHeight: 1, whiteSpace: "nowrap" },
   rowSkyHigh: { fontFamily: "var(--trips-display)", fontSize: "1.25rem", lineHeight: 1, color: "var(--trips-ink)" },
-  rowSkyLow: { fontSize: "0.8125rem", color: "var(--trips-ink-tertiary)", fontVariantNumeric: "tabular-nums" },
+  // The low in the serif too, smaller and in tertiary, as in the day header.
+  rowSkyLow: { fontFamily: "var(--trips-display)", fontSize: "0.9375rem", lineHeight: 1, color: "var(--trips-ink-tertiary)" },
   rowSkyChance: {
     gridColumn: 2,
     marginTop: "0.1875rem",
@@ -545,6 +559,29 @@ export const ws = stylex.create({
 
   // ── Day header ────────────────────────────────────────
   dayHead: { display: "flex", flexDirection: "column", gap: "0.5rem" },
+  // Phones have no trip header on a day page: the trip's name leads the
+  // eyebrow on one line, the rail already shows the date, and the name gives
+  // way before "Today" does. The gap is one space of the mono face.
+  dayEyebrow: { [PHONE_W]: { display: "flex", alignItems: "baseline", columnGap: "0.72em", minWidth: 0 } },
+  dayEyebrowPart: { [PHONE_W]: { flexShrink: 0, whiteSpace: "nowrap" } },
+  eyebrowTrip: {
+    display: { default: "none", [PHONE_W]: "block" },
+    flexShrink: 1,
+    minWidth: 0,
+    // A 44px target from an 11px line: the padding reaches into the space above, never over the title.
+    paddingTop: "1.3rem",
+    paddingBottom: "0.5rem",
+    marginTop: "-1.3rem",
+    marginBottom: "-0.5rem",
+    color: "var(--trips-ink-secondary)",
+    textDecoration: "none",
+    borderRadius: "0.25rem",
+    outline: "none",
+    ":focus-visible": { boxShadow: ring },
+    [HOVER]: { ":hover": { color: "var(--brand)" } },
+  },
+  phoneOnly: { display: { default: "none", [PHONE_W]: "inline" } },
+  wideOnlyPart: { [PHONE_W]: { display: "none" } },
   // Title and its line, then the day's sky as a band under them, at every
   // width: the title keeps the pane's full measure and the sky its place.
   dayHeadTop: {
@@ -682,7 +719,18 @@ export const ws = stylex.create({
     // A 28px dot with a 44px target.
     "::after": { content: '""', position: "absolute", inset: "-8px" },
   },
-  markerActive: { backgroundColor: "var(--trips-ink)", color: "var(--trips-canvas)", transform: "scale(1.15)" },
+  // Over by now: a ring in the trip's colour, as on the timeline. Paper inside, so the gutter line stays hidden.
+  markerPast: {
+    backgroundColor: "var(--trips-canvas)",
+    color: "var(--ta)",
+    boxShadow: { default: "inset 0 0 0 1.5px var(--ta-fill)", ":focus-visible": `inset 0 0 0 1.5px var(--ta-fill), ${ring}` },
+  },
+  markerActive: {
+    backgroundColor: "var(--trips-ink)",
+    color: "var(--trips-canvas)",
+    transform: "scale(1.15)",
+    boxShadow: { default: "none", ":focus-visible": ring },
+  },
   card: {
     marginBlock: "0.3125rem",
     borderRadius: "var(--trips-radius)",
@@ -729,7 +777,9 @@ export const ws = stylex.create({
     whiteSpace: "nowrap",
     "@media (max-width: 639.98px)": { display: "none" },
   },
-  cardTimeEnd: { color: "var(--trips-ink-faint)" },
+  // The end: smaller than the start, in tertiary (4.5:1 on the card in both themes), never faint.
+  cardTimeEnd: { fontSize: "0.6875rem", color: "var(--trips-ink-tertiary)" },
+  cardTimePast: { color: "var(--trips-ink-secondary)" },
   // Phones: the time rides above the title so the title gets the full width.
   cardTimeTop: {
     display: "none",
@@ -743,6 +793,7 @@ export const ws = stylex.create({
   addEnd: { display: "flex", alignItems: "flex-end", paddingBottom: "0.25rem" },
   cardText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
+  cardTitlePast: { color: "var(--trips-ink-secondary)", fontWeight: 500 },
   cardTitleEmpty: { color: "var(--trips-ink-faint)", fontWeight: 500 },
   cardSub: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.5rem", rowGap: "0.125rem", fontSize: "0.8125rem", color: "var(--trips-ink-tertiary)" },
   cardStatus: { minHeight: "1.25rem", paddingInline: "0.5rem" },
@@ -757,6 +808,37 @@ export const ws = stylex.create({
     color: "var(--trips-ink)",
   },
   cardRain: { fontWeight: 400, color: "var(--trips-ink-secondary)" },
+  // Soaking or stormy: weight, not colour, says it matters.
+  cardRainHeavy: { fontWeight: 600, color: "var(--trips-ink)" },
+  // Under the card's row, at its text's indent (past the time column on wide screens).
+  cardFoot: {
+    display: "flex",
+    marginTop: "-0.375rem",
+    paddingBottom: "0.375rem",
+    paddingLeft: { default: "5.5rem", "@media (max-width: 639.98px)": "0.875rem" },
+    paddingRight: "0.875rem",
+  },
+  rework: {
+    position: "relative",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.3125rem",
+    minHeight: "2rem",
+    paddingInline: "0.375rem",
+    marginLeft: "-0.375rem",
+    borderRadius: "0.375rem",
+    backgroundColor: "transparent",
+    color: "var(--brand)",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    outline: "none",
+    ":focus-visible": { boxShadow: ring },
+    ":disabled": { opacity: 0.5, cursor: "default" },
+    [HOVER]: { ":hover": { textDecoration: "underline", textUnderlineOffset: "0.1875rem" } },
+    // A 32px row with a 44px target.
+    "::after": { content: '""', position: "absolute", insetBlock: "-6px", insetInline: 0 },
+  },
   cardAlertIcon: { flexShrink: 0, marginTop: "0.125rem" },
   cardTime: { color: "var(--trips-ink)" },
   chevron: { transitionProperty: "transform", transitionDuration: "200ms", color: "var(--trips-ink-tertiary)", flexShrink: 0 },

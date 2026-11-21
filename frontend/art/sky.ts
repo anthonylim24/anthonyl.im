@@ -3,10 +3,10 @@
  *
  * - `ink`: the lines (light theme). Framed the same way for every sky (the drawing's bounds,
  *   squared, with an even margin) and levelled so thin strokes still read at 6rem.
- * - `print`: the same engraving as a positive for dark paper. The drawing's bodies (the cloud,
- *   the sun's disc) are filled and their lines cut out of the fill, so the cloud reads as a
- *   pale print with dark lines rather than a negative. Strokes outside a body (rain, rays,
- *   snowflakes) stay as lines.
+ * - `print`: the same engraving as a positive for dark paper, the way an almanac vignette is
+ *   printed: a pale oval plate, feathered at its edge, with the lines cut out of it, so the
+ *   cloud reads as dark lines on paper rather than a negative. Past the feather the lines turn
+ *   light, so rays and rain that reach beyond the plate are still drawn.
  *
  * Pure pixel work on single-channel buffers; `render.ts` decodes and encodes with ffmpeg.
  */
@@ -77,7 +77,10 @@ function strokeTone(ink: Float32Array): number {
  */
 export function level(ink: Float32Array, tone = 0.5, weight = 0): Float32Array {
   const heavy = weight > 0 ? spread(ink, 1) : ink
-  const base = ink.map((a, i) => Math.max(a, heavy[i]! * weight))
+  // Stretch first so the darkest strokes reach full ink (the concepts' black is a soft grey).
+  const drawn = [...ink].filter((a) => a > 0.04).sort((x, y) => x - y)
+  const top = drawn[Math.floor(drawn.length * 0.995)] ?? 1
+  const base = ink.map((a, i) => Math.min(1, Math.max(a, heavy[i]! * weight) / top))
   let [lo, hi] = [0.3, 1.4]
   for (let step = 0; step < 24; step++) {
     const gamma = (lo + hi) / 2
@@ -107,107 +110,32 @@ function spread(src: Float32Array, r: number): Float32Array {
   return pass(pass(src, 1, 0), 0, 1)
 }
 
-/** Binary min or max over a square of radius r, separable. */
-function morph(src: Uint8Array, r: number, grow: boolean): Uint8Array {
-  const pass = (from: Uint8Array, dx: number, dy: number) => {
-    const to = new Uint8Array(from.length)
-    for (let y = 0; y < WORK; y++)
-      for (let x = 0; x < WORK; x++) {
-        let hit = grow ? 0 : 1
-        for (let k = -r; k <= r; k++) {
-          const sx = x + k * dx
-          const sy = y + k * dy
-          const v = sx >= 0 && sy >= 0 && sx < WORK && sy < WORK ? from[sy * WORK + sx]! : 0
-          hit = grow ? hit | v : hit & v
-        }
-        to[y * WORK + x] = hit
+/** The plate: an oval over the drawing's bounds, solid to `inner` and feathered to its edge. */
+export function plate(ink: Float32Array, inner = 0.62): Float32Array {
+  let [x0, y0, x1, y1] = [WORK, WORK, 0, 0]
+  for (let y = 0; y < WORK; y++)
+    for (let x = 0; x < WORK; x++)
+      if (ink[y * WORK + x]! > 0.1) {
+        x0 = Math.min(x0, x)
+        x1 = Math.max(x1, x)
+        y0 = Math.min(y0, y)
+        y1 = Math.max(y1, y)
       }
-    return to
-  }
-  return pass(pass(src, 1, 0), 0, 1)
-}
-
-/** Pixels reachable from the edge without crossing `wall`, 4-connected. */
-function outside(wall: Uint8Array): Uint8Array {
-  const seen = new Uint8Array(wall.length)
-  const queue: number[] = []
-  const push = (i: number) => {
-    if (!seen[i] && !wall[i]) {
-      seen[i] = 1
-      queue.push(i)
-    }
-  }
-  for (let i = 0; i < WORK; i++) {
-    push(i)
-    push((WORK - 1) * WORK + i)
-    push(i * WORK)
-    push(i * WORK + WORK - 1)
-  }
-  while (queue.length > 0) {
-    const i = queue.pop()!
-    const x = i % WORK
-    if (x > 0) push(i - 1)
-    if (x < WORK - 1) push(i + 1)
-    if (i >= WORK) push(i - WORK)
-    if (i < WORK * (WORK - 1)) push(i + WORK)
-  }
-  return seen
-}
-
-/** Keeps the connected regions of at least `min` pixels. */
-function largeRegions(mask: Uint8Array, min: number): Uint8Array {
-  const label = new Int32Array(mask.length).fill(-1)
-  const keep = new Uint8Array(mask.length)
-  for (let start = 0; start < mask.length; start++) {
-    if (!mask[start] || label[start] !== -1) continue
-    const region: number[] = [start]
-    label[start] = start
-    for (let k = 0; k < region.length; k++) {
-      const i = region[k]!
-      const x = i % WORK
-      for (const j of [x > 0 ? i - 1 : -1, x < WORK - 1 ? i + 1 : -1, i - WORK, i + WORK])
-        if (j >= 0 && j < mask.length && mask[j] && label[j] === -1) {
-          label[j] = start
-          region.push(j)
-        }
-    }
-    if (region.length >= min) for (const i of region) keep[i] = 1
-  }
-  return keep
-}
-
-/**
- * The drawing's bodies: close the outline (dilate), fill everything the edge can't reach,
- * open it back (erode), drop the small pieces (flakes, drops), soften the edge by a pixel.
- */
-export function body(ink: Float32Array, close = 7): Float32Array {
-  const lines = Uint8Array.from(ink, (a) => (a > 0.2 ? 1 : 0))
-  const shut = morph(lines, close, true)
-  const out = outside(shut)
-  const filled = morph(
-    Uint8Array.from(out, (o) => 1 - o),
-    close,
-    false,
-  )
-  const kept = largeRegions(filled, Math.round(WORK * WORK * 0.012))
-  const soft = new Float32Array(kept.length)
+  const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2]
+  const [rx, ry] = [Math.max(1, (x1 - x0) / 2), Math.max(1, (y1 - y0) / 2)]
+  const out = new Float32Array(WORK * WORK)
   for (let y = 0; y < WORK; y++)
     for (let x = 0; x < WORK; x++) {
-      let sum = 0
-      for (let dy = -1; dy <= 1; dy++)
-        for (let dx = -1; dx <= 1; dx++) {
-          const sx = Math.min(WORK - 1, Math.max(0, x + dx))
-          const sy = Math.min(WORK - 1, Math.max(0, y + dy))
-          sum += kept[sy * WORK + sx]!
-        }
-      soft[y * WORK + x] = sum / 9
+      const d = Math.hypot((x - cx) / rx, (y - cy) / ry)
+      const t = Math.min(1, Math.max(0, (1 - d) / (1 - inner)))
+      out[y * WORK + x] = t * t * (3 - 2 * t)
     }
-  return soft
+  return out
 }
 
-/** Inside a body the paper is the fill and the lines are cut out; outside, the lines are the fill. */
-export function print(ink: Float32Array, bodies: Float32Array): Float32Array {
-  return ink.map((a, i) => bodies[i]! * (1 - a) + (1 - bodies[i]!) * a)
+/** On the plate the paper is the fill and the lines are cut out; off it, the lines are the fill. */
+export function print(ink: Float32Array, paper: Float32Array): Float32Array {
+  return ink.map((a, i) => paper[i]! * (1 - a) + (1 - paper[i]!) * a)
 }
 
 /** A [0, 1] mask as black RGBA with that alpha, for ffmpeg's rawvideo reader. */
