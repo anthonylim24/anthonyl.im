@@ -343,6 +343,7 @@ export function savePatch(trip: Trip, baseUpdatedAt: string): UpdateTripPatch {
     party: trip.party,
     expenses: trip.expenses,
     checklist: trip.checklist,
+    ideas: trip.ideas,
     baseUpdatedAt,
   }
 }

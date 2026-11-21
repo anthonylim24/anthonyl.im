@@ -48,13 +48,13 @@ export const TRIP_FIELDS = [
 ] as const satisfies readonly (keyof Trip)[]
 
 /**
- * Trip-level lists of records with ids (the party, expenses, the checklist).
+ * Trip-level lists of records with ids (the party, expenses, the checklist, ideas).
  * They merge entry by entry like a day's items, so two people adding at the
  * same time both keep what they added.
  */
-export const TRIP_LISTS = ["party", "expenses", "checklist"] as const satisfies readonly (keyof Trip)[]
+export const TRIP_LISTS = ["party", "expenses", "checklist", "ideas"] as const satisfies readonly (keyof Trip)[]
 
-const DAY_FIELDS = ["date", "title", "city", "notes", "weather", "callouts"] as const satisfies readonly (keyof TripDay)[]
+const DAY_FIELDS = ["date", "title", "city", "notes", "weather", "callouts", "timezone", "journal"] as const satisfies readonly (keyof TripDay)[]
 
 const NO_MERGE = Symbol("conflict")
 type Merged<T> = T | typeof NO_MERGE

@@ -256,6 +256,7 @@ export const STATUS_LABEL: Record<ItemStatus, string> = {
   optional: "Optional",
   booked: "Booked",
   completed: "Done",
+  skipped: "Skipped",
   needs_review: "Needs review",
 }
 

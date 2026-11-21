@@ -7,6 +7,7 @@ import type {
   ChecklistItem,
   EnhancementRun,
   GeneratePreferences,
+  ItineraryItem,
   Trip,
   TripAccess,
   TripAppearance,
@@ -69,6 +70,7 @@ export type UpdateTripPatch = {
   party?: TripPerson[]
   expenses?: TripExpense[]
   checklist?: ChecklistItem[]
+  ideas?: ItineraryItem[]
   /** The `updatedAt` this change was made against; see `updateTrip`. */
   baseUpdatedAt?: string
 }
@@ -161,6 +163,7 @@ export async function duplicateTrip(getToken: GetToken, source: Trip): Promise<T
     budget: source.budget,
     party: source.party,
     checklist: source.checklist?.map((entry) => ({ ...entry, done: false })),
+    ideas: source.ideas?.map((idea) => ({ ...idea, id: stamp() })),
     days: created.days.map((day) => {
       const from = byDate.get(day.date)
       if (!from) return day
