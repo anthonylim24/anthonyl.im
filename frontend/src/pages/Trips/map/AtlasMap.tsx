@@ -189,7 +189,7 @@ export function AtlasMap({
 
   return (
     <div {...sx(s.root, ambient && s.rootAmbient)} role="region" aria-label={label}>
-      <div ref={hostRef} {...sx(s.canvas, status === "ready" && s.canvasReady)} />
+      <div ref={hostRef} {...sx(s.canvas, !ambient && s.canvasQuick, status === "ready" && s.canvasReady)} />
       {status !== "ready" && !(ambient && status === "loading") && <StaticChart pins={pins} loading={status === "loading"} />}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
       {status === "ready" && !ambient && !bare && (

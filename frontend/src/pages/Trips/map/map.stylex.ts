@@ -35,6 +35,9 @@ export const mapStyles = stylex.create({
     transitionDuration: "700ms",
     transitionTimingFunction: "var(--trips-ease-out)",
   },
+  // A working map replaces its chart the moment it is ready, so a long fade
+  // reads as a washed-out map with a disabled-looking pin. The globe keeps its entrance.
+  canvasQuick: { transitionDuration: { default: "160ms", "@media (prefers-reduced-motion: reduce)": "0ms" } },
   canvasReady: { opacity: 1 },
   chart: {
     position: "absolute",

@@ -135,6 +135,7 @@ export function AiSheet({
   open,
   onClose,
   scope,
+  prompt,
   dayLabel,
   hasItems,
   onRun,
@@ -142,6 +143,8 @@ export function AiSheet({
   open: boolean
   onClose: () => void
   scope: "day" | "trip"
+  /** A brief to start from ("Rework around the rain"); still the traveller's to edit. */
+  prompt?: string
   dayLabel?: string
   hasItems: boolean
   onRun: (request: AiRequest) => void
@@ -152,12 +155,12 @@ export function AiSheet({
   const [confirmReplace, setConfirmReplace] = useState(false)
 
   // Each opening starts clean (adjusted during render, not in an effect).
-  const openAs = open ? `${scope}|${hasItems}` : null
+  const openAs = open ? `${scope}|${hasItems}|${prompt ?? ""}` : null
   const [seenOpenAs, setSeenOpenAs] = useState<string | null>(null)
   if (openAs !== seenOpenAs) {
     setSeenOpenAs(openAs)
     if (open) {
-      setText("")
+      setText(prompt ?? "")
       setConfirmReplace(false)
       setMode(scope === "trip" && !hasItems ? "draft" : "improve")
     }

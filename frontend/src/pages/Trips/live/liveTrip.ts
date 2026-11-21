@@ -1,5 +1,6 @@
 import { addDays, dayCount, daysBetween } from "../meta"
 import { distanceMeters, isLocated, splitDay } from "../map/geo"
+import { formatMinutes } from "../timeline/travel"
 import type { ItineraryItem, Trip, TripDay, TripSummary } from "../types"
 
 // Where a trip stands at a given instant: counting down, under way (what is
@@ -67,15 +68,6 @@ export function clockMinutes(time: string | undefined): number | null {
   const hour = Number(match[1])
   const minute = Number(match[2])
   return hour > 23 || minute > 59 ? null : hour * 60 + minute
-}
-
-/** "25 min", "1h 5m", "2h". */
-export function durationText(minutes: number): string {
-  const total = Math.max(1, Math.round(minutes))
-  if (total < 60) return `${total} min`
-  const hours = Math.floor(total / 60)
-  const rest = total % 60
-  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`
 }
 
 // ── Countdowns ───────────────────────────────────────────────────────────
@@ -201,10 +193,10 @@ export function travelBetween(from: ItineraryItem, to: ItineraryItem): LiveTrave
   if (meters < SAME_PLACE_M || meters > CITY_MAX_M) return null
   if (meters <= WALK_MAX_M) {
     const minutes = Math.ceil(meters / WALK_MPS / 60)
-    return { mode: "walk", meters, minutes, label: `${durationText(minutes)} walk`, from }
+    return { mode: "walk", meters, minutes, label: `${formatMinutes(minutes)} walk`, from }
   }
   const minutes = Math.ceil(meters / ((TRANSIT_KMH * 1000) / 60)) + TRANSIT_OVERHEAD_MIN
-  return { mode: "transit", meters, minutes, label: `${durationText(minutes)} by transit`, from }
+  return { mode: "transit", meters, minutes, label: `${formatMinutes(minutes)} by transit`, from }
 }
 
 /** The pinned stop the traveller will be at just before `index`, on the same day's plan. */
