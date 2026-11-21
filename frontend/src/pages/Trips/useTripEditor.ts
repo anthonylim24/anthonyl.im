@@ -5,6 +5,7 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, generateItinerary, getTrip, updateTrip } from "./tripsApi"
 import { isTripConflict } from "./tripConflict"
+import { saveFailure } from "./offline/network"
 import { removeItem } from "./tripEdits"
 import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { formatTripDate, plural } from "./meta"
@@ -27,6 +28,8 @@ import type { EnhancementRun, GeneratePreferences, ItineraryItem, Trip, TripColl
 // belong in the machine, not here.
 
 const SAVE_DEBOUNCE_MS = 900
+/** Starts every notice about a save the server refused, so a later good save can take it down. */
+const REFUSED_PREFIX = "Couldn’t save your latest edits."
 
 export interface DayOption {
   id: string
@@ -138,11 +141,13 @@ export function useTripEditor() {
   const saving = ready?.sync.k === "saving" ? ready.sync : null
   useEffect(() => {
     if (!saving || inflightRef.current?.for === saving) return
-    const { sent, against } = saving
+    const { sent, against, fitted } = saving
     const work = updateTrip(readToken, sent.id, savePatch(sent, against)).then(
       (saved) => {
         dispatch({ type: "SAVE_OK", sent, saved })
         emitTripChanged(saved)
+        // Say what had to be cut to fit; a problem a refusal named is fixed now.
+        setNotice((current) => fitted ?? (current?.startsWith(REFUSED_PREFIX) ? null : current))
         return saved
       },
       (err: unknown) => {
@@ -151,10 +156,10 @@ export function useTripEditor() {
           return null
         }
         const message = errorText(err)
-        dispatch({ type: "SAVE_FAILED", sent, message })
-        if (/permalink|slug|hyphen/i.test(message)) {
-          setNotice(`Couldn’t save this trip’s link name, so nothing since your last save is stored yet. Press Retry, and if it fails again, rename the trip. (${message})`)
-        }
+        const failure = saveFailure(err)
+        dispatch({ type: "SAVE_FAILED", sent, message, failure })
+        // Phones show only "Not saved": the reason, and what to do, go in the dock.
+        if (failure === "refused") setNotice(`${REFUSED_PREFIX} ${message} Change it and your edits will save.`)
         return null
       },
     )
