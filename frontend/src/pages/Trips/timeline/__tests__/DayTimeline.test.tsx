@@ -200,8 +200,9 @@ describe("DayTimeline", () => {
 
   it("strikes a skipped stop and says so, and mutes one marked done", () => {
     renderTimeline([flight, { ...palace, status: "skipped" }, { ...tea, status: "completed" }, dinner])
-    expect(stopNamed("2:00 PM to 4:00 PM, Gyeongbokgung, palace, stop 2, skipped")).toBeInTheDocument()
-    expect(stopNamed(/^3:00 PM, Tea house, cafe, stop 3, done$/)).toBeInTheDocument()
+    // A skipped stop leaves the route, so it loses its number and the next stop takes it, as on the map.
+    expect(stopNamed("2:00 PM to 4:00 PM, Gyeongbokgung, palace, skipped")).toBeInTheDocument()
+    expect(stopNamed(/^3:00 PM, Tea house, cafe, stop 2, done$/)).toBeInTheDocument()
   })
 
   it("explains the timeline when nothing has a time yet", () => {
