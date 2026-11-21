@@ -41,6 +41,7 @@ import {
   type FailedEnhancementRun,
   type RunningEnhancementRun,
   type Trip,
+  type TripDay,
   type TripAccess,
   type TripInvite,
 } from "../trips/types"
@@ -222,6 +223,20 @@ async function persistEnhancementRun(args: {
       finishRun(args.pending, { status: "error", error: err instanceof Error ? err.message : String(err) }),
     )
   }
+}
+
+/** `drafted` with each day's journal and zone from the day of the same date in `before`. */
+export function keepDayNotes(drafted: TripDay[], before: TripDay[]): TripDay[] {
+  const byDate = new Map(before.map((day) => [day.date, day]))
+  return drafted.map((day) => {
+    const was = byDate.get(day.date)
+    if (!was || (was.journal === undefined && was.timezone === undefined)) return day
+    return {
+      ...day,
+      ...(was.journal !== undefined ? { journal: was.journal } : {}),
+      ...(was.timezone !== undefined ? { timezone: was.timezone } : {}),
+    }
+  })
 }
 
 /** One-time display-data upgrade for a Korea trip seeded before the dossier
@@ -569,9 +584,11 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         })
         // Only the draft's own fields land, and on the trip as it is now:
         // sharing changes or a rename made while the model worked survive.
+        // What the traveller wrote about a day, and the zone they set for it,
+        // belong to the date, not the draft: they carry over.
         const next = await mutate(tripId, (fresh) => ({
           ...fresh,
-          days: generated.days,
+          days: keepDayNotes(generated.days, fresh.days),
           // AI-proposed theming fills gaps but never overwrites user choices.
           appearance: { ...generated.appearance, ...fresh.appearance },
         }))
