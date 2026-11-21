@@ -113,6 +113,12 @@ describe("tripRecap", () => {
     expect(fresh).toMatchObject({ days: 0, totalDays: 2, places: 0, distance: 0, spend: null })
     expect(recapLine(fresh)).toBe("0 of 2 days · 0 places")
   })
+
+  it("names the trip's one destination when its days name no city", () => {
+    const lisbon = tripRecap(makeTrip({ destinations: ["Lisbon"] }), {}, NOON("2026-07-20"))
+    expect(lisbon.cities).toEqual(["Lisbon"])
+    expect(tripRecap(makeTrip({ destinations: ["Lisbon", "Porto"] }), {}, NOON("2026-07-20")).cities).toEqual([])
+  })
 })
 
 describe("excerpt", () => {

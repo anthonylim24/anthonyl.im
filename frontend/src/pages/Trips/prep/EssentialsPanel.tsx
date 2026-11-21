@@ -46,7 +46,10 @@ export function EssentialsPanel({
   const clock = useMinuteClock(now, rootRef)
   const viewer = viewerZone ?? viewerTimeZone()
   const countries = useMemo(() => countriesFor(trip), [trip])
-  const [home, setHome] = useState(() => homeCurrency(viewer, trip))
+  // The converter shows where the money differs from the viewer's own as their zone tells it; what
+  // they pick in it is `home`, so picking the local money keeps the picker there to change back.
+  const ownMoney = homeCurrency(viewer, trip)
+  const [home, setHome] = useState(ownMoney)
   const stay = tonightsStay(trip, clock)
   const holidays = useHolidays(trip, now ? wallClock(now.getTime(), trip.timezone).date : undefined)
   const holidaysIn = useMemo(() => {
@@ -83,6 +86,7 @@ export function EssentialsPanel({
             viewer={viewer}
             at={clock}
             home={home}
+            converts={country.currency.code !== ownMoney}
             onHome={setHome}
             holidays={holidaysIn.get(country.code) ?? []}
           />
@@ -98,6 +102,7 @@ function CountryEssentials({
   viewer,
   at,
   home,
+  converts,
   onHome,
   holidays,
 }: {
@@ -107,6 +112,8 @@ function CountryEssentials({
   at: Date
   /** The viewer's own currency, for the converter. */
   home: string
+  /** Whether this money differs from the viewer's own: a converter is worth showing. */
+  converts: boolean
   onHome: (code: string) => void
   /** Public holidays on the trip's days in this country, in date order. */
   holidays: readonly Holiday[]
@@ -125,7 +132,7 @@ function CountryEssentials({
           <span>
             {country.currency.name} <span {...sx(a.mono, a.muted)}>{country.currency.code}</span>
           </span>
-          {country.currency.code !== home && <CurrencyConverter local={country.currency.code} home={home} onHome={onHome} />}
+          {converts && <CurrencyConverter local={country.currency.code} home={home} onHome={onHome} />}
         </Fact>
         {(country.plugs || country.power) && (
           <Fact label="Plugs & voltage">

@@ -97,6 +97,12 @@ describe("EssentialsPanel", () => {
     fireEvent.change(dollars, { target: { value: "100" } })
     expect(won).toHaveValue("138,889")
     expect(korea.getByRole("combobox", { name: "Your currency" })).toHaveValue("USD")
+    // Picking the won itself keeps the picker, to change back.
+    fireEvent.change(korea.getByRole("combobox", { name: "Your currency" }), { target: { value: "KRW" } })
+    expect(korea.getByRole("combobox", { name: "Your currency" })).toHaveValue("KRW")
+    expect(korea.getByText("₩1 ≈ ₩1 at today’s rate")).toBeInTheDocument()
+    fireEvent.change(korea.getByRole("combobox", { name: "Your currency" }), { target: { value: "USD" } })
+    expect(await korea.findByText("₩10,000 ≈ $7.20 at today’s rate")).toBeInTheDocument()
   })
 
   it("offers no converter where the money is the viewer's own, and says when there is no rate", async () => {

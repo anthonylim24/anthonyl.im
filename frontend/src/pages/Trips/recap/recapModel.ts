@@ -2,6 +2,7 @@ import { budgetSummary, CATEGORY_LABEL, type Rates } from "../budget/budget"
 import { dayZone, wallClock } from "../dayClock"
 import { distanceMeters, isLocated, splitDay, type LngLat } from "../map/geo"
 import { formatRange, resolveAccent } from "../meta"
+import { dayCity } from "../print/printModel"
 import type { ExpenseCategory, ItineraryItem, Trip, TripAccent, TripDay } from "../types"
 
 // The trip's recap, as figures: what was done, not what was planned. Pure.
@@ -54,7 +55,7 @@ export interface Recap {
   totalDays: number
   over: boolean
   places: number
-  /** Distinct day cities among the days begun, in trip order. */
+  /** Distinct cities of the days begun, in trip order (a day with none: the trip's one destination). */
   cities: string[]
   /** Metres, straight line, between visited pinned places in order. */
   distance: number
@@ -95,11 +96,9 @@ export function excerpt(text: string, max = EXCERPT_CHARS): string {
   return `${cut.join("").replace(/[\s,;:.–—-]+$/u, "")}…`
 }
 
-function dayCity(day: TripDay): string | null {
-  return day.city?.trim() || null
-}
-
 export function tripRecap(trip: Trip, rates: Rates, now: number): Recap {
+  // The day's own city, else the trip's one destination (as the printout names it).
+  const cityOf = (day: TripDay) => dayCity(trip, day)
   const today = (day: TripDay) => wallClock(now, dayZone(trip, day)).date
   const begun = trip.days.filter((day) => day.date <= today(day))
   const last = trip.days[trip.days.length - 1]
@@ -120,7 +119,7 @@ export function tripRecap(trip: Trip, rates: Rates, now: number): Recap {
     for (const item of day.items) {
       if (!isStop(item) || !item.highlight || item.status === "skipped") continue
       const title = (item.title || item.location?.name || "").trim()
-      if (title) loved.push({ dayId: day.id, itemId: item.id, title, dayNumber: index + 1, city: dayCity(day) })
+      if (title) loved.push({ dayId: day.id, itemId: item.id, title, dayNumber: index + 1, city: cityOf(day) })
     }
     const entry = day.journal?.trim()
     if (entry) journal.push({ dayId: day.id, dayNumber: index + 1, date: day.date, text: excerpt(entry) })
@@ -132,7 +131,7 @@ export function tripRecap(trip: Trip, rates: Rates, now: number): Recap {
   const seen = new Set<string>()
   const cities: string[] = []
   for (const day of begun) {
-    const city = dayCity(day)
+    const city = cityOf(day)
     if (city && !seen.has(city.toLowerCase())) {
       seen.add(city.toLowerCase())
       cities.push(city)

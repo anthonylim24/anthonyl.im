@@ -14,6 +14,7 @@ function useRate(local: string, home: string): Rate {
   const [answer, setAnswer] = useState<{ key: string; rate: number | null } | null>(null)
   const key = `${local}>${home}`
   useEffect(() => {
+    if (local === home) return
     let live = true
     void loadRates(local, [home]).then((rates) => {
       if (live) setAnswer({ key: `${local}>${home}`, rate: rates[home] ?? null })
@@ -22,6 +23,8 @@ function useRate(local: string, home: string): Rate {
       live = false
     }
   }, [local, home])
+  // Picked the country's own money as "yours": one to one, and the picker stays to change it back.
+  if (local === home) return { status: "ready", rate: 1 }
   if (answer?.key !== key) return { status: "loading" }
   return answer.rate === null ? { status: "none" } : { status: "ready", rate: answer.rate }
 }
