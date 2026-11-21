@@ -247,9 +247,11 @@ describe("usePrintItinerary", () => {
     expect(printRoot()).toBeNull()
 
     act(() => screen.getByRole("button", { name: "Print itinerary" }).click())
-    expect(printRoot()).not.toBeNull()
     expect(screen.getByRole("button", { name: "Print itinerary" })).toBeDisabled()
+    // The printout's chunk loads on demand.
     await flush()
+    await flush()
+    expect(printRoot()).not.toBeNull()
     expect(print).toHaveBeenCalledTimes(1)
 
     act(() => {

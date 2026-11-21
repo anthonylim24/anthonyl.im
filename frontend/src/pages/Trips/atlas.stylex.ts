@@ -375,7 +375,7 @@ export const a = stylex.create({
     alignItems: "center",
     gap: "0.625rem",
     width: "100%",
-    minHeight: "2.5rem",
+    minHeight: "2.75rem",
     paddingInline: "0.625rem",
     borderRadius: "0.5rem",
     fontSize: "0.875rem",
@@ -386,7 +386,8 @@ export const a = stylex.create({
     cursor: "pointer",
     textDecoration: "none",
     outline: "none",
-    ":focus-visible": { backgroundColor: "var(--trips-sunken)" },
+    // Inset, so the ring never paints over the item above or below it.
+    ":focus-visible": { backgroundColor: "var(--trips-sunken)", boxShadow: "inset 0 0 0 2px var(--brand-ring)" },
     ":disabled": { opacity: 0.45, cursor: "not-allowed" },
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)" } },
   },

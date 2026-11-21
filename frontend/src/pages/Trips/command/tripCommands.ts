@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarArrowDown,
+  CalendarCheck,
   CalendarDays,
   ClipboardCopy,
   Info,
@@ -18,6 +19,7 @@ import {
 import { isCalendarItem } from "../calendar/ics"
 import { IgGlyph } from "../instagram/IgGlyph"
 import { formatClock, formatRange, formatTripDate, itemIcon, plural, visibleTags } from "../meta"
+import { todayDay } from "../today"
 import type { Trip, TripDay, TripSummary } from "../types"
 import type { Command } from "./commands"
 
@@ -48,6 +50,8 @@ export interface TripCommandsInput {
   dayId?: string | null
   /** An AI run holds the editor: editing actions show but cannot run. */
   locked?: boolean
+  /** The clock, for "Go to today". Read again when the command runs, so a palette left open past midnight still lands on today. */
+  now?: () => number
 }
 
 /** "Thu May 28": the trip's own date, no comma, to sit in a "·" list. */
@@ -65,7 +69,7 @@ const TAB_ACTIONS: ReadonlyArray<{ tab: TripTab; title: string; icon: Command["i
   { tab: "essentials", title: "Essentials", icon: Info, keywords: ["info", "emergency", "currency", "visa", "plugs"] },
 ]
 
-export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = null, locked = false }: TripCommandsInput): Command[] {
+export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = null, locked = false, now = Date.now }: TripCommandsInput): Command[] {
   const commands: Command[] = []
   const hasItems = trip.days.some((day) => day.items.length > 0)
 
@@ -108,6 +112,22 @@ export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = n
   const openTab = actions.openTab
 
   // ── Go to ───────────────────────────────────────────
+  // While the trip is under way, today is one keystroke away from anywhere in it.
+  const today = todayDay(trip, now())
+  if (today && today.id !== dayId) {
+    commands.push({
+      id: "trip:today",
+      title: "Go to today",
+      subtitle: dayTitle(today, trip.days.indexOf(today), trip.timezone),
+      group: "Go to",
+      icon: CalendarCheck,
+      keywords: ["now", "today", "live", "where am i"],
+      run: () => {
+        const current = todayDay(trip, now())
+        navigate(current ? `${basePath}/day/${current.id}` : basePath)
+      },
+    })
+  }
   const dayIndex = dayId ? trip.days.findIndex((day) => day.id === dayId) : -1
   if (dayIndex >= 0) {
     commands.push({

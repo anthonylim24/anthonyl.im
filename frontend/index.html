@@ -23,9 +23,10 @@
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon-chat.svg" />
-    <!-- iOS reads the manifest synchronously at page load. The default
-         here is the Korea trip — the only PWA on the site. (Per-route
-         scripts below are now idempotent.) -->
+    <!-- iOS reads the manifest synchronously at page load, so the server
+         writes each path's own (server/src/shellMeta.ts manifestForPath):
+         /trips.webmanifest on /trips, /korea.webmanifest on the Korea trip
+         and, as before, everywhere else. This default only shows in dev. -->
     <link rel="manifest" href="/korea.webmanifest" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/breathflow-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
@@ -93,11 +94,12 @@
         const appName = korea ? 'Korea Trip' : 'Trips';
         const setRouteMeta = window.__setRouteMeta;
 
-        // The manifest is /korea.webmanifest by default; this keeps it right
-        // under a PR preview base. (iOS Safari reads the manifest at page load
-        // and may ignore later changes.)
+        // Every trip installs as "Trips" but Korea's, which keeps its own.
+        // The server already wrote the right one; this keeps it right in dev
+        // and under a PR preview base. (iOS Safari reads the manifest at page
+        // load and may ignore later changes.)
         const manifest = document.querySelector('link[rel="manifest"]');
-        if (manifest) manifest.setAttribute('href', assetBase + '/korea.webmanifest');
+        if (manifest) manifest.setAttribute('href', assetBase + (korea ? '/korea.webmanifest' : '/trips.webmanifest'));
         const favicon = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
         if (favicon) favicon.setAttribute('href', assetBase + '/favicon-korea.svg');
 

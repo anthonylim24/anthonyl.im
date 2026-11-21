@@ -1,0 +1,51 @@
+{
+  "name": "Trips",
+  "short_name": "Trips",
+  "description": "Plan trips on a live 3D map: let AI draft the days, pin every stop, and share the plan with whoever is coming.",
+  "start_url": "/trips",
+  "scope": "/trips",
+  "display": "standalone",
+  "orientation": "any",
+  "categories": [
+    "travel",
+    "lifestyle"
+  ],
+  "background_color": "#FBF6EE",
+  "theme_color": "#FBF6EE",
+  "icons": [
+    {
+      "src": "/favicon-chat.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/breathflow-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/breathflow-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New trip",
+      "short_name": "New trip",
+      "url": "/trips/new"
+    }
+  ],
+  "share_target": {
+    "action": "/trips",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
