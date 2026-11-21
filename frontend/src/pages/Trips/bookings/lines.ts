@@ -1,6 +1,6 @@
 import { dayShort } from "../conciergeProposal"
 import { clockMinutes, dayZone, validZone, zonedEpoch } from "../dayClock"
-import { daysBetween } from "../meta"
+import { daysBetween, formatClock } from "../meta"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { bookingForm, reservationOf } from "./kinds"
 
@@ -98,9 +98,9 @@ export function bookingLines(item: ItineraryItem, ctx: Ctx): string[] {
   return lines.filter(Boolean)
 }
 
-/** "Thu 24 Dec · 10:40", the booking's own day and start. */
-export function bookingWhen(item: Pick<ItineraryItem, "time">, day: Pick<TripDay, "date">): string {
-  return `${dayShort(day)}${item.time ? ` · ${item.time}` : ""}`
+/** ["Thu 24 Dec", "10:40 AM"]: the booking's own day and its start on the stop cards' clock. */
+export function bookingWhen(item: Pick<ItineraryItem, "time">, day: Pick<TripDay, "date">): string[] {
+  return item.time ? [dayShort(day), formatClock(item.time)] : [dayShort(day)]
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/

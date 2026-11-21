@@ -62,16 +62,16 @@ export function reservationOf(item: Pick<ItineraryItem, "reservation">): Reserva
   return item.reservation ?? { type: "experience", status: "confirmed" }
 }
 
-/** Words for the person and the number field, by form: "Airline" / "Flight", "Operator" / "Train". */
+/** Words for the person and the number field, by form: "Airline" / "Flight number", "Operator" / "Train number". */
 export function partyWords(type: string | undefined): { provider: string; number: string } {
   const form = bookingForm(type)
-  if (form === "flight") return { provider: "Airline", number: "Flight" }
+  if (form === "flight") return { provider: "Airline", number: "Flight number" }
   if (form === "car") return { provider: "Company", number: "Booking number" }
   if (form === "stay") return { provider: "Booked with", number: "Booking number" }
   if (form === "ride") {
     const t = type?.trim().toLowerCase() ?? ""
     const noun = /ferry|boat/.test(t) ? "Ferry" : /\bbus\b|coach/.test(t) ? "Bus" : "Train"
-    return { provider: "Operator", number: noun }
+    return { provider: "Operator", number: `${noun} number` }
   }
   return { provider: "Booked with", number: "Booking number" }
 }
