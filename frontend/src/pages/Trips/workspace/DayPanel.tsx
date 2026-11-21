@@ -218,7 +218,8 @@ export function DayPanel({
   const dayClock = aroundToday ? dayNow(trip, day, now) : null
   const isToday = dayClock !== null
   const clock = dayClock === null ? null : clockText(dayClock)
-  const list = useMemo(() => dayList(day, dayClock), [day, dayClock])
+  // Left to the React Compiler to memoise: it keys on `day` and the clock.
+  const list = dayList(day, dayClock)
   const slot = isToday ? nowSlot(day, trip, now) : null
   const nowLine = slot === null || clock === null ? null : <NowLine key="now-line" time={formatClock(clock)} />
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
