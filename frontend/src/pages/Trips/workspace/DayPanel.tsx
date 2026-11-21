@@ -1,18 +1,18 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
-import { ArrowDownUp, ArrowLeft, ArrowRight, CloudSun, Lightbulb, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
+import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, CloudSun, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
-import { formatDistance, formatWalkMinutes } from "../reservationView"
+import { formatDistance } from "../reservationView"
 import { addItem } from "../tripEdits"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { a } from "../atlas.stylex"
-import { ws as s } from "../workspace.stylex"
+import { share, ws as s } from "../workspace.stylex"
 import { Menu, type MenuItem } from "../components/kit"
 import { calendarMenuItem } from "../calendar/calendarMenu"
 import { ForecastChip } from "./ForecastChip"
@@ -20,6 +20,10 @@ import { FAHRENHEIT, formatTemp, type DayForecast } from "../forecast"
 import { NowLine } from "../live/NowLine"
 import { clockIn, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
+import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
+import { legEstimate } from "../timeline/timeline"
+import type { TravelMode } from "../timeline/travel"
+import { useDayView } from "./dayView"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type ItemCardProps } from "./ItemCard"
@@ -71,9 +75,9 @@ export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
 }
 
 /** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
-const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null }) {
+const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null; legMode: TravelMode | null }) {
   const controls = useDragControls()
-  const { leg, ...card } = props
+  const { leg, legMode, ...card } = props
   const onGrip = useCallback((event: ReactPointerEvent) => controls.start(event), [controls])
   return (
     <Reorder.Item
@@ -91,7 +95,7 @@ const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | n
             <span {...sx(s.gutterLine)} />
           </div>
           <p {...sx(s.leg)}>
-            <Footprints size={11} strokeWidth={2} />
+            {legMode && <ModeIcon mode={legMode} />}
             {leg}
           </p>
         </div>
@@ -152,23 +156,28 @@ export function DayPanel({
 
   const { labels, legs } = useMemo(() => {
     const labels = new Map<string, string>()
-    const legs = new Map<string, string>()
+    // Strings, not objects: a Sortable re-renders only when its own leg changes.
+    const legs = new Map<string, { text: string; mode: TravelMode }>()
     let n = 0
-    let last: { id: string; at: LngLat } | null = null
+    let last: ItineraryItem | null = null
     // Places parked under "To schedule" carry no number and no leg.
     for (const item of planned) {
       if (!isLocated(item)) continue
       n += 1
       labels.set(item.id, String(n))
-      const at = { lat: item.location.lat, lng: item.location.lng }
-      if (last) {
-        const d = distanceMeters(last.at, at)
-        if (d >= 40) legs.set(last.id, d < 2000 ? `${formatDistance(d)} · ${formatWalkMinutes(d)}` : `${formatDistance(d)} · ride`)
+      if (last && isLocated(last)) {
+        // Same estimate as the timeline; none out of a flight or train booking.
+        const leg = legEstimate(last, item)
+        if (leg) {
+          const d = distanceMeters({ lat: last.location.lat, lng: last.location.lng }, { lat: item.location.lat, lng: item.location.lng })
+          legs.set(last.id, { text: `${formatDistance(d)} · ${leg.label}`, mode: leg.mode })
+        }
       }
-      last = { id: item.id, at }
+      last = item
     }
     return { labels, legs }
   }, [planned])
+  const [dayView, setDayView] = useDayView()
 
   const outOfOrder = useMemo(() => {
     const times = day.items.filter((i) => i.kind !== "section" && i.time).map((i) => i.time!)
@@ -290,6 +299,7 @@ export function DayPanel({
             {toSchedule > 0 ? ` · ${toSchedule} to schedule` : ""}
           </span>
           <span {...sx(a.grow)} />
+          {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
           {editable && (
             <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={onAskAi}>
               {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
@@ -356,6 +366,24 @@ export function DayPanel({
                 : "Whoever’s planning hasn’t added anything to this day."}
             </p>
           </div>
+        ) : dayView === "timeline" ? (
+          <DayTimeline
+            trip={trip}
+            day={day}
+            activeId={activeId}
+            hotId={hotId}
+            onHover={onHover}
+            now={isToday ? clockIn(trip.timezone, now) : undefined}
+            onSelect={(id) => {
+              const item = day.items.find((i) => i.id === id)
+              // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
+              if (item && isLocated(item)) onLocate(id)
+              else {
+                setDayView("list")
+                onHover(id)
+              }
+            }}
+          />
         ) : (
           <Reorder.Group
             as="ol"
@@ -373,7 +401,8 @@ export function DayPanel({
                 index={index}
                 count={day.items.length}
                 pinLabel={labels.get(item.id) ?? null}
-                leg={legs.get(item.id) ?? null}
+                leg={legs.get(item.id)?.text ?? null}
+                legMode={legs.get(item.id)?.mode ?? null}
                 editable={editable}
                 locked={locked}
                 hot={hotId === item.id}
@@ -427,6 +456,50 @@ export function DayPanel({
           </Link>
         )}
       </nav>
+    </div>
+  )
+}
+
+const VIEWS = [
+  { id: "list", label: "List", icon: List },
+  { id: "timeline", label: "Timeline", icon: CalendarClock },
+] as const
+
+/** List or Timeline: a two-way radio group, arrow keys move between them. */
+function DayViewSwitch({ view, onChange }: { view: "list" | "timeline"; onChange: (view: "list" | "timeline") => void }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Day layout"
+      {...sx(share.segment, s.viewSwitch)}
+      onKeyDown={(event) => {
+        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return
+        // Keep the workspace's ←/→ day keys from also firing.
+        event.preventDefault()
+        event.stopPropagation()
+        const next = view === "list" ? "timeline" : "list"
+        onChange(next)
+        event.currentTarget.querySelector<HTMLElement>(`[data-day-view="${next}"]`)?.focus()
+      }}
+    >
+      {VIEWS.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          data-day-view={id}
+          aria-checked={view === id}
+          aria-label={label}
+          tabIndex={view === id ? 0 : -1}
+          onClick={() => onChange(id)}
+          {...sx(share.segmentBtn, s.viewSwitchBtn, view === id && share.segmentOn)}
+        >
+          <Icon size={14} strokeWidth={1.75} aria-hidden />
+          <span {...sx(s.wideOnly)} aria-hidden>
+            {label}
+          </span>
+        </button>
+      ))}
     </div>
   )
 }
