@@ -1,10 +1,12 @@
 // Static travel facts for the countries people most often plan trips to,
 // keyed by ISO 3166-1 alpha-2. A field that could not be stated with
 // confidence for a country is left out rather than guessed; the Essentials
-// panel simply skips the row. Where references disagree on socket types,
-// only the types they agree on are listed. Checked against IEC World Plugs,
-// Wikipedia's "Mains electricity by country" and "List of emergency
-// telephone numbers" (November 2026), and ITU calling codes.
+// panel simply skips the row. Sockets, mains and emergency numbers were
+// checked against Wikipedia's "Mains electricity by country" and "List of
+// emergency telephone numbers" (November 2026), and tourist hotlines against
+// the operators' and governments' own pages. A country may list fewer socket
+// types than it has: the ones a traveller meets most. Tipping, languages,
+// driving side and calling codes are general knowledge, not source-checked.
 //
 // `prep/__tests__/countries.test.ts` checks every code, currency and zone
 // against `Intl`, and every city and zone below against this table.
@@ -131,7 +133,7 @@ const TABLE = {
   TH: {
     name: "Thailand",
     currency: ["THB", "Thai baht"],
-    plugs: ["A", "B", "C", "F", "O"],
+    plugs: ["A", "B", "C", "O"],
     power: { volts: [230], hertz: [50] },
     emergency: [
       { label: "Police", number: "191" },
@@ -180,7 +182,7 @@ const TABLE = {
     name: "Malaysia",
     currency: ["MYR", "Malaysian ringgit"],
     plugs: ["G"],
-    power: { volts: [240], hertz: [50] },
+    power: { volts: [230], hertz: [50] },
     emergency: [{ label: "Emergency", number: "999" }],
     driving: "left",
     tipping: "Not customary; many restaurants add a 10% service charge.",
@@ -205,7 +207,7 @@ const TABLE = {
     name: "Philippines",
     currency: ["PHP", "Philippine peso"],
     plugs: ["A", "B", "C"],
-    power: { volts: [220], hertz: [60] },
+    power: { volts: [230], hertz: [60] },
     emergency: N911,
     driving: "right",
     tipping: "About 10% where no service charge is added.",
@@ -705,7 +707,7 @@ const TABLE = {
     name: "Cyprus",
     currency: ["EUR", "Euro"],
     plugs: ["G"],
-    power: EU_MAINS,
+    power: { volts: [240], hertz: [50] },
     emergency: ONLY_112,
     driving: "left",
     languages: "Greek, Turkish",
@@ -852,7 +854,7 @@ const TABLE = {
     name: "Colombia",
     currency: ["COP", "Colombian peso"],
     plugs: ["A", "B"],
-    power: { volts: [110], hertz: [60] },
+    power: { volts: [120], hertz: [60] },
     emergency: [{ label: "Emergency", number: "123" }],
     driving: "right",
     tipping: "Restaurants usually suggest a 10% service charge on the bill.",
