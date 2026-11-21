@@ -110,7 +110,10 @@ function md(text: string): string {
 
 /** A line that must not start a heading, quote or list. */
 function mdLine(text: string): string {
-  return md(text).replace(/^([#>+-]|\d+[.)])/, (marker) => `\\${marker}`)
+  // "# x", "> x", "- x", "+ x" escape the marker; "1. x" escapes the dot ("1\. x").
+  return md(text)
+    .replace(/^[#>+-]/, "\\$&")
+    .replace(/^(\d+)([.)])/, "$1\\$2")
 }
 
 /** Confirmation codes read as code: `ABC123`. */

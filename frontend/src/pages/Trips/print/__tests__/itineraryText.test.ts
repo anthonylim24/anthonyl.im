@@ -136,7 +136,7 @@ describe("itineraryText: markdown", () => {
           id: "d",
           date: "2026-07-10",
           items: [
-            makeItem({ id: "a", title: "Bar_do_Rio [rooftop]", notes: "# not a heading\n- not a list", time: "18:00" }),
+            makeItem({ id: "a", title: "Bar_do_Rio [rooftop]", notes: "# not a heading\n- not a list\n1. Take the metro", time: "18:00" }),
             makeItem({ id: "b", kind: "reservation", title: "Ferry", reservation: { type: "transit", status: "confirmed", confirmation: "A`B" } }),
           ],
         },
@@ -144,7 +144,7 @@ describe("itineraryText: markdown", () => {
     })
     const text = itineraryText(trip, { format: "markdown", includeNotes: true })
     expect(text).toContain("# Tiles \\*and\\* tarts")
-    expect(text).toContain("- **18:00** Bar\\_do\\_Rio \\[rooftop\\]  \n  \\# not a heading  \n  \\- not a list")
+    expect(text).toContain("- **18:00** Bar\\_do\\_Rio \\[rooftop\\]  \n  \\# not a heading  \n  \\- not a list  \n  1\\. Take the metro")
     // A code span can't hold a backtick: the code is escaped text instead.
     expect(text).toContain("- Ferry · Conf A\\`B")
   })
