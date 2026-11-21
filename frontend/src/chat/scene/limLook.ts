@@ -297,6 +297,21 @@ export function plastic(albedo: V3, o: LitOptions = {}): THREE.MeshPhysicalNodeM
 }
 
 /**
+ * Clear glass for the lit look (a snow globe's dome, a crystal, an ice cube): tinted, thin face-on and
+ * denser at the rim, under the studio's reflections. It is blended, not transmissive, because the
+ * floor and sky are transparent (they fade into the page) and transmission sees only opaque surfaces.
+ * Writing no depth keeps it out of the screen-space passes, which would grain it with occlusion.
+ */
+export function glassMaterial(u: LimUniforms, hex: string): THREE.MeshPhysicalNodeMaterial {
+  const m = new THREE.MeshPhysicalNodeMaterial({ transparent: true, depthWrite: false, roughness: 0.05, ior: 1.45 })
+  m.colorNode = col(hex).mul(mix(float(1), float(0.86), u.night))
+  const rim = pow(float(1).sub(saturate(dot(normalize(normalView), positionViewDirection))), 2)
+  m.opacityNode = mix(float(0.12), float(0.8), rim)
+  m.outputNode = toneMapping(THREE.NeutralToneMapping, float(EXPOSURE), output)
+  return m
+}
+
+/**
  * The clip position with its depth pulled most of the way to the near plane while `on` is 1, so a
  * toy in hand draws in front of everything yet still hides its own far side. The near plane is
  * found through the projection, so it holds for WebGPU's depth range and WebGL's.

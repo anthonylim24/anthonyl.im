@@ -9,7 +9,7 @@ import { attribute, normalize, positionLocal, uniform } from 'three/tsl'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
 import { syncJellyGeometry } from '../../three/jellyMesh'
 import type { ItemSpec, Part, Shape } from '../world/spec'
-import { hullMaterial, nearDepth, toyMaterial, type F, type LimUniforms, type ToyPaint, type V3 } from './limLook'
+import { glassMaterial, hullMaterial, nearDepth, toyMaterial, type F, type LimUniforms, type ToyPaint, type V3 } from './limLook'
 import { ITEM_R, bindToBody, carryToy, fitToyMesh, isInk, outlineWidths, reachOf, type ToyMesh } from './toyMesh'
 
 export { ITEM_R }
@@ -360,14 +360,20 @@ export function modelLook(spec: ItemSpec, model: ToyMesh, rest: Rest, u: LimUnif
       m.colorNode = ink
       return m
     }
+    if (g.glass && u.lit) return glassMaterial(u, g.color)
     return toyMaterial(u, g.color, shadeOf(g.color), g.color === body.color.toUpperCase() ? paint : undefined)
   })
   const fill = new THREE.Mesh(geo, fills)
-  const hull = new THREE.Mesh(geo, hullMaterial(ink, attribute('outline', 'float') as unknown as F))
+  const line = hullMaterial(ink, attribute('outline', 'float') as unknown as F)
+  // Lit glass shows what is behind it, and the hull's far side would show through as ink.
+  const unlined = new THREE.MeshBasicNodeMaterial({ visible: false })
+  const hull = new THREE.Mesh(geo, model.groups.map((g) => (g.glass && u.lit ? unlined : line)))
   fill.frustumCulled = hull.frustumCulled = false
+  // The floor is transparent too and sorts nearer the camera, so lit glass must draw after it to show it through.
+  if (u.lit && model.groups.some((g) => g.glass)) fill.renderOrder = 1
   // A model overlaps itself (an arm over the body), so in hand it keeps its depth test and is drawn near instead.
   const top = uniform(0)
-  for (const m of [...fills, hull.material as THREE.NodeMaterial]) m.vertexNode = nearDepth(top)
+  for (const m of [...fills, line]) m.vertexNode = nearDepth(top)
   const group = new THREE.Group()
   group.add(fill, hull)
   return {
@@ -382,7 +388,7 @@ export function modelLook(spec: ItemSpec, model: ToyMesh, rest: Rest, u: LimUnif
     dispose() {
       group.removeFromParent()
       geo.dispose()
-      for (const m of [...fills, hull.material as THREE.Material]) m.dispose()
+      for (const m of [...fills, line, unlined]) m.dispose()
     },
   }
 }

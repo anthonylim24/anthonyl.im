@@ -26,6 +26,8 @@ INK = '#2B2140'
 #: Mesh density for the stage, as a share of the pictures', and the most triangles a stage toy keeps.
 STAGE = 0.6
 BUDGET = 3000
+#: A stage mesh group's colour word holds the colour in its low 24 bits and this bit for glass.
+GLASS = 1 << 24
 #: How a toy stands on the stage (Euler degrees), where the catalog body is posed unlike the toy built
 #: here. Every other toy stands as built, without the turn its picture is taken at.
 ON_STAGE = {'donut': (90, 0, 0), 'duck': (0, 0, 180), 'chili': (0, 0, 90)}
@@ -1611,7 +1613,8 @@ def export(key, spec, out):
             bmesh.ops.reverse_faces(part, faces=part.faces)
         slots = [s.material for s in ev.material_slots]
         for f in part.faces:
-            colour = studio.hex_of(slots[f.material_index] if f.material_index < len(slots) else None)
+            mat = slots[f.material_index] if f.material_index < len(slots) else None
+            colour = (studio.hex_of(mat), studio.is_glass(mat))
             if colour not in palette:
                 palette.append(colour)
             f.material_index = palette.index(colour)
@@ -1651,10 +1654,10 @@ def export(key, spec, out):
     hi = [hi[i] + shift[i] for i in range(3)]
     span = [max(1e-6, hi[i] - lo[i]) for i in range(3)]
     index, groups = [], []
-    for m, colour in enumerate(palette):
+    for m, (colour, glass) in enumerate(palette):
         group = [i for t in tris if t[0] == m for i in t[1:]]
         if group:
-            groups.append((len(index), len(group), int(colour[1:], 16)))
+            groups.append((len(index), len(group), int(colour[1:], 16) | (GLASS if glass else 0)))
             index.extend(group)
     path = os.path.join(out, f'{slug(key)}.mesh')
     with open(path, 'wb') as f:
