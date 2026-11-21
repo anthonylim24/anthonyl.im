@@ -5,6 +5,9 @@ import { isTripRefused } from "../tripConflict"
 
 // What the connection is doing, and what a failed request says about it.
 
+/** How long opening a trip or the list may take before the page stops waiting and says so (or shows the copy on this device). */
+export const READ_TIMEOUT_MS = 20_000
+
 /** Only an explicit `false` counts: some browsers report `true` on a captive portal, none report `false` online. */
 export const isOffline = () => typeof navigator !== "undefined" && navigator.onLine === false
 

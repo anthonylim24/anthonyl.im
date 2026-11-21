@@ -30,10 +30,7 @@ function request<T>(getToken: GetToken, path: string, init: RequestInit = {}, op
   return runPromise(requestJson<T>(getToken, `/api/trips${path}`, init, options))
 }
 
-/** How long a read may take before the page stops waiting and says so (or shows the copy on this device). */
-export const READ_TIMEOUT_MS = 20_000
-
-/** Opt-in deadline for reads; never for AI calls. */
+/** Opt-in deadline for reads (`READ_TIMEOUT_MS` in offline/network); never for AI calls. */
 export interface ReadOptions {
   timeoutMs?: number
 }
