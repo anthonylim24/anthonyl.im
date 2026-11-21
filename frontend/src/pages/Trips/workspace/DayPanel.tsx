@@ -1,10 +1,10 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
-import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, CloudSun, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
+import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles, TimerOff } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
-import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
+import { dayRoute, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
 import { formatDistance } from "../reservationView"
 import { addItem } from "../tripEdits"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
@@ -15,19 +15,22 @@ import { a } from "../atlas.stylex"
 import { share, ws as s } from "../workspace.stylex"
 import { Menu, type MenuItem } from "../components/kit"
 import { calendarMenuItem } from "../calendar/calendarMenu"
-import { ForecastChip } from "./ForecastChip"
-import { FAHRENHEIT, formatTemp, type DayForecast } from "../forecast"
+import { DaySky } from "./DaySky"
+import { weatherKind, wetDuring, wetSpells, type DaySky as Sky, type WetSpell } from "../forecast"
 import { NowLine } from "../live/NowLine"
 import { clockIn, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
 import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
-import { legEstimate } from "../timeline/timeline"
-import type { TravelMode } from "../timeline/travel"
+import { DoneFold } from "../timeline/DoneFold"
+import { clockMinutes, stopTitle } from "../timeline/timeline"
 import { useDayView } from "./dayView"
 import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
-import { ItemCard, type ItemCardProps } from "./ItemCard"
+import { ItemCard, type CardConflict, type ItemCardProps } from "./ItemCard"
+import { dayList, type Leg } from "./dayList"
+import { Parts } from "./Parts"
+import { rainBrief, stopAlerts } from "./stopAlerts"
 
 export interface DayPanelProps {
   trip: Trip
@@ -51,7 +54,8 @@ export interface DayPanelProps {
   onAdded: (id: string) => void
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
-  onAskAi: () => void
+  /** Opens "Ideas for this day", with a brief already written when one is given. */
+  onAskAi: (prompt?: string) => void
   onClear: () => void
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
@@ -60,8 +64,8 @@ export interface DayPanelProps {
   onPhotoreal?: () => void
   /** Opens the Instagram import with these post links. */
   onInstagram?: (urls: string[]) => void
-  /** Live forecast for this day, when it is within the forecast window. */
-  forecast?: DayForecast
+  /** The day's weather: the live forecast, the AI's, a held place while loading, or none. */
+  sky: Sky
 }
 
 /** Timed items in clock order; untimed items stay behind the timed item they followed. */
@@ -75,10 +79,19 @@ export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
   return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
 }
 
+type SortableProps = ItemCardProps & { leg: Leg | null; legWet: number | null }
+
+/** Rebuilt with every edit to the day, so compared by their words, not by identity. */
+const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict"])
+const sameProps = (prev: SortableProps, next: SortableProps) =>
+  (Object.keys(next) as (keyof SortableProps)[]).every(
+    (key) => Object.is(prev[key], next[key]) || (BY_VALUE.has(key) && JSON.stringify(prev[key]) === JSON.stringify(next[key])),
+  )
+
 /** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
-const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null; legMode: TravelMode | null }) {
+const Sortable = memo(function Sortable(props: SortableProps) {
   const controls = useDragControls()
-  const { leg, legMode, ...card } = props
+  const { leg, legWet, ...card } = props
   const onGrip = useCallback((event: ReactPointerEvent) => controls.start(event), [controls])
   return (
     <Reorder.Item
@@ -89,21 +102,48 @@ const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | n
       style={{ position: "relative", listStyle: "none" }}
       whileDrag={{ scale: 1.02, zIndex: 5 }}
     >
+      {leg && <LegRow leg={leg} wet={legWet} />}
       <ItemCard {...card} onGrip={onGrip} />
-      {leg && (
-        <div {...sx(s.item)} aria-hidden>
-          <div {...sx(s.gutter)} style={{ paddingTop: 0 }}>
-            <span {...sx(s.gutterLine)} />
-          </div>
-          <p {...sx(s.leg)}>
-            {legMode && <ModeIcon mode={legMode} />}
-            {leg}
-          </p>
-        </div>
-      )}
     </Reorder.Item>
   )
-})
+}, sameProps)
+
+/**
+ * The way into a stop: "940 m · 12 min walk · 1 h 08 free", then "Leave by
+ * 3:18 PM" on its own line. `wet`: the WMO code of what falls on the way, drawn
+ * after the journey as on the timeline.
+ */
+function LegRow({ leg, wet }: { leg: Leg; wet: number | null }) {
+  const Wet = wet === null ? null : weatherKind(wet).icon
+  return (
+    <div {...sx(s.item)} aria-hidden>
+      <div {...sx(s.gutter)} style={{ paddingTop: 0 }}>
+        <span {...sx(s.gutterLine)} />
+      </div>
+      <p {...sx(s.leg)}>
+        {leg.mode === "overlap" ? <TimerOff size={12} strokeWidth={2} aria-hidden /> : <ModeIcon mode={leg.mode} />}
+        <span>
+          <Parts
+            parts={[
+              leg.distance,
+              <>
+                {leg.travel}
+                {Wet && (
+                  <>
+                    {" "}
+                    <Wet size={12} strokeWidth={1.75} aria-hidden {...sx(s.legWet)} />
+                  </>
+                )}
+              </>,
+              leg.free,
+            ]}
+          />
+        </span>
+        {leg.leave && <span {...sx(s.legLeave)}>{leg.leave}</span>}
+      </p>
+    </div>
+  )
+}
 
 /** Focus target after a stop leaves the list: the next stop, else the one before, else the composer. */
 const COMPOSER = "composer"
@@ -136,7 +176,7 @@ export function DayPanel({
   onStopAi,
   onPhotoreal,
   onInstagram,
-  forecast,
+  sky,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
@@ -145,8 +185,10 @@ export function DayPanel({
   const focusNext = useRef<string | null>(null)
   const isToday = day.date === todayIsoIn(trip.timezone)
   const now = useNow(60_000, isToday)
+  const clock = isToday ? clockIn(trip.timezone, now) : null
+  const list = useMemo(() => dayList(day, clockMinutes(clock ?? undefined)), [day, clock])
   const slot = isToday ? nowSlot(day, trip, now) : null
-  const nowLine = slot === null ? null : <NowLine key="now-line" time={formatClock(clockIn(trip.timezone, now))} />
+  const nowLine = slot === null || clock === null ? null : <NowLine key="now-line" time={formatClock(clock)} />
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
   const next = dayIndex < trip.days.length - 1 ? trip.days[dayIndex + 1] : undefined
   const route = useMemo(() => dayRoute(day), [day])
@@ -155,31 +197,17 @@ export function DayPanel({
   const toSchedule = parked.filter((i) => i.kind !== "section" && i.kind !== "note").length
   const meters = routeMeters(route)
 
-  const { labels, legs } = useMemo(() => {
-    const labels = new Map<string, string>()
-    // Strings, not objects: a Sortable re-renders only when its own leg changes.
-    const legs = new Map<string, { text: string; mode: TravelMode }>()
-    let n = 0
-    let last: ItineraryItem | null = null
-    // Places parked under "To schedule" carry no number and no leg.
-    for (const item of planned) {
-      if (!isLocated(item)) continue
-      n += 1
-      labels.set(item.id, String(n))
-      if (last && isLocated(last)) {
-        // Same estimate as the timeline; none out of a flight or train booking.
-        const leg = legEstimate(last, item)
-        if (leg) {
-          const d = distanceMeters({ lat: last.location.lat, lng: last.location.lng }, { lat: item.location.lat, lng: item.location.lng })
-          legs.set(last.id, { text: `${formatDistance(d)} · ${leg.label}`, mode: leg.mode })
-        }
-      }
-      last = item
-    }
-    return { labels, legs }
-  }, [planned])
   const [dayView, setDayView] = useDayView()
   const currency = defaultCurrency(trip)
+  const forecast = sky.status === "forecast" ? sky.forecast : undefined
+  const alerts = useMemo(() => stopAlerts(day, forecast?.hours), [day, forecast])
+  const spells = useMemo(() => wetSpells(forecast?.hours ?? []), [forecast])
+  const legWet = (leg: Leg | undefined) => (leg?.on ? (wetDuring(spells, leg.on.from, leg.on.to)?.code ?? null) : null)
+  const summary =
+    [stops > 0 ? plural(stops, "stop") : null, meters > 100 ? formatDistance(meters) : null, toSchedule > 0 ? `${toSchedule} to schedule` : null]
+      .filter(Boolean)
+      // An empty day's card already says "Nothing planned yet"; the header does not echo it.
+      .join(" · ") || (day.items.length === 0 ? null : "Nothing planned")
 
   const outOfOrder = useMemo(() => {
     const times = day.items.filter((i) => i.kind !== "section" && i.time).map((i) => i.time!)
@@ -188,6 +216,46 @@ export function DayPanel({
 
   const patchDay = (patch: Partial<TripDay>, undo?: UndoMark) =>
     onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...patch } : d)), undo)
+
+  // The card names the other stop in a clash by its number on the map, as the pins do.
+  const conflicts = useMemo(() => {
+    const byId = new Map(day.items.map((item) => [item.id, item]))
+    const named = new Map<string, CardConflict>()
+    for (const [id, { conflict }] of alerts) {
+      if (!conflict) continue
+      const other = byId.get(conflict.otherId)
+      const label = list.labels.get(conflict.otherId)
+      named.set(id, { ...conflict, otherNumber: label ? Number(label) : null, otherTitle: other ? stopTitle(other) : "another stop" })
+    }
+    return named
+  }, [alerts, list, day.items])
+
+  // On today the finished head of the list folds into one row, open or shut in
+  // both layouts. A stop in it that is selected (on the map, by a deep link),
+  // opened for editing from the map, or holding focus (its editor in use) opens it.
+  const [foldOpen, setFoldOpen] = useState(false)
+  const [focused, setFocused] = useState<string | null>(null)
+  const reveal = list.done?.stops.find((id) => id === activeId || id === edit?.id || id === focused) ?? null
+  const revealKey = reveal && `${reveal}:${edit?.id === reveal ? edit.n : 0}`
+  const [revealed, setRevealed] = useState<string | null>(null)
+  if (revealKey !== revealed) {
+    setRevealed(revealKey)
+    if (revealKey) setFoldOpen(true)
+  }
+  const toggleFold = () => setFoldOpen((open) => !open)
+  const hidden = list.done && !foldOpen ? list.done.length : 0
+  const shown = hidden > 0 ? day.items.slice(hidden) : day.items
+
+  const rework = useLatestCallback((spell: WetSpell) => onAskAi(rainBrief(spell)))
+  // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
+  const findStop = useLatestCallback((id: string) => {
+    const item = day.items.find((i) => i.id === id)
+    if (item && isLocated(item)) onLocate(id)
+    else {
+      setDayView("list")
+      onHover(id)
+    }
+  })
 
   // A deleted or moved stop takes focus with it; hand it to its neighbour
   // so a keyboard user carries on from where they were.
@@ -246,64 +314,75 @@ export function DayPanel({
   return (
     <div {...sx(s.content)} key={day.id} ref={rootRef}>
       <header {...sx(s.dayHead)}>
-        <p {...sx(a.eyebrow)}>
-          Day {dayIndex + 1} of {trip.days.length} · {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
-          {isToday && <span {...sx(a.accentText)}> · Today</span>}
+        {/* "·" + a no-break space: a wrapped line never ends on a separator. */}
+        <p {...sx(a.eyebrow, s.dayEyebrow)}>
+          <Link to={basePath} {...sx(s.eyebrowTrip, a.truncate)} aria-label={`${trip.name || "Trip"}, trip overview`}>
+            {trip.name || "Trip"}
+          </Link>
+          <span {...sx(s.dayEyebrowPart)}>
+            <span {...sx(s.phoneOnly)} aria-hidden>
+              {"·\u00a0"}
+            </span>
+            Day {dayIndex + 1} of {trip.days.length}
+          </span>
+          <span {...sx(s.dayEyebrowPart, s.wideOnlyPart)}>
+            {" ·\u00a0"}
+            {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
+          </span>
+          {isToday && <span {...sx(s.dayEyebrowPart, s.tripText)}>{" ·\u00a0"}Today</span>}
         </p>
-        {editable ? (
-          <textarea
-            rows={1}
-            aria-label="Day title"
-            value={day.title ?? ""}
-            placeholder={`Name day ${dayIndex + 1}`}
-            disabled={locked}
-            {...sx(s.titleInput, s.dayTitle, "trips-day-title-input")}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault()
-                event.currentTarget.blur()
-              }
-            }}
-            onChange={(event) => patchDay({ title: event.target.value.replace(/\s*\n\s*/g, " ") || undefined })}
-          />
-        ) : (
-          <h2 {...sx(a.display, s.dayTitle, a.wrap)}>{day.title || `Day ${dayIndex + 1}`}</h2>
-        )}
-        <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
-          <span {...sx(a.row, a.small)} style={{ gap: "0.25rem" }}>
-            <MapPin size={14} strokeWidth={1.75} aria-hidden />
+        <div {...sx(s.dayHeadTop)}>
+          <div {...sx(s.dayHeadMain)}>
             {editable ? (
-              <input
-                aria-label="City for this day"
-                value={day.city ?? ""}
-                placeholder="City"
+              <textarea
+                rows={1}
+                aria-label="Day title"
+                value={day.title ?? ""}
+                placeholder={`Name day ${dayIndex + 1}`}
                 disabled={locked}
-                {...sx(s.inlineInput)}
-                onChange={(event) => patchDay({ city: event.target.value || undefined })}
+                {...sx(s.titleInput, s.dayTitle, "trips-day-title-input")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault()
+                    event.currentTarget.blur()
+                  }
+                }}
+                onChange={(event) => patchDay({ title: event.target.value.replace(/\s*\n\s*/g, " ") || undefined })}
               />
             ) : (
-              (day.city ?? trip.destinations[0])
+              <h2 {...sx(a.display, s.dayTitle, a.wrap)}>{day.title || `Day ${dayIndex + 1}`}</h2>
             )}
-          </span>
-          {forecast ? (
-            <ForecastChip forecast={forecast} />
-          ) : (
-            day.weather && (
-              <span {...sx(a.row, a.small)} style={{ gap: "0.375rem" }}>
-                <CloudSun size={14} strokeWidth={1.75} aria-hidden />
-                {formatTemp(day.weather.highC, FAHRENHEIT)} / {formatTemp(day.weather.lowC, FAHRENHEIT)} {day.weather.condition}
+            <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
+              <span {...sx(a.row, a.small)} style={{ gap: "0.25rem" }}>
+                <MapPin size={14} strokeWidth={1.75} aria-hidden />
+                {editable ? (
+                  <input
+                    aria-label="City for this day"
+                    value={day.city ?? ""}
+                    placeholder="City"
+                    disabled={locked}
+                    {...sx(s.inlineInput)}
+                    onChange={(event) => patchDay({ city: event.target.value || undefined })}
+                  />
+                ) : (
+                  (day.city ?? trip.destinations[0])
+                )}
               </span>
-            )
-          )}
-          <span {...sx(a.small)}>
-            {plural(stops, "stop")}
-            {meters > 100 ? ` · ${formatDistance(meters)}` : ""}
-            {toSchedule > 0 ? ` · ${toSchedule} to schedule` : ""}
-          </span>
-          <span {...sx(a.grow)} />
+              {summary && <span {...sx(a.small)}>{summary}</span>}
+            </div>
+          </div>
+          <DaySky
+            sky={sky}
+            day={day}
+            now={clock === null ? null : clockMinutes(clock)}
+            onStop={findStop}
+            onRework={editable && !locked ? rework : undefined}
+          />
+        </div>
+        <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
           {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
           {editable && (
-            <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={onAskAi}>
+            <button type="button" {...sx(a.btn, a.btnSm, s.ideasBtn)} disabled={locked} onClick={() => onAskAi()}>
               {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
               {day.items.length === 0 ? "Plan this day with AI" : <span>Ideas<span {...sx(s.wideOnly)}> for this day</span></span>}
             </button>
@@ -376,52 +455,72 @@ export function DayPanel({
             hotId={hotId}
             onHover={onHover}
             now={isToday ? clockIn(trip.timezone, now) : undefined}
-            onSelect={(id) => {
-              const item = day.items.find((i) => i.id === id)
-              // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
-              if (item && isLocated(item)) onLocate(id)
-              else {
-                setDayView("list")
-                onHover(id)
-              }
-            }}
+            forecast={forecast}
+            fold={{ open: foldOpen, onToggle: toggleFold }}
+            onSelect={findStop}
           />
         ) : (
           <Reorder.Group
             as="ol"
             axis="y"
-            values={day.items}
-            onReorder={(items) => !locked && patchDay({ items }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })}
+            values={shown}
+            // The folded head keeps its place: only what is shown can be dragged.
+            onReorder={(items) => !locked && patchDay({ items: [...day.items.slice(0, hidden), ...items] }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })}
+            onFocus={(event) => setFocused(event.target.closest<HTMLElement>("[id^='item-']")?.id.slice(5) ?? null)}
+            onBlur={() => setFocused(null)}
             {...sx(s.timeline)}
           >
-            {day.items.flatMap((item, index) => [
-              ...(slot === index && nowLine ? [nowLine] : []),
-              <Sortable
-                key={item.id}
-                item={item}
-                dayId={day.id}
-                index={index}
-                count={day.items.length}
-                pinLabel={labels.get(item.id) ?? null}
-                leg={legs.get(item.id)?.text ?? null}
-                legMode={legs.get(item.id)?.mode ?? null}
-                editable={editable}
-                locked={locked}
-                hot={hotId === item.id}
-                active={activeId === item.id}
-                expand={edit?.id === item.id ? edit.n : 0}
-                flash={recentIds.has(item.id)}
-                near={near}
-                dayOptions={dayOptions}
-                currency={currency}
-                onChange={onChange}
-                onDelete={removeStop}
-                onGone={leave}
-                onHover={onHover}
-                onLocate={onLocate}
-                onAnnounce={setSpoken}
-              />,
-            ])}
+            {list.done && (
+              <li key="done" {...sx(s.item, s.foldRow)}>
+                <div {...sx(s.gutter)} style={{ paddingTop: 0 }} aria-hidden>
+                  <span {...sx(s.gutterLine)} />
+                </div>
+                <DoneFold count={list.done.stops.length} from={list.done.from} to={list.done.to} open={foldOpen} onToggle={toggleFold} />
+              </li>
+            )}
+            {shown.flatMap((item, at) => {
+              const index = hidden + at
+              return [
+                ...(slot === index && nowLine ? [nowLine] : []),
+                ...(list.anytimeAt === index
+                  ? [
+                      <li key="anytime" {...sx(s.sectionRow)}>
+                        <h3 {...sx(a.eyebrow)}>Anytime</h3>
+                      </li>,
+                    ]
+                  : []),
+                <Sortable
+                  key={item.id}
+                  item={item}
+                  dayId={day.id}
+                  index={index}
+                  count={day.items.length}
+                  pinLabel={list.labels.get(item.id) ?? null}
+                  conflict={conflicts.get(item.id) ?? null}
+                  rain={alerts.get(item.id)?.rain?.text ?? null}
+                  rainHeavy={alerts.get(item.id)?.rain?.heavy ?? false}
+                  rainCode={alerts.get(item.id)?.rain?.spell.code ?? null}
+                  past={list.past.has(item.id)}
+                  leg={list.legs.get(item.id) ?? null}
+                  legWet={legWet(list.legs.get(item.id))}
+                  editable={editable}
+                  locked={locked}
+                  hot={hotId === item.id}
+                  active={activeId === item.id}
+                  expand={edit?.id === item.id ? edit.n : 0}
+                  flash={recentIds.has(item.id)}
+                  near={near}
+                  dayOptions={dayOptions}
+                  currency={currency}
+                  onChange={onChange}
+                  onDelete={removeStop}
+                  onGone={leave}
+                  onHover={onHover}
+                  onLocate={onLocate}
+                  onAnnounce={setSpoken}
+                />,
+              ]
+            })}
             {slot === day.items.length && nowLine}
           </Reorder.Group>
         )}
@@ -492,15 +591,12 @@ function DayViewSwitch({ view, onChange }: { view: "list" | "timeline"; onChange
           role="radio"
           data-day-view={id}
           aria-checked={view === id}
-          aria-label={label}
           tabIndex={view === id ? 0 : -1}
           onClick={() => onChange(id)}
           {...sx(share.segmentBtn, s.viewSwitchBtn, view === id && share.segmentOn)}
         >
           <Icon size={14} strokeWidth={1.75} aria-hidden />
-          <span {...sx(s.wideOnly)} aria-hidden>
-            {label}
-          </span>
+          {label}
         </button>
       ))}
     </div>

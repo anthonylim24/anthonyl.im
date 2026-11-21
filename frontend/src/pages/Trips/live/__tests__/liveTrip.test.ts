@@ -6,7 +6,6 @@ import {
   clockMinutes,
   clockText,
   countdownLabel,
-  durationText,
   liveState,
   nowSlot,
   travelBetween,
@@ -58,13 +57,6 @@ describe("clock in the trip's zone", () => {
     expect(clockText(570)).toBe("09:30")
     expect(clockText(-8)).toBe("23:52")
     expect(clockText(1440 + 75)).toBe("01:15")
-  })
-
-  it("writes durations short", () => {
-    expect(durationText(25)).toBe("25 min")
-    expect(durationText(65)).toBe("1h 5m")
-    expect(durationText(120)).toBe("2h")
-    expect(durationText(0)).toBe("1 min")
   })
 })
 

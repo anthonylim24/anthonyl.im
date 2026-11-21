@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
-  LayoutGrid,
   List,
   Map as MapIcon,
   MoreHorizontal,
@@ -23,7 +22,7 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
-import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
+import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
 import { makeItem } from "./tripEdits"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
@@ -31,18 +30,20 @@ import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
-import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
+import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry, Sync } from "./editorMachine"
 import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
-import { useForecast } from "./forecast"
+import { daySky, useForecast } from "./forecast"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
+import { DayRail } from "./workspace/DayRail"
+import { Parts } from "./workspace/Parts"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
 import { OverviewTabs, type TabBadge } from "./workspace/OverviewTabs"
@@ -70,6 +71,8 @@ const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
 const WIDE_QUERY = "(min-width: 1024px)"
 const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
 const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
+/** The least map kept clear above a tall place card on a phone. */
+const MIN_MAP_BAND = 160
 
 function useWide(): boolean {
   const [wide, setWide] = useState(() => typeof window === "undefined" || !window.matchMedia || window.matchMedia(WIDE_QUERY).matches)
@@ -89,7 +92,7 @@ function typing(target: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable || Boolean(target.closest('[role="dialog"], [role="menu"]'))
 }
 
-type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip" }
+type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip"; prompt?: string }
 
 /** Long enough to read and reach (WCAG 2.2.1); paused while hovered or focused. */
 const UNDO_TOAST_MS = 12_000
@@ -190,6 +193,21 @@ function Workspace() {
   const [hotId, setHotId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
+  /** Below 1024px the place card spans the foot of the map: a stop flown to lands above it. */
+  const [cardInset, setCardInset] = useState(0)
+  const measureCard = useCallback((card: HTMLElement | null) => {
+    if (!card || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(() => {
+      const room = (card.offsetParent?.clientHeight ?? 0) - MAP_PADDING_NARROW.top - MIN_MAP_BAND
+      // Whole 16px steps: the photo arriving moves the camera, a sub-pixel change does not.
+      setCardInset(Math.max(0, Math.min(Math.ceil((card.offsetHeight + 24) / 16) * 16, room)))
+    })
+    observer.observe(card)
+    return () => {
+      observer.disconnect()
+      setCardInset(0)
+    }
+  }, [])
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set())
   const [busy, setBusy] = useState<string | null>(null)
   const [photoreal, setPhotoreal] = useState(false)
@@ -221,7 +239,6 @@ function Workspace() {
   const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
   const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
-  const railRef = useRef<HTMLElement>(null)
   /** Phones mount the map the first time it is asked for, then only hide it. */
   const [mapOpened, setMapOpened] = useState(false)
   if (view === "map" && !mapOpened) setMapOpened(true)
@@ -305,7 +322,6 @@ function Workspace() {
   useEffect(() => {
     if (wide) paneRef.current?.scrollTo({ top: 0 })
     else window.scrollTo({ top: 0 })
-    railRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayId, trip?.id])
 
@@ -366,10 +382,15 @@ function Workspace() {
   const near = useMemo<LngLat | null>(() => (nearLat === null || nearLng === null ? null : { lat: nearLat, lng: nearLng }), [nearLat, nearLng])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
+  // The map chip counts stops as the day header does: "9 stops", or "7 of 9 stops" while some have no pin.
+  const dayStops = day ? splitDay(day).planned.filter((item) => item.kind !== "section" && item.kind !== "note").length : 0
+  const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
   const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
-  const frameKey = `${day?.id ?? "all"}|${pins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}`
+  const cardCovers = !wide && focusPin !== undefined && cardInset > MAP_PADDING_NARROW.bottom
+  const mapPadding = wide ? MAP_PADDING : cardCovers ? { ...MAP_PADDING_NARROW, bottom: cardInset } : MAP_PADDING_NARROW
+  const frameKey = `${day?.id ?? "all"}|${pins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}|${cardCovers ? cardInset : ""}`
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
   const activeDay = trip && activeDayIndex >= 0 ? trip.days[activeDayIndex] : undefined
@@ -631,7 +652,6 @@ function Workspace() {
 
   const accent = resolveAccent(trip.appearance?.accent)
   const timing = tripTiming(trip)
-  const today = todayIsoIn(trip.timezone)
   const owner = editor.access === "owner"
   const showMap = wide || view === "map"
   const sync = editor.sync
@@ -809,29 +829,7 @@ function Workspace() {
           </header>
         )}
 
-        <nav {...sx(s.rail)} aria-label="Days" ref={railRef}>
-          <Link to={basePath} {...sx(s.railItem, s.railAll, !dayId && s.railItemOn)} aria-current={!dayId ? "page" : undefined}>
-            <LayoutGrid size={15} strokeWidth={1.75} aria-hidden />
-            Overview
-          </Link>
-          {trip.days.map((d, index) => (
-            <Link
-              key={d.id}
-              to={`${basePath}/day/${d.id}`}
-              {...sx(s.railItem, d.id === dayId && s.railItemOn)}
-              aria-current={d.id === dayId ? "page" : undefined}
-              aria-label={`Day ${index + 1}, ${formatTripDate(d.date, trip.timezone, { weekday: "long", month: "long" })}${d.date === today ? ", today" : ""}, ${plural(d.items.length, "item")}`}
-            >
-              {d.date === today && <span {...sx(s.railToday)} aria-hidden />}
-              <span {...sx(s.railDow, d.items.length === 0 && d.id !== dayId && s.railEmpty)}>
-                {formatTripDate(d.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
-              </span>
-              <span {...sx(s.railNum, d.items.length === 0 && d.id !== dayId && s.railEmpty)}>
-                {formatTripDate(d.date, trip.timezone, { weekday: undefined, month: undefined, day: "numeric" })}
-              </span>
-            </Link>
-          ))}
-        </nav>
+        <DayRail trip={trip} basePath={basePath} dayId={dayId} />
 
         {dayId && !day ? (
           <div {...sx(s.content)} role="alert">
@@ -864,14 +862,14 @@ function Workspace() {
             onAdded={onAdded}
             onHover={setHotId}
             onLocate={locate}
-            onAskAi={() => setDialog({ ai: "day" })}
+            onAskAi={(prompt) => setDialog({ ai: "day", prompt })}
             onClear={() => setDialog("clear")}
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
             onStopAi={editor.stopAi}
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
             onInstagram={openInstagram}
-            forecast={forecast.get(day.id)}
+            sky={daySky(day, forecast)}
           />
         ) : (
           <OverviewTabs
@@ -882,7 +880,7 @@ function Workspace() {
               open === "itinerary" ? (
                       <OverviewPanel
                   trip={trip}
-                  forecast={forecast}
+                  forecast={forecast.byDay}
                   basePath={basePath}
                   editable={editable}
                   locked={locked}
@@ -1008,7 +1006,7 @@ function Workspace() {
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
-            padding={wide ? MAP_PADDING : MAP_PADDING_NARROW}
+            padding={mapPadding}
             activeId={activeId}
             hotId={hotId}
             dots={dots}
@@ -1029,7 +1027,13 @@ function Workspace() {
           >
             <p {...sx(s.mapChip)}>
               <span {...sx(a.truncate)}>
-                {day ? `Day ${dayIndex + 1}${day.city ? ` · ${day.city}` : ""}` : "All days"} · {plural(day ? pins.length : dots.length, "place")}
+                {[
+                  day ? `Day ${dayIndex + 1}` : "All days",
+                  day?.city,
+                  !day ? plural(dots.length, "place") : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </p>
             {day && PHOTOREAL_READY && pins.length > 0 && (
@@ -1039,14 +1043,15 @@ function Workspace() {
               </button>
             )}
             {active && (
-              <aside {...sx(s.placeCard)} aria-label="Selected place">
+              <aside ref={measureCard} {...sx(s.placeCard)} aria-label="Selected place">
                 <PlacePhoto key={active.item.id} item={active.item} city={active.day.city ?? trip.destinations[0] ?? ""} />
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
                     <p {...sx(a.eyebrow)}>
-                      {tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`}
-                      {active.item.time ? ` · ${formatClock(active.item.time)}` : ""}
-                      {active.item.location?.category ? ` · ${titleCase(active.item.location.category)}` : ""}
+                      <PlaceEyebrow
+                        lead={[tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`, active.item.time ? formatClock(active.item.time) : null]}
+                        category={active.item.location?.category ? titleCase(active.item.location.category) : null}
+                      />
                     </p>
                     <h3 {...sx(a.display, s.placeTitle, a.wrap)}>{active.item.title || active.item.location?.name}</h3>
                   </div>
@@ -1093,7 +1098,7 @@ function Workspace() {
                     </button>
                   )}
                   {tour && tour.ids.length > 1 && (
-                    <span {...sx(a.row)} style={{ marginLeft: "auto", gap: 0 }}>
+                    <span {...sx(a.row)} style={{ marginLeft: "auto", gap: "0.5rem" }}>
                       <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Previous stop" disabled={tour.at === 0} onClick={() => locate(tour.ids[tour.at - 1]!)}>
                         <ChevronLeft size={18} strokeWidth={1.75} aria-hidden />
                       </button>
@@ -1164,6 +1169,7 @@ function Workspace() {
       <AiSheet
         open={typeof dialog === "object" && dialog !== null}
         scope={typeof dialog === "object" && dialog !== null ? dialog.ai : "trip"}
+        prompt={typeof dialog === "object" && dialog !== null ? dialog.prompt : undefined}
         dayLabel={day ? day.title || formatTripDate(day.date, trip.timezone, { weekday: "long" }) : undefined}
         hasItems={hasItems}
         onClose={() => setDialog(null)}
@@ -1290,5 +1296,24 @@ function PanelLoading() {
     <div {...sx(s.content)} role="status" aria-label="Loading">
       <Spinner />
     </div>
+  )
+}
+
+/**
+ * "STOP 5 OF 9 · 3:30 PM · NEIGHBORHOOD" on a wide card; on a phone the
+ * category takes its own line, with no separator left at the break.
+ */
+function PlaceEyebrow({ lead, category }: { lead: Array<string | null>; category: string | null }) {
+  // The card is narrow at every width: the category always takes a line of its own.
+  return (
+    <>
+      <Parts parts={lead} />
+      {category && (
+        <>
+          {" "}
+          <span {...sx(s.placeCategory)}>{category}</span>
+        </>
+      )}
+    </>
   )
 }

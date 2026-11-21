@@ -1,16 +1,26 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react"
-import { Footprints, Plane, Route, TrainFront, TriangleAlert } from "lucide-react"
+import { Footprints, Plane, Route, Sunrise, Sunset, TrainFront, TriangleAlert } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { ItemIcon } from "../ItemIcon"
 import { splitDay } from "../map/geo"
+import { FAHRENHEIT, formatTemp, soaking, weatherKind, wetDuring, wetSpells, wetWord, type DayForecast, type WetSpell } from "../forecast"
 import { plural, titleCase } from "../meta"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { scrollBehavior } from "../workspace/scroll"
+import { rainLine } from "../workspace/stopAlerts"
+import { DoneFold } from "./DoneFold"
+import { StopRef } from "./StopRef"
 import {
   clockLabel,
   clockMinutes,
+  clockRange,
+  doneFold,
+  FREE_LABEL_MIN,
+  freeAhead,
   layoutDay,
+  leaveAt,
+  legWords,
   stopNumbers,
   stopTitle,
   timeScale,
@@ -22,6 +32,19 @@ import {
 import { tl } from "./timeline.stylex"
 import { formatMinutes, type TravelMode } from "./travel"
 
+/** A wet spell's glyph: snow falls as snow, thunder as a bolt. */
+function WetIcon({ spell, strong = false, label }: { spell: WetSpell; strong?: boolean; label?: string }) {
+  const Icon = weatherKind(spell.code).icon
+  return (
+    <Icon
+      size={12}
+      strokeWidth={strong ? 2.25 : 1.75}
+      {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
+      {...sx(tl.noShrink)}
+    />
+  )
+}
+
 export interface DayTimelineProps {
   trip: Trip
   day: TripDay
@@ -31,23 +54,25 @@ export interface DayTimelineProps {
   onHover: (itemId: string | null) => void
   /** "HH:mm" in the trip's time zone, when the day is today: draws the now line. */
   now?: string
+  /** The day's live forecast: hour temperatures, likely rain and the light on the ruler. */
+  forecast?: DayForecast
+  /** Today's finished stops, folded or not; shared with the list. Without it the timeline keeps its own. */
+  fold?: { open: boolean; onToggle: () => void }
 }
 
-const PX_PER_MIN = 1.2
+/** An hour is 60px: a long stop stays a card, not a tall empty box; short ones grow to their minimum. */
+const PX_PER_MIN = 1
 /** Blocks sit 1px inside their minutes so the hour rule between two shows. */
 const INSET = 1
 /** The smallest block is still a 44px target with a time and a title. */
 const BLOCK_MIN_PX = 44
-/** Stacked (beside an overlapping stop) the title sits under the badge row. */
-const STACKED_MIN_PX = 52
+/** Stacked beside an overlapping stop the column is narrow: room for the time and two title lines. */
+const STACKED_MIN_PX = 12 + 22 + 36
 const WARN_PX = 18
-const GAP_LABEL_PX = 26
-/** Free time worth pointing out. */
-const FREE_LABEL_MIN = 45
-/** Two hours or more is one of the day's big moments (serif title). */
-const BIG_MOMENT_MIN = 120
+/** A leg's label: one line, or two with "Leave by". */
+const GAP_LABEL_PX = { one: 26, two: 42 }
 /** Line boxes inside a block, in px (see timeline.stylex.ts). */
-const LINE = { chrome: 12, time: 16, badge: 22, title: 18, big: 22, meta: 16, warn: 18 }
+const LINE = { chrome: 12, time: 16, badge: 22, title: 18, meta: 16, warn: 18 }
 
 const DAY_MIN = 24 * 60
 const STOP = "data-timeline-stop"
@@ -58,8 +83,11 @@ function hourLabel(minutes: number): string {
   return `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`
 }
 
-/** Screen readers say "almost equal to" for ≈; "about" is what is meant. */
-const spoken = (text: string) => text.replace(/≈ /g, "about ")
+/** "10:15": beside the ruler, whose hour labels already say AM or PM. */
+const bareClock = (minutes: number) => clockLabel(minutes).replace(/ [AP]M$/, "")
+
+/** Screen readers say "tilde" for ~; "about" is what is meant. */
+const spoken = (text: string) => text.replace(/~(?=\d)/g, "about ")
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 function category(item: ItineraryItem): string | null {
@@ -67,7 +95,6 @@ function category(item: ItineraryItem): string | null {
   return raw?.trim().replace(/[_-]+/g, " ").toLowerCase() || null
 }
 
-const labelled = (gap: TimelineGap) => gap.to > gap.from && (gap.travel !== undefined || gap.free >= FREE_LABEL_MIN)
 
 /** The glyph for a leg's mode; the list view's leg rows use it too. */
 export function ModeIcon({ mode }: { mode: TravelMode }) {
@@ -94,12 +121,13 @@ function stopButtons(root: HTMLElement | null): HTMLElement[] {
  * time worth knowing about and anything that doesn't fit. Stops with no time
  * (and places still to schedule) wait in an "Anytime" list underneath.
  */
-export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now }: DayTimelineProps) {
+export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now, forecast, fold: shared }: DayTimelineProps) {
   const rootRef = useRef<HTMLElement>(null)
   const baseId = useId()
   const [focusId, setFocusId] = useState<string | null>(null)
+  const [ownOpen, setOwnOpen] = useState(false)
 
-  const layout = useMemo(() => layoutDay(day), [day])
+  const full = useMemo(() => layoutDay(day), [day])
   const numbers = useMemo(() => stopNumbers(day), [day])
   const byId = useMemo(() => new Map(day.items.map((item) => [item.id, item])), [day.items])
   const parked = useMemo(() => new Set(splitDay(day).parked.map((item) => item.id)), [day])
@@ -108,22 +136,46 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
   // Each warning sits on the later stop: the one you would arrive late to.
   const warnings = useMemo(() => {
     const byStop = new Map<string, TimelineConflict[]>()
-    for (const conflict of layout.conflicts) byStop.set(conflict.ids[1], [...(byStop.get(conflict.ids[1]) ?? []), conflict])
+    for (const conflict of full.conflicts) byStop.set(conflict.ids[1], [...(byStop.get(conflict.ids[1]) ?? []), conflict])
     return byStop
-  }, [layout])
-  const arrivals = useMemo(() => new Map(layout.gaps.map((gap) => [gap.beforeId, gap])), [layout])
+  }, [full])
+  const arrivals = useMemo(() => new Map(full.gaps.map((gap) => [gap.beforeId, gap])), [full])
+
+  // The time today on the ruler's clock (past midnight when the day runs on), which
+  // decides what is over and what is free; the Now line is drawn only where the ruler runs.
+  const since = useMemo(() => {
+    const minutes = clockMinutes(now)
+    if (minutes === null) return null
+    return minutes < full.start && minutes + DAY_MIN <= full.end ? minutes + DAY_MIN : minutes
+  }, [now, full])
+
+  // On today the stops already over fold into one line and the ruler starts at
+  // the hour of now; a selected stop among them keeps the fold open.
+  const folding = useMemo(() => doneFold(full, since), [full, since])
+  const open = (shared?.open ?? ownOpen) || (activeId !== null && (folding?.ids.includes(activeId) ?? false))
+  const toggle = shared?.onToggle ?? (() => setOwnOpen((o) => !o))
+  const layout = useMemo(() => {
+    if (!folding || open) return full
+    const at = folding.foldAt
+    return { ...full, start: at, blocks: full.blocks.filter((b) => b.end > at), gaps: full.gaps.filter((g) => g.to > at).map((g) => (g.from < at ? { ...g, from: at } : g)) }
+  }, [full, folding, open])
+  const nowAt = since !== null && since >= layout.start && since <= layout.end ? since : null
+  // A leg is drawn when it has a journey or free time ahead worth pointing out.
+  const labelled = (gap: TimelineGap) => gap.to > gap.from && (gap.travel !== undefined || freeAhead(gap, since) >= FREE_LABEL_MIN)
+  const gapPx = (gap: TimelineGap) => (legWords(gap, since).leave ? GAP_LABEL_PX.two : GAP_LABEL_PX.one)
 
   const scale = useMemo(
     () =>
       timeScale(layout.start, layout.end, PX_PER_MIN, [
         ...layout.blocks.map((block) => ({
-          from: block.start,
+          from: Math.max(block.start, layout.start),
           to: block.end,
           px: (block.lanes > 1 ? STACKED_MIN_PX : BLOCK_MIN_PX) + INSET * 2 + (warnings.has(block.itemId) ? WARN_PX : 0),
         })),
-        ...layout.gaps.filter(labelled).map((gap) => ({ from: gap.from, to: gap.to, px: GAP_LABEL_PX })),
+        ...layout.gaps.filter(labelled).map((gap) => ({ from: gap.from, to: gap.to, px: gapPx(gap) })),
       ]),
-    [layout, warnings],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `labelled` reads only `since`
+    [layout, warnings, since],
   )
 
   // One tab stop for the whole timeline; arrows move within it (clock order, then Anytime).
@@ -136,11 +188,23 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     target?.scrollIntoView?.({ block: "nearest", behavior: scrollBehavior() })
   }, [activeId])
 
-  const nowAt = useMemo(() => {
-    const minutes = clockMinutes(now)
-    if (minutes === null) return null
-    return [minutes, minutes + DAY_MIN].find((t) => t >= layout.start && t <= layout.end) ?? null
-  }, [now, layout])
+  // The forecast on the ruler's own clock: a time is drawn only where the ruler runs.
+  const sky = useMemo(() => {
+    const onRuler = (clock: string | undefined) => {
+      const minutes = clockMinutes(clock)
+      if (minutes === null) return null
+      return [minutes, minutes + DAY_MIN].find((t) => t >= layout.start && t <= layout.end) ?? null
+    }
+    const temps = new Map<number, number>()
+    for (const hour of forecast?.hours ?? []) {
+      const at = clockMinutes(hour.time)
+      if (at !== null) temps.set(at, hour.tempC)
+    }
+    const rain = wetSpells(forecast?.hours ?? [])
+      .map((spell) => ({ ...spell, from: Math.max(spell.from, layout.start), to: Math.min(spell.to, layout.end) }))
+      .filter((spell) => spell.to > spell.from)
+    return { temps, rain, sunrise: onRuler(forecast?.sunrise), sunset: onRuler(forecast?.sunset) }
+  }, [forecast, layout])
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     const id = (event.target as HTMLElement).closest(`[${STOP}]`)?.getAttribute(STOP)
@@ -183,10 +247,41 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     return id
   }
 
+  // The hour it is now, from the forecast: the Now label carries it, since Now takes that hour's label.
+  const nowTemp = nowAt === null ? undefined : sky.temps.get(Math.floor((nowAt % DAY_MIN) / 60) * 60)
   const hours: number[] = []
   for (let t = layout.start; t <= layout.end; t += 60) hours.push(t)
-  const free = layout.gaps.reduce((sum, gap) => sum + gap.free, 0)
+  const free = layout.gaps.reduce((sum, gap) => {
+    const ahead = freeAhead(gap, since)
+    return ahead >= FREE_LABEL_MIN ? sum + ahead : sum
+  }, 0)
+  // What is still on the ruler: a clash among folded stops is behind you.
+  const shown = new Set(layout.blocks.map((b) => b.itemId))
+  const clashes = layout.conflicts.filter((conflict) => shown.has(conflict.ids[1]))
+  const overlaps = clashes.filter((conflict) => conflict.kind === "overlap").length
+  const tight = clashes.length - overlaps
   const anytimeHeading = `${baseId}-anytime`
+
+  /** "Overlaps ②", "Tight after ②": the other stop by its map number, the same words in every view. */
+  const clash = (warning: TimelineConflict) => {
+    const other = byId.get(warning.ids[0])
+    const ref = <StopRef number={numbers.get(warning.ids[0]) ?? null} title={other ? stopTitle(other) : "another stop"} />
+    return (
+      <>
+        {warning.kind === "overlap" ? "Overlaps" : "Tight after"} {ref}
+      </>
+    )
+  }
+
+  /** A lane too narrow for the words keeps just the other stop's badge (`.trips-lane-warn` in index.css). */
+  const laneWarning = (warning: TimelineConflict) => (
+    <span className="trips-lane-warn">
+      <span>{clash(warning)}</span>
+      <span>
+        <StopRef number={numbers.get(warning.ids[0]) ?? null} title="!" />
+      </span>
+    </span>
+  )
 
   const block = (b: TimelineBlock) => {
     const item = byId.get(b.itemId)
@@ -200,18 +295,25 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     const minutes = b.end - b.start
     const active = activeId === item.id
     const runsOn = b.end > layout.end
+    const past = since !== null && b.end <= since
+    const wet = wetDuring(sky.rain, b.start, b.end)
+    const heavy = wet !== null && soaking(wet)
 
-    const top = yAt(scale, b.start) + INSET
+    const runsIn = b.start < layout.start
+    const top = yAt(scale, Math.max(b.start, layout.start)) + INSET
     const height = Math.max(0, yAt(scale, Math.min(b.end, layout.end)) - INSET - top)
     const stacked = b.lanes > 1
-    const big = minutes >= BIG_MOMENT_MIN && !stacked
-    const titleLine = big ? LINE.big : LINE.title
-    const room = height - LINE.chrome - (stacked ? LINE.badge : LINE.time) - (stopWarnings.length > 0 ? LINE.warn : 0)
-    const showMeta = kind !== null && room >= titleLine + LINE.meta
-    const lines = Math.max(1, Math.min(3, Math.floor((room - (showMeta ? LINE.meta : 0)) / titleLine)))
+    // Fill the card in order of what matters: time, a title line, the warning, the rain, the kind, more title.
+    // Stacked, the column is narrow: a second title line comes before the kind.
+    let room = height - LINE.chrome - (stacked ? LINE.badge + LINE.title : LINE.time) - LINE.title - (stopWarnings.length > 0 ? LINE.warn : 0)
+    const showRain = wet !== null && room >= LINE.meta
+    if (showRain) room -= LINE.meta
+    const showMeta = kind !== null && !stacked && room >= LINE.meta
+    if (showMeta) room -= LINE.meta
+    const lines = (stacked ? 2 : 1) + Math.max(0, Math.min(stacked ? 1 : 2, Math.floor(room / LINE.title)))
 
     const name = [
-      b.estimated ? clockLabel(b.start) : `${clockLabel(b.start)} to ${clockLabel(b.end)}`,
+      b.departs ? `departs ${clockLabel(b.start)}` : b.estimated ? clockLabel(b.start) : `${clockLabel(b.start)} to ${clockLabel(b.end)}`,
       title,
       kind,
       number ? `stop ${number}` : null,
@@ -220,9 +322,10 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
       .join(", ")
     const description = describe(
       [
-        b.estimated ? `Length estimated, about ${formatMinutes(minutes)}` : null,
+        b.estimated && !b.departs ? `Length estimated, about ${formatMinutes(minutes)}` : null,
         arrival?.travel && from ? `${spoken(arrival.travel.label)} from ${stopTitle(from)}` : null,
         ...stopWarnings.map((warning) => spoken(warning.detail)),
+        wet ? `${rainLine(wet, b.start, b.end).replace(" · ", ", ")} chance` : null,
       ]
         .filter((part): part is string => Boolean(part))
         .map(sentence)
@@ -232,7 +335,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     return (
       <li
         key={item.id}
-        {...sx(tl.slot, (active || hotId === item.id) && tl.slotRaised)}
+        {...sx(tl.slot, (active || hotId === item.id) && tl.slotRaised, stacked && "trips-lane")}
         style={{
           top,
           height,
@@ -250,35 +353,44 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             a.focusable,
             tl.block,
             stacked && tl.blockStacked,
-            b.estimated && tl.blockEstimated,
+            b.estimated && !b.departs && tl.blockEstimated,
             runsOn && tl.blockRunsOn,
+            runsIn && tl.blockRunsIn,
+            past && tl.blockPast,
             hotId === item.id && tl.blockHot,
             active && tl.blockActive,
           )}
         >
           {number ? (
-            <span {...sx(tl.badge, stacked && tl.badgeStacked, active && tl.badgeActive)}>{number}</span>
+            <span {...sx(tl.badge, past && tl.badgePast, active && tl.badgeActive)}>{number}</span>
           ) : (
-            <span {...sx(tl.disc, stacked && tl.badgeStacked)}>
+            <span {...sx(tl.disc)}>
               <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={12} strokeWidth={1.75} aria-hidden />
             </span>
           )}
           <span {...sx(tl.time)}>
-            {clockLabel(b.start)}
-            {b.estimated ? (
-              <span {...sx(tl.estimate)} title="Estimated length">
-                {" "}
-                · ≈ {formatMinutes(minutes)}
-              </span>
+            {b.departs ? (
+              `Departs ${stacked ? bareClock(b.start) : clockLabel(b.start)}`
+            ) : b.estimated ? (
+              <>
+                {stacked ? bareClock(b.start) : clockLabel(b.start)}
+                <span {...sx(tl.estimate)} title="Estimated length">
+                  {" "}
+                  · ~{formatMinutes(minutes)}
+                </span>
+              </>
             ) : (
-              ` – ${clockLabel(b.end)}`
+              clockRange(b.start, b.end, stacked ? "lane" : "card")
+            )}
+            {stacked && kind && (
+              <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={12} strokeWidth={1.75} aria-hidden {...sx(tl.timeIcon)} />
             )}
           </span>
-          <span {...sx(tl.title, big && tl.titleBig, stacked && tl.wide)} style={{ WebkitLineClamp: lines }}>
+          <span {...sx(tl.title, past && tl.titlePast)} style={{ WebkitLineClamp: lines }}>
             {title}
           </span>
           {showMeta && (
-            <span {...sx(tl.meta, stacked && tl.wide)}>
+            <span {...sx(tl.meta)}>
               {number && (
                 <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={12} strokeWidth={1.75} aria-hidden {...sx(tl.noShrink)} />
               )}
@@ -286,12 +398,19 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             </span>
           )}
           {stopWarnings.length > 0 && (
-            <span {...sx(tl.warn, stacked && tl.wide)}>
+            <span {...sx(tl.warn)}>
               <TriangleAlert size={12} strokeWidth={2} aria-hidden {...sx(tl.noShrink)} />
               <span {...sx(tl.warnText)}>
-                {stopWarnings[0]!.detail}
+                {stacked ? laneWarning(stopWarnings[0]!) : clash(stopWarnings[0]!)}
+                {!stacked && stopWarnings[0]!.kind === "tight" && <span {...sx(tl.warnDetail)}> · {stopWarnings[0]!.detail.replace(/^Tight · /, "")}</span>}
                 {stopWarnings.length > 1 ? ` · +${stopWarnings.length - 1}` : ""}
               </span>
+            </span>
+          )}
+          {showRain && wet && (
+            <span {...sx(tl.meta, tl.wet, heavy && tl.wetStrong)} aria-hidden>
+              <WetIcon spell={wet} strong={heavy} />
+              {stacked ? `${wet.chance}%` : rainLine(wet, b.start, b.end)}
             </span>
           )}
         </button>
@@ -302,17 +421,24 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
   const gap = (g: TimelineGap) => {
     const top = yAt(scale, g.from)
     const tight = g.travel !== undefined && g.travel.minutes > g.to - g.from
+    const { free, leave } = legWords(g, since)
+    // The journey itself out in the rain: from when you set off to when you arrive.
+    const wetLeg = g.travel === undefined ? null : wetDuring(sky.rain, leaveAt(g), g.to)
     return (
       <div key={`${g.afterId}>${g.beforeId}`} {...sx(tl.gap)} style={{ top, height: yAt(scale, g.to) - top }}>
         <span {...sx(tl.gapLine, tight && tl.gapLineTight)} />
         <span {...sx(tl.gapLabel)}>
-          {g.travel && (
-            <span {...sx(tl.gapLeg, tight && tl.gapTight)}>
-              {tight ? <TriangleAlert size={12} strokeWidth={2} aria-hidden /> : <ModeIcon mode={g.travel.mode} />}
-              {g.travel.label}
-            </span>
-          )}
-          {g.free >= FREE_LABEL_MIN && <span {...sx(tl.gapFree)}>{formatMinutes(g.free)} free</span>}
+          <span {...sx(tl.gapRow)}>
+            {g.travel && (
+              <span {...sx(tl.gapLeg, tight && tl.gapTight)}>
+                {tight ? <TriangleAlert size={12} strokeWidth={2} aria-hidden /> : <ModeIcon mode={g.travel.mode} />}
+                {g.travel.label}
+                {wetLeg && <WetIcon spell={wetLeg} label={weatherKind(wetLeg.code).sky === "snow" ? "in the snow" : "in the rain"} />}
+              </span>
+            )}
+            {free && <span {...sx(tl.gapFree, g.travel && tl.sep)}>{free}</span>}
+          </span>
+          {leave && <span {...sx(tl.gapLeave)}>{leave}</span>}
         </span>
       </div>
     )
@@ -369,32 +495,87 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
         </p>
       ) : (
         <>
-          <p {...sx(tl.summary)}>
-            <span>{plural(layout.blocks.length, "stop")} on the clock</span>
-            {free > 0 && <span>{formatMinutes(free)} free</span>}
-            {layout.conflicts.length > 0 && (
-              <span {...sx(tl.summaryWarn)}>
-                <TriangleAlert size={12} strokeWidth={2} aria-hidden />
-                {layout.conflicts.length} to check
-              </span>
+          {/* Said for a screen reader; the sky band names the light and each leg its free time. */}
+          <p {...sx(a.srOnly)}>
+            {plural(layout.blocks.length, "timed stop")}
+            {free > 0 && `, ${formatMinutes(free)} free${since !== null ? " from now" : ""}`}
+            {(["sunrise", "sunset"] as const).map((edge) =>
+              sky[edge] !== null && sky[edge] > layout.start ? `, ${edge === "sunrise" ? "sunrise" : "sunset"} ${clockLabel(sky[edge])}` : null,
             )}
-            {nowAt !== null && <span {...sx(a.srOnly)}>Now {clockLabel(nowAt)}</span>}
+            {nowAt !== null && `, now ${clockLabel(nowAt)}`}
+            {sky.rain.map((spell) => `, ${wetWord(spell.code).toLowerCase()} likely ${clockRange(spell.from, spell.to, "prose")}, ${spell.chance}% chance`)}
           </p>
+          {/* Clashes are the one thing a glance at the ruler can miss. */}
+          {(overlaps > 0 || tight > 0) && (
+            <p {...sx(tl.summary)}>
+              {overlaps > 0 && (
+                <span {...sx(tl.summaryPart, tl.summaryWarn)}>
+                  <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+                  {plural(overlaps, "overlap")}
+                </span>
+              )}
+              {tight > 0 && (
+                <span {...sx(tl.summaryPart, tl.summaryWarn)}>
+                  <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+                  {plural(tight, "tight leg")}
+                </span>
+              )}
+            </p>
+          )}
+          {folding && (
+            <DoneFold count={folding.ids.length} from={folding.from} to={folding.to} open={open} onToggle={toggle} controls={`${baseId}-stops`} />
+          )}
           <div {...sx(tl.ruler)}>
             <div {...sx(tl.canvas)} style={{ height: scale.height }}>
-              {hours.map((t) => (
-                <div key={t} aria-hidden>
-                  <span {...sx(tl.hourRule)} style={{ top: yAt(scale, t) }} />
-                  <span {...sx(tl.hourLabel)} style={{ top: yAt(scale, t) }}>
-                    {hourLabel(t)}
-                  </span>
-                  {t + 30 < layout.end && <span {...sx(tl.halfTick)} style={{ top: yAt(scale, t + 30) }} />}
-                </div>
-              ))}
+              {(["sunrise", "sunset"] as const).map((edge) => {
+                const at = sky[edge]
+                if (at === null || at <= layout.start) return null
+                const Icon = edge === "sunrise" ? Sunrise : Sunset
+                return (
+                  <div key={edge} aria-hidden {...sx(tl.sun)} style={{ top: yAt(scale, at) }}>
+                    <span {...sx(tl.sunMark)}>
+                      <Icon size={12} strokeWidth={1.75} aria-hidden />
+                    </span>
+                  </div>
+                )
+              })}
+              {sky.rain.map((spell) => {
+                const strong = soaking(spell)
+                return (
+                  <div
+                    key={spell.from}
+                    aria-hidden
+                    {...sx(tl.rain, strong && tl.rainStrong)}
+                    style={{ top: yAt(scale, spell.from), height: yAt(scale, spell.to) - yAt(scale, spell.from) }}
+                  >
+                    <span {...sx(tl.rainMark)}>
+                      <WetIcon spell={spell} strong={strong} />
+                    </span>
+                  </div>
+                )
+              })}
+              {hours.map((t) => {
+                const y = yAt(scale, t)
+                // Now takes the hour's place when they would touch.
+                const crowded = nowAt !== null && Math.abs(yAt(scale, nowAt) - y) < 26
+                // Every third hour: enough to read the day's warming and cooling.
+                const temp = (t - layout.start) % 180 === 0 ? sky.temps.get(((t % DAY_MIN) + DAY_MIN) % DAY_MIN) : undefined
+                return (
+                  <div key={t} aria-hidden>
+                    <span {...sx(tl.hourRule)} style={{ top: y }} />
+                    {!crowded && (
+                      <span {...sx(tl.hourLabel)} style={{ top: y }}>
+                        {hourLabel(t)}
+                        {temp !== undefined && <span {...sx(tl.hourTemp)}>{formatTemp(temp, FAHRENHEIT)}</span>}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
               <div {...sx(tl.track)} aria-hidden>
                 {gaps}
               </div>
-              <ol {...sx(tl.track)} aria-label={`${plural(layout.blocks.length, "stop")} on the clock`}>
+              <ol id={`${baseId}-stops`} {...sx(tl.track)} aria-label={`${plural(layout.blocks.length, "stop")} on the clock`}>
                 {blocks}
               </ol>
               {nowAt !== null && (
@@ -402,6 +583,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
                   <span {...sx(tl.now)} style={{ top: yAt(scale, nowAt) }} />
                   <span {...sx(tl.nowLabel)} style={{ top: yAt(scale, nowAt) }}>
                     Now
+                    {nowTemp !== undefined && <span {...sx(tl.hourTemp, tl.nowTemp)}>{formatTemp(nowTemp, FAHRENHEIT)}</span>}
                   </span>
                 </div>
               )}

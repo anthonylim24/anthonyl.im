@@ -18,6 +18,8 @@ export interface TimelineBlock {
   lanes: number
   /** No end time was given: `end` is a guess from the kind of stop. */
   estimated: boolean
+  /** A flight or train with no end time: drawn as its departure, never as a guessed journey. */
+  departs: boolean
 }
 
 export interface TimelineGap {
@@ -35,12 +37,12 @@ export interface TimelineConflict {
   /** [earlier stop, later stop]. The later one carries the warning. */
   ids: [string, string]
   kind: "overlap" | "tight"
-  /** "Overlaps Gyeongbokgung", "Tight · ≈ 35 min by transit, 15 min gap". */
+  /** "Overlaps Gyeongbokgung", "Tight · ~35 min by transit, 15 min gap". */
   detail: string
 }
 
 export interface DayLayout {
-  /** The ruler's window, on whole hours, at least six hours long. */
+  /** The ruler's window: on whole hours, from the first stop's hour, at least three hours long. */
   start: number
   end: number
   blocks: TimelineBlock[]
@@ -51,17 +53,19 @@ export interface DayLayout {
 }
 
 const DAY = 24 * 60
-const MIN_WINDOW = 6 * 60
+const MIN_WINDOW = 3 * 60
+/** The window used when nothing is on the clock (only the empty state reads it). */
+const EMPTY_WINDOW = 6 * 60
 /** The ruler stops at 06:00 the next morning; a stay that runs on is drawn to the edge. */
 const LATEST_END = DAY + 6 * 60
 /** A stop with a guessed length keeps at least this long before it gives way to the next. */
 const MIN_ESTIMATE = 15
-/** The window used when nothing is on the clock (only the empty state reads it). */
 const EMPTY_START = 9 * 60
 
 /** Typical minutes at a stop, by booking type or place category. */
 const TYPICAL_MINUTES: Record<string, number> = {
-  flight: 180,
+  // A flight with no arrival is drawn as its departure: its length is unknown and often crosses zones.
+  flight: 45,
   hotel: 30,
   meal: 75,
   restaurant: 75,
@@ -95,6 +99,22 @@ export function clockLabel(minutes: number): string {
   const hh = String(Math.floor(wrapped / 60)).padStart(2, "0")
   const mm = String(wrapped % 60).padStart(2, "0")
   return formatClock(`${hh}:${mm}`)
+}
+
+/**
+ * A span of the clock. `card`: "11:00 AM–12:00 PM", minutes always, so a list of
+ * them lines up. `lane`: "11:00–12:00" for a narrow column under a ruler that
+ * already says AM or PM. `prose`: "2–5 PM" in a sentence.
+ */
+export function clockRange(from: number, to: number, style: "card" | "lane" | "prose" = "card"): string {
+  const [a, b] = [clockLabel(from), clockLabel(to)]
+  const bare = style === "lane"
+  const whole = style === "prose" && a.includes(":00 ") && b.includes(":00 ")
+  const trim = (label: string) => (whole ? label.replace(":00", "") : label)
+  const [timeA, halfA] = trim(a).split(" ")
+  const [timeB, halfB] = trim(b).split(" ")
+  if (bare) return `${timeA}–${timeB}`
+  return halfA === halfB ? `${timeA}–${timeB} ${halfB}` : `${timeA} ${halfA}–${timeB} ${halfB}`
 }
 
 /** How long a stop with no end time probably takes. Booking type wins over the place's category. */
@@ -189,7 +209,15 @@ function assignLanes(placed: readonly Placed[]): TimelineBlock[] {
     let lane = laneEnds.findIndex((end) => end <= entry.start)
     if (lane < 0) lane = laneEnds.length
     laneEnds[lane] = entry.end
-    const block: TimelineBlock = { itemId: entry.item.id, start: entry.start, end: entry.end, lane, lanes: 1, estimated: entry.estimated }
+    const block: TimelineBlock = {
+      itemId: entry.item.id,
+      start: entry.start,
+      end: entry.end,
+      lane,
+      lanes: 1,
+      estimated: entry.estimated,
+      departs: entry.estimated && isJourney(entry.item),
+    }
     cluster.push(block)
     blocks.push(block)
     clusterEnd = Math.max(clusterEnd, entry.end)
@@ -199,16 +227,11 @@ function assignLanes(placed: readonly Placed[]): TimelineBlock[] {
 }
 
 function rulerWindow(placed: readonly Placed[]): { start: number; end: number } {
-  if (placed.length === 0) return { start: EMPTY_START, end: EMPTY_START + MIN_WINDOW }
-  let start = Math.floor(Math.min(...placed.map((p) => p.start)) / 60) * 60
-  let end = Math.min(Math.ceil(Math.max(...placed.map((p) => p.end)) / 60) * 60, LATEST_END)
-  if (end - start < MIN_WINDOW) {
-    // Pad both sides (no earlier than midnight) so a short day sits mid-ruler.
-    const pad = MIN_WINDOW - (end - start)
-    start -= Math.min(start, Math.ceil(pad / 2 / 60) * 60)
-    end = start + MIN_WINDOW
-  }
-  return { start, end }
+  if (placed.length === 0) return { start: EMPTY_START, end: EMPTY_START + EMPTY_WINDOW }
+  const start = Math.floor(Math.min(...placed.map((p) => p.start)) / 60) * 60
+  const end = Math.min(Math.ceil(Math.max(...placed.map((p) => p.end)) / 60) * 60, LATEST_END)
+  // A short day runs on after its last stop: the rest of it is still to plan.
+  return { start, end: Math.max(end, start + MIN_WINDOW) }
 }
 
 export function layoutDay(day: TripDay): DayLayout {
@@ -320,4 +343,59 @@ export function yAt(scale: TimeScale, t: number): number {
     }
   }
   return scale.height
+}
+
+/** Free time worth pointing out; anything less is just the walk between. */
+export const FREE_LABEL_MIN = 15
+
+/** When to set off for the next stop: its start less the journey. */
+export const leaveAt = (gap: TimelineGap) => gap.to - (gap.travel?.minutes ?? 0)
+
+/**
+ * Free time still ahead in a gap, the journey taken out. `since` is the time
+ * today on the day's clock (null on other days): a gap that has begun counts
+ * from it, a past one not at all.
+ */
+export function freeAhead(gap: TimelineGap, since: number | null): number {
+  if (since === null || since <= gap.from) return gap.free
+  return Math.max(0, Math.min(gap.free, leaveAt(gap) - since))
+}
+
+/**
+ * The words for the leg between two timed stops, the same in the list and on
+ * the timeline: the free time ("1 h 08 free") and when to set off ("Leave by
+ * 3:18 PM"), each only from FREE_LABEL_MIN, and only "Leave by" when there is
+ * a journey.
+ */
+export function legWords(gap: TimelineGap, since: number | null): { free: string | null; leave: string | null } {
+  const ahead = freeAhead(gap, since)
+  if (ahead < FREE_LABEL_MIN) return { free: null, leave: null }
+  return { free: `${formatMinutes(ahead)} free`, leave: gap.travel ? `Leave by ${clockLabel(leaveAt(gap))}` : null }
+}
+
+/**
+ * On today, the run of stops already over, folded into one line so the day
+ * opens on what is left ("4 stops done · 8:00 AM–1:30 PM"). The ruler starts
+ * at `foldAt`: the hour of now, or of the stop under way if it began earlier.
+ * Null when nothing is over, or the day is not today.
+ */
+export interface DoneFold {
+  ids: string[]
+  from: number
+  to: number
+  foldAt: number
+}
+
+export function doneFold(layout: DayLayout, since: number | null): DoneFold | null {
+  if (since === null) return null
+  const done = layout.blocks.filter((b) => b.end <= since)
+  if (done.length === 0) return null
+  const live = layout.blocks.filter((b) => b.end > since)
+  // A day that is all behind you stays whole, quietly: there is nothing to open on.
+  if (live.length === 0) return null
+  const foldAt = Math.floor(Math.min(since, ...live.map((b) => b.start)) / 60) * 60
+  // Only what ends by the fold line is folded; a stop that straddles it stays on the ruler.
+  const folded = done.filter((b) => b.end <= foldAt)
+  if (folded.length === 0) return null
+  return { ids: folded.map((b) => b.itemId), from: Math.min(...folded.map((b) => b.start)), to: Math.max(...folded.map((b) => b.end)), foldAt }
 }

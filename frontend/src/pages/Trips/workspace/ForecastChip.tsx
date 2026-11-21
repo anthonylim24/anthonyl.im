@@ -1,22 +1,23 @@
 import { sx } from "@/styles/merge"
-import { FAHRENHEIT, forecastLine, weatherKind, type DayForecast } from "../forecast"
+import { FAHRENHEIT, forecastLine, formatTemp, weatherKind, wetWord, type DayForecast } from "../forecast"
 import { a } from "../atlas.stylex"
+import { ws as s } from "../workspace.stylex"
 
-/** The day's live forecast: icon, high / low, the sky, rain when likely. */
-export function ForecastChip({ forecast, compact = false }: { forecast: DayForecast; compact?: boolean }) {
-  const kind = weatherKind(forecast.code)
-  const Icon = kind.icon
-  const line = forecastLine(forecast, FAHRENHEIT)
+/** A day row's live forecast in the overview: the sky's glyph, the high over the low, and the chance of what falls when it is worth a look ("60% showers", "70% snow"). */
+export function ForecastChip({ forecast }: { forecast: DayForecast }) {
+  const Icon = weatherKind(forecast.code).icon
   return (
-    <span {...sx(a.row, a.small)} style={{ gap: "0.375rem" }} title="Live forecast from Open-Meteo">
-      <Icon size={14} strokeWidth={1.75} aria-hidden />
-      {compact ? (
-        <>
-          <span {...sx(a.srOnly)}>{line}</span>
-          <span aria-hidden>{line.split(" · ")[0]!.split(" / ")[0]}</span>
-        </>
-      ) : (
-        line
+    <span {...sx(s.rowSky)} title="Live forecast from Open-Meteo">
+      <span {...sx(a.srOnly)}>{forecastLine(forecast, FAHRENHEIT)}</span>
+      <Icon size={20} strokeWidth={1.5} aria-hidden {...sx(s.rowSkyIcon)} />
+      <span {...sx(s.rowSkyTemps)} aria-hidden>
+        <span {...sx(s.rowSkyHigh)}>{formatTemp(forecast.highC, FAHRENHEIT)}</span>
+        <span {...sx(s.rowSkyLow)}>{formatTemp(forecast.lowC, FAHRENHEIT)}</span>
+      </span>
+      {forecast.rainChance >= 30 && (
+        <span {...sx(s.rowSkyChance)} aria-hidden>
+          {forecast.rainChance}% {wetWord(forecast.code).toLowerCase()}
+        </span>
       )}
     </span>
   )

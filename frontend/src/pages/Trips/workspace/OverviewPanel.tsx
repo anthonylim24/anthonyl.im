@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { formatClock, formatTripDate, itemIcon, todayIsoIn } from "../meta"
+import { formatClock, formatTripDate, itemIcon, STATUS_LABEL, titleCase, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated } from "../map/geo"
 import { formatDistance } from "../reservationView"
 import type { EnhancementRun, Trip } from "../types"
@@ -83,7 +83,7 @@ export function OverviewPanel({
 
   return (
     <div {...sx(s.content)}>
-      <NowCard trip={trip} basePath={basePath} />
+      <NowCard trip={trip} basePath={basePath} forecast={forecast} />
       {description && <p {...sx(a.body, a.wrap)}>{description}</p>}
 
       <dl {...sx(s.stats)}>
@@ -98,7 +98,7 @@ export function OverviewPanel({
           { label: "Bookings", value: String(stats.bookings), unit: "" },
           { label: "Walking", value: stats.meters > 500 ? formatDistance(stats.meters).replace(" km", "") : "–", unit: stats.meters > 500 ? "km" : "" },
         ].map((stat, i) => (
-          <div key={stat.label} {...sx(s.stat, i === 0 && s.statFirst)}>
+          <div key={stat.label} {...sx(s.stat, i === 0 && s.statFirst, i === 2 && s.statRowStart, i >= 2 && s.statSecondRow)}>
             <dt {...sx(a.eyebrow)}>{stat.label}</dt>
             <dd {...sx(s.statValue)} style={{ margin: 0 }}>
               {stat.value}
@@ -166,19 +166,16 @@ export function OverviewPanel({
                   onFocus={() => onHoverDay(day.id)}
                   onBlur={() => onHoverDay(null)}
                 >
-                  <span {...sx(s.dayDate)}>
+                  <span {...sx(s.dayDate, day.date === today && s.dayDateToday)}>
                     <span {...sx(a.mono)} style={{ fontSize: "0.625rem", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                      {formatTripDate(day.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
+                      {day.date === today ? "Today" : formatTripDate(day.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
                     </span>
                     <span {...sx(s.dayDateNum)}>
                       {formatTripDate(day.date, trip.timezone, { weekday: undefined, month: undefined, day: "numeric" })}
                     </span>
                   </span>
                   <span {...sx(a.stack)} style={{ gap: "0.1875rem" }}>
-                    <span {...sx(s.dayRowTitle, a.truncate)}>
-                      {day.title || `Day ${index + 1}`}
-                      {day.date === today && <span {...sx(a.accentText)}> · Today</span>}
-                    </span>
+                    <span {...sx(s.dayRowTitle, s.dayRowTitleClamp)}>{day.title || `Day ${index + 1}`}</span>
                     <span {...sx(a.small, a.truncate)}>
                       {preview.length > 0
                         ? `${preview.join(" · ")}${stops.length > preview.length ? ` · +${stops.length - preview.length}` : ""}`
@@ -188,7 +185,7 @@ export function OverviewPanel({
                     </span>
                   </span>
                   <span {...sx(a.row)}>
-                    {forecast?.get(day.id) && <ForecastChip forecast={forecast.get(day.id)!} compact />}
+                    {forecast?.get(day.id) && <ForecastChip forecast={forecast.get(day.id)!} />}
                     {day.city && multiCity && <span {...sx(a.chip)}>{day.city}</span>}
                     <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
                   </span>
@@ -224,8 +221,9 @@ export function OverviewPanel({
                         {item.reservation?.confirmation ? ` · ${item.reservation.confirmation}` : ""}
                       </span>
                     </span>
-                    <span {...sx(a.chip, item.reservation?.status === "confirmed" || item.status === "booked" ? a.chipOk : undefined)}>
-                      {item.reservation?.status === "confirmed" || item.status === "booked" ? "Confirmed" : "Pending"}
+                    {/* The day list's status chip: mono outline, never green. */}
+                    <span {...sx(a.chip, a.chipOutline, a.chipMono)}>
+                      {item.reservation?.status === "confirmed" || item.status === "booked" ? STATUS_LABEL.booked : titleCase(item.reservation?.status ?? "pending")}
                     </span>
                   </Link>
                 </li>

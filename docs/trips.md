@@ -46,7 +46,8 @@ opens `/day/:dayId#item-<id>`.
 `fetchExternal`) for the days inside its 16-day window, each day at its first
 pinned stop (else the day before's place, else `trip.center`); days that
 round to the same point (~11 km) share one request, at most six per trip,
-cached for 30 minutes. `useForecast(trip)` refetches only when a place or
+cached for 30 minutes (a failed request is not cached; the day sky's "Try
+again" refetches). `useForecast(trip)` refetches only when a place or
 date changes. The day header and the overview's day rows show it; the AI's
 `day.weather` stays the fallback. Fahrenheit for US locales.
 

@@ -67,15 +67,24 @@ describe("DayTimeline", () => {
     renderTimeline()
     expect(stopNamed(/Dinner/)).toHaveAccessibleDescription("Length estimated, about 1 h. About 35 min by transit from Gyeongbokgung")
     expect(stopNamed(/Tea house/)).toHaveAccessibleDescription("Length estimated, about 45 min. Overlaps Gyeongbokgung")
-    expect(screen.getByText("Overlaps Gyeongbokgung")).toBeInTheDocument()
-    expect(screen.getByText("1 to check")).toBeInTheDocument()
+    // The warning names the other stop by its map badge, the same in every view.
+    expect(screen.getAllByRole("img", { name: /^stop \d+$/ }).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/^Overlaps/).length).toBeGreaterThan(0)
+    expect(screen.getByText("1 overlap")).toBeInTheDocument()
   })
 
   it("labels the leg between two stops, and free time worth knowing about", () => {
     renderTimeline()
-    expect(screen.getByText("≈ 35 min by transit")).toBeInTheDocument()
+    expect(screen.getByText("~35 min by transit")).toBeInTheDocument()
     expect(screen.getByText("1 h 25 free")).toBeInTheDocument()
-    expect(screen.getByText("2 h 25 free")).toBeInTheDocument()
+    expect(screen.getByText(/timed stops, 2 h 25 free/)).toBeInTheDocument()
+    expect(screen.getByText("Leave by 5:25 PM")).toBeInTheDocument()
+  })
+
+  it("counts no free time once the day's stops are over", () => {
+    renderTimeline(undefined, { now: "23:30" })
+    expect(screen.getByText(/^\d+ timed stops/)).toBeInTheDocument()
+    expect(screen.queryByText(/free/)).toBeNull()
   })
 
   it("measures no leg out of a flight, which lands somewhere else", () => {
@@ -147,9 +156,19 @@ describe("DayTimeline", () => {
     expect(onHover).toHaveBeenLastCalledWith(null)
   })
 
+  it("folds today's finished stops into one line that opens them again", () => {
+    renderTimeline(undefined, { now: "17:00" })
+    const fold = screen.getByRole("button", { name: /^3 stops done 10:40 AM–4:00 PM/ })
+    expect(fold).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("button", { name: /UA 893/ })).toBeNull()
+    fireEvent.click(fold)
+    expect(fold).toHaveAttribute("aria-expanded", "true")
+    expect(stopNamed(/UA 893/)).toBeInTheDocument()
+  })
+
   it("draws the now line only when now falls on the ruler", () => {
     const { rerender, container } = renderTimeline(undefined, { now: "14:30" })
-    expect(screen.getByText("Now 2:30 PM")).toBeInTheDocument()
+    expect(screen.getByText(/, now 2:30 PM/)).toBeInTheDocument()
     expect(within(container).getByText("Now")).toBeInTheDocument()
 
     const day = dayWith([flight, palace, tea])

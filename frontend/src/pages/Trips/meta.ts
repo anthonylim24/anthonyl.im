@@ -8,6 +8,7 @@ import {
   Landmark,
   MapPin,
   Martini,
+  Mosque,
   PartyPopper,
   Plane,
   ShoppingBag,
@@ -221,7 +222,19 @@ const placeCategoryIcon: Record<string, LucideIcon> = {
   shopping: ShoppingBag,
   museum: Landmark,
   palace: Landmark,
-  shrine: Church,
+  // Places of worship arrive under many names (the AI says "shrine"; seeds and imports say "temple").
+  // Church's cross is kept for churches: a shrine or a temple takes the columned hall.
+  shrine: Landmark,
+  temple: Landmark,
+  pagoda: Landmark,
+  monastery: Landmark,
+  synagogue: Landmark,
+  place_of_worship: Landmark,
+  church: Church,
+  cathedral: Church,
+  chapel: Church,
+  basilica: Church,
+  mosque: Mosque,
   park: Trees,
   viewpoint: Camera,
   experience: Ticket,
@@ -235,7 +248,7 @@ const placeCategoryIcon: Record<string, LucideIcon> = {
 export function itemIcon(kind: ItemKind, category?: string, reservationType?: string): LucideIcon {
   if (kind === "reservation") return reservationTypeIcon[reservationType ?? ""] ?? Ticket
   if (kind === "note") return StickyNote
-  return placeCategoryIcon[category ?? ""] ?? MapPin
+  return placeCategoryIcon[category?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? ""] ?? MapPin
 }
 
 export const STATUS_LABEL: Record<ItemStatus, string> = {
