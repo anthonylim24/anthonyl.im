@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { isCalendarItem } from "../calendar/ics"
 import { IgGlyph } from "../instagram/IgGlyph"
-import { formatRange, formatTripDate, itemIcon, plural, visibleTags } from "../meta"
+import { formatClock, formatRange, formatTripDate, itemIcon, plural, visibleTags } from "../meta"
 import type { Trip, TripDay, TripSummary } from "../types"
 import type { Command } from "./commands"
 
@@ -194,7 +194,7 @@ export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = n
       commands.push({
         id: `stop:${item.id}`,
         title,
-        subtitle: [`Day ${index + 1}`, item.time].filter(Boolean).join(" · "),
+        subtitle: [`Day ${index + 1}`, item.time && formatClock(item.time)].filter(Boolean).join(" · "),
         group: "Stops",
         icon: itemIcon(item.kind, item.location?.category, item.reservation?.type),
         keywords,

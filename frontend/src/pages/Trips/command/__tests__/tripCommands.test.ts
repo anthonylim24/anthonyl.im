@@ -54,7 +54,7 @@ describe("tripCommands", () => {
     const stops = tripCommands({ trip: trip(), basePath: "/trips/lisbon", navigate }).filter((c) => c.group === "Stops")
     // Sections are headings and an untitled note has nothing to find it by.
     expect(stops.map((c) => [c.title, c.subtitle])).toEqual([
-      ["Castelo de São Jorge", "Day 1 · 10:00"],
+      ["Castelo de São Jorge", "Day 1 · 10:00 AM"],
       ["Dinner at Taberna", "Day 1"],
     ])
     expect(stops[1]!.keywords).toEqual(["meal", "QX7Z", "Lisbon"])
