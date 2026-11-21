@@ -4,7 +4,8 @@ import { Reorder, useDragControls } from "motion/react"
 import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles, TimerOff } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
-import { dayRoute, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
+import { dayRoute, isLocated, isToSchedule, routeMeters, splitDay, type LngLat } from "../map/geo"
+import { dayStarts } from "../dayClock"
 import { formatDistance } from "../reservationView"
 import { addItem } from "../tripEdits"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
@@ -68,16 +69,28 @@ export interface DayPanelProps {
   sky: Sky
 }
 
-/** Timed items in clock order; untimed items stay behind the timed item they followed. */
+/**
+ * The day's plan in clock order, read on the day's own clock (`dayStarts`): a
+ * 01:00 stop after a 23:00 one stays last. Untimed items stay behind the timed
+ * item they followed; headings travel the same way. Places parked under "To
+ * schedule" keep their place under it. Sorting a sorted day changes nothing.
+ */
 export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
-  const keyed = items.map((item, index) => ({ item, index, time: item.kind === "section" ? undefined : item.time }))
-  let carry = ""
-  const withKey = keyed.map((entry) => {
-    if (entry.time) carry = entry.time
-    return { ...entry, key: entry.time ?? carry }
+  const parkedAt = items.findIndex(isToSchedule)
+  const plan = parkedAt < 0 ? items : items.slice(0, parkedAt)
+  const starts = dayStarts(plan.map((item) => (item.kind === "section" ? {} : item)))
+  let carry = -1
+  const keyed = plan.map((item, index) => {
+    const start = starts[index] ?? null
+    if (start !== null) carry = start
+    return { item, index, key: start ?? carry }
   })
-  return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
+  keyed.sort((x, y) => x.key - y.key || x.index - y.index)
+  return [...keyed.map((entry) => entry.item), ...items.slice(plan.length)]
 }
+
+/** "Sort stops by time" has something to do. */
+export const outOfOrder = (items: readonly ItineraryItem[]) => sortByTime(items).some((item, i) => item !== items[i])
 
 type SortableProps = ItemCardProps & { leg: Leg | null; legWet: number | null }
 
