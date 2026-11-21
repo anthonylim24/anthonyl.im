@@ -15,15 +15,6 @@ import rainArt from "./art/sky-rain.webp"
 import showersArt from "./art/sky-showers.webp"
 import snowArt from "./art/sky-snow.webp"
 import thunderArt from "./art/sky-thunder.webp"
-import clearPrint from "./art/sky-clear.print.webp"
-import partlyCloudyPrint from "./art/sky-partly-cloudy.print.webp"
-import cloudyPrint from "./art/sky-cloudy.print.webp"
-import fogPrint from "./art/sky-fog.print.webp"
-import drizzlePrint from "./art/sky-drizzle.print.webp"
-import rainPrint from "./art/sky-rain.print.webp"
-import showersPrint from "./art/sky-showers.print.webp"
-import snowPrint from "./art/sky-snow.print.webp"
-import thunderPrint from "./art/sky-thunder.print.webp"
 
 // Live daily forecast for the days Open-Meteo covers (today and the next 15),
 // read at each day's own place. Keyless and best-effort: a failure shows
@@ -103,19 +94,19 @@ export type SkyId = "clear" | "partly-cloudy" | "cloudy" | "fog" | "drizzle" | "
 
 /**
  * Each sky has a small glyph for tight rows and an engraving for the day header:
- * `art` is its lines (inked on light paper), `print` the same engraving with its
- * bodies filled, so it reads as a positive on dark paper.
+ * `art` is its lines as an alpha mask, inked in the theme's secondary ink (dark
+ * lines on light paper, light lines on dark, like a white-line engraving).
  */
-export const SKIES: Record<SkyId, { icon: LucideIcon; art: string; print: string }> = {
-  clear: { icon: Sun, art: clearArt, print: clearPrint },
-  "partly-cloudy": { icon: CloudSun, art: partlyCloudyArt, print: partlyCloudyPrint },
-  cloudy: { icon: Cloud, art: cloudyArt, print: cloudyPrint },
-  fog: { icon: CloudFog, art: fogArt, print: fogPrint },
-  drizzle: { icon: CloudDrizzle, art: drizzleArt, print: drizzlePrint },
-  rain: { icon: CloudRain, art: rainArt, print: rainPrint },
-  showers: { icon: CloudSunRain, art: showersArt, print: showersPrint },
-  snow: { icon: CloudSnow, art: snowArt, print: snowPrint },
-  thunder: { icon: CloudLightning, art: thunderArt, print: thunderPrint },
+export const SKIES: Record<SkyId, { icon: LucideIcon; art: string }> = {
+  clear: { icon: Sun, art: clearArt },
+  "partly-cloudy": { icon: CloudSun, art: partlyCloudyArt },
+  cloudy: { icon: Cloud, art: cloudyArt },
+  fog: { icon: CloudFog, art: fogArt },
+  drizzle: { icon: CloudDrizzle, art: drizzleArt },
+  rain: { icon: CloudRain, art: rainArt },
+  showers: { icon: CloudSunRain, art: showersArt },
+  snow: { icon: CloudSnow, art: snowArt },
+  thunder: { icon: CloudLightning, art: thunderArt },
 }
 
 /** WMO codes in order; the first row that matches names the sky. */
@@ -136,7 +127,6 @@ export interface Kind {
   sky: SkyId
   icon: LucideIcon
   art: string
-  print: string
 }
 
 /** WMO code → a word, a glyph and an engraving. */

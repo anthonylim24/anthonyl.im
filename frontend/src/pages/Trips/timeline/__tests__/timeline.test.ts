@@ -42,7 +42,7 @@ describe("clock helpers", () => {
 
 describe("typicalMinutes", () => {
   it("knows how long things usually take", () => {
-    expect(typicalMinutes(stop("f", "08:00", { kind: "reservation", reservation: { type: "flight", status: "confirmed" } }))).toBe(180)
+    expect(typicalMinutes(stop("f", "08:00", { kind: "reservation", reservation: { type: "flight", status: "confirmed" } }))).toBe(45)
     expect(typicalMinutes(stop("h", "15:00", { kind: "reservation", reservation: { type: "hotel", status: "confirmed" } }))).toBe(30)
     expect(typicalMinutes(stop("m", "12:00", { kind: "reservation", reservation: { type: "meal", status: "confirmed" } }))).toBe(75)
     expect(typicalMinutes(stop("c", "09:00", { location: { name: "c", category: "Cafe", source: "user" } }))).toBe(45)
@@ -72,7 +72,7 @@ describe("layoutDay", () => {
         stop("walk", "16:00"),
       ]),
     )
-    expect(block(layout, "flight")).toMatchObject({ start: at(6), end: at(9), estimated: true })
+    expect(block(layout, "flight")).toMatchObject({ start: at(6), end: at(6) + 45, estimated: true, departs: true })
     expect(block(layout, "lunch")).toMatchObject({ start: at(12), end: at(13, 30), estimated: false })
     expect(block(layout, "walk")).toMatchObject({ start: at(16), end: at(17), estimated: true })
   })
@@ -152,7 +152,7 @@ describe("layoutDay", () => {
         pinned("palace", "10:30", north(2)),
       ]),
     )
-    // 2 km is ≈ 15 min by transit, so coffee ends 10:15 rather than its usual 10:45.
+    // 2 km is ~15 min by transit, so coffee ends 10:15 rather than its usual 10:45.
     expect(block(layout, "coffee")).toMatchObject({ end: at(10, 15), estimated: true })
     expect(layout.gaps).toHaveLength(1)
     expect(layout.gaps[0]).toMatchObject({ from: at(10, 15), to: at(10, 30), free: 0, travel: { mode: "transit", minutes: 15 } })
@@ -163,7 +163,7 @@ describe("layoutDay", () => {
     const layout = layoutDay(day([pinned("lunch", "12:00", SEOUL), pinned("museum", "12:30", north(10))]))
     expect(block(layout, "lunch")).toMatchObject({ end: at(12, 15), estimated: true })
     expect(layout.conflicts).toEqual([
-      { ids: ["lunch", "museum"], kind: "tight", detail: "Tight · ≈ 35 min by transit, 15 min gap" },
+      { ids: ["lunch", "museum"], kind: "tight", detail: "Tight · ~35 min by transit, 15 min gap" },
     ])
   })
 
@@ -319,13 +319,18 @@ describe("clockRange", () => {
     expect(clockRange(11 * 60 + 30, 13 * 60)).toBe("11:30 AM–1:00 PM")
   })
 
-  it("drops :00 only when both ends are whole hours", () => {
-    expect(clockRange(14 * 60, 17 * 60)).toBe("2–5 PM")
-    expect(clockRange(11 * 60, 13 * 60)).toBe("11 AM–1 PM")
+  it("keeps the minutes on a card, so a list of times lines up", () => {
+    expect(clockRange(11 * 60, 12 * 60)).toBe("11:00 AM–12:00 PM")
   })
 
-  it("leaves the half of the day to the ruler when bare", () => {
-    expect(clockRange(10 * 60 + 15, 11 * 60 + 30, true)).toBe("10:15–11:30")
-    expect(clockRange(11 * 60, 12 * 60, true)).toBe("11:00–12:00")
+  it("drops :00 in prose only when both ends are whole hours", () => {
+    expect(clockRange(14 * 60, 17 * 60, "prose")).toBe("2–5 PM")
+    expect(clockRange(11 * 60, 13 * 60, "prose")).toBe("11 AM–1 PM")
+    expect(clockRange(14 * 60, 17 * 60 + 30, "prose")).toBe("2:00–5:30 PM")
+  })
+
+  it("leaves the half of the day to the ruler in a lane", () => {
+    expect(clockRange(10 * 60 + 15, 11 * 60 + 30, "lane")).toBe("10:15–11:30")
+    expect(clockRange(11 * 60, 12 * 60, "lane")).toBe("11:00–12:00")
   })
 })

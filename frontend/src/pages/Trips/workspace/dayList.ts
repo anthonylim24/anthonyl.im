@@ -1,6 +1,6 @@
 import { distanceMeters, isLocated, splitDay } from "../map/geo"
 import { formatDistance } from "../reservationView"
-import { clockMinutes, layoutDay, legEstimate } from "../timeline/timeline"
+import { clockMinutes, layoutDay, legEstimate, legWords, type TimelineGap } from "../timeline/timeline"
 import type { TravelMode } from "../timeline/travel"
 import type { ItineraryItem, TripDay } from "../types"
 
@@ -13,9 +13,22 @@ import type { ItineraryItem, TripDay } from "../types"
 export type LegMode = TravelMode | "overlap"
 
 export interface Leg {
-  /** "1.5 km · ≈ 19 min walk", or "No time to travel". */
+  /** "940 m · 12 min walk · 1 h 08 free", or "No time to travel". */
   text: string
+  /** "Leave by 3:18 PM": when to set off, from the timeline's words, on a line of its own. */
+  leave: string | null
   mode: LegMode
+}
+
+/** Today's stops at the head of the list that are over, folded into one row. */
+export interface DoneRun {
+  /** How many items from the top fold away (headings and notes among the stops go with them). */
+  length: number
+  /** The stops in it. */
+  stops: string[]
+  /** Minutes from midnight: the first start and the last end. */
+  from: number
+  to: number
 }
 
 export interface DayList {
@@ -27,12 +40,18 @@ export interface DayList {
   anytimeAt: number | null
   /** The number each pinned stop carries on the map. */
   labels: Map<string, string>
-  /** The leg drawn under a stop, toward the next one on the route. None into or between Anytime stops. */
+  /**
+   * The leg into a stop from the one before it on the route, drawn above the
+   * stop, so Now (drawn before the next stop) always comes before the walk it
+   * leads into. None into or between Anytime stops.
+   */
   legs: Map<string, Leg>
   /** Timed stops that ended by `now`. */
   past: Set<string>
   /** The first stop under way at `now`. */
   current: string | null
+  /** On today, the leading run of the list that is over; null when the first stop is still to come. */
+  done: DoneRun | null
 }
 
 const isStop = (item: ItineraryItem) => item.kind !== "section" && item.kind !== "note"
@@ -51,9 +70,11 @@ export function dayList(day: TripDay, now: number | null): DayList {
   for (const item of planned) if (isLocated(item)) labels.set(item.id, String((n += 1)))
 
   const layout = layoutDay(day)
-  // Conflict ids run in clock order, the list in itinerary order: match either way.
+  // Conflicts and gaps run in clock order, the list in itinerary order: match either way.
   const overlaps = new Set<string>()
   for (const { kind, ids } of layout.conflicts) if (kind === "overlap") overlaps.add(`${ids[0]}>${ids[1]}`).add(`${ids[1]}>${ids[0]}`)
+  const gaps = new Map<string, TimelineGap>()
+  for (const gap of layout.gaps) gaps.set(`${gap.afterId}>${gap.beforeId}`, gap).set(`${gap.beforeId}>${gap.afterId}`, gap)
   const legs = new Map<string, Leg>()
   const route = planned.filter((item, i) => !(anytimeAt !== null && i >= anytimeAt && isStop(item))).filter(isLocated)
   for (let i = 1; i < route.length; i++) {
@@ -61,8 +82,15 @@ export function dayList(day: TripDay, now: number | null): DayList {
     // Same estimate as the timeline; none out of a flight or train booking.
     const leg = legEstimate(from, to)
     if (!leg) continue
-    if (overlaps.has(`${from.id}>${to.id}`)) legs.set(from.id, { text: "No time to travel", mode: "overlap" })
-    else legs.set(from.id, { text: `${formatDistance(distanceMeters(from.location, to.location))} · ${leg.label}`, mode: leg.mode })
+    const key = `${from.id}>${to.id}`
+    if (overlaps.has(key)) {
+      legs.set(to.id, { text: "No time to travel", leave: null, mode: "overlap" })
+      continue
+    }
+    const gap = gaps.get(key)
+    const words = gap ? legWords(gap, now) : { free: null, leave: null }
+    const text = [formatDistance(distanceMeters(from.location, to.location)), leg.label, words.free].filter(Boolean).join(" · ")
+    legs.set(to.id, { text, leave: words.leave, mode: leg.mode })
   }
 
   const past = new Set<string>()
@@ -74,5 +102,18 @@ export function dayList(day: TripDay, now: number | null): DayList {
     }
   }
 
-  return { anytimeAt, labels, legs, past, current }
+  let length = 0
+  for (const [i, item] of day.items.entries()) {
+    if (!isStop(item)) continue
+    if (!past.has(item.id)) break
+    length = i + 1
+  }
+  const head = new Set(day.items.slice(0, length).map((item) => item.id))
+  const spans = layout.blocks.filter((block) => head.has(block.itemId))
+  const done =
+    spans.length === 0
+      ? null
+      : { length, stops: spans.map((block) => block.itemId), from: Math.min(...spans.map((b) => b.start)), to: Math.max(...spans.map((b) => b.end)) }
+
+  return { anytimeAt, labels, legs, past, current, done }
 }

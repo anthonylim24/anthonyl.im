@@ -8,7 +8,9 @@ const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const PHONE = "@media (max-width: 639.98px)"
 /** Hour labels, then a gutter for the rain band, then the track the stops sit on. */
-const TRACK = { default: "4.375rem", [PHONE]: "3.75rem" }
+// Hour labels (3rem, 2.5rem on phones) | sunrise and sunset | the rain band | the stops.
+const TRACK = { default: "4.75rem", [PHONE]: "4.0625rem" }
+const SUN_SLOT = { default: "3rem", [PHONE]: "2.5rem" }
 
 export const tl = stylex.create({
   root: { display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: 0 },
@@ -18,7 +20,7 @@ export const tl = stylex.create({
     display: "flex",
     flexWrap: "wrap",
     alignItems: "center",
-    columnGap: "0.625rem",
+    columnGap: "1.125rem",
     rowGap: "0.25rem",
     margin: 0,
     fontFamily: "var(--trips-mono)",
@@ -28,7 +30,8 @@ export const tl = stylex.create({
     color: "var(--trips-ink-secondary)",
   },
 
-  summaryLight: { display: "inline-flex", alignItems: "center", gap: "0.25rem" },
+  // Each part led by its glyph, so a wrapped line starts with one, never with a dot.
+  summaryPart: { display: "inline-flex", alignItems: "center", gap: "0.3125rem", whiteSpace: "nowrap" },
   summaryWarn: { display: "inline-flex", alignItems: "center", gap: "0.25rem", color: "var(--trips-ink)" },
   // " · " before every part after the first: a wrapped line starts with it, never ends with it.
   sep: { "::before": { content: '"·"', marginRight: "0.625rem", color: "var(--trips-ink-tertiary)" } },
@@ -38,10 +41,11 @@ export const tl = stylex.create({
   // The hour-label column is 3rem (2.5rem on phones); the gutter after it holds the rain band.
   ruler: { position: "relative", paddingTop: "0.5rem", paddingBottom: "1rem" },
   canvas: { position: "relative" },
+  // Rules end with the cards (which sit 2px in), so no nub shows past their edge.
   hourRule: {
     position: "absolute",
     left: TRACK,
-    right: 0,
+    right: "2px",
     height: "1px",
     backgroundColor: "var(--trips-line)",
     pointerEvents: "none",
@@ -70,13 +74,13 @@ export const tl = stylex.create({
 
   // ── Weather on the ruler ─────────────────────────────
   // Rain is never drawn over a stop: a hatched band in the gutter between the
-  // hours and the track, headed by its glyph and chance, plus a line on each
-  // stop it meets. A soaking or a storm is inked darker. Sunrise and sunset
-  // are dashed hairlines under the stops (seen between them), marked by their
-  // glyph in the gutter and named with the time in the summary line.
+  // hours and the track, from its first minute to its last, under a rain glyph
+  // (its chance is in the sky line and on the stops it meets). A soaking or a
+  // storm is inked darker. Sunrise and sunset have their own slot left of the
+  // band: their glyph there, and a dashed hairline under the stops.
   rain: {
     position: "absolute",
-    left: { default: "3.375rem", [PHONE]: "2.875rem" },
+    left: { default: "3.8125rem", [PHONE]: "3.3125rem" },
     width: { default: "9px", [PHONE]: "8px" },
     borderRadius: "1px",
     backgroundImage: "repeating-linear-gradient(-60deg, var(--trips-ink-tertiary) 0 1.5px, transparent 1.5px 4.5px)",
@@ -89,26 +93,14 @@ export const tl = stylex.create({
     position: "absolute",
     top: 0,
     left: "50%",
-    transform: "translateX(-50%)",
     display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "1px",
-    paddingTop: "1px",
-    paddingBottom: "3px",
-    backgroundColor: "var(--trips-canvas)",
-    fontFamily: "var(--trips-mono)",
-    fontSize: "0.625rem",
-    lineHeight: 1,
-    letterSpacing: "-0.02em",
-    fontVariantNumeric: "tabular-nums",
-    whiteSpace: "nowrap",
+    transform: "translate(-50%, calc(-100% - 2px))",
     color: "var(--trips-ink-secondary)",
   },
   sun: {
     position: "absolute",
-    left: TRACK,
-    right: 0,
+    left: SUN_SLOT,
+    right: "2px",
     height: 0,
     borderTopWidth: "1px",
     borderTopStyle: "dashed",
@@ -117,14 +109,13 @@ export const tl = stylex.create({
   },
   sunMark: {
     position: "absolute",
-    right: "100%",
+    left: 0,
     top: 0,
     transform: "translateY(-50%)",
     display: "grid",
     placeItems: "center",
-    width: "1rem",
-    height: "1rem",
-    borderRadius: "999px",
+    width: "0.75rem",
+    height: "0.875rem",
     backgroundColor: "var(--trips-canvas)",
     color: "var(--trips-ink-secondary)",
   },
@@ -170,11 +161,14 @@ export const tl = stylex.create({
     [REDUCE]: { transitionDuration: "0ms" },
   },
   // Side by side with an overlapping stop the column is narrow: tighter padding, same grid.
-  blockStacked: { columnGap: "0.25rem", paddingLeft: "0.3125rem", paddingRight: "0.3125rem" },
+  // Side by side the column is narrow, but the badge and title keep the full cards' indent.
+  blockStacked: { paddingRight: "0.3125rem" },
   // The end is a guess: the bottom edge says so.
   blockEstimated: { borderBottomStyle: "dashed" },
   // Runs past the bottom of the ruler: open at the bottom edge.
   blockRunsOn: { borderBottomWidth: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  // Began before the folded ruler starts: open at the top edge.
+  blockRunsIn: { borderTopWidth: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 },
   // Done for today: quieter, so what is still ahead leads.
   blockPast: { backgroundColor: "var(--trips-canvas)", borderColor: "var(--trips-line)" },
   blockHot: { boxShadow: "0 0 0 1px var(--trips-ink-tertiary), var(--trips-shadow-2)" },
@@ -202,6 +196,25 @@ export const tl = stylex.create({
     color: "var(--ta-on)",
   },
   badgePast: { backgroundColor: "transparent", color: "var(--ta)", boxShadow: "inset 0 0 0 1.5px var(--ta-fill)" },
+  // An inline copy of a stop's badge in a line of text ("Overlaps ②"): same fill and ink, sized to the line.
+  stopRef: {
+    display: "inline-grid",
+    placeItems: "center",
+    flexShrink: 0,
+    minWidth: "1rem",
+    height: "1rem",
+    paddingInline: "0.1875rem",
+    marginInline: "0.125rem",
+    borderRadius: "999px",
+    verticalAlign: "-0.1875rem",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.625rem",
+    fontWeight: 700,
+    lineHeight: 1,
+    fontVariantNumeric: "tabular-nums",
+    backgroundColor: "var(--ta-fill)",
+    color: "var(--ta-on)",
+  },
   badgeActive: { backgroundColor: "var(--trips-ink)", color: "var(--trips-canvas)" },
   disc: {
     gridRow: "1 / span 2",
@@ -272,6 +285,7 @@ export const tl = stylex.create({
   },
   wet: { color: "var(--trips-ink-secondary)" },
   wetStrong: { color: "var(--trips-ink)", fontWeight: 600 },
+  warnDetail: { color: "var(--trips-ink-secondary)", fontWeight: 400 },
   warnText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   noShrink: { flexShrink: 0 },
 
@@ -299,10 +313,7 @@ export const tl = stylex.create({
   gapLineTight: { borderLeftColor: "var(--trips-ink-secondary)" },
   gapLabel: {
     display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    columnGap: "0.625rem",
-    rowGap: 0,
+    flexDirection: "column",
     minWidth: 0,
     fontFamily: "var(--trips-mono)",
     fontSize: "0.6875rem",
@@ -310,6 +321,9 @@ export const tl = stylex.create({
     letterSpacing: "0.02em",
     color: "var(--trips-ink-tertiary)",
   },
+  gapRow: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.625rem" },
+  // "Leave by 3:18 PM" on its own line: when to go is the thing to act on.
+  gapLeave: { color: "var(--trips-ink)", whiteSpace: "nowrap" },
   gapLeg: { display: "inline-flex", alignItems: "center", gap: "0.3125rem", whiteSpace: "nowrap" },
   gapTight: { color: "var(--trips-ink)" },
   gapFree: { whiteSpace: "nowrap", color: "var(--trips-ink-secondary)" },
@@ -354,6 +368,34 @@ export const tl = stylex.create({
     paddingBlock: "0.125rem",
     pointerEvents: "none",
   },
+
+  // ── Done fold ────────────────────────────────────────
+  // Today's finished stops as one hairline row, the width of the stops.
+  fold: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    width: "100%",
+    minHeight: "2.75rem",
+    paddingInline: "0.75rem",
+    borderRadius: "var(--trips-radius-sm)",
+    borderWidth: "1px",
+    borderStyle: "dashed",
+    borderColor: "var(--trips-line-strong)",
+    backgroundColor: "transparent",
+    color: "var(--trips-ink-secondary)",
+    textAlign: "left",
+    cursor: "pointer",
+    transitionProperty: "border-color",
+    transitionDuration: "160ms",
+    [HOVER]: { ":hover": { borderColor: "var(--trips-ink-tertiary)" } },
+    [REDUCE]: { transitionDuration: "0ms" },
+  },
+  foldText: { flexGrow: 1, minWidth: 0, fontSize: "0.8125rem", fontWeight: 500, lineHeight: 1.3 },
+  foldWhen: { fontFamily: "var(--trips-mono)", fontSize: "0.6875rem", fontWeight: 400, color: "var(--trips-ink-tertiary)", marginLeft: "0.375rem", whiteSpace: "nowrap" },
+  foldAction: { display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", fontWeight: 600, color: "var(--trips-ink)" },
+  foldChevron: { transitionProperty: "transform", transitionDuration: "200ms", [REDUCE]: { transitionDuration: "0ms" } },
+  foldChevronOpen: { transform: "rotate(180deg)" },
 
   // ── Anytime list ─────────────────────────────────────
   anytime: { display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0, marginTop: "0.5rem" },

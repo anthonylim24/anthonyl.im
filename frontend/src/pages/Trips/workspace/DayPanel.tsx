@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
 import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles, TimerOff } from "lucide-react"
@@ -21,14 +21,15 @@ import { NowLine } from "../live/NowLine"
 import { clockIn, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
 import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
-import { clockMinutes } from "../timeline/timeline"
+import { DoneFold } from "../timeline/DoneFold"
+import { clockMinutes, stopTitle } from "../timeline/timeline"
 import { useDayView } from "./dayView"
 import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
-import { ItemCard, type ItemCardProps } from "./ItemCard"
-import { dayList, type LegMode } from "./dayList"
-import { scroller, scrollUnderRail } from "./scroll"
+import { ItemCard, type CardConflict, type ItemCardProps } from "./ItemCard"
+import { dayList, type Leg } from "./dayList"
+import { Parts } from "./Parts"
 import { rainBrief, reworkLabel, stopAlerts } from "./stopAlerts"
 
 export interface DayPanelProps {
@@ -78,10 +79,19 @@ export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
   return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
 }
 
+type SortableProps = ItemCardProps & { leg: Leg | null }
+
+/** Rebuilt with every edit to the day, so compared by their words, not by identity. */
+const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict"])
+const sameProps = (prev: SortableProps, next: SortableProps) =>
+  (Object.keys(next) as (keyof SortableProps)[]).every(
+    (key) => Object.is(prev[key], next[key]) || (BY_VALUE.has(key) && JSON.stringify(prev[key]) === JSON.stringify(next[key])),
+  )
+
 /** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
-const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | null; legMode: LegMode | null }) {
+const Sortable = memo(function Sortable(props: SortableProps) {
   const controls = useDragControls()
-  const { leg, legMode, ...card } = props
+  const { leg, ...card } = props
   const onGrip = useCallback((event: ReactPointerEvent) => controls.start(event), [controls])
   return (
     <Reorder.Item
@@ -92,21 +102,29 @@ const Sortable = memo(function Sortable(props: ItemCardProps & { leg: string | n
       style={{ position: "relative", listStyle: "none" }}
       whileDrag={{ scale: 1.02, zIndex: 5 }}
     >
+      {leg && <LegRow leg={leg} />}
       <ItemCard {...card} onGrip={onGrip} />
-      {leg && (
-        <div {...sx(s.item)} aria-hidden>
-          <div {...sx(s.gutter)} style={{ paddingTop: 0 }}>
-            <span {...sx(s.gutterLine)} />
-          </div>
-          <p {...sx(s.leg)}>
-            {legMode === "overlap" ? <TimerOff size={12} strokeWidth={2} aria-hidden /> : legMode && <ModeIcon mode={legMode} />}
-            {leg}
-          </p>
-        </div>
-      )}
     </Reorder.Item>
   )
-})
+}, sameProps)
+
+/** The way into a stop: "940 m · 12 min walk · 1 h 08 free", then "Leave by 3:18 PM" on its own line. */
+function LegRow({ leg }: { leg: Leg }) {
+  return (
+    <div {...sx(s.item)} aria-hidden>
+      <div {...sx(s.gutter)} style={{ paddingTop: 0 }}>
+        <span {...sx(s.gutterLine)} />
+      </div>
+      <p {...sx(s.leg)}>
+        {leg.mode === "overlap" ? <TimerOff size={12} strokeWidth={2} aria-hidden /> : <ModeIcon mode={leg.mode} />}
+        <span>
+          <Parts parts={leg.text.split(" · ")} />
+        </span>
+        {leg.leave && <span {...sx(s.legLeave)}>{leg.leave}</span>}
+      </p>
+    </div>
+  )
+}
 
 /** Focus target after a stop leaves the list: the next stop, else the one before, else the composer. */
 const COMPOSER = "composer"
@@ -190,54 +208,39 @@ export function DayPanel({
     return on
   }, [alerts, list])
 
+  // The card names the other stop in a clash by its number on the map, as the pins do.
+  const conflicts = useMemo(() => {
+    const byId = new Map(day.items.map((item) => [item.id, item]))
+    const named = new Map<string, CardConflict>()
+    for (const [id, { conflict }] of alerts) {
+      if (!conflict) continue
+      const other = byId.get(conflict.otherId)
+      const label = list.labels.get(conflict.otherId)
+      named.set(id, { ...conflict, otherNumber: label ? Number(label) : null, otherTitle: other ? stopTitle(other) : "another stop" })
+    }
+    return named
+  }, [alerts, list, day.items])
+
+  // On today the finished head of the list folds into one row, open or shut in
+  // both layouts. A stop in it that is selected (on the map, by a deep link),
+  // opened for editing from the map, or holding focus (its editor in use) opens it.
+  const [foldOpen, setFoldOpen] = useState(false)
+  const [focused, setFocused] = useState<string | null>(null)
+  const reveal = list.done?.stops.find((id) => id === activeId || id === edit?.id || id === focused) ?? null
+  const revealKey = reveal && `${reveal}:${edit?.id === reveal ? edit.n : 0}`
+  const [revealed, setRevealed] = useState<string | null>(null)
+  if (revealKey !== revealed) {
+    setRevealed(revealKey)
+    if (revealKey) setFoldOpen(true)
+  }
+  const toggleFold = () => setFoldOpen((open) => !open)
+  const hidden = list.done && !foldOpen ? list.done.length : 0
+  const shown = hidden > 0 ? day.items.slice(hidden) : day.items
+
   const rework = useLatestCallback((id: string) => {
     const rain = alerts.get(id)?.rain
     if (rain) onAskAi(rainBrief(rain.spell))
   })
-
-  // Opening today: past what is done, to the stop under way (when it fits
-  // with Now in the top half) or to Now. Once per visit, never over a stop
-  // already selected or a page the traveller has already moved.
-  const openOnNow = useLatestCallback(() => {
-    const root = rootRef.current
-    const marker = root?.querySelector<HTMLElement>("[data-now]")
-    if (!root || !marker || list.past.size === 0 || activeId || edit || marker.getClientRects().length === 0) return
-    const box = scroller(marker)
-    if ((box ? box.scrollTop : window.scrollY) > 0) return
-    // The card in the list, or the block on the timeline, whichever is showing.
-    const current = [...root.querySelectorAll<HTMLElement>("[id^='item-'], [data-timeline-stop]")].find(
-      (el) => list.current !== null && (el.id === `item-${list.current}` || el.dataset.timelineStop === list.current),
-    )
-    const fits = current && marker.getBoundingClientRect().top - current.getBoundingClientRect().top < window.innerHeight / 2
-    scrollUnderRail(fits ? current : marker)
-  })
-  const opened = useRef<string | null>(null)
-  const settled = sky.status !== "loading"
-  useEffect(() => {
-    if (!isToday || !settled || opened.current === day.id) return
-    // Measured once the day holds still: after the workspace has put it back
-    // at the top, the panel has risen in and the cards have taken in the
-    // forecast (each moves Now). Up to 1.5 s, then it goes as it stands.
-    const start = performance.now()
-    let last: number | null = null
-    let frame = requestAnimationFrame(function step() {
-      const marker = rootRef.current?.querySelector("[data-now]")
-      const top = marker?.getBoundingClientRect().top ?? null
-      // The rise-in can hold its first frame for a frame or two, so also ask it.
-      const rising = (document.getAnimations?.() ?? []).some((animation) => {
-        const effect = animation.effect as KeyframeEffect | null
-        return !!marker && !!effect?.target?.contains(marker) && animation.playState !== "finished" && effect.getTiming().iterations !== Infinity
-      })
-      if ((top === null || top !== last || rising) && performance.now() - start < 1500) {
-        last = top
-        frame = requestAnimationFrame(step)
-        return
-      }
-      opened.current = day.id
-      openOnNow()
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [day.id, isToday, settled, openOnNow])
 
   // A deleted or moved stop takes focus with it; hand it to its neighbour
   // so a keyboard user carries on from where they were.
@@ -432,6 +435,7 @@ export function DayPanel({
             onHover={onHover}
             now={isToday ? clockIn(trip.timezone, now) : undefined}
             forecast={forecast}
+            fold={{ open: foldOpen, onToggle: toggleFold }}
             onSelect={(id) => {
               const item = day.items.find((i) => i.id === id)
               // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
@@ -446,51 +450,64 @@ export function DayPanel({
           <Reorder.Group
             as="ol"
             axis="y"
-            values={day.items}
-            onReorder={(items) => !locked && patchDay({ items }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })}
+            values={shown}
+            // The folded head keeps its place: only what is shown can be dragged.
+            onReorder={(items) => !locked && patchDay({ items: [...day.items.slice(0, hidden), ...items] }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })}
+            onFocus={(event) => setFocused(event.target.closest<HTMLElement>("[id^='item-']")?.id.slice(5) ?? null)}
+            onBlur={() => setFocused(null)}
             {...sx(s.timeline)}
           >
-            {day.items.flatMap((item, index) => [
-              ...(slot === index && nowLine ? [nowLine] : []),
-              ...(list.anytimeAt === index
-                ? [
-                    <li key="anytime" {...sx(s.sectionRow)}>
-                      <h3 {...sx(a.eyebrow)}>Anytime</h3>
-                    </li>,
-                  ]
-                : []),
-              <Sortable
-                key={item.id}
-                item={item}
-                dayId={day.id}
-                index={index}
-                count={day.items.length}
-                pinLabel={list.labels.get(item.id) ?? null}
-                conflict={alerts.get(item.id)?.conflict ?? null}
-                rain={alerts.get(item.id)?.rain?.text ?? null}
-                rainHeavy={alerts.get(item.id)?.rain?.heavy ?? false}
-                past={list.past.has(item.id)}
-                leg={list.legs.get(item.id)?.text ?? null}
-                legMode={list.legs.get(item.id)?.mode ?? null}
-                editable={editable}
-                locked={locked}
-                hot={hotId === item.id}
-                active={activeId === item.id}
-                expand={edit?.id === item.id ? edit.n : 0}
-                flash={recentIds.has(item.id)}
-                near={near}
-                dayOptions={dayOptions}
-                currency={currency}
-                onChange={onChange}
-                onDelete={removeStop}
-                onGone={leave}
-                onHover={onHover}
-                onLocate={onLocate}
-                rework={reworkOn.get(item.id) ?? null}
-                onRework={editable ? rework : undefined}
-                onAnnounce={setSpoken}
-              />,
-            ])}
+            {list.done && (
+              <li key="done" {...sx(s.item, s.foldRow)}>
+                <div {...sx(s.gutter)} style={{ paddingTop: 0 }} aria-hidden>
+                  <span {...sx(s.gutterLine)} />
+                </div>
+                <DoneFold count={list.done.stops.length} from={list.done.from} to={list.done.to} open={foldOpen} onToggle={toggleFold} />
+              </li>
+            )}
+            {shown.flatMap((item, at) => {
+              const index = hidden + at
+              return [
+                ...(slot === index && nowLine ? [nowLine] : []),
+                ...(list.anytimeAt === index
+                  ? [
+                      <li key="anytime" {...sx(s.sectionRow)}>
+                        <h3 {...sx(a.eyebrow)}>Anytime</h3>
+                      </li>,
+                    ]
+                  : []),
+                <Sortable
+                  key={item.id}
+                  item={item}
+                  dayId={day.id}
+                  index={index}
+                  count={day.items.length}
+                  pinLabel={list.labels.get(item.id) ?? null}
+                  conflict={conflicts.get(item.id) ?? null}
+                  rain={alerts.get(item.id)?.rain?.text ?? null}
+                  rainHeavy={alerts.get(item.id)?.rain?.heavy ?? false}
+                  past={list.past.has(item.id)}
+                  leg={list.legs.get(item.id) ?? null}
+                  editable={editable}
+                  locked={locked}
+                  hot={hotId === item.id}
+                  active={activeId === item.id}
+                  expand={edit?.id === item.id ? edit.n : 0}
+                  flash={recentIds.has(item.id)}
+                  near={near}
+                  dayOptions={dayOptions}
+                  currency={currency}
+                  onChange={onChange}
+                  onDelete={removeStop}
+                  onGone={leave}
+                  onHover={onHover}
+                  onLocate={onLocate}
+                  rework={reworkOn.get(item.id) ?? null}
+                  onRework={editable ? rework : undefined}
+                  onAnnounce={setSpoken}
+                />,
+              ]
+            })}
             {slot === day.items.length && nowLine}
           </Reorder.Group>
         )}

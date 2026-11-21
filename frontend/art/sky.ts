@@ -1,12 +1,8 @@
 /**
- * The nine sky engravings as two masks each, from one ink-on-white concept:
- *
- * - `ink`: the lines (light theme). Framed the same way for every sky (the drawing's bounds,
- *   squared, with an even margin) and levelled so thin strokes still read at 6rem.
- * - `print`: the same engraving as a positive for dark paper, the way an almanac vignette is
- *   printed: a pale oval plate, feathered at its edge, with the lines cut out of it, so the
- *   cloud reads as dark lines on paper rather than a negative. Past the feather the lines turn
- *   light, so rays and rain that reach beyond the plate are still drawn.
+ * The nine sky engravings as one alpha mask each, from one ink-on-white concept:
+ * framed the same way for every sky (the drawing's bounds, squared, with an even
+ * margin) and levelled so thin strokes still read at 6rem. The page fills the mask
+ * with its secondary ink, so the same lines serve light and dark paper.
  *
  * Pure pixel work on single-channel buffers; `render.ts` decodes and encodes with ffmpeg.
  */
@@ -108,34 +104,6 @@ function spread(src: Float32Array, r: number): Float32Array {
     return to
   }
   return pass(pass(src, 1, 0), 0, 1)
-}
-
-/** The plate: an oval over the drawing's bounds, solid to `inner` and feathered to its edge. */
-export function plate(ink: Float32Array, inner = 0.62): Float32Array {
-  let [x0, y0, x1, y1] = [WORK, WORK, 0, 0]
-  for (let y = 0; y < WORK; y++)
-    for (let x = 0; x < WORK; x++)
-      if (ink[y * WORK + x]! > 0.1) {
-        x0 = Math.min(x0, x)
-        x1 = Math.max(x1, x)
-        y0 = Math.min(y0, y)
-        y1 = Math.max(y1, y)
-      }
-  const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2]
-  const [rx, ry] = [Math.max(1, (x1 - x0) / 2), Math.max(1, (y1 - y0) / 2)]
-  const out = new Float32Array(WORK * WORK)
-  for (let y = 0; y < WORK; y++)
-    for (let x = 0; x < WORK; x++) {
-      const d = Math.hypot((x - cx) / rx, (y - cy) / ry)
-      const t = Math.min(1, Math.max(0, (1 - d) / (1 - inner)))
-      out[y * WORK + x] = t * t * (3 - 2 * t)
-    }
-  return out
-}
-
-/** On the plate the paper is the fill and the lines are cut out; off it, the lines are the fill. */
-export function print(ink: Float32Array, paper: Float32Array): Float32Array {
-  return ink.map((a, i) => paper[i]! * (1 - a) + (1 - paper[i]!) * a)
 }
 
 /** A [0, 1] mask as black RGBA with that alpha, for ffmpeg's rawvideo reader. */

@@ -1,21 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import type { DayForecast } from "../forecast"
 import type { TripDay } from "../types"
 import { DayPanel, type DayPanelProps } from "../workspace/DayPanel"
-import { scrollUnderRail } from "../workspace/scroll"
 import { makeItem, makeTrip } from "./tripFixtures"
-
-vi.mock("../workspace/scroll", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../workspace/scroll")>()),
-  scrollUnderRail: vi.fn(),
-}))
 
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
-  vi.mocked(scrollUnderRail).mockClear()
 })
 
 /** Showers (WMO 81) likely from 14:00 to 17:00, dry otherwise. */
@@ -36,7 +29,7 @@ const SHOWERY: DayForecast = {
 function renderDay(day: TripDay, sky: DayPanelProps["sky"], props: Partial<DayPanelProps> = {}) {
   const trip = makeTrip({ days: [day] })
   const noop = vi.fn()
-  const panel = (day: TripDay, weather = sky) => (
+  const panel = (day: TripDay, weather = sky, more: Partial<DayPanelProps> = {}) => (
     <MemoryRouter>
       <DayPanel
         trip={trip}
@@ -66,15 +59,13 @@ function renderDay(day: TripDay, sky: DayPanelProps["sky"], props: Partial<DayPa
         onStopAi={noop}
         sky={weather}
         {...props}
+        {...more}
       />
     </MemoryRouter>
   )
   const view = render(panel(day))
-  return { ...view, rerenderDay: (next: TripDay, weather = sky) => view.rerender(panel(next, weather)) }
+  return { ...view, rerenderDay: (next: TripDay, weather = sky, more: Partial<DayPanelProps> = {}) => view.rerender(panel(next, weather, more)) }
 }
-
-/** Long enough for the open-on-Now scroll to have run: it waits a frame or two for the day to hold still. */
-const frames = () => new Promise((done) => setTimeout(done, 200))
 
 const lunch = makeItem({ id: "it-lunch", title: "Lunch", time: "12:30", endTime: "13:30" })
 const walk = makeItem({ id: "it-walk", title: "Old town walk", time: "15:30", endTime: "18:00" })
@@ -82,9 +73,8 @@ const walk = makeItem({ id: "it-walk", title: "Old town walk", time: "15:30", en
 describe("DayPanel list warnings", () => {
   it("puts the rain line on the stop that meets the wet spell", () => {
     renderDay({ id: "day-1", date: "2026-07-10", items: [lunch, walk] }, { status: "forecast", forecast: SHOWERY })
-    const line = screen.getByText("Showers likely · 60% chance")
-    expect(line.closest("[id^='item-']")).toHaveAttribute("id", "item-it-walk")
-    expect(within(document.getElementById("item-it-lunch")!).queryByText(/likely/)).toBeNull()
+    expect(document.getElementById("item-it-walk")).toHaveTextContent(/Showers until 5(:00)? PM · 60%/)
+    expect(document.getElementById("item-it-lunch")).not.toHaveTextContent(/Showers/)
   })
 
   it("says nothing about rain without a live forecast", () => {
@@ -97,8 +87,8 @@ const LISBON = { lat: 38.71, lng: -9.14 }
 /** A pinned stop `km` north of the centre. */
 const pinned = (id: string, km: number, time: string, endTime: string) =>
   makeItem({ id, title: id, time, endTime, location: { name: id, lat: LISBON.lat + km / 111.195, lng: LISBON.lng, source: "user" } })
-/** The leg line drawn under a stop, toward the next one. */
-const legUnder = (id: string) => document.getElementById(`item-${id}`)!.closest("li")!.querySelector(":scope > [aria-hidden]")?.textContent
+/** The leg line drawn above a stop, from the one before it. */
+const legInto = (id: string) => document.getElementById(`item-${id}`)!.closest("li")!.querySelector(":scope > [aria-hidden]")?.textContent
 
 describe("DayPanel list legs", () => {
   it("says there is no time to travel when the next stop starts before this one ends", () => {
@@ -106,15 +96,15 @@ describe("DayPanel list legs", () => {
     const tram = pinned("Tram", 0.5, "11:00", "12:00")
     const lunch = pinned("Lunch", 1.4, "12:30", "13:30")
     renderDay({ id: "day-1", date: "2026-07-10", items: [castle, tram, lunch] }, { status: "none" })
-    expect(legUnder("Castle")).toBe("No time to travel")
-    expect(legUnder("Tram")).toMatch(/^900 m · \d+ min walk$/)
+    expect(legInto("Tram")).toBe("No time to travel")
+    expect(legInto("Lunch")).toMatch(/^900 m\u00a0· \d+ min walk\u00a0· \d+ min free/)
   })
 
   it("matches the overlap when the list is out of clock order", () => {
     const tram = pinned("Tram", 0.5, "11:00", "12:00")
     const castle = pinned("Castle", 0, "10:15", "11:30")
     renderDay({ id: "day-1", date: "2026-07-10", items: [tram, castle] }, { status: "none" })
-    expect(legUnder("Tram")).toBe("No time to travel")
+    expect(legInto("Castle")).toBe("No time to travel")
   })
 })
 
@@ -131,7 +121,8 @@ describe("DayPanel rework around the rain", () => {
   it("offers it once per wet spell, on the first stop that meets it", () => {
     const tea = makeItem({ id: "it-tea", title: "Tea", time: "14:15", endTime: "15:00" })
     renderDay({ id: "day-1", date: "2026-07-10", items: [lunch, tea, walk] }, { status: "forecast", forecast: SHOWERY }, { editable: true })
-    expect(screen.getAllByText("Showers likely · 60% chance")).toHaveLength(2)
+    expect(document.getElementById("item-it-tea")).toHaveTextContent("Showers likely · 60%")
+    expect(document.getElementById("item-it-walk")).toHaveTextContent(/Showers until 5(:00)? PM · 60%/)
     const [only] = screen.getAllByRole("button", { name: "Rework around the showers" })
     expect(only!.closest("li")).toBe(document.getElementById("item-it-tea")!.closest("li"))
     expect(screen.getAllByRole("button", { name: "Rework around the showers" })).toHaveLength(1)
@@ -151,8 +142,8 @@ describe("DayPanel Anytime", () => {
     renderDay({ id: "day-1", date: "2026-07-10", items: [castle, tram, bookshop] }, { status: "none" })
     const heading = screen.getByRole("heading", { name: "Anytime" })
     expect(heading.closest("li")!.nextElementSibling!.querySelector("#item-Bookshop")).not.toBeNull()
-    expect(legUnder("Castle")).toMatch(/ walk$/)
-    expect(legUnder("Tram")).toBeUndefined()
+    expect(legInto("Tram")).toMatch(/ walk/)
+    expect(legInto("Bookshop")).toBeUndefined()
     expect(screen.queryByText("––")).toBeNull()
   })
 
@@ -162,67 +153,88 @@ describe("DayPanel Anytime", () => {
   })
 })
 
-describe("DayPanel opening today", () => {
-  const breakfast = makeItem({ id: "it-breakfast", title: "Breakfast", time: "09:00", endTime: "10:00" })
+/** Lisbon runs on UTC+1 in July. */
+const at = (lisbon: string) => {
+  vi.useFakeTimers({ toFake: ["Date"] })
+  vi.setSystemTime(new Date(`2026-07-10T${lisbon}:00+01:00`))
+}
+
+describe("DayPanel today", () => {
+  const breakfast = pinned("Breakfast", 0, "09:00", "10:00")
+  const lunch = pinned("Lunch", 0.3, "12:30", "13:30")
+  const walk = pinned("Walk", 1.24, "15:30", "18:00")
   const today = { id: "day-1", date: "2026-07-10", items: [breakfast, lunch, walk] }
-  /** Lisbon runs on UTC+1 in July. */
-  const at = (lisbon: string) => {
-    vi.useFakeTimers({ toFake: ["Date"] })
-    vi.setSystemTime(new Date(`2026-07-10T${lisbon}:00+01:00`))
-    // happy-dom lays nothing out; every element counts as showing.
-    vi.spyOn(Element.prototype, "getClientRects").mockReturnValue({ length: 1 } as unknown as DOMRectList)
-  }
+  const shown = () => [...document.querySelectorAll("[id^='item-']")].map((card) => card.id.slice(5))
 
-  it("scrolls past what is done to Now", async () => {
-    at("14:00")
+  it("folds the stops already over into one row that opens them again", () => {
+    at("14:10")
     renderDay(today, { status: "none" })
-    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledTimes(1))
-    expect(scrollUnderRail).toHaveBeenCalledWith(document.querySelector("[data-now]"))
+    expect(shown()).toEqual(["Walk"])
+    const fold = screen.getByRole("button", { name: /^2 stops done/ })
+    expect(fold).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(fold)
+    expect(shown()).toEqual(["Breakfast", "Lunch", "Walk"])
+    expect(fold).toHaveAttribute("aria-expanded", "true")
   })
 
-  it("lands on the stop under way when it fits", async () => {
-    at("13:00")
+  it("draws Now before the leg it leads into, with the free time and when to leave", () => {
+    at("14:10")
     renderDay(today, { status: "none" })
-    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledWith(document.getElementById("item-it-lunch")))
+    const now = screen.getByRole("separator", { name: /^Now/ })
+    const card = document.getElementById("item-Walk")!.closest("li")!
+    expect(now.nextElementSibling).toBe(card)
+    expect(legInto("Walk")).toBe("940 m\u00a0· 12 min walk\u00a0· 1 h 08 freeLeave by 3:18 PM")
   })
 
-  it("scrolls once per visit to the day", async () => {
-    at("14:00")
+  it("keeps the fold open for a stop in it that is selected", () => {
+    at("14:10")
+    renderDay(today, { status: "none" }, { activeId: "Lunch" })
+    expect(shown()).toEqual(["Breakfast", "Lunch", "Walk"])
+    expect(screen.getByRole("button", { name: /^2 stops done/ })).toHaveAttribute("aria-expanded", "true")
+  })
+
+  it("opens for a stop the map asks to edit", () => {
+    at("14:10")
     const { rerenderDay } = renderDay(today, { status: "none" })
-    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledTimes(1))
-    rerenderDay({ ...today, items: [...today.items, makeItem({ id: "it-late", title: "Late" })] })
-    await frames()
-    expect(scrollUnderRail).toHaveBeenCalledTimes(1)
+    expect(shown()).toEqual(["Walk"])
+    rerenderDay(today, { status: "none" }, { edit: { id: "Breakfast", n: 1 } })
+    expect(shown()).toEqual(["Breakfast", "Lunch", "Walk"])
   })
 
-  it("leaves the page alone when a stop is already selected", async () => {
-    at("14:00")
-    renderDay(today, { status: "none" }, { activeId: "it-walk" })
-    await frames()
-    expect(scrollUnderRail).not.toHaveBeenCalled()
+  it("keeps the folded head in place when the rest is reordered", () => {
+    at("14:10")
+    const onChange = vi.fn()
+    const tea = pinned("Tea", 1.3, "16:00", "17:00")
+    renderDay({ ...today, items: [breakfast, lunch, walk, tea] }, { status: "none" }, { editable: true, onChange })
+    const row = document.getElementById("item-Tea")!.querySelector<HTMLElement>("[data-card-row]")!
+    fireEvent.keyDown(row, { key: "ArrowUp", altKey: true })
+    const [edit] = onChange.mock.calls[0]!
+    const [next] = edit([{ ...today, items: [breakfast, lunch, walk, tea] }])
+    expect(next.items.map((item: { id: string }) => item.id)).toEqual(["Breakfast", "Lunch", "Tea", "Walk"])
   })
 
-  it("waits for the forecast, which changes the height above Now", async () => {
-    at("14:00")
-    const { rerenderDay } = renderDay(today, { status: "loading" })
-    await frames()
-    expect(scrollUnderRail).not.toHaveBeenCalled()
-    rerenderDay(today, { status: "forecast", forecast: SHOWERY })
-    await waitFor(() => expect(scrollUnderRail).toHaveBeenCalledTimes(1))
-  })
-
-  it("leaves a page the traveller has already moved", async () => {
-    at("14:00")
-    vi.spyOn(window, "scrollY", "get").mockReturnValue(200)
-    renderDay(today, { status: "none" })
-    await frames()
-    expect(scrollUnderRail).not.toHaveBeenCalled()
-  })
-
-  it("leaves the page alone before the first stop ends", async () => {
+  it("does not fold before the first stop ends, or on another day", () => {
     at("09:30")
     renderDay(today, { status: "none" })
-    await frames()
-    expect(scrollUnderRail).not.toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: /stops? done/ })).toBeNull()
+    expect(shown()).toEqual(["Breakfast", "Lunch", "Walk"])
+  })
+})
+
+describe("DayPanel conflicts", () => {
+  it("names the earlier stop by its number on the map", () => {
+    const castle = pinned("Castle", 0, "10:15", "11:30")
+    const tram = pinned("Tram", 0.5, "11:00", "12:00")
+    renderDay({ id: "day-1", date: "2026-07-10", items: [castle, tram] }, { status: "none" })
+    const card = document.getElementById("item-Tram")!
+    expect(within(card).getByRole("img", { name: "stop 1" })).toHaveTextContent("1")
+    expect(card).toHaveTextContent("Overlaps 1")
+  })
+
+  it("says how tight a leg is after the stop it follows", () => {
+    const castle = pinned("Castle", 0, "10:00", "11:00")
+    const far = pinned("Far", 6, "11:00", "12:00")
+    renderDay({ id: "day-1", date: "2026-07-10", items: [castle, far] }, { status: "none" })
+    expect(document.getElementById("item-Far")).toHaveTextContent(/Tight after 1 · ~\d+ min by transit, no gap/)
   })
 })

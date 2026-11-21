@@ -12,10 +12,16 @@ import type { ItemStatus, ItineraryItem, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { scrollBehavior } from "./scroll"
+import type { ConflictAlert } from "./stopAlerts"
+import { StopRef } from "../timeline/StopRef"
+import { Parts } from "./Parts"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
 import { ItemIcon } from "../ItemIcon"
+
+/** A clash with an earlier stop, and that stop's map number (else its title) to name it by: "Overlaps ②". */
+export type CardConflict = ConflictAlert & { otherNumber: number | null; otherTitle: string }
 
 export interface ItemCardProps {
   item: ItineraryItem
@@ -24,9 +30,9 @@ export interface ItemCardProps {
   count: number
   /** Number shown on the map pin, when the item has coordinates. */
   pinLabel: string | null
-  /** "Overlaps Kiyomizu-dera": this stop collides with an earlier one (`stopAlerts`). */
-  conflict: string | null
-  /** "Showers likely · 60% chance": rain is likely while it is on. */
+  /** This stop collides with an earlier one (`stopAlerts`). */
+  conflict: CardConflict | null
+  /** "Showers until 5 PM · 60%": rain is likely while it is on. */
   rain: string | null
   /** The rain is 70% likely or more, or a storm. */
   rainHeavy: boolean
@@ -243,13 +249,25 @@ export const ItemCard = memo(function ItemCard({
             {conflict && (
               <span {...sx(s.cardAlert)}>
                 <TriangleAlert size={12} strokeWidth={2} aria-hidden {...sx(s.cardAlertIcon)} />
-                <span {...sx(a.wrap)}>{conflict}</span>
+                <span {...sx(a.wrap)}>
+                  <Parts
+                    parts={[
+                      <>
+                        {conflict.kind === "overlap" ? "Overlaps" : "Tight after"} <StopRef number={conflict.otherNumber} title={conflict.otherTitle} />
+                      </>,
+                      conflict.detail,
+                      conflict.more > 0 && `+${conflict.more}`,
+                    ]}
+                  />
+                </span>
               </span>
             )}
             {rain && (
               <span {...sx(s.cardAlert, s.cardRain, rainHeavy && s.cardRainHeavy)}>
                 <CloudRain size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
-                <span {...sx(a.wrap)}>{rain}</span>
+                <span {...sx(a.wrap)}>
+                  <Parts parts={rain.split(" · ")} />
+                </span>
               </span>
             )}
           </span>

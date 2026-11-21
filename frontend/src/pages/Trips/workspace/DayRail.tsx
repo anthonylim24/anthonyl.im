@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { LayoutGrid } from "lucide-react"
 import { sx } from "@/styles/merge"
@@ -18,21 +18,64 @@ function clippedEnds(el: HTMLElement): Clipped {
 
 const FADE = { none: null, start: s.railFadeStart, end: s.railFadeEnd, both: s.railFadeBoth } as const
 
-/** Overview plus one tab per day; the day in view is centred and the ends fade where more days hide. */
+/** The days in the rail, and the scroll position that puts each one's start at the rail's scroll padding. */
+function dayStops(el: HTMLElement) {
+  const days = [...el.querySelectorAll<HTMLElement>(":scope > a")]
+  const pad = parseFloat(getComputedStyle(el).scrollPaddingInlineStart) || 0
+  return { days, starts: days.map((day) => day.offsetLeft - pad) }
+}
+
+/**
+ * Lengthens the rail's end just enough that scrolling all the way still rests
+ * on a whole day at the start edge (`--rail-tail`, read by `railScroll`).
+ */
+function fitTail(el: HTMLElement) {
+  const { days, starts } = dayStops(el)
+  const last = days[days.length - 1]
+  const tail = parseFloat(el.style.getPropertyValue("--rail-tail")) || 0
+  if (!last) return
+  const end = (parseFloat(getComputedStyle(el).paddingInlineEnd) || 0) - tail
+  const max = last.offsetLeft + last.offsetWidth + end - el.clientWidth
+  const reach = max > 0 ? starts.find((start) => start >= max - 0.5) : undefined
+  el.style.setProperty("--rail-tail", `${reach === undefined ? 0 : reach - max}px`)
+}
+
+/** The resting place for the rail: the day in view near the middle, a whole day at the start edge. */
+function restingLeft(el: HTMLElement, current: HTMLElement | null): number {
+  if (!current) return 0
+  const centred = current.offsetLeft - (el.clientWidth - current.offsetWidth) / 2
+  const max = el.scrollWidth - el.clientWidth
+  return dayStops(el)
+    .starts.filter((start) => start <= max + 0.5)
+    .reduce((best, start) => (Math.abs(start - centred) < Math.abs(best - centred) ? start : best), 0)
+}
+
+/**
+ * Overview plus one tab per day. The day in view sits near the middle, and the
+ * rail always rests on a whole day at its start edge (snap, and a tail sized to
+ * match), so no day is ever cut against Overview's rule. The ends fade where
+ * more days hide.
+ */
 export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: string; dayId: string | undefined }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [clipped, setClipped] = useState<Clipped>("none")
   const placed = useRef(false)
   const today = todayIsoIn(trip.timezone)
 
-  useEffect(() => {
+  // Before the scroll below, so the tail is in place when it lands.
+  useLayoutEffect(() => {
     const el = scrollerRef.current
     if (!el) return
-    const measure = () => setClipped(clippedEnds(el))
+    const measure = () => {
+      fitTail(el)
+      setClipped(clippedEnds(el))
+    }
     measure()
     if (typeof ResizeObserver === "undefined") return
     const observer = new ResizeObserver(measure)
     observer.observe(el)
+    // Day widths settle when the fonts arrive.
+    for (const day of el.children) observer.observe(day)
     return () => observer.disconnect()
   }, [trip.days.length])
 
@@ -42,15 +85,12 @@ export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: strin
     const current = el.querySelector<HTMLElement>('[aria-current="page"]')
     // The rail's own scroll only: scrollIntoView would also move the page.
     // On the overview (outside the scroller) the days go back to the start.
-    el.scrollTo({
-      left: current ? current.offsetLeft - (el.clientWidth - current.offsetWidth) / 2 : 0,
-      behavior: placed.current ? scrollBehavior() : "auto",
-    })
+    el.scrollTo({ left: restingLeft(el, current), behavior: placed.current ? scrollBehavior() : "auto" })
     placed.current = true
   }, [dayId])
 
   return (
-    <nav {...sx(s.rail)} aria-label="Days" data-day-rail="">
+    <nav {...sx(s.rail)} aria-label="Days">
       {/* Outside the scroller, so centring a late day never pushes it off. */}
       <Link to={basePath} {...sx(s.railItem, s.railAll, !dayId && s.railItemOn)} aria-current={!dayId ? "page" : undefined}>
         <LayoutGrid size={15} strokeWidth={1.75} aria-hidden />

@@ -26,7 +26,7 @@ export const live = stylex.create({
   },
   head: {
     display: "grid",
-    gridTemplateColumns: "3.25rem minmax(0, 1fr) auto",
+    gridTemplateColumns: "3.25rem minmax(0, 1fr)",
     alignItems: "center",
     columnGap: "0.875rem",
   },
@@ -57,7 +57,8 @@ export const live = stylex.create({
   // Today's sky under the day's name: glyph, the hour's temperature, the next wet spell.
   sky: { display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--trips-ink-secondary)", fontVariantNumeric: "tabular-nums" },
   skyIcon: { flexShrink: 0 },
-  clock: { color: "var(--trips-ink-tertiary)", alignSelf: "start", paddingTop: "0.125rem" },
+  headTop: { display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "baseline", columnGap: "0.75rem" },
+  clock: { color: "var(--trips-ink-tertiary)" },
   rule: { height: "1px", backgroundColor: "var(--trips-line)", borderWidth: 0, margin: 0 },
 
   // "Now" line: what is under way.

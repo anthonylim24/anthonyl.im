@@ -9,11 +9,10 @@ import compassArt from "../art/compass.webp"
 import { a } from "../atlas.stylex"
 import { sky as k } from "./daySky.stylex"
 
-/** The engraving: its lines on light paper, its print on dark (see `.trips-sky-art` in index.css). */
-function Engraving({ sky }: { sky: SkyId | "compass" }) {
-  const { art, print } = sky === "compass" ? { art: compassArt, print: compassArt } : SKIES[sky]
-  const masks = { "--sky-ink": `url(${art})`, "--sky-print": `url(${print})` } as CSSProperties
-  return <span aria-hidden="true" {...sx(k.art, sky === "compass" && k.artFaint, "trips-sky-art")} style={masks} />
+/** The engraving: its lines inked in the theme's secondary ink (see `.trips-sky-art` in index.css). An estimate is drawn fainter. */
+function Engraving({ sky, faint = false }: { sky: SkyId | "compass"; faint?: boolean }) {
+  const art = sky === "compass" ? compassArt : SKIES[sky].art
+  return <span aria-hidden="true" {...sx(k.art, sky === "compass" && k.artFaint, faint && k.artEstimate, "trips-sky-art")} style={{ "--sky-ink": `url(${art})` } as CSSProperties} />
 }
 
 /** Skies whose word already says what falls ("Showers · 60% chance"). */
@@ -56,10 +55,12 @@ function Light({ sunrise, sunset }: { sunrise: string; sunset: string }) {
 
 /**
  * The day's sky in the day header: an engraving of the weather beside the
- * high and low, the sky in words, the chance of rain and the light.
- * A live forecast says "Forecast"; the plan's own weather for days out of
- * the forecast's reach says "Expected" and is set as an estimate. While a
- * forecast is on its way the place is held so the header does not jump.
+ * high and low, the sky in words with its wettest window, what that means
+ * for the plan on a line of its own, and the light. A live forecast says
+ * "Forecast"; the plan's own weather for days out of the forecast's reach is
+ * set as an estimate. While a forecast is on its way the place is held so
+ * the header does not jump. One grid: on phones the words run full width
+ * under the engraving and the temperatures.
  */
 export function DaySky({ sky, day }: { sky: Sky; day?: TripDay }) {
   if (sky.status === "none") return null
@@ -68,22 +69,20 @@ export function DaySky({ sky, day }: { sky: Sky; day?: TripDay }) {
     return (
       <figure {...sx(k.root)}>
         <Engraving sky="compass" />
-        <figcaption {...sx(k.text)}>
-          <span {...sx(k.main)}>
-            <span {...sx(k.eyebrow)}>Forecast</span>
-            <span {...sx(k.word)}>
-              Not available right now
-              {sky.retry && (
-                <>
-                  {" "}
-                  <button type="button" onClick={sky.retry} {...sx(a.focusable, k.retry)}>
-                    Try again
-                  </button>
-                </>
-              )}
-            </span>
-          </span>
-        </figcaption>
+        <span {...sx(k.eyebrowRow)}>
+          <span {...sx(k.eyebrow)}>Forecast</span>
+        </span>
+        <span {...sx(k.word)}>
+          Not available right now
+          {sky.retry && (
+            <>
+              {" "}
+              <button type="button" onClick={sky.retry} {...sx(a.focusable, k.retry)}>
+                Try again
+              </button>
+            </>
+          )}
+        </span>
       </figure>
     )
   }
@@ -91,24 +90,22 @@ export function DaySky({ sky, day }: { sky: Sky; day?: TripDay }) {
   if (sky.status === "expected") {
     return (
       <figure {...sx(k.root)} aria-label={`The plan's estimate, not a forecast: about ${formatTemp(sky.highC, FAHRENHEIT)}, ${sky.word}`}>
-        <Engraving sky={sky.sky} />
-        <figcaption {...sx(k.text)}>
-          <span {...sx(k.main)}>
-            <span {...sx(k.eyebrow)}>Estimate · from the plan</span>
-            <span {...sx(k.temps)}>
-              <span {...sx(k.high, k.estimate)}>
-                <span {...sx(a.srOnly)}>About </span>
-                <span aria-hidden="true" {...sx(k.approx)}>≈</span>
-                {formatTemp(sky.highC, FAHRENHEIT)}
-              </span>
-              <span {...sx(k.low)}>
-                <span {...sx(a.srOnly)}>, low </span>
-                {formatTemp(sky.lowC, FAHRENHEIT)}
-              </span>
-            </span>
-            <span {...sx(k.word)}>{capital(sky.word)}</span>
+        <Engraving sky={sky.sky} faint />
+        <span {...sx(k.eyebrowRow)}>
+          <span {...sx(k.eyebrow)}>Estimate · from the plan</span>
+        </span>
+        <span {...sx(k.temps)}>
+          <span {...sx(k.high, k.estimate)}>
+            <span {...sx(a.srOnly)}>About </span>
+            <span aria-hidden="true" {...sx(k.approx)}>≈</span>
+            {formatTemp(sky.highC, FAHRENHEIT)}
           </span>
-        </figcaption>
+          <span {...sx(k.low)}>
+            <span {...sx(a.srOnly)}>, low </span>
+            {formatTemp(sky.lowC, FAHRENHEIT)}
+          </span>
+        </span>
+        <span {...sx(k.word)}>{capital(sky.word)}</span>
       </figure>
     )
   }
@@ -118,37 +115,33 @@ export function DaySky({ sky, day }: { sky: Sky; day?: TripDay }) {
   // The wettest stretch says when: "Showers 2–5 PM · 60% chance". Without one, the day's chance alone.
   const spell = wetSpells(live.hours ?? []).reduce<ReturnType<typeof wetSpells>[number] | null>((top, s) => (!top || s.chance > top.chance ? s : top), null)
   const wet = WET.has(kind.sky)
-  const when = spell ? `${wet ? "" : `${wetWord(spell.code).toLowerCase()} `}${clockRange(spell.from, spell.to)}` : null
+  const when = spell ? `${wet ? "" : `${wetWord(spell.code).toLowerCase()} `}${clockRange(spell.from, spell.to, "prose")}` : null
   const percent = spell ? spell.chance : live.rainChance
   const chance = spell || live.rainChance >= 30 ? `${percent}% chance${wet || spell ? "" : " of rain"}` : null
   const consequence = spell ? meets(day, spell.from, spell.to) : null
   return (
     <figure {...sx(k.root)} title="Live forecast from Open-Meteo">
       <Engraving sky={kind.sky} />
-      <figcaption {...sx(k.text)}>
-        <span {...sx(k.main)}>
-          <span {...sx(k.eyebrowRow)}>
-            <span {...sx(k.eyebrow)}>Forecast</span>
-            {live.sunrise && live.sunset && <Light sunrise={live.sunrise} sunset={live.sunset} />}
-          </span>
-          <span {...sx(k.temps)}>
-            <span {...sx(k.high)}>
-              <span {...sx(a.srOnly)}>High </span>
-              {formatTemp(live.highC, FAHRENHEIT)}
-            </span>
-            <span {...sx(k.low)}>
-              <span {...sx(a.srOnly)}>, low </span>
-              {formatTemp(live.lowC, FAHRENHEIT)}
-            </span>
-          </span>
-          <span {...sx(k.word)}>
-            {kind.word}
-            {when && (wet ? ` ${when}` : ` · ${when}`)}
-            {chance && <> <span {...sx(k.chance)}>· {chance}</span></>}
-            {consequence && <> <span {...sx(k.chance, consequence.hits && k.consequence)}>· {consequence.text}</span></>}
-          </span>
+      <span {...sx(k.eyebrowRow)}>
+        <span {...sx(k.eyebrow)}>Forecast</span>
+        {live.sunrise && live.sunset && <Light sunrise={live.sunrise} sunset={live.sunset} />}
+      </span>
+      <span {...sx(k.temps)}>
+        <span {...sx(k.high)}>
+          <span {...sx(a.srOnly)}>High </span>
+          {formatTemp(live.highC, FAHRENHEIT)}
         </span>
-      </figcaption>
+        <span {...sx(k.low)}>
+          <span {...sx(a.srOnly)}>, low </span>
+          {formatTemp(live.lowC, FAHRENHEIT)}
+        </span>
+      </span>
+      <span {...sx(k.word)}>
+        {kind.word}
+        {when && (wet ? ` ${when}` : ` · ${when}`)}
+        {chance && <span {...sx(k.chance)}> · {chance}</span>}
+      </span>
+      {consequence && <span {...sx(k.meets, consequence.hits && k.consequence)}>{capital(consequence.text)}</span>}
     </figure>
   )
 }

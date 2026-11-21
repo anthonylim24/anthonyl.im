@@ -48,19 +48,37 @@ describe("dayList Anytime", () => {
 describe("dayList legs", () => {
   it("draws no leg into or between Anytime stops", () => {
     const list = dayList(day([stop("A", "09:00", "10:00", 0), stop("B", "11:00", "12:00", 1), stop("C", undefined, undefined, 2), stop("D", undefined, undefined, 3)]), null)
-    expect(list.legs.get("A")?.text).toMatch(/^1000 m · \d+ min walk$/)
-    expect(list.legs.has("B")).toBe(false)
+    expect(list.legs.get("B")?.text).toMatch(/^1000 m · 12 min walk · 48 min free$/)
     expect(list.legs.has("C")).toBe(false)
+    expect(list.legs.has("D")).toBe(false)
   })
 
-  it("keeps the legs through an untimed stop between timed ones", () => {
+  it("draws each leg above the stop it leads into", () => {
     const list = dayList(day([stop("A", "09:00", "10:00", 0), stop("X", undefined, undefined, 0.5), stop("B", "11:00", "12:00", 1)]), null)
-    expect([...list.legs.keys()]).toEqual(["A", "X"])
+    expect([...list.legs.keys()]).toEqual(["X", "B"])
   })
 
   it("says there is no time to travel into an overlapping stop", () => {
     const list = dayList(day([stop("A", "10:15", "11:30", 0), stop("B", "11:00", "12:00", 0.5)]), null)
-    expect(list.legs.get("A")).toEqual({ text: "No time to travel", mode: "overlap" })
+    expect(list.legs.get("B")).toEqual({ text: "No time to travel", leave: null, mode: "overlap" })
+  })
+
+  it("adds the timeline's free time and when to leave, counted from now on today", () => {
+    const plan = day([stop("Lunch", "12:30", "13:30", 0), stop("Gion", "15:30", "18:00", 0.94)])
+    expect(dayList(plan, null).legs.get("Gion")).toEqual({ text: "940 m · 12 min walk · 1 h 48 free", leave: "Leave by 3:18 PM", mode: "walk" })
+    expect(dayList(plan, min("14:10")).legs.get("Gion")).toEqual({ text: "940 m · 12 min walk · 1 h 08 free", leave: "Leave by 3:18 PM", mode: "walk" })
+    // Past the time to leave there is nothing free to name.
+    expect(dayList(plan, min("15:20")).legs.get("Gion")).toEqual({ text: "940 m · 12 min walk", leave: null, mode: "walk" })
+  })
+
+  it("finds the gap when the list runs against the clock", () => {
+    const list = dayList(day([stop("Late", "15:30", "18:00", 0.94), stop("Early", "12:30", "13:30", 0)]), null)
+    expect(list.legs.get("Early")?.text).toBe("940 m · 12 min walk · 1 h 48 free")
+  })
+
+  it("names no free time under a quarter of an hour", () => {
+    const list = dayList(day([stop("A", "09:00", "10:00", 0), stop("B", "10:20", "11:00", 0.94)]), null)
+    expect(list.legs.get("B")).toEqual({ text: "940 m · 12 min walk", leave: null, mode: "walk" })
   })
 })
 
@@ -99,5 +117,28 @@ describe("dayList past and current", () => {
     const list = dayList(plan, null)
     expect(list.past.size).toBe(0)
     expect(list.current).toBeNull()
+  })
+})
+
+describe("dayList done", () => {
+  const plan = day([stop("Temple", "09:00", "10:00"), stop("Lunch", "11:00", "12:00"), stop("Garden", "13:00", "14:00"), stop("Later")])
+
+  it("folds the run of finished stops at the head of the list", () => {
+    expect(dayList(plan, min("12:30")).done).toEqual({ length: 2, stops: ["Temple", "Lunch"], from: min("09:00"), to: min("12:00") })
+  })
+
+  it("is empty before the first stop ends, and on any other day", () => {
+    expect(dayList(plan, min("09:30")).done).toBeNull()
+    expect(dayList(plan, null).done).toBeNull()
+  })
+
+  it("stops at the first stop still ahead, even when a later one is over", () => {
+    const outOfOrder = day([stop("Temple", "09:00", "10:00"), stop("Dinner", "19:00", "20:00"), stop("Lunch", "11:00", "12:00")])
+    expect(dayList(outOfOrder, min("12:30")).done?.stops).toEqual(["Temple"])
+  })
+
+  it("takes the headings and notes among the finished stops with them", () => {
+    const sections = day([heading("Morning"), stop("Temple", "09:00", "10:00"), note("Bring cash"), stop("Lunch", "11:00", "12:00"), heading("Afternoon"), stop("Garden", "13:00", "14:00")])
+    expect(dayList(sections, min("12:30")).done).toMatchObject({ length: 4, stops: ["Temple", "Lunch"] })
   })
 })

@@ -133,17 +133,17 @@ const deg = (c: number, f: number) => `${FAHRENHEIT ? f : c}°`
 describe("NowCard sky line", () => {
   it("gives this hour's temperature and the wet spell still to come", () => {
     renderCard(new Date("2026-05-28T04:42:00Z"), seoulTrip(), new Map([["d3", SHOWERY]])) // 13:42
-    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} · Showers 2–5 PM`)
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Showers 2–5 PM`)
   })
 
   it("keeps the spell while it is under way", () => {
     renderCard(new Date("2026-05-28T06:30:00Z"), seoulTrip(), new Map([["d3", SHOWERY]])) // 15:30
-    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} · Showers 2–5 PM`)
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Showers 2–5 PM`)
   })
 
   it("says the day's sky once the spell is over", () => {
     renderCard(new Date("2026-05-28T09:50:00Z"), seoulTrip(), new Map([["d3", SHOWERY]])) // 18:50
-    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} · Partly cloudy`)
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Partly cloudy`)
   })
 
   it("names the high when there are no hours", () => {

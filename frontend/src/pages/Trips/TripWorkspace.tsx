@@ -43,6 +43,7 @@ import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
 import { DayRail } from "./workspace/DayRail"
+import { Parts } from "./workspace/Parts"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
 import { OverviewTabs, type TabBadge } from "./workspace/OverviewTabs"
@@ -1046,11 +1047,11 @@ function Workspace() {
                 <PlacePhoto key={active.item.id} item={active.item} city={active.day.city ?? trip.destinations[0] ?? ""} />
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
-                    {/* "·" + a no-break space: a wrapped line never ends on a separator. */}
                     <p {...sx(a.eyebrow)}>
-                      {tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`}
-                      {active.item.time ? ` ·\u00a0${formatClock(active.item.time)}` : ""}
-                      {active.item.location?.category ? ` ·\u00a0${titleCase(active.item.location.category)}` : ""}
+                      <PlaceEyebrow
+                        lead={[tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`, active.item.time ? formatClock(active.item.time) : null]}
+                        category={active.item.location?.category ? titleCase(active.item.location.category) : null}
+                      />
                     </p>
                     <h3 {...sx(a.display, s.placeTitle, a.wrap)}>{active.item.title || active.item.location?.name}</h3>
                   </div>
@@ -1295,5 +1296,24 @@ function PanelLoading() {
     <div {...sx(s.content)} role="status" aria-label="Loading">
       <Spinner />
     </div>
+  )
+}
+
+/**
+ * "STOP 5 OF 9 · 3:30 PM · NEIGHBORHOOD" on a wide card; on a phone the
+ * category takes its own line, with no separator left at the break.
+ */
+function PlaceEyebrow({ lead, category }: { lead: Array<string | null>; category: string | null }) {
+  // The card is narrow at every width: the category always takes a line of its own.
+  return (
+    <>
+      <Parts parts={lead} />
+      {category && (
+        <>
+          {" "}
+          <span {...sx(s.placeCategory)}>{category}</span>
+        </>
+      )}
+    </>
   )
 }

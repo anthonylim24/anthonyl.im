@@ -153,6 +153,8 @@ const hotel = makeItem({
 
 const reviewRun = { id: "run-1", tripId: "lisbon", scope: "trip", status: "complete", suggestions: [], appliedSuggestionIds: [], createdAt: "2026-07-01T00:00:00Z" }
 
+/** The place card's eyebrow as one line of text: the lead, then the category on its own line. */
+const eyebrow = (card: ReturnType<typeof within>) => card.getByText(/^Stop \d+ of \d+/).closest("p")
 const stat = (label: string) => screen.getByText(label, { selector: "dt" }).parentElement
 
 const belem: PlaceResult = {
@@ -440,7 +442,7 @@ describe("TripWorkspace", () => {
 
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Time Out Market" })).toBeInTheDocument()
-      expect(card.getByText("Stop 1 of 2 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 1 of 2 · 12:30 PM Market$/)
       expect(card.getByText("Av. 24 de Julho 49")).toBeInTheDocument()
       expect(card.getByRole("link", { name: "Directions" })).toHaveAttribute("target", "_blank")
       // On the day page there is no "open day" hop.
@@ -456,7 +458,7 @@ describe("TripWorkspace", () => {
 
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
-      expect(card.getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 2 of 2 · 8:00 PM$/)
 
       fireEvent.click(card.getByRole("button", { name: "Close place" }))
       expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
@@ -473,12 +475,12 @@ describe("TripWorkspace", () => {
       // Next skips the unpinned note and café between the two pinned stops.
       fireEvent.click(card().getByRole("button", { name: "Next stop" }))
       expect(card().getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
-      expect(card().getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(eyebrow(card())).toHaveTextContent(/^Stop 2 of 2 · 8:00 PM$/)
       expect(card().getByRole("button", { name: "Next stop" })).toBeDisabled()
 
       fireEvent.click(card().getByRole("button", { name: "Previous stop" }))
       expect(card().getByRole("heading", { name: "Time Out Market" })).toBeInTheDocument()
-      expect(card().getByText("Stop 1 of 2 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(eyebrow(card())).toHaveTextContent(/^Stop 1 of 2 · 12:30 PM Market$/)
     })
 
     it("has no stepper when the day has a single pinned stop", async () => {
@@ -489,7 +491,7 @@ describe("TripWorkspace", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Show Time Out Market on the map" }))
 
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
-      expect(card.getByText("Stop 1 of 1 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 1 of 1 · 12:30 PM Market$/)
       expect(card.queryByRole("button", { name: "Previous stop" })).toBeNull()
       expect(card.queryByRole("button", { name: "Next stop" })).toBeNull()
     })
@@ -1098,7 +1100,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
       fireEvent.click(screen.getByRole("button", { name: "Show Fado dinner on the map" }))
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
-      expect(card.getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 2 of 2 · 8:00 PM$/)
       expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))

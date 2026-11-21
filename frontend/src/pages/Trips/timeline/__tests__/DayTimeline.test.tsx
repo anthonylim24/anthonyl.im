@@ -67,17 +67,18 @@ describe("DayTimeline", () => {
     renderTimeline()
     expect(stopNamed(/Dinner/)).toHaveAccessibleDescription("Length estimated, about 1 h. About 35 min by transit from Gyeongbokgung")
     expect(stopNamed(/Tea house/)).toHaveAccessibleDescription("Length estimated, about 45 min. Overlaps Gyeongbokgung")
-    // Beside the stop it overlaps the lane is narrow: the warning names it by its number.
-    expect(screen.getByText(/^Overlaps stop \d+$/)).toBeInTheDocument()
+    // The warning names the other stop by its map badge, the same in every view.
+    expect(screen.getAllByRole("img", { name: /^stop \d+$/ }).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/^Overlaps/).length).toBeGreaterThan(0)
     expect(screen.getByText("1 overlap")).toBeInTheDocument()
   })
 
   it("labels the leg between two stops, and free time worth knowing about", () => {
     renderTimeline()
-    expect(screen.getByText("≈ 35 min by transit")).toBeInTheDocument()
+    expect(screen.getByText("~35 min by transit")).toBeInTheDocument()
     expect(screen.getByText("1 h 25 free")).toBeInTheDocument()
     expect(screen.getByText("2 h 25 free")).toBeInTheDocument()
-    expect(screen.getByText("leave 5:25 PM")).toBeInTheDocument()
+    expect(screen.getByText("Leave by 5:25 PM")).toBeInTheDocument()
   })
 
   it("counts no free time once the day's stops are over", () => {
@@ -153,6 +154,16 @@ describe("DayTimeline", () => {
     expect(onHover).toHaveBeenLastCalledWith("flight")
     fireEvent.blur(stopNamed(/UA 893/))
     expect(onHover).toHaveBeenLastCalledWith(null)
+  })
+
+  it("folds today's finished stops into one line that opens them again", () => {
+    renderTimeline(undefined, { now: "17:00" })
+    const fold = screen.getByRole("button", { name: /^3 stops done 10:40 AM–4:00 PM/ })
+    expect(fold).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("button", { name: /UA 893/ })).toBeNull()
+    fireEvent.click(fold)
+    expect(fold).toHaveAttribute("aria-expanded", "true")
+    expect(stopNamed(/UA 893/)).toBeInTheDocument()
   })
 
   it("draws the now line only when now falls on the ruler", () => {

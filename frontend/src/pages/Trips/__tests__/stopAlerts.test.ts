@@ -25,25 +25,25 @@ const SHOWERY: HourForecast[] = Array.from({ length: 24 }, (_, h) => ({
 describe("stopAlerts", () => {
   it("warns on the later of two overlapping stops only", () => {
     const alerts = stopAlerts(day([stop("Kiyomizu-dera", "10:15", "11:30"), stop("Tea ceremony", "11:00", "12:00")]), undefined)
-    expect(alerts.get("Tea ceremony")).toEqual({ conflict: "Overlaps Kiyomizu-dera", rain: null })
+    expect(alerts.get("Tea ceremony")).toEqual({ conflict: { kind: "overlap", otherId: "Kiyomizu-dera", detail: null, more: 0 }, rain: null })
     expect(alerts.has("Kiyomizu-dera")).toBe(false)
   })
 
   it("counts further collisions after the first", () => {
     const alerts = stopAlerts(day([stop("A", "10:00", "12:00"), stop("B", "10:30", "12:00"), stop("C", "11:00", "11:30")]), undefined)
-    expect(alerts.get("C")?.conflict).toBe("Overlaps A · +1")
+    expect(alerts.get("C")?.conflict).toMatchObject({ kind: "overlap", otherId: "A", more: 1 })
   })
 
   it("flags a leg that does not fit the gap", () => {
     const from = stop("Shrine", "09:00", "10:00", { location: { name: "Shrine", ...north(0), source: "user" } })
     const to = stop("Market", "10:00", "11:00", { location: { name: "Market", ...north(3), source: "user" } })
-    expect(stopAlerts(day([from, to]), undefined).get("Market")?.conflict).toMatch(/^Tight · .*, no gap$/)
+    expect(stopAlerts(day([from, to]), undefined).get("Market")?.conflict).toMatchObject({ kind: "tight", otherId: "Shrine", detail: expect.stringMatching(/, no gap$/) })
   })
 
   it("says what falls and how likely while a stop is on", () => {
     const alerts = stopAlerts(day([stop("Lunch", "12:30", "13:30"), stop("Gion", "15:30", "18:00"), stop("Dinner", "18:30", "20:30")]), SHOWERY)
     expect(alerts.get("Gion")?.conflict).toBeNull()
-    expect(alerts.get("Gion")?.rain).toMatchObject({ text: "Showers likely · 60% chance", heavy: false, spell: { from: 14 * 60, to: 17 * 60 } })
+    expect(alerts.get("Gion")?.rain).toMatchObject({ text: "Showers until 5:00 PM · 60%", heavy: false, spell: { from: 14 * 60, to: 17 * 60 } })
     expect(alerts.has("Lunch")).toBe(false)
     expect(alerts.has("Dinner")).toBe(false)
   })
@@ -51,7 +51,7 @@ describe("stopAlerts", () => {
   it("reads a stop with no end time for as long as it usually takes", () => {
     // A museum runs about two hours: 13:00 reaches the 14:00 showers.
     const museum = stop("Museum", "13:00", undefined, { location: { name: "Museum", category: "museum", source: "user" } })
-    expect(stopAlerts(day([museum]), SHOWERY).get("Museum")?.rain?.text).toBe("Showers likely · 60% chance")
+    expect(stopAlerts(day([museum]), SHOWERY).get("Museum")?.rain?.text).toBe("Showers from 2:00 PM · 60%")
   })
 
   it("leaves untimed and parked places alone", () => {
@@ -73,11 +73,11 @@ describe("stopAlerts heavy rain", () => {
 
   it("is set at weight from 70%", () => {
     expect(stopAlerts(gion, wet(69, 63)).get("Gion")?.rain?.heavy).toBe(false)
-    expect(stopAlerts(gion, wet(70, 63)).get("Gion")?.rain).toMatchObject({ text: "Rain likely · 70% chance", heavy: true })
+    expect(stopAlerts(gion, wet(70, 63)).get("Gion")?.rain).toMatchObject({ text: "Rain until 5:00 PM · 70%", heavy: true })
   })
 
   it("is set at weight for any storm", () => {
-    expect(stopAlerts(gion, wet(55, 95)).get("Gion")?.rain).toMatchObject({ text: "Storms likely · 55% chance", heavy: true })
+    expect(stopAlerts(gion, wet(55, 95)).get("Gion")?.rain).toMatchObject({ text: "Storms until 5:00 PM · 55%", heavy: true })
   })
 })
 

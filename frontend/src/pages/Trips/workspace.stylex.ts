@@ -281,21 +281,24 @@ export const ws = stylex.create({
     flexGrow: 1,
     minWidth: 0,
     gap: "0.375rem",
-    // The gap after the rule sits outside the scrollport, so a day scrolled
-    // under the fade never touches the rule; the padding keeps the first
-    // day's focus ring inside it.
-    marginInlineStart: "0.5rem",
-    paddingInlineStart: "0.25rem",
-    paddingInlineEnd: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
+    // The rail rests with a whole day 12px in from its start edge (snap, and
+    // DayRail's quantised scroll), so the strip before it only ever holds the
+    // gap and the empty padding of the day before: nothing is cut mid-glyph
+    // against the rule. The same 12px at rest keeps the first day's ring inside.
+    // `--rail-tail` (DayRail's fitTail) lets the last resting place be whole too.
+    marginInlineStart: "0.25rem",
+    paddingInlineStart: "0.75rem",
+    paddingInlineEnd: { default: "calc(1.25rem + var(--rail-tail, 0px))", "@media (min-width: 640px)": "calc(1.75rem + var(--rail-tail, 0px))" },
     paddingBlock: "0.625rem",
     overflowX: "auto",
     scrollbarWidth: "none",
-    scrollSnapType: "x proximity",
-    scrollPaddingInline: { default: "0.5rem 1.25rem", "@media (min-width: 640px)": "0.5rem 1.75rem" },
+    scrollSnapType: "x mandatory",
+    scrollPaddingInline: { default: "0.75rem 1.25rem", "@media (min-width: 640px)": "0.75rem 1.75rem" },
   },
-  railFadeStart: { maskImage: "linear-gradient(to right, transparent, #000 2.5rem)" },
+  // The start fade covers only that 12px strip; the end fade a day's width.
+  railFadeStart: { maskImage: "linear-gradient(to right, transparent, #000 0.75rem)" },
   railFadeEnd: { maskImage: "linear-gradient(to left, transparent, #000 2.5rem)" },
-  railFadeBoth: { maskImage: "linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent)" },
+  railFadeBoth: { maskImage: "linear-gradient(to right, transparent, #000 0.75rem, #000 calc(100% - 2.5rem), transparent)" },
   railItem: {
     position: "relative",
     flexShrink: 0,
@@ -310,8 +313,8 @@ export const ws = stylex.create({
     borderRadius: "0.875rem",
     color: "var(--trips-ink-secondary)",
     textDecoration: "none",
-    // Centre, like the rail's own scroll to the day in view; "start" re-snapped it off centre.
-    scrollSnapAlign: "center",
+    // A whole day at the start edge; DayRail picks the one that leaves the day in view near the middle.
+    scrollSnapAlign: "start",
     outline: "none",
     transitionProperty: "background-color, color",
     transitionDuration: "160ms",
@@ -420,9 +423,10 @@ export const ws = stylex.create({
     flexShrink: 0,
     display: "flex",
     flexDirection: "column",
-    gap: "1.5rem",
+    // Tighter on a phone, where the first stop still to come has to clear the day's header and sky.
+    gap: { default: "1.5rem", [PHONE_W]: "0.75rem" },
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
-    paddingTop: "1.5rem",
+    paddingTop: { default: "1.5rem", [PHONE_W]: "1rem" },
     paddingBottom: { default: "7rem", [WIDE]: "5rem" },
     animationName: riseIn,
     animationDuration: "420ms",
@@ -861,16 +865,24 @@ export const ws = stylex.create({
     ":active": { cursor: "grabbing" },
     [HOVER]: { ":hover": { color: "var(--trips-ink)", backgroundColor: "var(--trips-sunken)" } },
   },
+  // The mode's glyph, then the words; "Leave by" on a second line under the words.
   leg: {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
     alignItems: "center",
-    gap: "0.375rem",
+    columnGap: "0.375rem",
+    margin: 0,
     paddingBlock: "0.125rem",
     fontFamily: "var(--trips-mono)",
     fontSize: "0.6875rem",
+    lineHeight: "1rem",
     letterSpacing: "0.03em",
     color: "var(--trips-ink-tertiary)",
   },
+  legLeave: { gridColumn: 2, color: "var(--trips-ink-secondary)" },
+  // Today's finished stops, folded: in the cards' column, spaced like a card.
+  // Flush on a phone: the next stop still to come has to clear the tab bar.
+  foldRow: { listStyle: "none", paddingBlock: { default: "0.3125rem", [PHONE_W]: 0 } },
 
   // Editor panel inside a card
   editor: {
@@ -1080,6 +1092,8 @@ export const ws = stylex.create({
     [REDUCE]: { animationName: "none" },
   },
   placeTitle: { fontSize: "1.5rem", lineHeight: 1.05 },
+  // The place card's category: after "· " on a wide card, on its own line on a phone.
+  placeCategory: { display: "block" },
   /** The stop's photo across the top of the place card, bled to its edges. */
   placePhoto: {
     display: "block",

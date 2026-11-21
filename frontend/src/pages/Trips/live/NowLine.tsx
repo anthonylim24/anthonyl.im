@@ -10,7 +10,7 @@ import { live as s } from "./live.stylex"
  */
 export function NowLine({ time, as: Tag = "li" }: { time: string; as?: "li" | "div" }) {
   return (
-    <Tag role="separator" aria-label={`Now, ${time}`} data-now="" {...sx(s.nowLine)}>
+    <Tag role="separator" aria-label={`Now, ${time}`} {...sx(s.nowLine)}>
       <span {...sx(s.nowGutter)} aria-hidden>
         <span {...sx(s.nowGutterLine)} />
         <span {...sx(s.nowDot)} />
