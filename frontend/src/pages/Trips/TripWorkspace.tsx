@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useTabTitle } from "@/hooks/useTabTitle"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
@@ -46,7 +47,10 @@ import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
 import { OverviewTabs } from "./workspace/OverviewTabs"
 import { OVERVIEW_TABS, readOverviewTab, type OverviewTab } from "./workspace/overviewTab"
-import { calendarMenuItem } from "./calendar/calendarMenu"
+import { calendarMenuItem, exportCalendar } from "./calendar/calendarMenu"
+import { tripCommands } from "./command/tripCommands"
+import { useRegisterCommands } from "./command/CommandContext"
+import { COPY_MESSAGE, copyItinerary } from "./print/copyItinerary"
 import { copyMenuItem, printMenuItem } from "./print/printMenu"
 import { usePrintItinerary } from "./print/usePrintItinerary"
 import type { ItineraryItem, Trip, TripDay } from "./types"
@@ -543,6 +547,45 @@ function Workspace() {
       setBusy(null)
     }
   }
+
+  // openInstagram resets a ref; a stable wrapper keeps that out of render.
+  const importFromInstagram = useLatestCallback(() => openInstagram([]))
+  const copyFromPalette = useLatestCallback(() => {
+    if (!trip) return
+    void copyItinerary(trip).then((result) => {
+      const message = COPY_MESSAGE[result]
+      if (message) confirm(message)
+    })
+  })
+  const printFromPalette = printer.print
+  const paletteCommands = useMemo(
+    () =>
+      trip
+        ? tripCommands({
+            trip,
+            basePath,
+            navigate,
+            dayId: dayId ?? null,
+            locked,
+            actions: {
+              share: () => setDialog("share"),
+              ...(editable
+                ? {
+                    improve: () => setDialog({ ai: "trip" }),
+                    details: () => setDialog("details"),
+                    instagram: importFromInstagram,
+                  }
+                : {}),
+              exportCalendar: () => exportCalendar(trip),
+              print: printFromPalette,
+              copyText: copyFromPalette,
+              openTab: (next) => navigate(next === "itinerary" ? basePath : `${basePath}?tab=${next}`),
+            },
+          })
+        : [],
+    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette],
+  )
+  useRegisterCommands("trip", paletteCommands)
 
   if (editor.state.s === "loading") {
     return (

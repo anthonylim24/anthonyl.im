@@ -106,11 +106,6 @@ export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = n
     actions.instagram,
   )
   const openTab = actions.openTab
-  if (openTab) {
-    for (const { tab, title, icon, keywords } of TAB_ACTIONS) {
-      commands.push({ id: `trip:tab-${tab}`, title, group: "Actions", icon, keywords, run: () => openTab(tab) })
-    }
-  }
 
   // ── Go to ───────────────────────────────────────────
   const dayIndex = dayId ? trip.days.findIndex((day) => day.id === dayId) : -1
@@ -159,6 +154,10 @@ export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = n
       keywords: ["plan", "schedule", "days"],
       run: () => openTab("itinerary"),
     })
+    // The overview's other tabs are places to go, not actions.
+    for (const { tab, title, icon, keywords } of TAB_ACTIONS) {
+      commands.push({ id: `trip:tab-${tab}`, title, group: "Go to", icon, keywords, run: () => openTab(tab) })
+    }
   }
 
   // ── Days ────────────────────────────────────────────

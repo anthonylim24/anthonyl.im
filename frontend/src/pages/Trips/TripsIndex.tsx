@@ -18,6 +18,8 @@ import { countdownLabel } from "./live/liveTrip"
 import { useNow } from "./live/useNow"
 import type { TripSummary } from "./types"
 import { a } from "./atlas.stylex"
+import { tripListCommands } from "./command/tripCommands"
+import { useRegisterCommands } from "./command/CommandContext"
 import { idx as s } from "./index.stylex"
 
 type LoadState =
@@ -120,6 +122,8 @@ export function TripsIndex() {
   }, [toast])
 
   const trips = state.status === "success" ? state.trips : null
+  const listCommands = useMemo(() => (trips ? tripListCommands(trips, navigate) : []), [trips, navigate])
+  useRegisterCommands("trips", listCommands)
 
   // Cover pictures: one off-screen map draws each trip in turn. Cards show
   // their chart until the picture arrives (and for good without WebGL).
