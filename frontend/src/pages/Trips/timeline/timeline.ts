@@ -159,7 +159,7 @@ const isStop = (item: ItineraryItem) => item.kind !== "section" && item.kind !==
  * somewhere else, so no leg is measured out of it (one into it, to the
  * airport or station, is real).
  */
-const JOURNEYS = new Set(["flight", "transit"])
+const JOURNEYS = new Set(["flight", "transit", "train", "bus", "ferry"])
 export const isJourney = (item: ItineraryItem) => item.kind === "reservation" && JOURNEYS.has(item.reservation?.type?.trim().toLowerCase() ?? "")
 
 /**
