@@ -1,7 +1,8 @@
-export type OverviewTab = "itinerary" | "budget" | "checklist" | "essentials"
+export type OverviewTab = "itinerary" | "wishlist" | "budget" | "checklist" | "essentials"
 
 export const OVERVIEW_TABS: readonly { id: OverviewTab; label: string }[] = [
   { id: "itinerary", label: "Itinerary" },
+  { id: "wishlist", label: "Wishlist" },
   { id: "budget", label: "Budget" },
   { id: "checklist", label: "Checklist" },
   { id: "essentials", label: "Essentials" },

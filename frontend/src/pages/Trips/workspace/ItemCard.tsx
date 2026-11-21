@@ -24,7 +24,7 @@ import {
 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
-import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
+import { formatClock, parseClock, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { LIMITS } from "../limits"
 import { duplicateItem, moveItem, moveItemToDay, setItemTime, toggledStatus, unparkDay, updateItem } from "../tripEdits"
@@ -35,7 +35,10 @@ import { normalizeLink, stopLink, withLink } from "./stopLinks"
 import { LinkChip } from "./LinkChip"
 import { clockMinutes, clockRange } from "../timeline/timeline"
 import { CostField } from "../budget/CostField"
-import type { ItemStatus, ItineraryItem, TripDay } from "../types"
+import type { ItemStatus, ItineraryItem, Trip, TripDay } from "../types"
+import { BookingFields } from "./BookingFields"
+import { BookingSummary } from "../bookings/BookingSummary"
+import { bookingTypeLabel } from "../bookings/kinds"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { scrollBehavior } from "./scroll"
@@ -53,6 +56,9 @@ export type CardConflict = ConflictAlert & { otherNumber: number | null; otherTi
 
 export interface ItemCardProps {
   item: ItineraryItem
+  /** The trip and day, passed for bookings only (their editor and read lines need them). */
+  trip?: Trip
+  day?: TripDay
   dayId: string
   index: number
   count: number
@@ -116,6 +122,8 @@ function QuickToggle({ on, icon: Icon, label, disabled, onPress }: { on: boolean
 
 export const ItemCard = memo(function ItemCard({
   item,
+  trip,
+  day,
   dayId,
   index,
   count,
@@ -270,7 +278,7 @@ export const ItemCard = memo(function ItemCard({
   const pinned = pinLabel !== null
   const [start, end] = [clockMinutes(item.time), clockMinutes(item.endTime)]
   const sub = item.location?.address || firstLine(item.notes)
-  const category = item.kind === "reservation" ? titleCase(item.reservation?.type ?? "Booking") : item.location?.category ? titleCase(item.location.category) : null
+  const category = item.kind === "reservation" ? bookingTypeLabel(item.reservation?.type) : item.location?.category ? titleCase(item.location.category) : null
   const maps = pinned || item.location?.address ? externalMapsLink({ name: item.location?.name ?? item.title, address: item.location?.address, lat: item.location?.lat, lng: item.location?.lng }) : null
   const links = (item.links ?? []).map(stopLink).filter((link): link is NonNullable<typeof link> => link !== null)
   // Where Done / Skip / Loved it are on the card, the chip and the heart would only say it twice.
@@ -398,7 +406,7 @@ export const ItemCard = memo(function ItemCard({
           </button>
           {canEdit && cardMenu.length > 0 && (
             <Menu
-              label="More for this stop"
+              label={`More for ${item.title.trim() || "this stop"}`}
               trigger={<MoreHorizontal size={16} strokeWidth={1.75} aria-hidden />}
               triggerStyle={[a.iconBtn, a.iconBtnSm, s.cardMore]}
               items={cardMenu}
@@ -446,6 +454,8 @@ export const ItemCard = memo(function ItemCard({
                     onChange={(event) => patch({ title: event.target.value })}
                   />
                 </label>
+                {item.kind !== "reservation" && (
+                  <>
                 <TimeField label="Starts" value={item.time} disabled={locked} onChange={setTime} />
                 {item.endTime || endOpen ? (
                   <TimeField
@@ -465,51 +475,16 @@ export const ItemCard = memo(function ItemCard({
                     </button>
                   </div>
                 )}
+                  </>
+                )}
                 {item.kind !== "note" && (
                   <div {...sx(s.span2)}>
                     <span {...sx(s.miniLabel)}>Location</span>
                     <LocationField item={item} near={near} locked={locked} onChange={patch} />
                   </div>
                 )}
-                {item.kind === "reservation" && (
-                  <>
-                    <label>
-                      <span {...sx(s.miniLabel)}>Type</span>
-                      <select
-                        value={item.reservation?.type ?? "experience"}
-                        disabled={locked}
-                        {...sx(a.field)}
-                        onChange={(event) =>
-                          patch({ reservation: { status: "confirmed", ...item.reservation, type: event.target.value } })
-                        }
-                      >
-                        {RESERVATION_TYPES.map((type) => (
-                          <option key={type} value={type}>
-                            {titleCase(type)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span {...sx(s.miniLabel)}>Confirmation</span>
-                      <input
-                        value={item.reservation?.confirmation ?? ""}
-                        disabled={locked}
-                        placeholder="Code or reference"
-                        {...sx(a.field, a.mono)}
-                        onChange={(event) =>
-                          patch({
-                            reservation: {
-                              type: "experience",
-                              status: "confirmed",
-                              ...item.reservation,
-                              confirmation: event.target.value || undefined,
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                  </>
+                {item.kind === "reservation" && trip && day && (
+                  <BookingFields item={item} trip={trip} day={day} disabled={locked} onChange={patch} />
                 )}
                 <label {...sx(s.span2)}>
                   <span {...sx(s.miniLabel)}>Notes</span>
@@ -611,8 +586,10 @@ export const ItemCard = memo(function ItemCard({
               <div {...sx(s.span2, a.stack)}>
                 {item.location?.address && <p {...sx(a.small, a.wrap)}>{item.location.address}</p>}
                 {item.notes && <p {...sx(a.body, a.wrap)} style={{ whiteSpace: "pre-wrap" }}>{item.notes}</p>}
-                {item.reservation?.confirmation && (
-                  <p {...sx(a.mono)}>Confirmation {item.reservation.confirmation}</p>
+                {item.kind === "reservation" && trip && day ? (
+                  <BookingSummary item={item} trip={trip} day={day} />
+                ) : (
+                  item.reservation?.confirmation && <p {...sx(a.mono)}>Confirmation {item.reservation.confirmation}</p>
                 )}
                 {maps && (
                   <a href={maps.href} target="_blank" rel="noreferrer" {...sx(a.btn, a.btnSecondary, a.btnSm)} style={{ alignSelf: "flex-start" }}>

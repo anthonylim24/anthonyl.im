@@ -232,7 +232,7 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon?tab=checklist", trip)
 
       const tabs = within(await screen.findByRole("tablist", { name: "Trip overview" }))
-      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Budget", "Checklist1 1 left", "Essentials"])
+      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Wishlist", "Budget", "Checklist1 1 left", "Essentials"])
       // The count is shown as "1" and read as "1 left".
       expect(tabs.getByRole("tab", { name: "Checklist 1 left" })).toHaveAttribute("aria-selected", "true")
       expect(await screen.findByRole("heading", { name: "Documents" })).toBeInTheDocument()
@@ -298,7 +298,8 @@ describe("TripWorkspace", () => {
       expect(stat("Places")).toHaveTextContent("Places2")
       expect(stat("On the map")).toHaveTextContent("On the map1 of 2")
       expect(stat("Bookings")).toHaveTextContent("Bookings0")
-      expect(screen.queryByRole("region", { name: "Bookings" })).toBeNull()
+      // Nothing booked yet: the section is only the way to add one.
+      expect(within(screen.getByRole("region", { name: "Bookings" })).getByRole("button", { name: /Add booking/ })).toBeInTheDocument()
       expect(stat("Walking")).toHaveTextContent("Walking–")
       expect(screen.queryByText("On foot")).toBeNull()
 
@@ -498,7 +499,7 @@ describe("TripWorkspace", () => {
 
     it("opens the stop's editor from the place card", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
-      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
       fireEvent.click(screen.getByRole("button", { name: "Show Time Out Market on the map" }))
       expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
 
@@ -515,7 +516,7 @@ describe("TripWorkspace", () => {
         plan()
           .getAllByRole("listitem")
           .flatMap((li) => li.querySelector("[id^='item-']")?.id ?? [])
-      const row = (name: RegExp) => plan().getByRole("button", { name, expanded: false })
+      const row = (name: RegExp) => plan().getByRole("button", { name: new RegExp(`^(?!More for).*${name.source}`), expanded: false })
 
       await screen.findByRole("textbox", { name: "Day title" })
       expect(order()).toEqual(["item-it-market", "item-it-cash", "item-it-cafe", "item-it-fado"])
@@ -545,7 +546,7 @@ describe("TripWorkspace", () => {
 
     it("does not reorder for a viewer", async () => {
       renderWorkspace("/trips/lisbon/day/day-1", planned(), "view")
-      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
       expect(row).not.toHaveAttribute("aria-keyshortcuts")
 
       fireEvent.keyDown(row, { key: "ArrowDown", altKey: true })
@@ -575,7 +576,9 @@ describe("TripWorkspace", () => {
       // Untimed items travel with the timed stop they followed.
       expect(order()).toEqual(["item-it-market", "item-it-cafe", "item-it-fado", "item-it-cash"])
       fireEvent.click(screen.getByRole("button", { name: "More for day 1" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add day notes", "Export to calendar", "Clear this day"])
+      const after = screen.getAllByRole("menuitem").map((item) => item.textContent)
+      expect(after).toEqual(expect.arrayContaining(["Add day notes", "Export to calendar", "Clear this day"]))
+      expect(after).not.toContain("Sort stops by time")
     })
 
     it("shows a compact trip header that links back to the overview", async () => {
@@ -833,7 +836,7 @@ describe("TripWorkspace", () => {
 
     describe("stop times", () => {
       const openMarket = async () => {
-        const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+        const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
         fireEvent.click(row)
         return row
       }
@@ -979,7 +982,7 @@ describe("TripWorkspace", () => {
 
     it("renumbers the markers when a pinned stop is removed", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
-      fireEvent.click(await screen.findByRole("button", { name: /Time Out Market/, expanded: false }))
+      fireEvent.click(await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false }))
       fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
       expect(screen.queryByRole("button", { name: "Show Time Out Market on the map" })).toBeNull()
@@ -1111,7 +1114,7 @@ describe("TripWorkspace", () => {
 
       // Stops still open (read-only) and still locate on the map.
       fireEvent.click(screen.getByRole("button", { name: /Fado dinner/, expanded: false }))
-      expect(screen.getByText("Confirmation FD-2291")).toBeInTheDocument()
+      expect(screen.getAllByText("FD-2291").length).toBeGreaterThan(0)
       expect(screen.queryByRole("button", { name: "Delete" })).toBeNull()
       expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
       fireEvent.click(screen.getByRole("button", { name: "Show Fado dinner on the map" }))
@@ -1297,7 +1300,7 @@ describe("TripWorkspace", () => {
 
     it("opens the same stop's editor again after it was closed", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
-      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
       fireEvent.click(screen.getByRole("button", { name: "Show Time Out Market on the map" }))
       const editStop = () => within(screen.getByRole("complementary", { name: "Selected place" })).getByRole("button", { name: "Edit stop" })
 

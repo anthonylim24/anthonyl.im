@@ -173,7 +173,7 @@ describe("Done, Skip and Loved it on the card", () => {
 
   it("offers Skipped among the statuses in the editor", () => {
     renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
-    fireEvent.click(within(card("lunch")).getByRole("button", { name: /Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
     const status = within(card("lunch")).getByRole("combobox", { name: "Status" })
     expect(within(status).getByRole("option", { name: "Skipped" })).toBeInTheDocument()
   })
@@ -182,7 +182,7 @@ describe("Done, Skip and Loved it on the card", () => {
 describe("stop links", () => {
   it("adds a pasted link as https, refuses anything that isn't a web link, and removes one", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
-    fireEvent.click(within(card("lunch")).getByRole("button", { name: /Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
     const field = within(card("lunch")).getByRole("textbox", { name: "Links" })
     expect(field).toHaveAttribute("maxlength", String(LIMITS.link))
 
@@ -202,7 +202,7 @@ describe("stop links", () => {
 
   it("waits for the input method before taking Enter", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
-    fireEvent.click(within(card("lunch")).getByRole("button", { name: /Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
     const field = within(card("lunch")).getByRole("textbox", { name: "Links" })
     fireEvent.change(field, { target: { value: "naver.me/abc" } })
     fireEvent.keyDown(field, { key: "Enter", keyCode: 229 })
@@ -212,7 +212,7 @@ describe("stop links", () => {
   it("shows a viewer each https link by its site, opening in a new tab", () => {
     const linked = { ...lunch, links: ["https://maps.app.goo.gl/abc", "http://plain.example.com/", "javascript:alert(1)"] }
     renderDay(tripOf(days(FUTURE, [[linked]])), "day-1", { editable: false })
-    fireEvent.click(within(card("lunch")).getByRole("button", { name: /Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
     const links = within(within(card("lunch")).getByRole("list", { name: "Links" })).getAllByRole("link")
     expect(links).toHaveLength(1)
     expect(links[0]).toHaveAttribute("href", "https://maps.app.goo.gl/abc")
@@ -247,7 +247,7 @@ describe("the To schedule heading", () => {
 describe("the stop's own menu", () => {
   it("saves a stop for later, into the trip's ideas", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1")
-    fireEvent.click(within(card("tram")).getByRole("button", { name: "More for this stop" }))
+    fireEvent.click(within(card("tram")).getByRole("button", { name: /^More for / }))
     fireEvent.click(menuItem("Save for later"))
     expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["lunch"])
     expect(state.trip.ideas?.map((i) => i.id)).toEqual(["tram"])
@@ -257,7 +257,7 @@ describe("the stop's own menu", () => {
 
   it("moves a stop to another day, above that day's To schedule heading", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch], [tram, heading, reel]])), "day-1")
-    fireEvent.click(within(card("lunch")).getByRole("button", { name: "More for this stop" }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^More for / }))
     fireEvent.click(menuItem("Move to another day…"))
     const dialog = screen.getByRole("dialog", { name: "Move “Lunch”" })
     expect(within(dialog).getByRole("button", { name: /Day 1/ })).toBeDisabled()
@@ -268,14 +268,14 @@ describe("the stop's own menu", () => {
 
   it("offers only the move when the trip can't be edited as a whole", () => {
     renderDay(tripOf(days(FUTURE, [[lunch], []])), "day-1", { wholeTrip: false })
-    fireEvent.click(within(card("lunch")).getByRole("button", { name: "More for this stop" }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^More for / }))
     expect(screen.queryByRole("menuitem", { name: "Save for later" })).toBeNull()
     expect(menuItem("Move to another day…")).toBeInTheDocument()
   })
 
   it("is not there for a viewer", () => {
     renderDay(tripOf(days(FUTURE, [[lunch], []])), "day-1", { editable: false })
-    expect(screen.queryByRole("button", { name: "More for this stop" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^More for (?!day)/ })).toBeNull()
   })
 })
 
@@ -402,7 +402,7 @@ describe("text limits and input methods", () => {
   it("caps the day's own fields at the server's limits", () => {
     renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     expect(screen.getByRole("combobox", { name: "Add a place, note or booking" })).toHaveAttribute("maxlength", String(LIMITS.itemTitle))
-    fireEvent.click(within(card("lunch")).getByRole("button", { name: /Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
     expect(within(card("lunch")).getByRole("textbox", { name: "Name" })).toHaveAttribute("maxlength", String(LIMITS.itemTitle))
     expect(within(card("lunch")).getByRole("textbox", { name: "Notes" })).toHaveAttribute("maxlength", String(LIMITS.notes))
   })

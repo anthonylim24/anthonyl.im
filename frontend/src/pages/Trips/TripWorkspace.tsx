@@ -64,6 +64,7 @@ const PhotorealOverlay = lazyRetry(() => import("./photoreal/PhotorealOverlay"))
 const PHOTOREAL_READY = photorealAvailable()
 const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => ({ default: m.BudgetPanel })))
 const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
+const IdeasPanel = lazyRetry(() => import("./workspace/IdeasPanel").then((m) => ({ default: m.IdeasPanel })))
 const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
@@ -892,6 +893,7 @@ function Workspace() {
             edit={edit}
             near={near}
             onChange={editor.setDays}
+            onEditTrip={editor.edit}
             onDelete={editor.deleteItem}
             onAdded={onAdded}
             onHover={setHotId}
@@ -953,6 +955,7 @@ function Workspace() {
                         <ChecklistPanel trip={trip} editable={editable} locked={locked} people={trip.party} onEdit={editor.edit} />
                       )}
                       {open === "essentials" && <EssentialsPanel trip={trip} />}
+                      {open === "wishlist" && <IdeasPanel trip={trip} editable={editable} locked={locked} near={near} onEdit={editor.edit} />}
                     </div>
                   </Suspense>
                 </OverlayBoundary>
@@ -1328,8 +1331,12 @@ function Workspace() {
 
 /** The count of unticked things beside Checklist, read as "3 left". */
 function tabBadges(trip: Trip): Partial<Record<OverviewTab, TabBadge>> {
+  const badges: Partial<Record<OverviewTab, TabBadge>> = {}
   const open = (trip.checklist ?? []).filter((item) => !item.done).length
-  return open > 0 ? { checklist: { text: String(open), label: `${open} left` } } : {}
+  if (open > 0) badges.checklist = { text: String(open), label: `${open} left` }
+  const saved = trip.ideas?.length ?? 0
+  if (saved > 0) badges.wishlist = { text: String(saved), label: `${saved} on the wishlist` }
+  return badges
 }
 
 const tabLabel = (tab: OverviewTab) => OVERVIEW_TABS.find((t) => t.id === tab)?.label.toLowerCase() ?? tab

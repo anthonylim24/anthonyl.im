@@ -1,3 +1,4 @@
+import { TonightLine } from "../bookings/TonightLine"
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
@@ -474,6 +475,7 @@ export function DayPanel({
               </span>
               {summary && <span {...sx(a.small)}>{summary}</span>}
             </div>
+            <TonightLine trip={trip} day={day} />
           </div>
           <DaySky
             sky={sky}
@@ -597,6 +599,8 @@ export function DayPanel({
                 <Sortable
                   key={item.id}
                   item={item}
+                  trip={item.kind === "reservation" ? trip : undefined}
+                  day={item.kind === "reservation" ? day : undefined}
                   dayId={day.id}
                   index={index}
                   count={day.items.length}
