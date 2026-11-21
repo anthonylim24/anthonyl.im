@@ -37,6 +37,7 @@ import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
+import { useForecast } from "./forecast"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
@@ -211,6 +212,7 @@ function Workspace() {
 
   const { trip, editable, locked } = editor
   const ai = editor.ai
+  const forecast = useForecast(trip)
 
   // The newest undo step offers a toast when it was a destructive change.
   // An older step coming back to the top (after an Undo) does not.
@@ -791,10 +793,12 @@ function Workspace() {
             onStopAi={editor.stopAi}
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
             onInstagram={openInstagram}
+            forecast={forecast.get(day.id)}
           />
         ) : (
           <OverviewPanel
             trip={trip}
+            forecast={forecast}
             basePath={basePath}
             editable={editable}
             locked={locked}

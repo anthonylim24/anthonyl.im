@@ -9,6 +9,8 @@ import type { EnhancementRun, Trip } from "../types"
 import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
+import type { DayForecast } from "../forecast"
+import { ForecastChip } from "./ForecastChip"
 import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief } from "./AiPanels"
 
 /** The longest leg counted as walked. */
@@ -29,8 +31,11 @@ export function OverviewPanel({
   onApplyRun,
   onDismissRun,
   onStopAi,
+  forecast,
 }: {
   trip: Trip
+  /** dayId → live forecast, for days in the forecast window. */
+  forecast?: ReadonlyMap<string, DayForecast>
   basePath: string
   editable: boolean
   locked: boolean
@@ -202,6 +207,7 @@ export function OverviewPanel({
                     </span>
                   </span>
                   <span {...sx(a.row)}>
+                    {forecast?.get(day.id) && <ForecastChip forecast={forecast.get(day.id)!} compact />}
                     {day.city && multiCity && <span {...sx(a.chip)}>{day.city}</span>}
                     <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
                   </span>

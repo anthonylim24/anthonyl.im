@@ -15,6 +15,8 @@ import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { Menu, type MenuItem } from "../components/kit"
 import { calendarMenuItem } from "../calendar/calendarMenu"
+import { ForecastChip } from "./ForecastChip"
+import { FAHRENHEIT, formatTemp, type DayForecast } from "../forecast"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type ItemCardProps } from "./ItemCard"
@@ -50,6 +52,8 @@ export interface DayPanelProps {
   onPhotoreal?: () => void
   /** Opens the Instagram import with these post links. */
   onInstagram?: (urls: string[]) => void
+  /** Live forecast for this day, when it is within the forecast window. */
+  forecast?: DayForecast
 }
 
 /** Timed items in clock order; untimed items stay behind the timed item they followed. */
@@ -124,6 +128,7 @@ export function DayPanel({
   onStopAi,
   onPhotoreal,
   onInstagram,
+  forecast,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
@@ -263,11 +268,15 @@ export function DayPanel({
               (day.city ?? trip.destinations[0])
             )}
           </span>
-          {day.weather && (
-            <span {...sx(a.row, a.small)} style={{ gap: "0.375rem" }}>
-              <CloudSun size={14} strokeWidth={1.75} aria-hidden />
-              {Math.round(day.weather.highC)}° / {Math.round(day.weather.lowC)}° {day.weather.condition}
-            </span>
+          {forecast ? (
+            <ForecastChip forecast={forecast} />
+          ) : (
+            day.weather && (
+              <span {...sx(a.row, a.small)} style={{ gap: "0.375rem" }}>
+                <CloudSun size={14} strokeWidth={1.75} aria-hidden />
+                {formatTemp(day.weather.highC, FAHRENHEIT)} / {formatTemp(day.weather.lowC, FAHRENHEIT)} {day.weather.condition}
+              </span>
+            )
           )}
           <span {...sx(a.small)}>
             {plural(stops, "stop")}
