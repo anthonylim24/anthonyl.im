@@ -18,10 +18,10 @@ describe('metadata assets', () => {
   it('links the web app manifest from index.html', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
-    // Korea is the installable PWA — index.html bootstraps with the
-    // korea manifest; the server swaps to /site.webmanifest for the
-    // BreathFlow routes at request time.
+    // The dev default; the server writes each path's own manifest
+    // (trips.webmanifest on /trips, korea.webmanifest elsewhere).
     expect(html).toContain('<link rel="manifest" href="/korea.webmanifest" />')
+    expect(html).toContain("assetBase + (korea ? '/korea.webmanifest' : '/trips.webmanifest')")
     expect(html).toContain('<meta name="mobile-web-app-capable" content="yes" />')
     expect(html).toContain('<link rel="icon" type="image/png" sizes="192x192" href="/icons/breathflow-192.png" />')
     expect(html).toContain('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />')
@@ -98,6 +98,25 @@ describe('metadata assets', () => {
         }),
       ])
     )
+  })
+
+  it('defines an installable Trips app beside the Korea trip', () => {
+    const read = (name: string) => JSON.parse(readFileSync(resolve(process.cwd(), `public/${name}`), 'utf8'))
+    const trips = read('trips.webmanifest')
+    const korea = read('korea.webmanifest')
+
+    expect(trips).toMatchObject({ name: 'Trips', short_name: 'Trips', start_url: '/trips', scope: '/trips', display: 'standalone' })
+    // Shared links land on /trips, which forwards them to the right trip.
+    expect(trips.share_target).toEqual(korea.share_target)
+    expect(trips.share_target.action).toBe('/trips')
+    expect(trips.shortcuts).toEqual([{ name: 'New trip', short_name: 'New trip', url: '/trips/new' }])
+    for (const icon of trips.icons as Array<{ src: string }>) {
+      expect(existsSync(resolve(process.cwd(), `public${icon.src}`))).toBe(true)
+    }
+
+    // Korea keeps its own identity, so an installed Korea app stays itself.
+    expect(korea.start_url).toBe('/trips/korea-2026')
+    expect(korea.id).toBeUndefined()
   })
 
   it('ships concrete PNG install icons for mobile and PWA surfaces', () => {
