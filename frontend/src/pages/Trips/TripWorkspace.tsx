@@ -36,6 +36,7 @@ import type { HistoryEntry, Sync } from "./editorMachine"
 import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
+import { useStopPhoto } from "./stopPhoto"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
@@ -130,6 +131,28 @@ function UndoToast({ entry, hold, onUndo, onExpire }: { entry: HistoryEntry; hol
         Undo
       </button>
     </div>
+  )
+}
+
+/** The selected stop's photo at the top of the map's place card; nothing while there is none. */
+function PlacePhoto({ item, city }: { item: ItineraryItem; city: string }) {
+  const lat = item.location?.lat
+  const lng = item.location?.lng
+  const category = item.reservation?.type ?? item.location?.category
+  const stop = typeof lat === "number" && typeof lng === "number" ? { id: item.id, title: item.location?.name || item.title, lat, lng, category } : null
+  const photo = useStopPhoto(stop, city, 720)
+  const [failed, setFailed] = useState<string | null>(null)
+  if (photo.status !== "ready" || failed === photo.url) return null
+  return (
+    <img
+      key={photo.url}
+      src={photo.url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      {...sx(s.placePhoto)}
+      onError={() => setFailed(photo.url)}
+    />
   )
 }
 
@@ -683,7 +706,7 @@ function Workspace() {
                 </button>
               )}
               {editable && (
-                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={locked} onClick={() => openInstagram([])}>
+                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm, s.wideOnly)} disabled={locked} onClick={() => openInstagram([])}>
                   <IgGlyph size={14} />
                   From Instagram
                 </button>
@@ -895,6 +918,7 @@ function Workspace() {
             )}
             {active && (
               <aside {...sx(s.placeCard)} aria-label="Selected place">
+                <PlacePhoto key={active.item.id} item={active.item} city={active.day.city ?? trip.destinations[0] ?? ""} />
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
                     <p {...sx(a.eyebrow)}>

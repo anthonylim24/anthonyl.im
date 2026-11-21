@@ -3,13 +3,16 @@ import { Link } from "react-router-dom"
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, itemIcon, todayIsoIn } from "../meta"
-import { dayRoute, isLocated, routeMeters } from "../map/geo"
+import { dayRoute, distanceMeters, isLocated } from "../map/geo"
 import { formatDistance, upcomingReservations } from "../reservationView"
 import type { EnhancementRun, Trip } from "../types"
 import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief } from "./AiPanels"
+
+/** The longest leg counted as walked. */
+const WALKABLE_M = 1_600
 
 export function OverviewPanel({
   trip,
@@ -54,10 +57,12 @@ export function OverviewPanel({
       pinned += day.items.filter(isLocated).length
       bookings += day.items.filter((i) => i.kind === "reservation").length
       stops += day.items.filter((i) => i.kind !== "section" && i.kind !== "note").length
+      // Only legs short enough to walk: a taxi, train or flight is not "on foot".
       const route = dayRoute(day)
-      const length = routeMeters(route)
-      // City-scale days only: a flight shouldn't count as "walking the route".
-      if (length < 60_000) meters += length
+      for (let i = 1; i < route.length; i++) {
+        const leg = distanceMeters(route[i - 1]!, route[i]!)
+        if (leg <= WALKABLE_M) meters += leg
+      }
     }
     return { pinned, stops, bookings, meters }
   }, [trip.days])

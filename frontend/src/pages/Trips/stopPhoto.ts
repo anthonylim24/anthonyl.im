@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { lookupGooglePlacePhoto, lookupPhoto } from "../placePhoto"
+import { lookupGooglePlacePhoto, lookupPhoto } from "./placePhoto"
 
 // A photo for a stop: Google Places first (when the build has a key), then
 // Wikipedia. "none" means the card should not reserve any space for one.
@@ -8,14 +8,22 @@ export type PhotoState = { status: "loading" } | { status: "ready"; url: string 
 
 const settled = new Map<string, string | null>()
 
-async function find(name: string, city: string, lat: number, lng: number, size: number): Promise<string | null> {
+/**
+ * Wikipedia's fuzzy search finds the right palace but the wrong hotel or
+ * restaurant ("Park Hyatt" → Grand Hyatt), and a wrong photo is worse than
+ * none. Businesses only get a Google photo.
+ */
+const BUSINESS = /hotel|lodging|hostel|stay|restaurant|meal|food|cafe|coffee|bakery|bar|pub|shop|store|boutique|salon|spa|clinic/i
+
+async function find(name: string, city: string, lat: number, lng: number, size: number, category?: string): Promise<string | null> {
   const google = await lookupGooglePlacePhoto({ name, city, lat, lng, maxWidth: size })
   if (google) return google
+  if (category && BUSINESS.test(category)) return null
   return lookupPhoto([name], { size })
 }
 
 export function useStopPhoto(
-  stop: { id: string; title: string; lat: number; lng: number } | null,
+  stop: { id: string; title: string; lat: number; lng: number; category?: string } | null,
   city: string,
   size = 800,
 ): PhotoState {
@@ -27,7 +35,7 @@ export function useStopPhoto(
     if (!stop || !key || settled.has(key)) return
     // Until this key's answer lands, the render below reads "loading".
     let cancelled = false
-    void find(stop.title, city, stop.lat, stop.lng, size)
+    void find(stop.title, city, stop.lat, stop.lng, size, stop.category)
       .catch(() => null)
       .then((url) => {
         settled.set(key, url)

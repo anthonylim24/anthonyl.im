@@ -98,6 +98,11 @@ const sweep = stylex.keyframes({
   "100%": { backgroundPosition: "-200% 0" },
 })
 
+const fadeIn = stylex.keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
+})
+
 const slideUp = stylex.keyframes({
   from: { opacity: 0, transform: "translateY(16px)" },
   to: { opacity: 1, transform: "none" },
@@ -844,6 +849,24 @@ export const ws = stylex.create({
     [REDUCE]: { animationName: "none" },
   },
   placeTitle: { fontSize: "1.5rem", lineHeight: 1.05 },
+  /** The stop's photo across the top of the place card, bled to its edges. */
+  placePhoto: {
+    display: "block",
+    width: "calc(100% + 2rem)",
+    marginTop: "-1rem",
+    marginInline: "-1rem",
+    marginBottom: "0.125rem",
+    aspectRatio: "16 / 9",
+    maxHeight: "11rem",
+    objectFit: "cover",
+    borderTopLeftRadius: "1.125rem",
+    borderTopRightRadius: "1.125rem",
+    backgroundColor: "var(--trips-sunken)",
+    animationName: fadeIn,
+    animationDuration: "320ms",
+    animationTimingFunction: "var(--trips-ease-out)",
+    [REDUCE]: { animationName: "none" },
+  },
 
   // ── Dock (notice / undo) ──────────────────────────────
   dock: {
