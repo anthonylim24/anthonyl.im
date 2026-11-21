@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { LayoutGrid } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatTripDate, plural, todayIsoIn } from "../meta"
-import type { Trip } from "../types"
+import type { Trip, TripDay } from "../types"
 import { ws as s } from "../workspace.stylex"
 import { scrollBehavior } from "./scroll"
 
@@ -51,6 +51,17 @@ function restingLeft(el: HTMLElement, current: HTMLElement | null): number {
 }
 
 /**
+ * Days that say their month where the weekday would be: the first day and
+ * every 1st, and only when the trip runs into another month. The rail stays
+ * one height and its scroller holds nothing but days.
+ */
+function monthMarks(days: readonly Pick<TripDay, "id" | "date">[]): Set<string> {
+  const months = new Set(days.map((d) => d.date.slice(0, 7)))
+  if (months.size < 2) return new Set()
+  return new Set(days.filter((d, i) => i === 0 || d.date.slice(0, 7) !== days[i - 1]!.date.slice(0, 7)).map((d) => d.id))
+}
+
+/**
  * Overview plus one tab per day. The day in view sits near the middle, and the
  * rail always rests on a whole day at its start edge (snap, and a tail sized to
  * match), so no day is ever cut against Overview's rule. The ends fade where
@@ -82,12 +93,15 @@ export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: strin
   useEffect(() => {
     const el = scrollerRef.current
     if (!el) return
-    const current = el.querySelector<HTMLElement>('[aria-current="page"]')
+    // On the overview (outside the scroller) the rail rests on today during
+    // the trip, else goes back to the start.
+    const current = el.querySelector<HTMLElement>('[aria-current="page"]') ?? el.querySelector<HTMLElement>("[data-today]")
     // The rail's own scroll only: scrollIntoView would also move the page.
-    // On the overview (outside the scroller) the days go back to the start.
     el.scrollTo({ left: restingLeft(el, current), behavior: placed.current ? scrollBehavior() : "auto" })
     placed.current = true
   }, [dayId])
+
+  const marks = monthMarks(trip.days)
 
   return (
     <nav {...sx(s.rail)} aria-label="Days">
@@ -104,11 +118,16 @@ export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: strin
             to={`${basePath}/day/${d.id}`}
             {...sx(s.railItem, d.id === dayId && s.railItemOn)}
             aria-current={d.id === dayId ? "page" : undefined}
+            data-today={d.date === today ? "" : undefined}
             aria-label={`Day ${index + 1}, ${formatTripDate(d.date, trip.timezone, { weekday: "long", month: "long" })}${d.date === today ? ", today" : ""}, ${plural(d.items.length, "item")}`}
           >
             {d.date === today && <span {...sx(s.railToday)} aria-hidden />}
-            <span {...sx(s.railDow, d.items.length === 0 && d.id !== dayId && s.railEmpty)}>
-              {formatTripDate(d.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
+            <span
+              {...sx(s.railDow, d.items.length === 0 && d.id !== dayId && s.railEmpty, marks.has(d.id) && s.railMonth, marks.has(d.id) && d.id === dayId && s.railMonthOn)}
+            >
+              {marks.has(d.id)
+                ? formatTripDate(d.date, trip.timezone, { weekday: undefined, month: "short", day: undefined })
+                : formatTripDate(d.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
             </span>
             <span {...sx(s.railNum, d.items.length === 0 && d.id !== dayId && s.railEmpty)}>
               {formatTripDate(d.date, trip.timezone, { weekday: undefined, month: undefined, day: "numeric" })}

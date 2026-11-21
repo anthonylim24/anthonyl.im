@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { changedLodging, isLodging, lodgingBrief, lodgingEntries } from "../lodging"
+import { changedLodging, checkOutOn, isLodging, lodgingBrief, lodgingEntries, lodgingForNight, nightsByDay } from "../lodging"
 import type { ItineraryItem, Trip } from "../types"
 
 const place = (id: string, title: string, category?: string, at?: { lat: number; lng: number }): ItineraryItem => ({
@@ -12,7 +12,7 @@ const place = (id: string, title: string, category?: string, at?: { lat: number;
 })
 
 const trip = (...days: ItineraryItem[][]): Pick<Trip, "days"> => ({
-  days: days.map((items, i) => ({ id: `day-${i + 1}`, date: `2027-02-0${i + 6}`, items })),
+  days: days.map((items, i) => ({ id: `day-${i + 1}`, date: `2027-02-${String(i + 6).padStart(2, "0")}`, items })),
 })
 
 const aulani = place("h1", "Aulani", "hotel", { lat: 21.3393, lng: -158.1234 })
@@ -55,5 +55,57 @@ describe("lodgingBrief", () => {
     const brief = lodgingBrief("Aulani")
     expect(brief).toContain("staying at Aulani")
     expect(brief).toContain("Keep bookings")
+  })
+})
+
+const stay = (id: string, title: string, endDate?: string, endTime?: string): ItineraryItem => ({
+  id,
+  kind: "reservation",
+  title,
+  status: "booked",
+  createdBy: "user",
+  ...(endTime ? { endTime } : {}),
+  reservation: { type: "hotel", status: "confirmed", ...(endDate ? { endDate } : {}) },
+})
+
+describe("nightsByDay", () => {
+  // Five days: Feb 6 to Feb 10.
+  const week = (...days: ItineraryItem[][]) => trip(...days, ...Array.from({ length: 5 - days.length }, () => []))
+
+  it("covers every night from check-in to the night before check-out", () => {
+    const t = week([stay("h1", "Halekulani", "2027-02-10", "11:00")])
+    expect(lodgingForNight(t, "day-2")).toMatchObject({ name: "Halekulani", night: 2, nights: 4 })
+    expect(lodgingForNight(t, "day-4")).toMatchObject({ night: 4, nights: 4, checkOutTime: "11:00" })
+    expect(lodgingForNight(t, "day-5")).toBeNull()
+    expect(checkOutOn(nightsByDay(t), "2027-02-10")).toMatchObject({ itemId: "h1" })
+  })
+
+  it("lets a stay that starts later take the night from an earlier booking", () => {
+    const t = week([stay("h1", "Halekulani", "2027-02-10")], [], [stay("h2", "Turtle Bay", "2027-02-09")])
+    expect(lodgingForNight(t, "day-2")?.itemId).toBe("h1")
+    expect(lodgingForNight(t, "day-3")).toMatchObject({ itemId: "h2", night: 1, nights: 1 })
+    expect(lodgingForNight(t, "day-4")).toMatchObject({ itemId: "h1", night: 4 })
+  })
+
+  it("without a check-out, lasts until the next stay and stops short of the day they leave", () => {
+    const t = week([aulani], [], [stay("h2", "Turtle Bay")])
+    expect(lodgingForNight(t, "day-1")).toMatchObject({ itemId: "h1", night: 1, nights: 2 })
+    expect(lodgingForNight(t, "day-2")).toMatchObject({ itemId: "h1", night: 2, nights: 2 })
+    expect(lodgingForNight(t, "day-3")).toMatchObject({ itemId: "h2", night: 1, nights: 2 })
+    expect(lodgingForNight(t, "day-4")?.itemId).toBe("h2")
+    expect(lodgingForNight(t, "day-5")).toBeNull()
+  })
+
+  it("ignores a check-out that is not after check-in, and knows nothing before the first stay", () => {
+    const t = week([], [stay("h1", "Aulani", "2027-02-07")])
+    expect(lodgingForNight(t, "day-1")).toBeNull()
+    expect(lodgingForNight(t, "day-2")).toMatchObject({ itemId: "h1", night: 1 })
+  })
+
+  it("leaves lodgingEntries alone: a new check-out date is not a new base", () => {
+    const before = lodgingEntries(week([stay("h1", "Halekulani")]))
+    const after = lodgingEntries(week([stay("h1", "Halekulani", "2027-02-10", "11:00")]))
+    expect(after).toEqual(before)
+    expect(changedLodging(before, after)).toBeNull()
   })
 })

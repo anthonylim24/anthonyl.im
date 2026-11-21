@@ -1,3 +1,4 @@
+import { clockMinutes, dayEnd, dayStarts } from "../dayClock"
 import { dayPins, distanceMeters, isLocated, splitDay } from "../map/geo"
 import { formatClock } from "../meta"
 import type { ItineraryItem, TripDay } from "../types"
@@ -5,8 +6,30 @@ import { formatMinutes, MIN_LEG_METERS, travelEstimate, type TravelEstimate } fr
 
 // Pure layout for the day timeline: which stops sit on the clock, how long
 // each one probably takes, where they collide, and what lies between them.
-// All times are minutes from the day's midnight; past midnight runs on
-// (01:30 the next morning is 1530).
+// All times are minutes from the day's midnight on the day's own clock
+// (`dayClock.ts`): past midnight runs on, so a 01:30 bar after dinner is 1530.
+
+export { clockMinutes }
+
+/**
+ * What became of a stop: still planned, marked done, or skipped. Done is
+ * done whatever the clock says; a skipped stop is not happening, so it is
+ * never next, never in a clash and never on a leg, but it stays in view, struck.
+ */
+export type Outcome = "planned" | "done" | "skipped"
+
+export function outcomeOf(item: Pick<ItineraryItem, "status">): Outcome {
+  return item.status === "completed" ? "done" : item.status === "skipped" ? "skipped" : "planned"
+}
+
+/**
+ * Each planned item's start on the day's clock (`dayStarts`), indexed like
+ * `splitDay(day).planned`; null when untimed. Headings never set the clock.
+ * Live, the list, the timeline and the calendar all read starts through here.
+ */
+export function planStarts(day: Pick<TripDay, "items">): (number | null)[] {
+  return dayStarts(splitDay(day).planned.map((item) => (item.kind === "section" ? {} : item)))
+}
 
 export interface TimelineBlock {
   itemId: string
@@ -20,6 +43,7 @@ export interface TimelineBlock {
   estimated: boolean
   /** A flight or train with no end time: drawn as its departure, never as a guessed journey. */
   departs: boolean
+  outcome: Outcome
 }
 
 export interface TimelineGap {
@@ -83,16 +107,6 @@ const TYPICAL_MINUTES: Record<string, number> = {
 }
 export const DEFAULT_STOP_MINUTES = 60
 
-/** "HH:MM" → minutes from midnight, or null when it isn't a real clock time. */
-export function clockMinutes(time?: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(time?.trim() ?? "")
-  if (!match) return null
-  const hours = Number(match[1])
-  const minutes = Number(match[2])
-  if (hours > 23 || minutes > 59) return null
-  return hours * 60 + minutes
-}
-
 /** Minutes from midnight → "9:30 AM". Past midnight wraps (1530 → "1:30 AM"). */
 export function clockLabel(minutes: number): string {
   const wrapped = ((Math.round(minutes) % DAY) + DAY) % DAY
@@ -145,8 +159,8 @@ const isStop = (item: ItineraryItem) => item.kind !== "section" && item.kind !==
  * somewhere else, so no leg is measured out of it (one into it, to the
  * airport or station, is real).
  */
-const JOURNEYS = new Set(["flight", "transit"])
-const isJourney = (item: ItineraryItem) => item.kind === "reservation" && JOURNEYS.has(item.reservation?.type?.trim().toLowerCase() ?? "")
+const JOURNEYS = new Set(["flight", "transit", "train", "bus", "ferry"])
+export const isJourney = (item: ItineraryItem) => item.kind === "reservation" && JOURNEYS.has(item.reservation?.type?.trim().toLowerCase() ?? "")
 
 /**
  * The leg from one stop to the next: both pinned, more than a few steps
@@ -165,6 +179,7 @@ interface Timed {
   start: number
   /** From `endTime`; null when there is none (or it equals the start). */
   knownEnd: number | null
+  outcome: Outcome
 }
 
 interface Placed extends Timed {
@@ -181,7 +196,8 @@ function placeEnds(timed: readonly Timed[]): Placed[] {
   return timed.map((entry, i) => {
     if (entry.knownEnd !== null) return { ...entry, end: entry.knownEnd, estimated: false }
     let end = entry.start + typicalMinutes(entry.item)
-    const next = timed.slice(i + 1).find((other) => other.start > entry.start)
+    // A skipped stop is no reason to leave early.
+    const next = timed.slice(i + 1).find((other) => other.start > entry.start && other.outcome !== "skipped")
     if (next) {
       const leave = next.start - (legEstimate(entry.item, next.item)?.minutes ?? 0)
       const floor = entry.start + Math.min(MIN_ESTIMATE, next.start - entry.start)
@@ -217,6 +233,7 @@ function assignLanes(placed: readonly Placed[]): TimelineBlock[] {
       lanes: 1,
       estimated: entry.estimated,
       departs: entry.estimated && isJourney(entry.item),
+      outcome: entry.outcome,
     }
     cluster.push(block)
     blocks.push(block)
@@ -236,18 +253,18 @@ function rulerWindow(placed: readonly Placed[]): { start: number; end: number } 
 
 export function layoutDay(day: TripDay): DayLayout {
   const { planned, parked } = splitDay(day)
+  const starts = planStarts(day)
   const timed: Timed[] = []
   const untimed: string[] = []
   planned.forEach((item, index) => {
     if (!isStop(item)) return
-    const start = clockMinutes(item.time)
+    const start = starts[index] ?? null
     if (start === null) {
       untimed.push(item.id)
       return
     }
-    const end = clockMinutes(item.endTime)
-    const knownEnd = end === null || end === start ? null : end > start ? end : end + DAY
-    timed.push({ item, index, start, knownEnd })
+    const end = dayEnd(start, item.endTime)
+    timed.push({ item, index, start, knownEnd: end === start ? null : end, outcome: outcomeOf(item) })
   })
   // Parked places are on the day but not on its clock, even with a time.
   for (const item of parked) if (isStop(item)) untimed.push(item.id)
@@ -256,13 +273,16 @@ export function layoutDay(day: TripDay): DayLayout {
   const placed = placeEnds(timed)
   const blocks = assignLanes(placed)
 
+  // Skipped stops keep their place on the ruler (struck), but are not
+  // happening: they clash with nothing and no leg runs into or out of them.
+  const happening = placed.filter((entry) => entry.outcome !== "skipped")
   const gaps: TimelineGap[] = []
   const conflicts: TimelineConflict[] = []
-  let busy = placed[0]
-  for (let i = 1; i < placed.length; i++) {
-    const stop = placed[i]!
+  let busy = happening[0]
+  for (let i = 1; i < happening.length; i++) {
+    const stop = happening[i]!
     for (let j = 0; j < i; j++) {
-      const earlier = placed[j]!
+      const earlier = happening[j]!
       if (stop.start < earlier.end) {
         conflicts.push({ ids: [earlier.item.id, stop.item.id], kind: "overlap", detail: `Overlaps ${stopTitle(earlier.item)}` })
       }
@@ -381,21 +401,33 @@ export function legWords(gap: TimelineGap, since: number | null): { free: string
  */
 export interface DoneFold {
   ids: string[]
+  /** How many of `ids` were skipped rather than done. */
+  skipped: number
   from: number
   to: number
   foldAt: number
 }
 
+/** Over at `since` (minutes on the day's clock; null off today): ended by then, marked done, or skipped. */
+export const isOver = (block: Pick<TimelineBlock, "end" | "outcome">, since: number | null) =>
+  block.outcome !== "planned" || (since !== null && block.end <= since)
+
 export function doneFold(layout: DayLayout, since: number | null): DoneFold | null {
   if (since === null) return null
-  const done = layout.blocks.filter((b) => b.end <= since)
+  const done = layout.blocks.filter((b) => isOver(b, since))
   if (done.length === 0) return null
-  const live = layout.blocks.filter((b) => b.end > since)
+  const live = layout.blocks.filter((b) => !isOver(b, since))
   // A day that is all behind you stays whole, quietly: there is nothing to open on.
   if (live.length === 0) return null
   const foldAt = Math.floor(Math.min(since, ...live.map((b) => b.start)) / 60) * 60
   // Only what ends by the fold line is folded; a stop that straddles it stays on the ruler.
   const folded = done.filter((b) => b.end <= foldAt)
   if (folded.length === 0) return null
-  return { ids: folded.map((b) => b.itemId), from: Math.min(...folded.map((b) => b.start)), to: Math.max(...folded.map((b) => b.end)), foldAt }
+  return {
+    ids: folded.map((b) => b.itemId),
+    skipped: folded.filter((b) => b.outcome === "skipped").length,
+    from: Math.min(...folded.map((b) => b.start)),
+    to: Math.max(...folded.map((b) => b.end)),
+    foldAt,
+  }
 }

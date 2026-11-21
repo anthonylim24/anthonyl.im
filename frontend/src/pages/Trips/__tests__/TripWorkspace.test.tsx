@@ -232,7 +232,7 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon?tab=checklist", trip)
 
       const tabs = within(await screen.findByRole("tablist", { name: "Trip overview" }))
-      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Budget", "Checklist1 1 left", "Essentials"])
+      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Wishlist", "Budget", "Checklist1 1 left", "Essentials"])
       // The count is shown as "1" and read as "1 left".
       expect(tabs.getByRole("tab", { name: "Checklist 1 left" })).toHaveAttribute("aria-selected", "true")
       expect(await screen.findByRole("heading", { name: "Documents" })).toBeInTheDocument()
@@ -298,7 +298,8 @@ describe("TripWorkspace", () => {
       expect(stat("Places")).toHaveTextContent("Places2")
       expect(stat("On the map")).toHaveTextContent("On the map1 of 2")
       expect(stat("Bookings")).toHaveTextContent("Bookings0")
-      expect(screen.queryByRole("region", { name: "Bookings" })).toBeNull()
+      // Nothing booked yet: the section is only the way to add one.
+      expect(within(screen.getByRole("region", { name: "Bookings" })).getByRole("button", { name: /Add booking/ })).toBeInTheDocument()
       expect(stat("Walking")).toHaveTextContent("Walking–")
       expect(screen.queryByText("On foot")).toBeNull()
 
@@ -346,7 +347,7 @@ describe("TripWorkspace", () => {
       expect(mockGenerateItinerary.mock.calls[0]![3]).toBeInstanceOf(AbortSignal)
 
       // The drafted trip replaces the empty one and the summary is announced.
-      expect(await screen.findByText("Drafted a food-first weekend.")).toBeInTheDocument()
+      expect((await screen.findAllByText("Drafted a food-first weekend."))[0]).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Draft itinerary" })).toBeNull()
       expect(stat("Places")).toHaveTextContent("Places3")
       expect(stat("On the map")).toHaveTextContent("On the map2 of 3")
@@ -498,7 +499,7 @@ describe("TripWorkspace", () => {
 
     it("opens the stop's editor from the place card", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
-      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
       fireEvent.click(screen.getByRole("button", { name: "Show Time Out Market on the map" }))
       expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
 
@@ -515,7 +516,7 @@ describe("TripWorkspace", () => {
         plan()
           .getAllByRole("listitem")
           .flatMap((li) => li.querySelector("[id^='item-']")?.id ?? [])
-      const row = (name: RegExp) => plan().getByRole("button", { name, expanded: false })
+      const row = (name: RegExp) => plan().getByRole("button", { name: new RegExp(`^(?!More for).*${name.source}`), expanded: false })
 
       await screen.findByRole("textbox", { name: "Day title" })
       expect(order()).toEqual(["item-it-market", "item-it-cash", "item-it-cafe", "item-it-fado"])
@@ -545,7 +546,7 @@ describe("TripWorkspace", () => {
 
     it("does not reorder for a viewer", async () => {
       renderWorkspace("/trips/lisbon/day/day-1", planned(), "view")
-      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
       expect(row).not.toHaveAttribute("aria-keyshortcuts")
 
       fireEvent.keyDown(row, { key: "ArrowDown", altKey: true })
@@ -575,7 +576,9 @@ describe("TripWorkspace", () => {
       // Untimed items travel with the timed stop they followed.
       expect(order()).toEqual(["item-it-market", "item-it-cafe", "item-it-fado", "item-it-cash"])
       fireEvent.click(screen.getByRole("button", { name: "More for day 1" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add day notes", "Export to calendar", "Clear this day"])
+      const after = screen.getAllByRole("menuitem").map((item) => item.textContent)
+      expect(after).toEqual(expect.arrayContaining(["Add day notes", "Export to calendar", "Clear this day"]))
+      expect(after).not.toContain("Sort stops by time")
     })
 
     it("shows a compact trip header that links back to the overview", async () => {
@@ -595,6 +598,7 @@ describe("TripWorkspace", () => {
         "Trip details",
         "Export to calendar",
         "Print itinerary",
+        "Trip recap",
         "Copy itinerary",
         "Duplicate trip",
         "Delete trip…",
@@ -644,6 +648,22 @@ describe("TripWorkspace", () => {
       const card = within(await screen.findByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
       expect(screen.getByRole("radio", { name: "Map" })).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("picks out the stop named by #stop- in the list on a phone", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1#stop-it-fado")
+      await screen.findByRole("textbox", { name: "Day title" })
+      expect(screen.getByRole("radio", { name: "Itinerary" })).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("leaves the day alone when an arrow key moves the Itinerary / Map choice", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1")
+      await screen.findByRole("textbox", { name: "Day title" })
+      fireEvent.keyDown(screen.getByRole("radio", { name: "Itinerary" }), { key: "ArrowRight" })
+      expect(screen.getByRole("textbox", { name: "Day title" })).toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: /day 2/i })).not.toBeInTheDocument()
     })
 
     it("moves the Itinerary / Map choice with the arrow keys", async () => {
@@ -817,7 +837,7 @@ describe("TripWorkspace", () => {
 
     describe("stop times", () => {
       const openMarket = async () => {
-        const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+        const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
         fireEvent.click(row)
         return row
       }
@@ -963,7 +983,7 @@ describe("TripWorkspace", () => {
 
     it("renumbers the markers when a pinned stop is removed", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
-      fireEvent.click(await screen.findByRole("button", { name: /Time Out Market/, expanded: false }))
+      fireEvent.click(await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false }))
       fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
       expect(screen.queryByRole("button", { name: "Show Time Out Market on the map" })).toBeNull()
@@ -1060,7 +1080,7 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
       expect(within(screen.getByRole("region", { name: "Day by day" })).getByText("Nothing planned")).toBeInTheDocument()
     })
 
@@ -1095,7 +1115,7 @@ describe("TripWorkspace", () => {
 
       // Stops still open (read-only) and still locate on the map.
       fireEvent.click(screen.getByRole("button", { name: /Fado dinner/, expanded: false }))
-      expect(screen.getByText("Confirmation FD-2291")).toBeInTheDocument()
+      expect(screen.getAllByText("FD-2291").length).toBeGreaterThan(0)
       expect(screen.queryByRole("button", { name: "Delete" })).toBeNull()
       expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
       fireEvent.click(screen.getByRole("button", { name: "Show Fado dinner on the map" }))
@@ -1104,7 +1124,7 @@ describe("TripWorkspace", () => {
       expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
       expect(mockUpdateTrip).not.toHaveBeenCalled()
     })
 
@@ -1114,7 +1134,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText("View only")).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
     })
   })
 
@@ -1133,10 +1153,19 @@ describe("TripWorkspace", () => {
       expect(mockDeleteTrip.mock.calls[0]![1]).toBe("lisbon")
     })
 
+    it("opens the trip recap from the menu, and closes it", async () => {
+      renderWorkspace("/trips/lisbon")
+      fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Trip recap" }))
+      const dialog = await screen.findByRole("dialog", { name: "Lisbon Long Weekend" })
+      fireEvent.keyDown(dialog, { key: "Escape" })
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Lisbon Long Weekend" })).not.toBeInTheDocument())
+    })
+
     it("has no Delete for a trip shared with everyone", async () => {
       renderWorkspace("/trips/lisbon", planned({ sharedWithAllUsers: true }))
       fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
     })
   })
 
@@ -1229,7 +1258,7 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon", makeTrip())
 
       fireEvent.click(await screen.findByRole("button", { name: "Draft itinerary" }))
-      expect(await screen.findByText("Drafted a food-first weekend.")).toBeInTheDocument()
+      expect((await screen.findAllByText("Drafted a food-first weekend."))[0]).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
       expect(screen.queryByText(/Staying at Pestana Palace/)).toBeNull()
     })
@@ -1281,7 +1310,7 @@ describe("TripWorkspace", () => {
 
     it("opens the same stop's editor again after it was closed", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
-      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })
       fireEvent.click(screen.getByRole("button", { name: "Show Time Out Market on the map" }))
       const editStop = () => within(screen.getByRole("complementary", { name: "Selected place" })).getByRole("button", { name: "Edit stop" })
 

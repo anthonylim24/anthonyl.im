@@ -67,6 +67,7 @@ function Landing() {
   return (
     <div>
       <p data-testid="path">{location.pathname}</p>
+      <p data-testid="search">{location.search}</p>
       <p data-testid="notice">{notice ?? ""}</p>
     </div>
   )
@@ -110,6 +111,8 @@ describe("TripCreate", () => {
           { id: "day-2", date: "2026-07-11", items: [makeItem({ id: "c" })] },
         ],
       }),
+      summary: "",
+      incompleteDays: [],
     })
   })
 
@@ -154,10 +157,11 @@ describe("TripCreate", () => {
     })
 
     await waitFor(() => expect(mockGenerateItinerary).toHaveBeenCalledTimes(1))
-    expect(mockGenerateItinerary.mock.calls[0]!.slice(1)).toEqual([
+    expect(mockGenerateItinerary.mock.calls[0]!.slice(1, 3)).toEqual([
       "trip-9",
       { prompt: undefined, preferences: { pace: "balanced", interests: undefined } },
     ])
+    expect(mockGenerateItinerary.mock.calls[0]![3]).toBeInstanceOf(AbortSignal)
     // The new trip gets a colour of its own before the draft starts.
     expect(mockUpdateTrip.mock.calls[0]![1]).toBe("trip-9")
     expect(mockUpdateTrip.mock.calls[0]![2]).toEqual({
@@ -218,20 +222,138 @@ describe("TripCreate", () => {
     expect(screen.getByRole("button", { name: "Create trip" })).toBeInTheDocument()
   })
 
-  it("accepts a typed place that isn't in the results", async () => {
+  it("looks up a typed first place before creating, so the trip gets its time zone and centre", async () => {
     mockSearchCities.mockResolvedValue([])
     renderCreate("/trips/new?ai=0")
-
-    fireEvent.change(destinations(), { target: { value: "Middle of nowhere" } })
+    fireEvent.change(destinations(), { target: { value: "lisbon" } })
+    await waitFor(() => expect(mockSearchCities).toHaveBeenCalled())
     fireEvent.keyDown(destinations(), { key: "Enter" })
-    expect(screen.getByRole("button", { name: "Remove Middle of nowhere" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Remove lisbon" })).toBeInTheDocument()
+
+    mockSearchCities.mockResolvedValue([lisbon])
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))
+    expect(mockCreateTrip.mock.calls[0]![1]).toMatchObject({
+      destinations: ["lisbon"],
+      timezone: "Europe/Lisbon",
+      center: { lat: 38.71667, lng: -9.13333 },
+    })
+  })
+
+  it("asks for the time zone when the map can't find the first place", async () => {
+    mockSearchCities.mockResolvedValue([])
+    renderCreate("/trips/new?ai=0")
+    fireEvent.change(destinations(), { target: { value: "Middle of nowhere" } })
+    await waitFor(() => expect(mockSearchCities).toHaveBeenCalled())
+    fireEvent.keyDown(destinations(), { key: "Enter" })
+    expect(await screen.findByRole("button", { name: "Remove Middle of nowhere" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    const zone = await screen.findByRole("combobox", { name: "Time zone for Middle of nowhere" })
+    expect(mockSearchCities).toHaveBeenLastCalledWith("Middle of nowhere", expect.any(AbortSignal))
+    expect(mockCreateTrip).not.toHaveBeenCalled()
+    await waitFor(() => expect(zone).toHaveFocus())
+
+    // Still no zone: nothing is created.
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    expect(mockCreateTrip).not.toHaveBeenCalled()
+
+    fireEvent.change(zone, { target: { value: "tokyo" } })
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: /^Tokyo/ }))
+    expect(zone).toHaveValue("Tokyo · Asia/Tokyo")
 
     fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
     await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))
     const input = mockCreateTrip.mock.calls[0]![1] as { destinations: string[]; timezone: string; center?: unknown }
     expect(input.destinations).toEqual(["Middle of nowhere"])
+    expect(input.timezone).toBe("Asia/Tokyo")
     expect(input.center).toBeUndefined()
-    expect(input.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
+  })
+
+  it("asks for the time zone when the map finds the place but not a zone this browser knows", async () => {
+    mockSearchCities.mockResolvedValue([{ ...lisbon, timezone: "" }])
+    renderCreate("/trips/new?ai=0")
+    await pickCity("Lis", /Lisbon/)
+
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    const zone = await screen.findByRole("combobox", { name: "Time zone for Lisbon" })
+    expect(screen.getByText("The map found “Lisbon” but not its time zone, so pick it. Times on the trip follow it.")).toBeInTheDocument()
+    expect(mockCreateTrip).not.toHaveBeenCalled()
+
+    fireEvent.change(zone, { target: { value: "lisbon" } })
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: /^Lisbon/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))
+    expect(mockCreateTrip.mock.calls[0]![1]).toMatchObject({ timezone: "Europe/Lisbon", center: { lat: 38.71667, lng: -9.13333 } })
+  })
+
+  it("ignores Enter while an IME is still composing", async () => {
+    renderCreate("/trips/new?ai=0")
+    fireEvent.change(destinations(), { target: { value: "서울" } })
+    await waitFor(() => expect(mockSearchCities).toHaveBeenCalled())
+    fireEvent.keyDown(destinations(), { key: "Enter", keyCode: 229 })
+    expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull()
+    expect(destinations()).toHaveValue("서울")
+    expect(mockCreateTrip).not.toHaveBeenCalled()
+  })
+
+  it("says which days came back thin, and still opens the trip", async () => {
+    mockGenerateItinerary.mockResolvedValue({
+      trip: makeTrip({
+        id: "trip-9",
+        days: [
+          { id: "day-1", date: "2026-12-04", items: [makeItem({ id: "a" }), makeItem({ id: "b" })] },
+          { id: "day-2", date: "2026-12-05", items: [] },
+          { id: "day-3", date: "2026-12-06", items: [] },
+        ],
+      }),
+      summary: "",
+      incompleteDays: [3, 2],
+    })
+    renderCreate()
+    await pickCity("Lis", /Lisbon/)
+    fireEvent.click(screen.getByRole("button", { name: "Create and draft itinerary" }))
+
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/lisbon-9")
+    expect(screen.getByTestId("notice")).toHaveTextContent(
+      "Drafted 2 stops, but not every day. Days 2, 3 need another go: open each and use “Ideas for this day”.",
+    )
+  })
+
+  it("shows how long the draft has run, and lets the traveller stop waiting", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] })
+    vi.setSystemTime(new Date("2026-11-13T12:00:00Z"))
+    mockGenerateItinerary.mockReturnValue(new Promise(() => {}))
+    renderCreate()
+    await pickCity("Lis", /Lisbon/)
+    fireEvent.click(screen.getByRole("button", { name: "Create and draft itinerary" }))
+
+    const stop = await screen.findByRole("button", { name: "Stop" })
+    expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/trips")
+    expect(screen.getByRole("status")).toHaveTextContent("Drafting the itinerary with AI…")
+    expect(screen.getAllByText("Drafting the itinerary · 0 s").length).toBeGreaterThan(0)
+
+    act(() => vi.advanceTimersByTime(48_000))
+    expect(screen.getAllByText("Still drafting · 48 s · long trips can take two minutes").length).toBeGreaterThan(0)
+    // The live region speaks the change once, not every second.
+    expect(screen.getByRole("status")).toHaveTextContent("Still drafting. Long trips can take two minutes.")
+
+    const signal = mockGenerateItinerary.mock.calls[0]![3] as AbortSignal
+    fireEvent.click(stop)
+    expect(signal.aborted).toBe(true)
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/lisbon-9")
+    expect(screen.getByTestId("notice")).toHaveTextContent(/You stopped waiting for the AI draft\. It may still finish/)
+  })
+
+  it("carries a shared Instagram post onto the new trip", async () => {
+    const post = "https://www.instagram.com/p/ABC123/"
+    renderCreate(`/trips/new?ai=0&instagram=${encodeURIComponent(post)}`)
+    expect(screen.getByText(/the places from the Instagram post you shared go straight onto it/)).toBeInTheDocument()
+    await pickCity("Lis", /Lisbon/)
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+
+    expect(await screen.findByTestId("path")).toHaveTextContent("/trips/lisbon-9")
+    expect(screen.getByTestId("search")).toHaveTextContent(`?instagram=${encodeURIComponent(post)}`)
   })
 
   it("still opens the trip when the AI draft fails", async () => {

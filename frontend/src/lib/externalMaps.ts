@@ -124,3 +124,55 @@ export function externalMapsLink(
     label: `Open ${displayName(target)} in ${externalMapsAppName(app)}`,
   }
 }
+
+export type TravelMode = "walk" | "transit" | "drive" | "bike"
+
+export interface DirectionsRequest {
+  destination: ExternalMapsTarget
+  /** Where to start; the phone's own location when absent. */
+  origin?: ExternalMapsTarget
+  /** Stops on the way, in order (route the day). Google Maps takes up to 9. */
+  waypoints?: readonly ExternalMapsTarget[]
+  mode?: TravelMode
+}
+
+const GOOGLE_MODE: Record<TravelMode, string> = { walk: "walking", transit: "transit", drive: "driving", bike: "bicycling" }
+const APPLE_MODE: Record<TravelMode, string | undefined> = { walk: "w", transit: "r", drive: "d", bike: undefined }
+/** Google Maps URLs keep at most nine waypoints; more are dropped from the middle of the list's end. */
+export const MAX_WAYPOINTS = 9
+
+/** "lat,lng" when the target is pinned, else its name and address for a search. */
+function placeParam(target: ExternalMapsTarget): string | undefined {
+  const pin = coords(target)
+  if (pin) return `${pin.lat},${pin.lng}`
+  return searchQuery(target)
+}
+
+/**
+ * Turn-by-turn directions in the traveller's maps app: Apple Maps on Apple
+ * devices for a single leg, Google Maps otherwise and for any route with
+ * stops on the way (Apple's URL scheme has no waypoints). Undefined when the
+ * destination has neither a pin nor a name.
+ */
+export function directionsLink(request: DirectionsRequest, userAgent = currentUserAgent()): ExternalMapsLink | undefined {
+  const destination = placeParam(request.destination)
+  if (!destination) return undefined
+  const origin = request.origin ? placeParam(request.origin) : undefined
+  const mode = request.mode ?? "transit"
+  const waypoints = (request.waypoints ?? []).map(placeParam).filter((w): w is string => Boolean(w)).slice(0, MAX_WAYPOINTS)
+  const name = displayName(request.destination)
+
+  if (externalMapsApp(userAgent) === "apple" && waypoints.length === 0) {
+    const params = new URLSearchParams({ daddr: destination })
+    if (origin) params.set("saddr", origin)
+    const flag = APPLE_MODE[mode]
+    if (flag) params.set("dirflg", flag)
+    return { href: `https://maps.apple.com/?${params.toString()}`, app: "apple", label: `Directions to ${name} in Apple Maps` }
+  }
+
+  const params = new URLSearchParams({ api: "1", destination, travelmode: GOOGLE_MODE[mode] })
+  if (origin) params.set("origin", origin)
+  // Google ignores waypoints on transit routes.
+  if (waypoints.length && mode !== "transit") params.set("waypoints", waypoints.join("|"))
+  return { href: `https://www.google.com/maps/dir/?${params.toString()}`, app: "google", label: `Directions to ${name} in Google Maps` }
+}

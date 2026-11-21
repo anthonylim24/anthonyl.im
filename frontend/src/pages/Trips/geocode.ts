@@ -1,4 +1,5 @@
 import { Effect } from "effect"
+import { HttpStatusError } from "../../effect/errors"
 import { fetchExternal, parseJson } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
 
@@ -61,7 +62,8 @@ interface PhotonFeature {
 const searchCitiesEffect = Effect.fn("Geocode.searchCities")(function* (query: string, signal?: AbortSignal) {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=en&format=json`
   const res = yield* fetchExternal(url, { signal })
-  if (!res.ok) return [] as CityResult[]
+  // A failed search is not "no such place": the field offers Retry for one.
+  if (!res.ok) return yield* Effect.fail(new HttpStatusError({ status: res.status, message: "Couldn’t search for places." }))
   const body = yield* parseJson<{ results?: OpenMeteoRow[] }>(res)
   return (body.results ?? []).map(
     (row): CityResult => ({
@@ -160,6 +162,7 @@ const swallowAbort = <T,>(fallback: T) =>
     throw err
   }
 
+/** Cities matching `query`. Rejects when the search itself fails (offline, an error status); an abort resolves to []. */
 export function searchCities(query: string, signal?: AbortSignal): Promise<CityResult[]> {
   return runPromise(searchCitiesEffect(query, signal)).catch(swallowAbort<CityResult[]>([]))
 }

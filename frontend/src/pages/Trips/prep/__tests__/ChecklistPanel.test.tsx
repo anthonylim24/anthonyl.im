@@ -132,6 +132,29 @@ describe("ChecklistPanel", () => {
     expect(doc().checklist?.[0]?.text).toBe("Wool socks")
   })
 
+  it("leaves the Enter that confirms a composed Korean word to the input method", () => {
+    const { spy, doc } = setup({ checklist: [entry("a", "양말")] })
+    fireEvent.click(screen.getByRole("button", { name: "Edit “양말”" }))
+    const editor = screen.getByRole("textbox", { name: "Edit “양말”" })
+    expect(editor).toHaveAttribute("maxLength", "300")
+    fireEvent.change(editor, { target: { value: "양말 두 켤레" } })
+    fireEvent.keyDown(editor, { key: "Enter", isComposing: true })
+    fireEvent.keyDown(editor, { key: "Enter", keyCode: 229 })
+    expect(spy).not.toHaveBeenCalled()
+    expect(screen.getByRole("textbox", { name: "Edit “양말”" })).toBeInTheDocument()
+    fireEvent.keyDown(editor, { key: "Enter" })
+    expect(doc().checklist?.[0]?.text).toBe("양말 두 켤레")
+  })
+
+  it("holds the add row's Enter while a word is composed", () => {
+    setup({ checklist: [entry("a", "Socks")] })
+    const field = screen.getByRole("textbox", { name: "Add to Packing" })
+    expect(field).toHaveAttribute("maxLength", "300")
+    const composingEnter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true })
+    field.dispatchEvent(composingEnter)
+    expect(composingEnter.defaultPrevented).toBe(true)
+  })
+
   it("removes an entry in place and puts it back on Undo", async () => {
     const { doc } = setup({ checklist: [entry("a", "Socks"), entry("b", "Hat"), entry("c", "Scarf")] })
     fireEvent.click(screen.getByRole("button", { name: "Remove “Hat”" }))

@@ -12,8 +12,9 @@ type AppPreviewMeta = {
   /**
    * The short label under a Home Screen icon (`apple-mobile-web-app-title`,
    * `application-name`). iOS reads it at page load, before any script, so it
-   * must be right in the HTML. Only `/trips*` is in the manifest's scope
-   * (`korea.webmanifest`); elsewhere Add to Home Screen saves a shortcut to
+   * must be right in the HTML. Only `/trips*` is in a manifest's scope
+   * (`trips.webmanifest`, or `korea.webmanifest` for that trip; see
+   * `manifestForPath`); elsewhere Add to Home Screen saves a shortcut to
    * that page, so it carries that app's own name.
    */
   installName: string;
@@ -90,6 +91,17 @@ const breathworkPages: Record<string, string> = {
 
 const isKoreaPath = (pathname: string) => pathname.startsWith("/korea") || pathname.startsWith("/trips/korea-2026");
 
+/**
+ * The web app manifest a page links. Every trip but Korea installs as
+ * "Trips" (start_url /trips); the Korea trip keeps its own. Elsewhere the
+ * link stays Korea's, as it always has been: those pages are outside its
+ * /trips scope, so Add to Home Screen saves a shortcut to the page.
+ * `lib/routeMetadata.ts` `manifestForPath` and index.html's korea script
+ * make the same choice in the browser.
+ */
+export const manifestForPath = (pathname: string): string =>
+  pathname.startsWith("/trips") && !isKoreaPath(pathname) ? "/trips.webmanifest" : "/korea.webmanifest";
+
 export const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
   if (pathname.startsWith("/breathwork")) {
     const page = breathworkPages[pathname.replace(/\/+$/, "")];
@@ -109,6 +121,7 @@ export const stripExistingPreviewMeta = (html: string): string =>
     .replace(/<meta\s+name=["']twitter:[^>]*>\s*/gi, "")
     .replace(/<meta\s+name=["']apple-mobile-web-app-title["'][^>]*>\s*/gi, "")
     .replace(/<meta\s+name=["']application-name["'][^>]*>\s*/gi, "")
+    .replace(/<link\s+rel=["']manifest["'][^>]*>\s*/gi, "")
     .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/i, "");
 
 const CHARSET = /<meta\s+charset=["']?[^"'>\s]+["']?\s*\/?>/i;
@@ -142,6 +155,7 @@ export const injectPreviewMeta = (template: string, pathname: string, siteUrl: s
     <meta name="twitter:image:alt" content="${escapeHtml(preview.imageAlt)}" />
     <meta name="apple-mobile-web-app-title" content="${escapeHtml(preview.installName)}" />
     <meta name="application-name" content="${escapeHtml(preview.installName)}" />
+    <link rel="manifest" href="${manifestForPath(pathname)}" />
     <link rel="canonical" href="${escapeHtml(pageUrl)}" />`;
 
   // Replacer functions: a string replacement would expand `$&` / `$'` that

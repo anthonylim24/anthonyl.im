@@ -1,4 +1,5 @@
 import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, tripDots, type LngLat } from "../map/geo"
+import { bookingTypeLabel } from "../bookings/kinds"
 import { dayCount, formatRange, formatTripDate, plural, resolveAccent, STATUS_LABEL, titleCase } from "../meta"
 import { formatDistance, formatWalkMinutes } from "../reservationView"
 import type { ItineraryItem, Trip, TripAccent, TripDay } from "../types"
@@ -32,7 +33,7 @@ export function stopFacts(item: ItineraryItem): StopFacts {
   // Same reading as the stop card: a booking says its type, a place its category.
   const category =
     item.kind === "reservation"
-      ? titleCase(item.reservation?.type ?? "Booking")
+      ? bookingTypeLabel(item.reservation?.type)
       : item.location?.category
         ? titleCase(item.location.category)
         : null

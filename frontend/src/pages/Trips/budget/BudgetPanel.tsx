@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Plus } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
@@ -153,6 +154,26 @@ export function BudgetPanel({ trip, editable, locked, viewer, onEdit, onOpenItem
       },
     })
   }
+
+  // Deep link: `?tab=budget&add=expense` (the live trip's "Log an expense")
+  // opens the new-expense form. Held while the trip is locked; dropped from
+  // the address once handled, and simply dropped for someone who can't edit.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const wantsLog = searchParams.get("add") === "expense"
+  useEffect(() => {
+    if (!wantsLog || locked) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot hand-off from the URL; the same effect strips the query, which cannot happen during render
+    if (editable) startLog()
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete("add")
+        return next
+      },
+      { replace: true },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startLog reads this render's trip; run once per request
+  }, [wantsLog, editable, locked])
 
   const submitNew = (draft: ExpenseDraft) => {
     const expense = newExpense(draft)

@@ -29,6 +29,32 @@ export function breathflowTitle(pathname: string) {
   return page ? `${page} · BreathFlow` : BREATHFLOW_ROUTE_METADATA.title
 }
 
+const PREVIEW_BASE = /^\/preview\/pr\/\d+(?=\/|$)/
+
+/**
+ * The web app manifest for a path (the preview base, if any, stays on).
+ * Every trip installs as "Trips" but the Korea trip, which keeps its own;
+ * elsewhere it stays Korea's, out of scope. Same choice as
+ * `manifestForPath` in server/src/shellMeta.ts and index.html's korea script.
+ */
+export function manifestForPath(pathname: string): string {
+  const base = pathname.match(PREVIEW_BASE)?.[0] ?? ''
+  const appPath = pathname.slice(base.length) || '/'
+  const korea = appPath.startsWith('/korea') || appPath.startsWith('/trips/korea-2026')
+  return `${base}${appPath.startsWith('/trips') && !korea ? '/trips.webmanifest' : '/korea.webmanifest'}`
+}
+
+/**
+ * Point the page's manifest link at `manifestForPath(pathname)` after a
+ * client-side navigation (`/trips` → `/trips/korea-2026`), so an install
+ * from there gets that app. `pathname` is the full path, preview base included.
+ */
+export function syncManifest(pathname: string, doc: Document = document): void {
+  const link = doc.querySelector('link[rel="manifest"]')
+  const href = manifestForPath(pathname)
+  if (link && link.getAttribute('href') !== href) link.setAttribute('href', href)
+}
+
 export function getRouteMetadata(pathname: string) {
   const appPath = pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, "") || "/"
   if (appPath === "/lab") return LANDING_ROUTE_METADATA

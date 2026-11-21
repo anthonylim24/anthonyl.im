@@ -5,7 +5,7 @@ export type CollaboratorRole = "viewer" | "editor"
 export type LocationSource = "user" | "ai" | "migration"
 export type ConfidenceLevel = "high" | "medium" | "low"
 export type ItemKind = "place" | "note" | "section" | "reservation"
-export type ItemStatus = "none" | "optional" | "booked" | "completed" | "needs_review"
+export type ItemStatus = "none" | "optional" | "booked" | "completed" | "skipped" | "needs_review"
 export type TripAccess = "none" | "view" | "edit" | "owner"
 
 export interface TripCollaborator {
@@ -60,9 +60,25 @@ export interface ItineraryItem {
     confirmation?: string
     contact?: string
     url?: string
+    /** Airline, hotel, rental company or operator. */
+    provider?: string
+    /** Flight, train or booking line number ("UA 123"). */
+    number?: string
+    /** Where it leaves from: an airport code, station or pick-up place. */
+    from?: string
+    /** Where it arrives: an airport code, station or drop-off place. */
+    to?: string
+    /** ISO date it ends (arrival, check-out, drop-off) when that is not the item's own day. */
+    endDate?: string
+    /** IANA zone of the end (a flight landing in another zone); the day's zone when absent. */
+    endTimezone?: string
+    seat?: string
+    terminal?: string
   }
   /** What this stop or booking costs: the planned side of the budget. */
   cost?: Money
+  /** The traveller loved it: kept for the trip's recap. */
+  highlight?: boolean
   createdBy: LocationSource
 }
 
@@ -88,6 +104,10 @@ export interface TripDay {
   neighborhoods?: string[]
   weather?: DayWeather
   callouts?: DayCallout[]
+  /** IANA zone the day is lived in, when it differs from the trip's (a multi-country trip). Read it through `dayZone`. */
+  timezone?: string
+  /** What the traveller wrote about the day, during or after it. */
+  journal?: string
   items: ItineraryItem[]
 }
 
@@ -175,6 +195,8 @@ export interface Trip {
   party?: TripPerson[]
   expenses?: TripExpense[]
   checklist?: ChecklistItem[]
+  /** Places saved for later that are not on any day yet. */
+  ideas?: ItineraryItem[]
   createdAt: string
   updatedAt: string
 }

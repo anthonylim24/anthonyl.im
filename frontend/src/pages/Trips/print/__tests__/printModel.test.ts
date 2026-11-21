@@ -85,7 +85,7 @@ describe("printDocument", () => {
   it("lists every booking, parked ones too, with its confirmation", () => {
     expect(printDocument(printTrip(), NOW).bookings).toEqual([
       expect.objectContaining({ id: "flight", dayNumber: 1, date: "Fri, Jul 10", time: "10:40", kind: "Flight · Confirmed", confirmation: "ABC123" }),
-      expect.objectContaining({ id: "tour", dayNumber: 1, time: null, kind: "Experience · Tentative", confirmation: "SNT-77" }),
+      expect.objectContaining({ id: "tour", dayNumber: 1, time: null, kind: "Tour or activity · Tentative", confirmation: "SNT-77" }),
     ])
   })
 

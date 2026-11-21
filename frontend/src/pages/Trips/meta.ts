@@ -1,6 +1,8 @@
 import {
   BedDouble,
   Building2,
+  Bus,
+  Car,
   CalendarClock,
   Camera,
   Church,
@@ -11,6 +13,7 @@ import {
   Mosque,
   PartyPopper,
   Plane,
+  Ship,
   ShoppingBag,
   StickyNote,
   Store,
@@ -54,35 +57,47 @@ export function visibleTags(tags: readonly string[]): string[] {
   return tags.filter((tag) => !HIDDEN_TAGS.has(tag))
 }
 
-// ── Dates (all computed in the trip's timezone) ──────────────────────────
+// ── Dates ────────────────────────────────────────────────────────────────
+// A trip's dates are calendar dates ("2026-07-10"), the same day in every
+// zone, so they are formatted in UTC. Only "what is today" depends on a zone.
 
 const noonUtc = (iso: string) => new Date(`${iso}T12:00:00Z`)
 
-/** Never throws: an unknown time zone falls back to UTC, an unreadable date to the raw string. */
-export function formatTripDate(iso: string, timezone: string, opts?: Intl.DateTimeFormatOptions): string {
+// Building an Intl.DateTimeFormat costs far more than using one, and a day
+// rail formats three labels per day on every render.
+const formats = new Map<string, Intl.DateTimeFormat>()
+
+function cachedFormat(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}`
+  let format = formats.get(key)
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, options)
+    formats.set(key, format)
+  }
+  return format
+}
+
+/**
+ * "Fri, Jul 10" for a trip date; `opts` replaces any part (pass `undefined` to
+ * drop one). `_timezone` is ignored: a trip date is a calendar date, and
+ * formatting its noon in a zone 12 or more hours ahead of UTC named the next
+ * day. Never throws: an unreadable date comes back as the raw string.
+ */
+export function formatTripDate(iso: string, _timezone?: string, opts?: Intl.DateTimeFormatOptions): string {
   const date = noonUtc(iso)
   if (Number.isNaN(date.getTime())) return iso ?? ""
-  const base: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", ...opts }
   try {
-    return new Intl.DateTimeFormat("en-US", { timeZone: timezone, ...base }).format(date)
+    return cachedFormat("en-US", { weekday: "short", month: "short", day: "numeric", ...opts, timeZone: "UTC" }).format(date)
   } catch {
-    try {
-      // Noon UTC is the same calendar day the ISO date names.
-      return new Intl.DateTimeFormat("en-US", { ...base, timeZone: "UTC" }).format(date)
-    } catch {
-      return iso
-    }
+    return iso
   }
 }
 
+/** Today's date in `timezone`, "YYYY-MM-DD"; UTC's for a zone the runtime does not know. */
 export function todayIsoIn(timezone: string): string {
+  const parts = { year: "numeric", month: "2-digit", day: "2-digit" } as const
   try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date())
+    return cachedFormat("en-CA", { timeZone: timezone, ...parts }).format(new Date())
   } catch {
     return new Date().toISOString().slice(0, 10)
   }
@@ -106,7 +121,7 @@ export function addDays(iso: string, days: number): string {
 export function formatRange(startIso: string, endIso: string): string {
   const start = noonUtc(startIso)
   const end = noonUtc(endIso)
-  const month = (d: Date) => d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+  const month = (d: Date) => cachedFormat("en-US", { month: "short", timeZone: "UTC" }).format(d)
   const sameYear = start.getUTCFullYear() === end.getUTCFullYear()
   const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth()
   const year = end.getUTCFullYear()
@@ -133,7 +148,7 @@ export function tripTiming(trip: Pick<TripSummary, "startDate" | "endDate" | "ti
     return {
       phase: "past",
       daysAway,
-      label: noonUtc(trip.startDate).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      label: cachedFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(noonUtc(trip.startDate)),
     }
   }
   if (today >= trip.startDate) {
@@ -191,13 +206,18 @@ export function parseClock(text: string): string | null {
 
 // ── Icons + labels ───────────────────────────────────────────────────────
 
+// Car rental is "car", never "…rental": lodging.ts reads /rental/ as a place to sleep.
 export const RESERVATION_TYPES = [
   "flight",
   "hotel",
+  "car",
+  "train",
+  "bus",
+  "ferry",
+  "transit",
   "meal",
   "bar",
   "experience",
-  "transit",
   "event",
   "appointment",
 ] as const
@@ -209,6 +229,10 @@ const reservationTypeIcon: Record<string, LucideIcon> = {
   bar: Martini,
   experience: Ticket,
   transit: TrainFront,
+  train: TrainFront,
+  bus: Bus,
+  ferry: Ship,
+  car: Car,
   event: PartyPopper,
   appointment: CalendarClock,
   wedding: Church,
@@ -256,6 +280,7 @@ export const STATUS_LABEL: Record<ItemStatus, string> = {
   optional: "Optional",
   booked: "Booked",
   completed: "Done",
+  skipped: "Skipped",
   needs_review: "Needs review",
 }
 

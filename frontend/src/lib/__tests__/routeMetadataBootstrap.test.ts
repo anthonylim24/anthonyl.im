@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { BREATHFLOW_ROUTE_METADATA } from '../routeMetadata'
+import { BREATHFLOW_ROUTE_METADATA, manifestForPath, syncManifest } from '../routeMetadata'
 
 const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 const scripts = [...html.matchAll(/<script data-route-metadata="\w+">([\s\S]*?)<\/script>/g)].map((m) => m[1]!)
@@ -22,7 +22,7 @@ function serverTags(title: string, description: string, installName: string) {
 /** `injected` is what the server writes after `<meta charset>`; the scripts run after it, mid-parse. */
 function boot(path: string, injected: string) {
   window.history.replaceState(null, '', path)
-  document.head.innerHTML = `${injected}<link rel="icon" type="image/svg+xml" href="/favicon-chat.svg" />`
+  document.head.innerHTML = `${injected}<link rel="icon" type="image/svg+xml" href="/favicon-chat.svg" /><link rel="manifest" href="/korea.webmanifest" />`
   for (const code of scripts) new Function(code)()
 }
 
@@ -66,6 +66,31 @@ describe('route metadata bootstrap', () => {
     boot('/', serverTags('Lim', 'Meet Lim', 'Lim'))
     expect(contents('meta[property="og:title"]')).toEqual(['Lim'])
     expect(contents('meta[name="apple-mobile-web-app-title"]')).toEqual(['Lim'])
+  })
+
+  it('links the Trips manifest on trips, Korea\'s on the Korea trip, under any preview base', () => {
+    const manifest = () => document.head.querySelector('link[rel="manifest"]')?.getAttribute('href')
+    for (const [path, href] of [
+      ['/trips', '/trips.webmanifest'],
+      ['/trips/tokyo/day/1', '/trips.webmanifest'],
+      ['/trips/korea-2026', '/korea.webmanifest'],
+      ['/korea', '/korea.webmanifest'],
+      ['/preview/pr/12/trips', '/preview/pr/12/trips.webmanifest'],
+      ['/preview/pr/12/trips/korea-2026/day/3', '/preview/pr/12/korea.webmanifest'],
+      ['/', '/korea.webmanifest'],
+    ] as const) {
+      boot(path, '')
+      expect(manifest()).toBe(href)
+      expect(manifestForPath(path)).toBe(href)
+    }
+  })
+
+  it('moves the manifest link with a client-side navigation', () => {
+    boot('/trips', '')
+    syncManifest('/trips/korea-2026')
+    expect(document.head.querySelector('link[rel="manifest"]')?.getAttribute('href')).toBe('/korea.webmanifest')
+    syncManifest('/preview/pr/7/trips/new')
+    expect(document.head.querySelector('link[rel="manifest"]')?.getAttribute('href')).toBe('/preview/pr/7/trips.webmanifest')
   })
 
   it('creates the tags in dev, where nothing is injected', () => {

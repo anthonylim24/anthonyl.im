@@ -170,7 +170,8 @@ describe("duplicateTrip", () => {
     expect(days[0]!.city).toBe("Lisbon")
     expect(days.flatMap((d) => d.items.map((i) => i.title))).toEqual(["Castle", "Bring cash", "Tower"])
     expect(days[0]!.items[0]!.location).toEqual({ name: "Castle", lat: 38.71, lng: -9.13, source: "user" })
-    expect(days[1]!.items[0]!.status).toBe("booked")
+    // A booking made for the original isn't made for the copy.
+    expect(days[1]!.items[0]!.status).toBe("none")
 
     const ids = days.flatMap((d) => d.items.map((i) => i.id))
     expect(new Set(ids).size).toBe(3)
@@ -217,5 +218,71 @@ describe("duplicateTrip", () => {
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ message: "nope" }, 500))
     await expect(duplicateTrip(getToken, source)).rejects.toThrow(/nope/)
     expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves the journey behind: statuses, bookings made, journals, highlights and ticks", async () => {
+    const lived = makeTrip({
+      checklist: [{ id: "c1", text: "Passport", done: true, group: "documents", createdAt: "2026-01-01T00:00:00Z" }],
+      ideas: [{ id: "idea-1", kind: "place", title: "LX Factory", status: "completed", highlight: true, createdBy: "user" }],
+      days: [
+        {
+          id: "src-day-a",
+          date: "2026-07-10",
+          journal: "Best pastéis of the trip.",
+          items: [
+            {
+              id: "it-flight",
+              kind: "reservation",
+              title: "Flight to Lisbon",
+              status: "booked",
+              highlight: true,
+              createdBy: "user",
+              reservation: { type: "flight", status: "confirmed", confirmation: "ABC123", seat: "14A", number: "TP 202", from: "JFK", to: "LIS" },
+            },
+            { id: "it-done", kind: "place", title: "Castle", status: "completed", createdBy: "user" },
+            { id: "it-skip", kind: "place", title: "Museum", status: "skipped", createdBy: "user" },
+            { id: "it-maybe", kind: "place", title: "Fado bar", status: "optional", createdBy: "user" },
+          ],
+        },
+      ],
+    })
+    const created = makeTrip({ id: "new-trip", days: [{ id: "day-1", date: "2026-07-10", items: [] }] })
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(json({ trip: created }))
+      .mockResolvedValueOnce(json({ trip: created }))
+
+    await duplicateTrip(getToken, lived)
+    const body = call(spy, 1).body!
+    const [day] = body.days as Trip["days"]
+    expect(day!.journal).toBeUndefined()
+    expect(day!.items.map((i) => i.status)).toEqual(["none", "none", "none", "optional"])
+    expect(day!.items.some((i) => i.highlight)).toBe(false)
+    expect(day!.items[0]!.reservation).toEqual({ type: "flight", status: "pending", number: "TP 202", from: "JFK", to: "LIS" })
+    expect((body.checklist as { done: boolean }[])[0]!.done).toBe(false)
+    expect(body.ideas).toEqual([{ id: expect.stringMatching(/^it-/), kind: "place", title: "LX Factory", status: "none", createdBy: "user" }])
+  })
+
+  it("removes the empty copy when the plan can't be copied across", async () => {
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(json({ trip: makeTrip({ id: "new-trip" }) }))
+      .mockResolvedValueOnce(json({ message: "Server error" }, 500))
+      .mockResolvedValueOnce(json({ ok: true }))
+
+    await expect(duplicateTrip(getToken, source)).rejects.toThrow("Server error")
+    expect(spy).toHaveBeenCalledTimes(3)
+    expect(call(spy, 2)).toMatchObject({ url: "/api/trips/new-trip", method: "DELETE" })
+  })
+
+  it("says so when the empty copy couldn't be removed either", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(json({ trip: makeTrip({ id: "new-trip" }) }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+
+    await expect(duplicateTrip(getToken, source)).rejects.toThrow(
+      "Couldn’t copy the plan, and an empty “Lisbon Long Weekend (copy)” is left in your trips to delete. (Failed to fetch)",
+    )
   })
 })

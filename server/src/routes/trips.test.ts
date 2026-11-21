@@ -302,6 +302,21 @@ describe("AI generation endpoint", () => {
     expect(res2.status).toBe(200)
   })
 
+  test("a redraft keeps what was written about each day and its zone", async () => {
+    const { app } = makeApp({ llm: llmOk })
+    const trip = (await createTrip(app)) as { id: string; updatedAt: string; days: Array<{ id: string; date: string }> }
+    const days = trip.days.map((day, i) => (i === 0 ? { ...day, journal: "Rain all morning.", timezone: "Asia/Seoul", items: [] } : { ...day, items: [] }))
+    const patched = await app.request(`/api/trips/${trip.id}`, { method: "PATCH", headers: AUTH, body: JSON.stringify({ days }) })
+    expect(patched.status).toBe(200)
+    const res = await app.request(`/api/trips/${trip.id}/generate`, { method: "POST", headers: AUTH, body: JSON.stringify({ replaceExisting: true }) })
+    expect(res.status).toBe(200)
+    const { trip: updated } = (await res.json()) as { trip: { days: Array<{ journal?: string; timezone?: string; items: unknown[] }> } }
+    expect(updated.days[0]!.journal).toBe("Rain all morning.")
+    expect(updated.days[0]!.timezone).toBe("Asia/Seoul")
+    expect(updated.days[0]!.items.length).toBeGreaterThan(0)
+    expect(updated.days[1]!.journal).toBeUndefined()
+  })
+
   test("a slow draft keeps the connection alive and still delivers the trip", async () => {
     const slow = async () => {
       await new Promise((r) => setTimeout(r, 60))

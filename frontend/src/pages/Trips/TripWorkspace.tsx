@@ -1,6 +1,8 @@
+import { applyDetailsPatch, detailsUndo } from "./workspace/tripDetails"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
+  BookOpen,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -22,9 +24,10 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
-import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, tripTiming } from "./meta"
+import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
-import { makeItem } from "./tripEdits"
+import { addItem, makeItem } from "./tripEdits"
+import { addBookings, type BookingEntry } from "./bookings/addBookings"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
@@ -32,12 +35,14 @@ import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
-import type { HistoryEntry, Sync } from "./editorMachine"
+import type { HistoryEntry } from "./editorMachine"
+import { SaveIndicator } from "./offline/SaveIndicator"
 import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
 import { daySky, useForecast } from "./forecast"
+import { useHolidays } from "./holidays"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
@@ -63,8 +68,11 @@ const PhotorealOverlay = lazyRetry(() => import("./photoreal/PhotorealOverlay"))
 const PHOTOREAL_READY = photorealAvailable()
 const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => ({ default: m.BudgetPanel })))
 const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
+const IdeasPanel = lazyRetry(() => import("./workspace/IdeasPanel").then((m) => ({ default: m.IdeasPanel })))
 const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
+const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
+const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -92,34 +100,19 @@ function typing(target: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable || Boolean(target.closest('[role="dialog"], [role="menu"]'))
 }
 
+/** Widgets whose arrow keys move within them (tabs, radio groups, menus, sliders). */
+function inArrowWidget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[role="tablist"], [role="radiogroup"], [role="menu"], [role="listbox"], [role="slider"], [role="grid"]') !== null
+  )
+}
+
 type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "trip"; prompt?: string }
 
 /** Long enough to read and reach (WCAG 2.2.1); paused while hovered or focused. */
 const UNDO_TOAST_MS = 12_000
 
-const itemTotal = (days: readonly TripDay[]) => days.reduce((n, d) => n + d.items.length, 0)
-
-/** "Saved" / "Saving" / "Not saved · Retry", read out politely as it changes. */
-function SaveStatus({ sync, locked, compact, onRetry }: { sync: Sync; locked: boolean; compact?: boolean; onRetry: () => void }) {
-  const busy = sync.k === "dirty" || sync.k === "saving"
-  const failed = sync.k === "saveError" || sync.k === "conflict"
-  return (
-    <span {...sx(s.saveState, compact && s.saveCompact)} role="status" aria-live="polite">
-      <span {...sx(s.saveDot, busy && s.saveDotBusy, failed && s.saveDotError)} aria-hidden />
-      {sync.k === "saveError" ? (
-        <button type="button" {...sx(a.link)} disabled={locked} onClick={onRetry}>
-          Not saved · Retry
-        </button>
-      ) : sync.k === "conflict" ? (
-        "Not saved"
-      ) : busy ? (
-        "Saving"
-      ) : (
-        "Saved"
-      )}
-    </span>
-  )
-}
 
 /**
  * The offer to take back a destructive change. Stays for 12 s, and not
@@ -266,7 +259,20 @@ function Workspace() {
   const { trip, editable, locked } = editor
   const ai = editor.ai
   const forecast = useForecast(trip)
-  const printer = usePrintItinerary(trip)
+  const holidays = useHolidays(trip)
+  // An optional overlay (the printout, the 3D view, a sheet) that fails to
+  // load closes and says so in the dock; the trip itself is untouched.
+  const overlayFailed = (what: string, close: () => void) => (error: Error) => {
+    close()
+    const stale = isChunkLoadError(error)
+    setOverlayProblem({
+      stale,
+      text: stale
+        ? `${what} needs the latest version of the app. Reload to get it; your trip is saved.`
+        : `${what} couldn’t open. Your trip is fine. (${errorText(error)})`,
+    })
+  }
+  const printer = usePrintItinerary(trip, overlayFailed("The printout", () => {}))
 
   // The newest undo step offers a toast when it was a destructive change.
   // An older step coming back to the top (after an Undo) does not.
@@ -329,6 +335,8 @@ function Workspace() {
     if (!trip) return
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target) || dialog !== null) return
+      // A control that already used the key (tabs, the Itinerary/Map switch, a menu) keeps it.
+      if (event.defaultPrevented || inArrowWidget(event.target)) return
       if (event.key === "Escape" && activeId) {
         setActiveId(null)
         setFocusId(null)
@@ -345,9 +353,12 @@ function Workspace() {
   }, [trip, dayIndex, basePath, navigate, dialog, activeId])
 
   // Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z. A text field keeps the keys for its own
-  // undo history, and so does an open dialog.
+  // undo history, and so does an open dialog. Undo steps through the plan
+  // (days and dates), so it only listens where the plan is on screen: a day,
+  // or the overview's Itinerary tab, never Budget or Checklist.
+  const planOnScreen = Boolean(dayId) || tab === "itinerary"
   useEffect(() => {
-    if (!editable) return
+    if (!editable || !planOnScreen) return
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== "z") return
       if (typing(event.target) || dialog !== null || instagram !== null) return
@@ -357,9 +368,11 @@ function Workspace() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [editable, dialog, instagram, undoLast, redoNext])
+  }, [editable, planOnScreen, dialog, instagram, undoLast, redoNext])
 
   // Good news clears itself; anything that reads like a problem stays put.
+  // A dock row mounts with its text, which screen readers often miss, so good
+  // news also goes through the always-present announcer.
   const notice = editor.notice
   useEffect(() => {
     if (!notice || PROBLEM.test(notice)) return
@@ -414,18 +427,22 @@ function Workspace() {
     [wide],
   )
 
-  // Deep link: /day/:id#item-<id> selects that stop and shows it on the map
-  // (on a phone that means switching to the map). Checked once per day and
-  // hash, during render, after the new-day reset above.
+  // Deep links. /day/:id#item-<id> shows that stop on the map (on a phone
+  // that means switching to the map): the concierge's "Show". /day/:id#stop-<id>
+  // picks the stop out in the list and leaves the view alone: the Now card's
+  // "this one", read with the phone in hand. Checked once per day and hash,
+  // during render, after the new-day reset above.
   const deepLinkKey = day ? `${day.id}${location.hash}` : null
   const [seenDeepLink, setSeenDeepLink] = useState<string | null>(null)
   if (deepLinkKey !== seenDeepLink) {
     setSeenDeepLink(deepLinkKey)
-    const id = day && location.hash.startsWith("#item-") ? decodeURIComponent(location.hash.slice(6)) : null
+    const hash = location.hash
+    const onMap = hash.startsWith("#item-")
+    const id = day && (onMap || hash.startsWith("#stop-")) ? decodeURIComponent(hash.slice(6)) : null
     if (day && id && day.items.some((i) => i.id === id)) {
       setActiveId(id)
       setFocusId(id)
-      if (!wide) setView("map")
+      if (onMap && !wide) setView("map")
     }
   }
 
@@ -486,16 +503,20 @@ function Workspace() {
 
   // An overlay that fails to load or throws takes only itself down: close
   // it, keep the itinerary, and say what to do.
-  const overlayFailed = (what: string, close: () => void) => (error: Error) => {
-    close()
-    const stale = isChunkLoadError(error)
-    setOverlayProblem({
-      stale,
-      text: stale
-        ? `${what} needs the latest version of the app. Reload to get it; your trip is saved.`
-        : `${what} couldn’t open. Your trip is fine. (${errorText(error)})`,
-    })
+  const [pasting, setPasting] = useState(false)
+  const [recapOpen, setRecapOpen] = useState(false)
+  const addPasted = (entries: BookingEntry[]) => {
+    if (entries.length === 0) return
+    editor.setDays((days) => addBookings(days, entries), { label: `Added ${plural(entries.length, "booking")}`, toast: true })
+    editor.flashTouched(new Set(entries.map((e) => e.item.id)))
   }
+  const addBookingByHand = (dayId: string, item: ItineraryItem) => {
+    editor.setDays((days) => addItem(days, dayId, item), { label: "Added a booking" })
+    navigate(`${basePath}/day/${dayId}`)
+    requestEdit(item.id)
+    setView("list")
+  }
+
 
   // Closing the import: show what landed (flash + pin drop). Its Undo is the
   // toast for the import's one undo step.
@@ -579,6 +600,7 @@ function Workspace() {
     })
   })
   const printFromPalette = printer.print
+  const paletteDay = trip ? todayIsoIn(trip.timezone) : ""
   const paletteCommands = useMemo(
     () =>
       trip
@@ -604,7 +626,8 @@ function Workspace() {
             },
           })
         : [],
-    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `paletteDay` rebuilds the list when the trip's date turns over ("Go to today")
+    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette, paletteDay],
   )
   useRegisterCommands("trip", paletteCommands)
 
@@ -656,6 +679,11 @@ function Workspace() {
   const showMap = wide || view === "map"
   const sync = editor.sync
   const running = ai.k === "running" ? ai.run : null
+  /** Reading the copy kept on this device: nothing that needs the server. */
+  const onDevice = editor.copy !== null
+  /** One save line in the page: in the header from 1024px, in the bottom bar below. */
+  const saveLine = (place: "header" | "bar") =>
+    editable && <SaveIndicator sync={sync} online={editor.online} locked={locked} onRetry={editor.retrySave} place={place} />
 
   const menu: MenuItem[] = [
     ...(editable && dayId
@@ -683,18 +711,23 @@ function Workspace() {
       : []),
     calendarMenuItem(trip),
     printMenuItem(printer),
+    { label: "Trip recap", icon: <BookOpen size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setRecapOpen(true) },
     copyMenuItem(trip, confirm),
-    {
-      label: "Duplicate trip",
-      icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,
-      onSelect: () =>
-        void act("duplicate", async () => {
-          await editor.flush()
-          const copy = await duplicateTrip(editor.readToken, editor.trip ?? trip)
-          if (!aliveRef.current) return
-          navigate(`/trips/${copy.slug ?? copy.id}`)
-        }),
-    },
+    ...(onDevice
+      ? []
+      : [
+          {
+            label: "Duplicate trip",
+            icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,
+            onSelect: () =>
+              void act("duplicate", async () => {
+                await editor.flush()
+                const copy = await duplicateTrip(editor.readToken, editor.trip ?? trip)
+                if (!aliveRef.current) return
+                navigate(`/trips/${copy.slug ?? copy.id}`)
+              }),
+          },
+        ]),
     ...(owner && !trip.sharedWithAllUsers
       ? [
           {
@@ -727,11 +760,13 @@ function Workspace() {
             </Link>
             <span {...sx(a.mono, a.muted, a.noShrink, s.compactDates)}>{formatRange(trip.startDate, trip.endDate)}</span>
             <span {...sx(a.grow)} />
-            {editable && <SaveStatus sync={sync} locked={locked} compact onRetry={editor.retrySave} />}
-            <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
-              <Share2 size={14} strokeWidth={1.75} aria-hidden />
-              Share
-            </button>
+            {wide && saveLine("header")}
+            {!onDevice && (
+              <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
+                <Share2 size={14} strokeWidth={1.75} aria-hidden />
+                Share
+              </button>
+            )}
             {busy === "duplicate" ? (
               <span {...sx(a.iconBtn, a.iconBtnSm)} role="status" aria-label="Duplicating">
                 <Spinner />
@@ -795,10 +830,12 @@ function Workspace() {
               {!editable && <span {...sx(a.chip)}>View only</span>}
             </div>
             <div {...sx(s.headActions)}>
-              <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
-                <Share2 size={14} strokeWidth={1.75} aria-hidden />
-                Share
-              </button>
+              {!onDevice && (
+                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
+                  <Share2 size={14} strokeWidth={1.75} aria-hidden />
+                  Share
+                </button>
+              )}
               {editable && (
                 <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={() => setDialog({ ai: "trip" })}>
                   <Sparkles size={14} strokeWidth={1.75} aria-hidden />
@@ -824,7 +861,7 @@ function Workspace() {
                   items={menu}
                 />
               )}
-              {editable && <SaveStatus sync={sync} locked={locked} onRetry={editor.retrySave} />}
+              {wide && saveLine("header")}
             </div>
           </header>
         )}
@@ -858,6 +895,7 @@ function Workspace() {
             edit={edit}
             near={near}
             onChange={editor.setDays}
+            onEditTrip={editor.edit}
             onDelete={editor.deleteItem}
             onAdded={onAdded}
             onHover={setHotId}
@@ -870,6 +908,7 @@ function Workspace() {
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
             onInstagram={openInstagram}
             sky={daySky(day, forecast)}
+            holidays={holidays.get(day.id)}
           />
         ) : (
           <OverviewTabs
@@ -881,6 +920,7 @@ function Workspace() {
                       <OverviewPanel
                   trip={trip}
                   forecast={forecast.byDay}
+                  typical={forecast.typical}
                   basePath={basePath}
                   editable={editable}
                   locked={locked}
@@ -894,6 +934,10 @@ function Workspace() {
                   onApplyRun={editor.applyActiveRun}
                   onDismissRun={editor.dismissRun}
                   onStopAi={editor.stopAi}
+                  onAddBooking={addBookingByHand}
+                  onPasteBookings={() => setPasting(true)}
+                  onUpdateDay={(dayId, change, undo) => editor.setDays((days) => days.map((d) => (d.id === dayId ? change(d) : d)), undo)}
+                  onOpenRecap={() => setRecapOpen(true)}
                 />
               ) : (
                 <OverlayBoundary onError={overlayFailed(`The ${tabLabel(open)} tab`, () => setTab("itinerary"))}>
@@ -917,6 +961,7 @@ function Workspace() {
                         <ChecklistPanel trip={trip} editable={editable} locked={locked} people={trip.party} onEdit={editor.edit} />
                       )}
                       {open === "essentials" && <EssentialsPanel trip={trip} />}
+                      {open === "wishlist" && <IdeasPanel trip={trip} editable={editable} locked={locked} near={near} onEdit={editor.edit} />}
                     </div>
                   </Suspense>
                 </OverlayBoundary>
@@ -927,7 +972,7 @@ function Workspace() {
       </div>
 
       <p {...sx(a.srOnly)} role="status" aria-live="polite">
-        {announce}
+        {editor.notice && !PROBLEM.test(editor.notice) ? editor.notice : announce}
       </p>
       {printer.node}
       {(toast || flash || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
@@ -986,7 +1031,7 @@ function Workspace() {
             </div>
           )}
           {editor.notice && (
-            <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : "status"}>
+            <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : undefined}>
               <span {...sx(a.grow, a.wrap)}>{editor.notice}</span>
               <button type="button" {...sx(s.dockBtn)} onClick={() => editor.setNotice(null)}>
                 Dismiss
@@ -1115,6 +1160,7 @@ function Workspace() {
       )}
 
       <div {...sx(s.bar)}>
+        {!wide && saveLine("bar")}
         <div {...sx(share.segment, s.barSegment)} role="radiogroup" aria-label="View" onKeyDown={onViewKey}>
           <button
             type="button"
@@ -1159,9 +1205,10 @@ function Workspace() {
           trip={trip}
           open={dialog === "details" && !locked}
           onClose={() => setDialog(null)}
-          onSave={(next: Trip) => {
-            const lost = itemTotal(next.days) < itemTotal(trip.days)
-            editor.edit(() => next, lost ? { label: "Changed the trip dates", toast: true } : { label: "Updated the trip details" })
+          onApply={(patch) => {
+            // Only what the dialog changed lands, on the trip as it is now.
+            editor.edit((doc) => applyDetailsPatch(doc, patch), detailsUndo(trip, patch))
+            const next = applyDetailsPatch(trip, patch)
             if (dayId && !next.days.some((d: TripDay) => d.id === dayId)) navigate(basePath)
           }}
         />
@@ -1188,6 +1235,20 @@ function Workspace() {
             onAdd={addFromInstagram}
           />
         </Suspense>
+        </OverlayBoundary>
+      )}
+      {recapOpen && (
+        <OverlayBoundary onError={overlayFailed("The recap", () => setRecapOpen(false))}>
+          <Suspense fallback={null}>
+            <TripRecap open trip={trip} onClose={() => setRecapOpen(false)} />
+          </Suspense>
+        </OverlayBoundary>
+      )}
+      {editable && pasting && (
+        <OverlayBoundary onError={overlayFailed("Paste a confirmation", () => setPasting(false))}>
+          <Suspense fallback={null}>
+            <PasteBookingsSheet trip={trip} getToken={editor.readToken} onClose={() => setPasting(false)} onAdd={addPasted} />
+          </Suspense>
         </OverlayBoundary>
       )}
       <Modal
@@ -1285,8 +1346,12 @@ function Workspace() {
 
 /** The count of unticked things beside Checklist, read as "3 left". */
 function tabBadges(trip: Trip): Partial<Record<OverviewTab, TabBadge>> {
+  const badges: Partial<Record<OverviewTab, TabBadge>> = {}
   const open = (trip.checklist ?? []).filter((item) => !item.done).length
-  return open > 0 ? { checklist: { text: String(open), label: `${open} left` } } : {}
+  if (open > 0) badges.checklist = { text: String(open), label: `${open} left` }
+  const saved = trip.ideas?.length ?? 0
+  if (saved > 0) badges.wishlist = { text: String(saved), label: `${saved} on the wishlist` }
+  return badges
 }
 
 const tabLabel = (tab: OverviewTab) => OVERVIEW_TABS.find((t) => t.id === tab)?.label.toLowerCase() ?? tab

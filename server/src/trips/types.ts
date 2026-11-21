@@ -44,7 +44,7 @@ export interface TripLocation {
 }
 
 export type ItemKind = "place" | "note" | "section" | "reservation"
-export type ItemStatus = "none" | "optional" | "booked" | "completed" | "needs_review"
+export type ItemStatus = "none" | "optional" | "booked" | "completed" | "skipped" | "needs_review"
 
 export interface ItineraryReservation {
   type: string // flight | hotel | meal | bar | experience | transit | event | …
@@ -52,6 +52,20 @@ export interface ItineraryReservation {
   confirmation?: string
   contact?: string
   url?: string
+  /** Airline, hotel, rental company or operator. */
+  provider?: string
+  /** Flight, train or booking line number ("UA 123"). */
+  number?: string
+  /** Where it leaves from: an airport code, station or pick-up place. */
+  from?: string
+  /** Where it arrives: an airport code, station or drop-off place. */
+  to?: string
+  /** ISO date it ends (arrival, check-out, drop-off) when that is not the item's own day. */
+  endDate?: string
+  /** IANA zone of the end (a flight landing in another zone); the day's zone when absent. */
+  endTimezone?: string
+  seat?: string
+  terminal?: string
 }
 
 /** An amount in a currency's major unit (12.5 = twelve euros fifty). */
@@ -74,6 +88,8 @@ export interface ItineraryItem {
   reservation?: ItineraryReservation
   /** What this stop or booking costs: the planned side of the budget. */
   cost?: Money
+  /** The traveller loved it: kept for the trip's recap. */
+  highlight?: boolean
   createdBy: LocationSource
 }
 
@@ -101,6 +117,10 @@ export interface TripDay {
   neighborhoods?: string[]
   weather?: DayWeather
   callouts?: DayCallout[]
+  /** IANA zone the day is lived in, when it differs from the trip's (a multi-country trip). */
+  timezone?: string
+  /** What the traveller wrote about the day, during or after it. */
+  journal?: string
   items: ItineraryItem[]
 }
 
@@ -206,6 +226,8 @@ export interface Trip {
   party?: TripPerson[]
   expenses?: TripExpense[]
   checklist?: ChecklistItem[]
+  /** Places saved for later that are not on any day yet. */
+  ideas?: ItineraryItem[]
   createdAt: string
   updatedAt: string
 }
@@ -391,7 +413,7 @@ export const itemSchema = z.object({
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   notes: z.string().max(8000).optional(),
   links: z.array(z.string().max(2000)).max(20).optional(),
-  status: z.enum(["none", "optional", "booked", "completed", "needs_review"]).default("none"),
+  status: z.enum(["none", "optional", "booked", "completed", "skipped", "needs_review"]).default("none"),
   location: locationSchema.optional(),
   reservation: z
     .object({
@@ -400,9 +422,18 @@ export const itemSchema = z.object({
       confirmation: z.string().max(120).optional(),
       contact: z.string().max(200).optional(),
       url: z.string().max(2000).optional(),
+      provider: z.string().max(120).optional(),
+      number: z.string().max(40).optional(),
+      from: z.string().max(120).optional(),
+      to: z.string().max(120).optional(),
+      endDate: isoDate.optional(),
+      endTimezone: z.string().max(64).optional(),
+      seat: z.string().max(40).optional(),
+      terminal: z.string().max(40).optional(),
     })
     .optional(),
   cost: moneySchema.optional(),
+  highlight: z.boolean().optional(),
   createdBy: z.enum(["user", "ai", "migration"]).default("user"),
 })
 
@@ -430,6 +461,8 @@ export const daySchema = z.object({
   neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),
   weather: weatherSchema.optional(),
   callouts: z.array(calloutSchema).max(12).optional(),
+  timezone: z.string().max(64).optional(),
+  journal: z.string().max(8000).optional(),
   items: z.array(itemSchema).max(200),
 })
 
@@ -519,6 +552,7 @@ export const updateTripSchema = z.object({
   party: z.array(personSchema).max(50).optional(),
   expenses: z.array(expenseSchema).max(1000).optional(),
   checklist: z.array(checklistItemSchema).max(500).optional(),
+  ideas: z.array(itemSchema).max(200).optional(),
 })
 
 export const generateRequestSchema = z.object({

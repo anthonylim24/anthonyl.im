@@ -106,6 +106,13 @@ describe("insertByTime", () => {
     const timedDay = [stop("A", { time: "09:00" })]
     expect(insertByTime(timedDay, stop("New")).at(-1)!.title).toBe("New")
   })
+
+  test("keeps new stops on the route, above the places parked under To schedule", () => {
+    const heading: ItineraryItem = { ...stop("To schedule"), kind: "section" }
+    const items = [stop("A", { time: "09:00" }), stop("B", { time: "13:00" }), heading, stop("Parked")]
+    expect(insertByTime(items, stop("Late", { time: "21:00" })).map((i) => i.title)).toEqual(["A", "B", "Late", "To schedule", "Parked"])
+    expect(insertByTime(items, stop("Loose")).map((i) => i.title)).toEqual(["A", "B", "Loose", "To schedule", "Parked"])
+  })
 })
 
 test("weekday reads the calendar date", () => {

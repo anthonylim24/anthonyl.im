@@ -336,6 +336,50 @@ describe("splitting", () => {
   it("needs nothing when everyone is square", () => {
     expect(settleUp([{ personId: "a", paid: 5, share: 5, net: 0 }], "EUR")).toEqual([])
   })
+
+  /** Every balance after the transfers, in minor units: all zero when settled. */
+  const after = (list: readonly Balance[], transfers: readonly { from: string; to: string; amount: number }[]) => {
+    const left = new Map(list.map((b) => [b.personId, Math.round(b.net * 100)]))
+    for (const t of transfers) {
+      left.set(t.from, (left.get(t.from) ?? 0) + Math.round(t.amount * 100))
+      left.set(t.to, (left.get(t.to) ?? 0) - Math.round(t.amount * 100))
+    }
+    return [...left.values()]
+  }
+  const nets = (values: number[]): Balance[] => values.map((net, i) => ({ personId: `p${i}`, paid: 0, share: 0, net }))
+
+  it("finds the fewest transfers where paying the largest debt first would take more", () => {
+    // Owed 6 and 4; owing 4, 3 and 3. Largest-first takes four transfers; two groups settle in three.
+    const list: Balance[] = [
+      { personId: "a", paid: 0, share: 0, net: 6 },
+      { personId: "b", paid: 0, share: 0, net: 4 },
+      { personId: "c", paid: 0, share: 0, net: -4 },
+      { personId: "d", paid: 0, share: 0, net: -3 },
+      { personId: "e", paid: 0, share: 0, net: -3 },
+    ]
+    expect(settleUp(list, "EUR")).toEqual([
+      { from: "d", to: "a", amount: 3 },
+      { from: "e", to: "a", amount: 3 },
+      { from: "c", to: "b", amount: 4 },
+    ])
+  })
+
+  it("is exact for a dozen people, with any order of balances", () => {
+    // Five groups shuffled among twelve: {9, −5, −4}, {7, −7}, {6, −3, −3}, {2, −2}, {1, −1}. Five people
+    // are owed, so five groups is the most there can be: 12 − 5 = 7 transfers.
+    const list = nets([-5, 6, -3, 7, 1, -4, -2, 9, -7, 2, -3, -1])
+    const transfers = settleUp(list, "USD")
+    expect(after(list, transfers).every((v) => v === 0)).toBe(true)
+    expect(transfers).toHaveLength(7)
+  })
+
+  it("still settles everyone past the exact limit, in at most one fewer transfer than people", () => {
+    const list = nets([50, -10, -10, -10, -10, -10, 30, -5, -5, -5, -5, -5, -5, 20, -10, -10])
+    expect(list.reduce((sum, b) => sum + b.net, 0)).toBe(0)
+    const transfers = settleUp(list, "USD")
+    expect(after(list, transfers).every((v) => v === 0)).toBe(true)
+    expect(transfers.length).toBeLessThanOrEqual(list.length - 1)
+  })
 })
 
 describe("newExpense", () => {

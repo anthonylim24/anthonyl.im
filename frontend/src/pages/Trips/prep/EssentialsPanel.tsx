@@ -2,10 +2,17 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefOb
 import { Phone } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
+import { wallClock } from "../dayClock"
+import { useHolidays, type Holiday } from "../holidays"
+import { formatTripDate } from "../meta"
 import type { Trip } from "../types"
 import type { Country } from "./countries"
+import { homeCurrency } from "./conversion"
+import { CurrencyConverter } from "./CurrencyConverter"
+import { DriverCard } from "./DriverCard"
 import {
   countriesFor,
+  dayCountries,
   formatLocalTime,
   formatMains,
   localZone,
@@ -14,11 +21,15 @@ import {
   zoneCity,
   zoneOffsetMinutes,
 } from "./essentials"
+import { tonightsStay } from "./tonight"
 import { prep as p } from "./prep.stylex"
 
-// What to know on arrival, per country the trip visits: the local clock,
-// money, plugs, who to call, which side of the road, tipping, language.
-// Static facts (`countries.ts`), no network.
+// What to know on arrival, and on the go: tonight's place to sleep in large
+// type for a driver, then per country the trip visits the local clock, money
+// (with a converter to the viewer's own), plugs, who to call, public
+// holidays on the trip's days, which side of the road, tipping, language.
+// The facts are static (`countries.ts`); the rate (Frankfurter) and the
+// holidays (Nager.Date) are fetched, and simply missing when they fail.
 
 export function EssentialsPanel({
   trip,
@@ -35,12 +46,28 @@ export function EssentialsPanel({
   const clock = useMinuteClock(now, rootRef)
   const viewer = viewerZone ?? viewerTimeZone()
   const countries = useMemo(() => countriesFor(trip), [trip])
+  // The converter shows where the money differs from the viewer's own as their zone tells it; what
+  // they pick in it is `home`, so picking the local money keeps the picker there to change back.
+  const ownMoney = homeCurrency(viewer, trip)
+  const [home, setHome] = useState(ownMoney)
+  const stay = tonightsStay(trip, clock)
+  const holidays = useHolidays(trip, now ? wallClock(now.getTime(), trip.timezone).date : undefined)
+  const holidaysIn = useMemo(() => {
+    const where = dayCountries(trip)
+    const byCountry = new Map<string, Holiday[]>()
+    for (const day of trip.days) {
+      const country = where.get(day.id)
+      for (const holiday of holidays.get(day.id) ?? []) if (country) byCountry.set(country.code, [...(byCountry.get(country.code) ?? []), holiday])
+    }
+    return byCountry
+  }, [trip, holidays])
 
   const knownZone =
     countries.length === 0 && !/^(UTC|Etc\/|GMT)/.test(trip.timezone) && zoneOffsetMinutes(trip.timezone, clock) !== null
 
   return (
     <div ref={rootRef} {...sx(p.root)}>
+      {stay && <DriverCard stay={stay} timezone={trip.timezone} />}
       {countries.length === 0 ? (
         <>
           <p {...sx(a.body, p.measure)}>Add a country or city as a destination to see local essentials.</p>
@@ -52,14 +79,45 @@ export function EssentialsPanel({
         </>
       ) : (
         countries.map((country) => (
-          <CountryEssentials key={country.code} country={country} zone={localZone(trip, country)} viewer={viewer} at={clock} />
+          <CountryEssentials
+            key={country.code}
+            country={country}
+            zone={localZone(trip, country)}
+            viewer={viewer}
+            at={clock}
+            home={home}
+            converts={country.currency.code !== ownMoney}
+            onHome={setHome}
+            holidays={holidaysIn.get(country.code) ?? []}
+          />
         ))
       )}
     </div>
   )
 }
 
-function CountryEssentials({ country, zone, viewer, at }: { country: Country; zone: string; viewer: string; at: Date }) {
+function CountryEssentials({
+  country,
+  zone,
+  viewer,
+  at,
+  home,
+  converts,
+  onHome,
+  holidays,
+}: {
+  country: Country
+  zone: string
+  viewer: string
+  at: Date
+  /** The viewer's own currency, for the converter. */
+  home: string
+  /** Whether this money differs from the viewer's own: a converter is worth showing. */
+  converts: boolean
+  onHome: (code: string) => void
+  /** Public holidays on the trip's days in this country, in date order. */
+  holidays: readonly Holiday[]
+}) {
   const headingId = useId()
   return (
     <section {...sx(p.country)} aria-labelledby={headingId}>
@@ -74,6 +132,7 @@ function CountryEssentials({ country, zone, viewer, at }: { country: Country; zo
           <span>
             {country.currency.name} <span {...sx(a.mono, a.muted)}>{country.currency.code}</span>
           </span>
+          {converts && <CurrencyConverter local={country.currency.code} home={home} onHome={onHome} />}
         </Fact>
         {(country.plugs || country.power) && (
           <Fact label="Plugs & voltage">
@@ -85,17 +144,26 @@ function CountryEssentials({ country, zone, viewer, at }: { country: Country; zo
           <Fact label="Emergency">
             <span {...sx(p.calls)}>
               {country.emergency.map((call) => (
-                <a
-                  key={`${call.label}-${call.number}`}
-                  href={`tel:${call.number}`}
-                  {...sx(a.btn, a.btnSm, a.btnSecondary, p.call)}
-                >
-                  <Phone size={13} strokeWidth={1.75} aria-hidden />
+                <a key={`${call.label}-${call.number}`} href={`tel:${call.number}`} {...sx(a.btn, a.btnSecondary, p.call)}>
+                  <Phone size={16} strokeWidth={1.75} aria-hidden />
                   {call.label}
-                  <span {...sx(a.mono)}>{call.number}</span>
+                  <span {...sx(a.mono, p.callNumber)}>{call.number}</span>
                 </a>
               ))}
             </span>
+          </Fact>
+        )}
+        {holidays.length > 0 && (
+          <Fact label="Public holidays">
+            <ul {...sx(p.holidays)}>
+              {holidays.map((holiday) => (
+                <li key={`${holiday.date}-${holiday.name}`} {...sx(p.holiday)}>
+                  <span {...sx(a.mono, p.holidayDate)}>{formatTripDate(holiday.date, zone)}</span>
+                  <span {...sx(a.wrap)}>{holiday.name}</span>
+                </li>
+              ))}
+            </ul>
+            <span {...sx(a.small)}>Shops and museums may close or keep short hours.</span>
           </Fact>
         )}
         {country.driving && <Fact label="Driving">{country.driving === "left" ? "On the left" : "On the right"}</Fact>}

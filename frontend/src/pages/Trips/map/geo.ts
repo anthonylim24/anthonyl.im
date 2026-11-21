@@ -92,12 +92,15 @@ export function splitDay(day: Pick<TripDay, "items">): { planned: ItineraryItem[
   return { planned: day.items.slice(0, at), parked: day.items.slice(at + 1) }
 }
 
-/** Pinned stops on the day's route, in order. Parked places are not on it. */
+/** A stop the traveller marked skipped: still on the day, never on its route. */
+const isSkipped = (item: ItineraryItem) => item.status === "skipped"
+
+/** Pinned stops on the day's route, in order. Parked and skipped places are not on it. */
 export function locatedItems(day: TripDay): ItineraryItem[] {
-  return splitDay(day).planned.filter(isLocated)
+  return splitDay(day).planned.filter((item) => isLocated(item) && !isSkipped(item))
 }
 
-/** Numbered stop pins for one day, in itinerary order, then a plain dot for each parked place. */
+/** Numbered stop pins for one day, in itinerary order, then a plain dot for each skipped or parked place. */
 export function dayPins(day: TripDay, fresh?: ReadonlySet<string>): AtlasPin[] {
   const stops = locatedItems(day).map(
     (item, index): AtlasPin => ({
@@ -110,6 +113,17 @@ export function dayPins(day: TripDay, fresh?: ReadonlySet<string>): AtlasPin[] {
       fresh: fresh?.has(item.id),
     }),
   )
+  const skipped = splitDay(day)
+    .planned.filter((item) => isLocated(item) && isSkipped(item))
+    .map(
+      (item): AtlasPin => ({
+        id: item.id,
+        lat: item.location!.lat!,
+        lng: item.location!.lng!,
+        title: `${item.title || item.location!.name} (skipped)`,
+        variant: "dot",
+      }),
+    )
   const parked = splitDay(day)
     .parked.filter(isLocated)
     .map(
@@ -122,7 +136,7 @@ export function dayPins(day: TripDay, fresh?: ReadonlySet<string>): AtlasPin[] {
         fresh: fresh?.has(item.id),
       }),
     )
-  return [...stops, ...parked]
+  return [...stops, ...skipped, ...parked]
 }
 
 /** Id prefix for the overview's per-day pins. */

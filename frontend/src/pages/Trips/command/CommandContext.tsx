@@ -188,7 +188,8 @@ export function CommandProvider({ children }: { children: ReactNode }) {
 export function useRegisterCommands(source: string, commands: readonly Command[]): void {
   const registry = useContext(RegistryContext)
   const latest = useRef(commands)
-  const signature = commandsSignature(commands)
+  // Callers that memoise their list (the workspace does) skip the string build too.
+  const signature = useMemo(() => commandsSignature(commands), [commands])
   useLayoutEffect(() => {
     latest.current = commands
   })

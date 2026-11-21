@@ -1,6 +1,8 @@
 import type { ConciergeProposal, ProposalChange } from "../../lib/conciergeGrounding"
-import { dayHasPlaceNamed, itemFromConciergePlace, removeItem, updateItem } from "./tripEdits"
+import { dayHasPlaceNamed, insertByTime, itemFromConciergePlace, removeItem, updateItem } from "./tripEdits"
 import type { ItineraryItem, TripDay } from "./types"
+
+export { insertByTime }
 
 // Applying what the concierge proposed. Pure: every function returns new
 // arrays, so the caller can diff, save and undo.
@@ -21,26 +23,6 @@ export function dayWeekday(day: Pick<TripDay, "date">): string {
 
 export function dayLabel(day: TripDay, index: number): string {
   return day.title?.trim() || `Day ${index + 1}`
-}
-
-/**
- * Insert an item where its time says it belongs. Untimed items, and items on
- * a day with no times at all, go to the end. Mirrors the server's
- * `insertByTime` (server/src/trips/signals.ts).
- */
-export function insertByTime(items: readonly ItineraryItem[], item: ItineraryItem): ItineraryItem[] {
-  if (!item.time || !items.some((existing) => existing.time)) return [...items, item]
-  let at = items.length
-  for (let i = 0; i < items.length; i++) {
-    const existing = items[i]!
-    if (existing.time && existing.time > item.time) {
-      at = i
-      break
-    }
-  }
-  // Don't strand the new item above a heading that introduces the next block.
-  while (at > 0 && items[at - 1]!.kind === "section" && (!items[at - 1]!.time || items[at - 1]!.time! > item.time)) at -= 1
-  return [...items.slice(0, at), item, ...items.slice(at)]
 }
 
 function withDay(days: TripDay[], dayId: string, fn: (day: TripDay) => TripDay): TripDay[] {
