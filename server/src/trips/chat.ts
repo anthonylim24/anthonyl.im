@@ -1,7 +1,7 @@
 // The trip concierge: POST /api/trips/:id/chat → SSE.
 //
-// What Gemini 4 Hydrogen actually does on this API (probed 2026-11-14 with
-// the production key; `modelVersion` on every response confirms the model):
+// What Gemini 4 Neon actually does on this API (probed 2026-11-20;
+// `modelVersion` on every response confirms the model):
 //   · Google Search grounding works. Google Maps grounding works. The two
 //     together are a 400 ("'google_maps' and 'google_search' cannot be
 //     combined"), so the old Search+Maps ladder paid for a failed request on
@@ -11,15 +11,15 @@
 //     The stream then also carries the built-in tool's own `toolCall` /
 //     `toolResponse` parts, which is where the live "Searching the web: …"
 //     status comes from.
-//   · Thought summaries are not streamed (`includeThoughts` returns no
-//     thought parts), only opaque `thoughtSignature`s, which must be replayed
-//     unchanged when a function response is sent back.
+//   · Function calls carry opaque `thoughtSignature`s, which must be replayed
+//     unchanged when a function response is sent back. Thought parts are
+//     hidden from the traveller.
 //   · `thinkingLevel` LOW is the floor. `maxOutputTokens` includes thinking
 //     tokens, so a small cap can finish with MAX_TOKENS and no text.
-//   · Asked to "reply, then call a function", it calls the function first.
-//     Follow-up chips are therefore a separate, cheap structured call.
+//   · Follow-up chips are a separate, cheap structured call made after the
+//     answer has streamed.
 //
-// So the concierge is a small tool loop on Hydrogen:
+// So the concierge is a small tool loop on Neon:
 //   googleSearch (built in)   facts that change: closures, strikes, events
 //   find_places               Google Places: real venues, hours, the walk
 //   get_directions            Google Routes: transit lines, walk, drive
@@ -606,11 +606,6 @@ export function resetForecastCache(): void {
 
 // ── Follow-up chips (separate, cheap, structured) ────────────────────────
 
-/** Model for the 2–3 follow-up chips: the app model at low thinking (about
- *  2 s, after the answer has streamed). Best effort: on any failure the
- *  reply simply has no chips. */
-export const CONCIERGE_FOLLOWUP_MODEL = process.env.GEMINI_FOLLOWUP_MODEL?.trim() || GEMINI_MODEL
-
 const CANNOT_DO =
   /\b(book|reserve|reservar|réserver|call|ligar|phone|order|pay|buy|email|message)\b.*\b(for (us|me)|us an?|me an?|a table|a taxi|an? (uber|bolt)|a ride|tickets?|them|it)\b|^(can|could|will) you (book|reserve|call|order|pay|buy|email|fix|confirm)\b/i
 
@@ -631,6 +626,9 @@ export function cleanFollowups(raw: unknown, question: string): string[] {
   return out.slice(0, 3)
 }
 
+/** The 2–3 follow-up chips, on the app model at low thinking (about 2 s,
+ *  after the answer has streamed). Best effort: on any failure the reply
+ *  simply has no chips. */
 export async function generateFollowups(args: {
   apiKey: string
   question: string
@@ -655,7 +653,7 @@ export async function generateFollowups(args: {
     .filter(Boolean)
     .join("\n")
   try {
-    const res = await fetchGeminiModel(args.fetchImpl ?? fetch, `${GEMINI_BASE}/models/${CONCIERGE_FOLLOWUP_MODEL}:generateContent`, {
+    const res = await fetchGeminiModel(args.fetchImpl ?? fetch, `${GEMINI_BASE}/models/${GEMINI_MODEL}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": args.apiKey },
       body: JSON.stringify({
@@ -808,7 +806,7 @@ export async function streamTripChat(c: Context, args: StreamTripChatArgs): Prom
                 systemInstruction: { parts: [{ text: systemInstruction }] },
                 contents,
                 generationConfig: {
-                  // Includes thinking tokens on Hydrogen: leave real room.
+                  // Includes thinking tokens: leave real room.
                   maxOutputTokens: 8192,
                   // `minimal` is rejected (400). `low` is the snappy chat tier.
                   thinkingConfig: geminiThinking("low"),
