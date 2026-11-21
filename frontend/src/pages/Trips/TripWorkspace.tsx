@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
-  LayoutGrid,
   List,
   Map as MapIcon,
   MoreHorizontal,
@@ -23,7 +22,7 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
-import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
+import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
 import { makeItem } from "./tripEdits"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
@@ -38,11 +37,12 @@ import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
-import { useForecast } from "./forecast"
+import { daySky, useForecast } from "./forecast"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
+import { DayRail } from "./workspace/DayRail"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
 import { OverviewTabs, type TabBadge } from "./workspace/OverviewTabs"
@@ -221,7 +221,6 @@ function Workspace() {
   const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
   const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
-  const railRef = useRef<HTMLElement>(null)
   /** Phones mount the map the first time it is asked for, then only hide it. */
   const [mapOpened, setMapOpened] = useState(false)
   if (view === "map" && !mapOpened) setMapOpened(true)
@@ -305,7 +304,6 @@ function Workspace() {
   useEffect(() => {
     if (wide) paneRef.current?.scrollTo({ top: 0 })
     else window.scrollTo({ top: 0 })
-    railRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayId, trip?.id])
 
@@ -631,7 +629,6 @@ function Workspace() {
 
   const accent = resolveAccent(trip.appearance?.accent)
   const timing = tripTiming(trip)
-  const today = todayIsoIn(trip.timezone)
   const owner = editor.access === "owner"
   const showMap = wide || view === "map"
   const sync = editor.sync
@@ -809,29 +806,7 @@ function Workspace() {
           </header>
         )}
 
-        <nav {...sx(s.rail)} aria-label="Days" ref={railRef}>
-          <Link to={basePath} {...sx(s.railItem, s.railAll, !dayId && s.railItemOn)} aria-current={!dayId ? "page" : undefined}>
-            <LayoutGrid size={15} strokeWidth={1.75} aria-hidden />
-            Overview
-          </Link>
-          {trip.days.map((d, index) => (
-            <Link
-              key={d.id}
-              to={`${basePath}/day/${d.id}`}
-              {...sx(s.railItem, d.id === dayId && s.railItemOn)}
-              aria-current={d.id === dayId ? "page" : undefined}
-              aria-label={`Day ${index + 1}, ${formatTripDate(d.date, trip.timezone, { weekday: "long", month: "long" })}${d.date === today ? ", today" : ""}, ${plural(d.items.length, "item")}`}
-            >
-              {d.date === today && <span {...sx(s.railToday)} aria-hidden />}
-              <span {...sx(s.railDow, d.items.length === 0 && d.id !== dayId && s.railEmpty)}>
-                {formatTripDate(d.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
-              </span>
-              <span {...sx(s.railNum, d.items.length === 0 && d.id !== dayId && s.railEmpty)}>
-                {formatTripDate(d.date, trip.timezone, { weekday: undefined, month: undefined, day: "numeric" })}
-              </span>
-            </Link>
-          ))}
-        </nav>
+        <DayRail trip={trip} basePath={basePath} dayId={dayId} />
 
         {dayId && !day ? (
           <div {...sx(s.content)} role="alert">
@@ -871,7 +846,7 @@ function Workspace() {
             onStopAi={editor.stopAi}
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
             onInstagram={openInstagram}
-            forecast={forecast.get(day.id)}
+            sky={daySky(day, forecast)}
           />
         ) : (
           <OverviewTabs
@@ -882,7 +857,7 @@ function Workspace() {
               open === "itinerary" ? (
                       <OverviewPanel
                   trip={trip}
-                  forecast={forecast}
+                  forecast={forecast.byDay}
                   basePath={basePath}
                   editable={editable}
                   locked={locked}

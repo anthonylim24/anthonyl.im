@@ -7,7 +7,7 @@ Some art on the site is made offline and committed: Lim's toy box and the models
 | Toys | `art/toys.py`: each catalog toy in `chat/world/spec.ts` modelled by hand after the concept sheet `art/concepts/toybox.webp` (ChatGPT Image) | `src/chat/toys/<key>.webp` (240 px still) and `<key>.turn.webp` (48 frames of one turn, 160 px each, in one strip, played over 1.6 s at 30 fps) | `ToyCard.tsx` via `chat/toyArt.ts` |
 | Stage models | The same `art/toys.py` builders at stage detail, every catalog toy but the hoop and the goal | `src/chat/toys/<key>.mesh` (at most 3000 triangles, 11 to 28 kB) | `modelLook` in `chat/scene/items.ts` via `chat/scene/toyMesh.ts` |
 | Seals | `art/seals.py`: a wax puddle in the badge's `sealInk`, pressed with a beaded ring and its Fraunces monogram | `src/breathflow/seals/<badge id>.webp` (144 px) | `WaxSeal` in `BadgeGrid.tsx` |
-| Engravings | `art/concepts/<name>.webp`, black ink on white from ChatGPT Image | `src/pages/Trips/art/<name>.webp` (640 px alpha mask) | `Engraving` in `pages/Trips/components/kit.tsx` |
+| Engravings | `art/concepts/<name>.webp`, black ink on white from ChatGPT Image | `src/pages/Trips/art/<name>.webp` (alpha mask, 640 px); each sky as two 384 px masks, `sky-<sky>.webp` (lines) and `sky-<sky>.print.webp` (dark paper) | `Engraving` in `pages/Trips/components/kit.tsx`; the nine skies (`sky-*`) through `SKIES` in `pages/Trips/forecast.ts`, shown by `DaySky` |
 
 ## Rebuilding
 
@@ -63,4 +63,8 @@ A snippet imports `studio` and `toys` (or `seals`), reloads them and calls `toys
 
 ## Drawing with ChatGPT Image
 
-The concept sheet and the engravings were drawn in the ChatGPT desktop app. The engraving prompts asked for an antique copperplate engraving in pure black ink on pure white, with hatching only and no text, border or colour. Save the result to `art/concepts/<name>.webp` and run `bun art/render.ts engravings`, which turns ink into alpha. Add a new name to `ENGRAVINGS` in `render.ts`.
+The concept sheet and the engravings were drawn in the ChatGPT desktop app. The engraving prompts asked for an antique copperplate engraving in pure black ink on pure white, with hatching only and no text, border or colour. Save the result to `art/concepts/<name>.webp` and run `bun art/render.ts engravings`, which turns ink into alpha. Add a new name and its size to `ENGRAVINGS` in `render.ts`.
+
+The nine skies (`sky-clear`, `sky-partly-cloudy`, `sky-cloudy`, `sky-fog`, `sky-drizzle`, `sky-rain`, `sky-showers`, `sky-snow`, `sky-thunder`) were drawn as one set in one conversation so their line weight and scale match: an 18th-century almanac weather vignette, one subject centred with a wide white margin, no faces on the sun or clouds. Each WMO code the forecast reads maps to one of them (`CODES` in `forecast.ts`); a new sky needs a row there, an entry in `SKIES` and its engraving. Below about 3rem the hatching turns to grey, so small rows keep the Lucide glyph.
+
+The skies go through `art/sky.ts` rather than a plain ink-to-alpha pass. It frames every sky the same way (the drawing's bounds squared, with a 5% margin), lifts the hairlines with a gamma so they survive the downscale (`SKY_WEIGHT` thickens rain strokes), and makes a second mask for dark paper. Inked light on dark, a line engraving reads as a negative, so the print fills each body (outline closed, filled from the edge, small pieces such as flakes and drops dropped) and cuts the lines out of it: a pale cloud with dark lines. Fog has no body and keeps its lines (`LINES_ONLY`). `.trips-sky-art` in `index.css` swaps the mask under `html.dark`.

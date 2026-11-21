@@ -1,6 +1,6 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { isToSchedule, TO_SCHEDULE } from "../map/geo"
-import { ArrowDown, ArrowUp, ChevronDown, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, CloudRain, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2, TriangleAlert } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
@@ -23,6 +23,10 @@ export interface ItemCardProps {
   count: number
   /** Number shown on the map pin, when the item has coordinates. */
   pinLabel: string | null
+  /** "Overlaps Kiyomizu-dera": this stop collides with an earlier one (`stopAlerts`). */
+  conflict: string | null
+  /** "Showers likely · 60% chance": rain is likely while it is on. */
+  rain: string | null
   editable: boolean
   locked: boolean
   hot: boolean
@@ -57,6 +61,8 @@ export const ItemCard = memo(function ItemCard({
   index,
   count,
   pinLabel,
+  conflict,
+  rain,
   editable,
   locked,
   hot,
@@ -216,14 +222,24 @@ export const ItemCard = memo(function ItemCard({
             {(category || sub || item.status !== "none") && (
               <span {...sx(s.cardSub)}>
                 {category && <span>{category}</span>}
-                {item.status !== "none" && (
-                  <span {...sx(a.chip, item.status === "booked" ? a.chipOk : undefined)}>{STATUS_LABEL[item.status]}</span>
-                )}
+                {item.status !== "none" && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{STATUS_LABEL[item.status]}</span>}
                 {sub && (
                   <span {...sx(a.truncate)} style={{ flexBasis: "100%" }}>
                     {sub}
                   </span>
                 )}
+              </span>
+            )}
+            {conflict && (
+              <span {...sx(s.cardAlert)}>
+                <TriangleAlert size={12} strokeWidth={2} aria-hidden {...sx(s.cardAlertIcon)} />
+                <span {...sx(a.wrap)}>{conflict}</span>
+              </span>
+            )}
+            {rain && (
+              <span {...sx(s.cardAlert, s.cardRain)}>
+                <CloudRain size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
+                <span {...sx(a.wrap)}>{rain}</span>
               </span>
             )}
           </span>

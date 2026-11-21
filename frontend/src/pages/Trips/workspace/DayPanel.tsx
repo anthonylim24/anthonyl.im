@@ -1,7 +1,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
-import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, CloudSun, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
+import { ArrowDownUp, ArrowLeft, ArrowRight, CalendarClock, Lightbulb, Eraser, List, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
@@ -15,8 +15,8 @@ import { a } from "../atlas.stylex"
 import { share, ws as s } from "../workspace.stylex"
 import { Menu, type MenuItem } from "../components/kit"
 import { calendarMenuItem } from "../calendar/calendarMenu"
-import { ForecastChip } from "./ForecastChip"
-import { FAHRENHEIT, formatTemp, type DayForecast } from "../forecast"
+import { DaySky } from "./DaySky"
+import type { DaySky as Sky } from "../forecast"
 import { NowLine } from "../live/NowLine"
 import { clockIn, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
@@ -28,6 +28,7 @@ import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type ItemCardProps } from "./ItemCard"
+import { stopAlerts } from "./stopAlerts"
 
 export interface DayPanelProps {
   trip: Trip
@@ -60,8 +61,8 @@ export interface DayPanelProps {
   onPhotoreal?: () => void
   /** Opens the Instagram import with these post links. */
   onInstagram?: (urls: string[]) => void
-  /** Live forecast for this day, when it is within the forecast window. */
-  forecast?: DayForecast
+  /** The day's weather: the live forecast, the AI's, a held place while loading, or none. */
+  sky: Sky
 }
 
 /** Timed items in clock order; untimed items stay behind the timed item they followed. */
@@ -136,7 +137,7 @@ export function DayPanel({
   onStopAi,
   onPhotoreal,
   onInstagram,
-  forecast,
+  sky,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
@@ -180,6 +181,13 @@ export function DayPanel({
   }, [planned])
   const [dayView, setDayView] = useDayView()
   const currency = defaultCurrency(trip)
+  const forecast = sky.status === "forecast" ? sky.forecast : undefined
+  const alerts = useMemo(() => stopAlerts(day, forecast?.hours), [day, forecast])
+  const summary =
+    [stops > 0 ? plural(stops, "stop") : null, meters > 100 ? formatDistance(meters) : null, toSchedule > 0 ? `${toSchedule} to schedule` : null]
+      .filter(Boolean)
+      // An empty day's card already says "Nothing planned yet"; the header does not echo it.
+      .join(" · ") || (day.items.length === 0 ? null : "Nothing planned")
 
   const outOfOrder = useMemo(() => {
     const times = day.items.filter((i) => i.kind !== "section" && i.time).map((i) => i.time!)
@@ -248,59 +256,51 @@ export function DayPanel({
       <header {...sx(s.dayHead)}>
         <p {...sx(a.eyebrow)}>
           Day {dayIndex + 1} of {trip.days.length} · {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
-          {isToday && <span {...sx(a.accentText)}> · Today</span>}
+          {isToday && <span {...sx(s.tripText)}> · Today</span>}
         </p>
-        {editable ? (
-          <textarea
-            rows={1}
-            aria-label="Day title"
-            value={day.title ?? ""}
-            placeholder={`Name day ${dayIndex + 1}`}
-            disabled={locked}
-            {...sx(s.titleInput, s.dayTitle, "trips-day-title-input")}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault()
-                event.currentTarget.blur()
-              }
-            }}
-            onChange={(event) => patchDay({ title: event.target.value.replace(/\s*\n\s*/g, " ") || undefined })}
-          />
-        ) : (
-          <h2 {...sx(a.display, s.dayTitle, a.wrap)}>{day.title || `Day ${dayIndex + 1}`}</h2>
-        )}
-        <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
-          <span {...sx(a.row, a.small)} style={{ gap: "0.25rem" }}>
-            <MapPin size={14} strokeWidth={1.75} aria-hidden />
+        <div {...sx(s.dayHeadTop)}>
+          <div {...sx(s.dayHeadMain)}>
             {editable ? (
-              <input
-                aria-label="City for this day"
-                value={day.city ?? ""}
-                placeholder="City"
+              <textarea
+                rows={1}
+                aria-label="Day title"
+                value={day.title ?? ""}
+                placeholder={`Name day ${dayIndex + 1}`}
                 disabled={locked}
-                {...sx(s.inlineInput)}
-                onChange={(event) => patchDay({ city: event.target.value || undefined })}
+                {...sx(s.titleInput, s.dayTitle, "trips-day-title-input")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault()
+                    event.currentTarget.blur()
+                  }
+                }}
+                onChange={(event) => patchDay({ title: event.target.value.replace(/\s*\n\s*/g, " ") || undefined })}
               />
             ) : (
-              (day.city ?? trip.destinations[0])
+              <h2 {...sx(a.display, s.dayTitle, a.wrap)}>{day.title || `Day ${dayIndex + 1}`}</h2>
             )}
-          </span>
-          {forecast ? (
-            <ForecastChip forecast={forecast} />
-          ) : (
-            day.weather && (
-              <span {...sx(a.row, a.small)} style={{ gap: "0.375rem" }}>
-                <CloudSun size={14} strokeWidth={1.75} aria-hidden />
-                {formatTemp(day.weather.highC, FAHRENHEIT)} / {formatTemp(day.weather.lowC, FAHRENHEIT)} {day.weather.condition}
+            <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
+              <span {...sx(a.row, a.small)} style={{ gap: "0.25rem" }}>
+                <MapPin size={14} strokeWidth={1.75} aria-hidden />
+                {editable ? (
+                  <input
+                    aria-label="City for this day"
+                    value={day.city ?? ""}
+                    placeholder="City"
+                    disabled={locked}
+                    {...sx(s.inlineInput)}
+                    onChange={(event) => patchDay({ city: event.target.value || undefined })}
+                  />
+                ) : (
+                  (day.city ?? trip.destinations[0])
+                )}
               </span>
-            )
-          )}
-          <span {...sx(a.small)}>
-            {plural(stops, "stop")}
-            {meters > 100 ? ` · ${formatDistance(meters)}` : ""}
-            {toSchedule > 0 ? ` · ${toSchedule} to schedule` : ""}
-          </span>
-          <span {...sx(a.grow)} />
+              {summary && <span {...sx(a.small)}>{summary}</span>}
+            </div>
+          </div>
+          <DaySky sky={sky} />
+        </div>
+        <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
           {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
           {editable && (
             <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={onAskAi}>
@@ -376,6 +376,7 @@ export function DayPanel({
             hotId={hotId}
             onHover={onHover}
             now={isToday ? clockIn(trip.timezone, now) : undefined}
+            forecast={forecast}
             onSelect={(id) => {
               const item = day.items.find((i) => i.id === id)
               // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
@@ -403,6 +404,8 @@ export function DayPanel({
                 index={index}
                 count={day.items.length}
                 pinLabel={labels.get(item.id) ?? null}
+                conflict={alerts.get(item.id)?.conflict ?? null}
+                rain={alerts.get(item.id)?.rain ?? null}
                 leg={legs.get(item.id)?.text ?? null}
                 legMode={legs.get(item.id)?.mode ?? null}
                 editable={editable}
@@ -492,15 +495,12 @@ function DayViewSwitch({ view, onChange }: { view: "list" | "timeline"; onChange
           role="radio"
           data-day-view={id}
           aria-checked={view === id}
-          aria-label={label}
           tabIndex={view === id ? 0 : -1}
           onClick={() => onChange(id)}
           {...sx(share.segmentBtn, s.viewSwitchBtn, view === id && share.segmentOn)}
         >
           <Icon size={14} strokeWidth={1.75} aria-hidden />
-          <span {...sx(s.wideOnly)} aria-hidden>
-            {label}
-          </span>
+          {label}
         </button>
       ))}
     </div>

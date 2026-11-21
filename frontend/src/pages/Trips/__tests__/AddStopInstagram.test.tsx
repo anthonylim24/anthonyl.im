@@ -16,7 +16,7 @@ describe("AddStop with Instagram import", () => {
     const onAdd = vi.fn()
     render(<AddStop near={null} onAdd={onAdd} onInstagram={onInstagram} />)
     const input = screen.getByRole("combobox")
-    expect(input).toHaveAttribute("placeholder", expect.stringContaining("Instagram link"))
+    expect(input).toHaveAttribute("placeholder", "Add a place, note or link…")
     fireEvent.change(input, { target: { value: LINK } })
     expect(screen.getAllByRole("option")).toHaveLength(1)
     fireEvent.keyDown(input, { key: "Enter" })

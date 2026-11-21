@@ -897,7 +897,9 @@ body {
   --brand: #b8400f;
   --brand-fill: #f0582b;
   --brand-soft: rgb(240 88 43 / 0.1);
-  --brand-ring: rgb(240 88 43 / 0.55);
+  /* Solid, not a tint: a focus ring needs 3:1 against the paper it sits on,
+     and the text tone has it in both themes (dark redefines --brand). */
+  --brand-ring: var(--brand);
   /* Trip accent (pins, route, date tiles, covers). Defaults to the brand. */
   --ta: #b8400f;
   --ta-strong: #96330b;
@@ -1095,6 +1097,19 @@ html.dark .trips[data-trip-accent="violet"] {
    Markers are created imperatively by map/engine.ts, so they are styled
    here. MapLibre owns `transform` on the button; every visual transform
    lives on the inner body. */
+
+/* The day's sky engraving (workspace/DaySky.tsx): its lines on light paper,
+   its print (bodies filled, lines cut out) on dark paper, so it never reads
+   as a negative. The masks arrive as --sky-ink / --sky-print. */
+.trips-sky-art {
+  -webkit-mask-image: var(--sky-ink);
+  mask-image: var(--sky-ink);
+}
+html.dark .trips .trips-sky-art,
+.trips.dark .trips-sky-art {
+  -webkit-mask-image: var(--sky-print);
+  mask-image: var(--sky-print);
+}
 
 .atlas-pin {
   position: absolute;

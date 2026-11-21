@@ -1,11 +1,29 @@
 import { useEffect, useMemo, useState } from "react"
 import { Effect } from "effect"
-import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Sun, type LucideIcon } from "lucide-react"
+import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, CloudSunRain, Sun, type LucideIcon } from "lucide-react"
 import { fetchExternal, parseJson } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
 import { addDays, todayIsoIn } from "./meta"
 import { dayRoute } from "./map/geo"
-import type { Trip } from "./types"
+import type { Trip, TripDay } from "./types"
+import clearArt from "./art/sky-clear.webp"
+import partlyCloudyArt from "./art/sky-partly-cloudy.webp"
+import cloudyArt from "./art/sky-cloudy.webp"
+import fogArt from "./art/sky-fog.webp"
+import drizzleArt from "./art/sky-drizzle.webp"
+import rainArt from "./art/sky-rain.webp"
+import showersArt from "./art/sky-showers.webp"
+import snowArt from "./art/sky-snow.webp"
+import thunderArt from "./art/sky-thunder.webp"
+import clearPrint from "./art/sky-clear.print.webp"
+import partlyCloudyPrint from "./art/sky-partly-cloudy.print.webp"
+import cloudyPrint from "./art/sky-cloudy.print.webp"
+import fogPrint from "./art/sky-fog.print.webp"
+import drizzlePrint from "./art/sky-drizzle.print.webp"
+import rainPrint from "./art/sky-rain.print.webp"
+import showersPrint from "./art/sky-showers.print.webp"
+import snowPrint from "./art/sky-snow.print.webp"
+import thunderPrint from "./art/sky-thunder.print.webp"
 
 // Live daily forecast for the days Open-Meteo covers (today and the next 15),
 // read at each day's own place. Keyless and best-effort: a failure shows
@@ -18,6 +36,20 @@ export interface DayForecast {
   /** Highest chance of precipitation that day, 0–100. */
   rainChance: number
   /** WMO weather code. */
+  code: number
+  /** "HH:mm" at the place, when Open-Meteo knows them (not past the poles). */
+  sunrise?: string
+  sunset?: string
+  /** The day hour by hour, at the place. */
+  hours?: HourForecast[]
+}
+
+export interface HourForecast {
+  /** "HH:mm" at the place. */
+  time: string
+  tempC: number
+  /** Chance of precipitation that hour, 0–100. */
+  rainChance: number
   code: number
 }
 
@@ -67,19 +99,139 @@ export function forecastRequests(trip: Pick<Trip, "days" | "center">, today: str
   return [...groups.values()].slice(0, MAX_REQUESTS)
 }
 
-type Kind = { word: string; icon: LucideIcon }
+export type SkyId = "clear" | "partly-cloudy" | "cloudy" | "fog" | "drizzle" | "rain" | "showers" | "snow" | "thunder"
 
-/** WMO code → a word and an icon. */
+/**
+ * Each sky has a small glyph for tight rows and an engraving for the day header:
+ * `art` is its lines (inked on light paper), `print` the same engraving with its
+ * bodies filled, so it reads as a positive on dark paper.
+ */
+export const SKIES: Record<SkyId, { icon: LucideIcon; art: string; print: string }> = {
+  clear: { icon: Sun, art: clearArt, print: clearPrint },
+  "partly-cloudy": { icon: CloudSun, art: partlyCloudyArt, print: partlyCloudyPrint },
+  cloudy: { icon: Cloud, art: cloudyArt, print: cloudyPrint },
+  fog: { icon: CloudFog, art: fogArt, print: fogPrint },
+  drizzle: { icon: CloudDrizzle, art: drizzleArt, print: drizzlePrint },
+  rain: { icon: CloudRain, art: rainArt, print: rainPrint },
+  showers: { icon: CloudSunRain, art: showersArt, print: showersPrint },
+  snow: { icon: CloudSnow, art: snowArt, print: snowPrint },
+  thunder: { icon: CloudLightning, art: thunderArt, print: thunderPrint },
+}
+
+/** WMO codes in order; the first row that matches names the sky. */
+const CODES: ReadonlyArray<readonly [(code: number) => boolean, string, SkyId]> = [
+  [(c) => c === 0, "Clear", "clear"],
+  [(c) => c <= 2, "Partly cloudy", "partly-cloudy"],
+  [(c) => c === 3, "Overcast", "cloudy"],
+  [(c) => c === 45 || c === 48, "Fog", "fog"],
+  [(c) => c >= 51 && c <= 57, "Drizzle", "drizzle"],
+  [(c) => c >= 61 && c <= 67, "Rain", "rain"],
+  [(c) => c >= 80 && c <= 82, "Showers", "showers"],
+  [(c) => (c >= 71 && c <= 77) || c === 85 || c === 86, "Snow", "snow"],
+  [(c) => c >= 95, "Thunderstorms", "thunder"],
+]
+
+export interface Kind {
+  word: string
+  sky: SkyId
+  icon: LucideIcon
+  art: string
+  print: string
+}
+
+/** WMO code → a word, a glyph and an engraving. */
 export function weatherKind(code: number): Kind {
-  if (code === 0) return { word: "Clear", icon: Sun }
-  if (code <= 2) return { word: "Partly cloudy", icon: CloudSun }
-  if (code === 3) return { word: "Overcast", icon: Cloud }
-  if (code === 45 || code === 48) return { word: "Fog", icon: CloudFog }
-  if (code >= 51 && code <= 57) return { word: "Drizzle", icon: CloudDrizzle }
-  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return { word: code >= 80 ? "Showers" : "Rain", icon: CloudRain }
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { word: "Snow", icon: CloudSnow }
-  if (code >= 95) return { word: "Thunderstorms", icon: CloudLightning }
-  return { word: "Cloudy", icon: Cloud }
+  const [, word, sky] = CODES.find(([test]) => test(code)) ?? [null, "Cloudy", "cloudy" as const]
+  return { word, sky, ...SKIES[sky] }
+}
+
+/** Words in a written forecast (the AI's "Light rain, mild") → the nearest sky. */
+const WORDS: ReadonlyArray<readonly [RegExp, SkyId]> = [
+  [/thunder|storm|lightning/i, "thunder"],
+  [/snow|sleet|flurr/i, "snow"],
+  [/shower/i, "showers"],
+  [/drizzle/i, "drizzle"],
+  [/rain|wet|monsoon/i, "rain"],
+  [/fog|mist|haz/i, "fog"],
+  [/partly|scattered|sun and cloud|mixed/i, "partly-cloudy"],
+  [/overcast|cloud|grey|gray/i, "cloudy"],
+  [/clear|sun|fine|bright|hot|warm/i, "clear"],
+]
+
+export function skyFromText(text: string): SkyId {
+  return WORDS.find(([pattern]) => pattern.test(text))?.[1] ?? "cloudy"
+}
+
+/**
+ * What the day header shows about the sky: the live forecast, the AI's
+ * expected weather when the day is out of the forecast's reach, a reserved
+ * place while a forecast is on its way, or nothing.
+ */
+export type DaySky =
+  | { status: "forecast"; forecast: DayForecast }
+  | { status: "expected"; highC: number; lowC: number; word: string; sky: SkyId }
+  | { status: "loading" }
+  /** In the forecast's reach, but the forecast did not come. */
+  | { status: "unavailable" }
+  | { status: "none" }
+
+export function daySky(day: Pick<TripDay, "id" | "weather">, forecasts: Forecasts): DaySky {
+  const live = forecasts.byDay.get(day.id)
+  if (live) return { status: "forecast", forecast: live }
+  if (forecasts.pending.has(day.id)) return { status: "loading" }
+  if (day.weather) {
+    const { highC, lowC, condition } = day.weather
+    return { status: "expected", highC, lowC, word: condition, sky: skyFromText(condition) }
+  }
+  return forecasts.missing.has(day.id) ? { status: "unavailable" } : { status: "none" }
+}
+
+/** "HH:mm" → minutes from midnight. */
+const minutesOf = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5))
+
+export interface WetSpell {
+  /** [from, to) in minutes from the day's midnight. */
+  from: number
+  to: number
+  /** The highest chance in the spell, 0–100. */
+  chance: number
+  /** The WMO code of its wettest hour: says whether it is rain, showers or snow. */
+  code: number
+}
+
+/** The stretches of the day when rain (or snow) is likely. */
+export function wetSpells(hours: readonly HourForecast[], threshold = 50): WetSpell[] {
+  const spells: WetSpell[] = []
+  for (const hour of hours) {
+    if (hour.rainChance < threshold) continue
+    const at = minutesOf(hour.time)
+    const last = spells[spells.length - 1]
+    if (last && last.to === at) {
+      last.to = at + 60
+      if (hour.rainChance > last.chance) {
+        last.chance = hour.rainChance
+        last.code = hour.code
+      }
+    } else spells.push({ from: at, to: at + 60, chance: hour.rainChance, code: hour.code })
+  }
+  return spells
+}
+
+/** What falls: "Snow", "Showers", "Rain". A dry code (the hour is only likely wet) says "Rain". */
+export function wetWord(code: number): string {
+  const { sky } = weatherKind(code)
+  if (sky === "snow") return "Snow"
+  if (sky === "showers") return "Showers"
+  if (sky === "drizzle") return "Drizzle"
+  if (sky === "thunder") return "Storms"
+  return "Rain"
+}
+
+/** The wettest spell that touches [from, to), if any. */
+export function wetDuring(spells: readonly WetSpell[], from: number, to: number): WetSpell | null {
+  let wettest: WetSpell | null = null
+  for (const spell of spells) if (spell.from < to && spell.to > from && (!wettest || spell.chance > wettest.chance)) wettest = spell
+  return wettest
 }
 
 /** Fahrenheit where it is the everyday scale. */
@@ -107,22 +259,56 @@ interface OpenMeteoDaily {
   temperature_2m_max?: (number | null)[]
   temperature_2m_min?: (number | null)[]
   precipitation_probability_max?: (number | null)[]
+  sunrise?: (string | null)[]
+  sunset?: (string | null)[]
+}
+
+interface OpenMeteoHourly {
+  time?: string[]
+  temperature_2m?: (number | null)[]
+  precipitation_probability?: (number | null)[]
+  weather_code?: (number | null)[]
+}
+
+/** "2026-07-10T06:12" → "06:12". */
+const clockOf = (stamp: string | null | undefined) => (stamp && /T\d\d:\d\d/.test(stamp) ? stamp.slice(11, 16) : undefined)
+
+/** date → that day's hours, dropping hours with no temperature. */
+function readHourly(hourly: OpenMeteoHourly | undefined): Map<string, HourForecast[]> {
+  const byDate = new Map<string, HourForecast[]>()
+  hourly?.time?.forEach((stamp, i) => {
+    const temp = hourly.temperature_2m?.[i]
+    const time = clockOf(stamp)
+    if (typeof temp !== "number" || !time) return
+    const date = stamp.slice(0, 10)
+    const hours = byDate.get(date) ?? []
+    hours.push({ time, tempC: temp, rainChance: hourly.precipitation_probability?.[i] ?? 0, code: hourly.weather_code?.[i] ?? 3 })
+    byDate.set(date, hours)
+  })
+  return byDate
 }
 
 /** Rows with a missing temperature are dropped rather than shown as 0°. */
-export function readDaily(daily: OpenMeteoDaily | undefined): DayForecast[] {
+export function readDaily(daily: OpenMeteoDaily | undefined, hourly?: OpenMeteoHourly): DayForecast[] {
   if (!daily?.time) return []
+  const hoursByDate = readHourly(hourly)
   const out: DayForecast[] = []
   daily.time.forEach((date, i) => {
     const high = daily.temperature_2m_max?.[i]
     const low = daily.temperature_2m_min?.[i]
     if (typeof high !== "number" || typeof low !== "number") return
+    const sunrise = clockOf(daily.sunrise?.[i])
+    const sunset = clockOf(daily.sunset?.[i])
+    const hours = hoursByDate.get(date)
     out.push({
       date,
       highC: high,
       lowC: low,
       rainChance: daily.precipitation_probability_max?.[i] ?? 0,
       code: daily.weather_code?.[i] ?? 3,
+      ...(sunrise ? { sunrise } : {}),
+      ...(sunset ? { sunset } : {}),
+      ...(hours?.length ? { hours } : {}),
     })
   })
   return out
@@ -131,12 +317,13 @@ export function readDaily(daily: OpenMeteoDaily | undefined): DayForecast[] {
 const fetchForecastEffect = Effect.fn("Forecast.fetch")(function* (req: ForecastRequest, signal?: AbortSignal) {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${req.lat}&longitude=${req.lng}` +
-    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset` +
+    `&hourly=temperature_2m,precipitation_probability,weather_code` +
     `&timezone=auto&start_date=${req.start}&end_date=${req.end}`
   const res = yield* fetchExternal(url, { signal })
   if (!res.ok) return [] as DayForecast[]
-  const body = yield* parseJson<{ daily?: OpenMeteoDaily }>(res)
-  return readDaily(body.daily)
+  const body = yield* parseJson<{ daily?: OpenMeteoDaily; hourly?: OpenMeteoHourly }>(res)
+  return readDaily(body.daily, body.hourly)
 })
 
 const cache = new Map<string, { at: number; rows: DayForecast[] }>()
@@ -150,8 +337,16 @@ async function loadForecast(req: ForecastRequest, signal: AbortSignal): Promise<
   return rows
 }
 
-/** dayId → that day's live forecast, for the days that have one. */
-export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | null): ReadonlyMap<string, DayForecast> {
+export interface Forecasts {
+  /** dayId → that day's live forecast, for the days that have one. */
+  byDay: ReadonlyMap<string, DayForecast>
+  /** Days a forecast has been asked for and has not answered yet. */
+  pending: ReadonlySet<string>
+  /** Days in the forecast's reach that it did not answer (the service failed or had no row). */
+  missing: ReadonlySet<string>
+}
+
+export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | null): Forecasts {
   const today = trip ? todayIsoIn(trip.timezone) : ""
   const requests = useMemo(() => (trip ? forecastRequests(trip, today) : []), [trip, today])
   // Only a change of place or dates refetches, not every edit to a stop.
@@ -180,9 +375,14 @@ export function useForecast(trip: Pick<Trip, "days" | "center" | "timezone"> | n
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` is the identity of `requests`
   }, [signature])
 
-  return loaded.signature === signature ? loaded.byDay : NONE
+  return useMemo(() => {
+    const asked = requests.flatMap((req) => [...req.days.keys()])
+    if (loaded.signature === signature) return { byDay: loaded.byDay, pending: EMPTY, missing: new Set(asked.filter((id) => !loaded.byDay.has(id))) }
+    return { byDay: NONE, pending: new Set(asked), missing: EMPTY }
+  }, [loaded, signature, requests])
 }
 
 const NONE: ReadonlyMap<string, DayForecast> = new Map()
+const EMPTY: ReadonlySet<string> = new Set()
 
 export const FAHRENHEIT = typeof navigator !== "undefined" && prefersFahrenheit(navigator.language)

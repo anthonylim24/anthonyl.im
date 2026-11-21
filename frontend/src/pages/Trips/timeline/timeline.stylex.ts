@@ -20,17 +20,20 @@ export const tl = stylex.create({
     rowGap: "0.25rem",
     margin: 0,
     fontFamily: "var(--trips-mono)",
-    fontSize: "0.6875rem",
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: "var(--trips-ink-tertiary)",
+    fontSize: "0.75rem",
+    lineHeight: 1.4,
+    fontVariantNumeric: "tabular-nums",
+    color: "var(--trips-ink-secondary)",
   },
   summaryWarn: { display: "inline-flex", alignItems: "center", gap: "0.25rem", color: "var(--trips-ink)" },
+  summaryBlock: { display: "flex", flexDirection: "column", gap: "0.25rem" },
+  summaryWet: { columnGap: "0.375rem", color: "var(--trips-ink)" },
+  dot: { color: "var(--trips-ink-tertiary)" },
 
   // ── Ruler ────────────────────────────────────────────
   // Padding keeps the first and last hour labels (centred on their rule) inside.
   // The hour-label column is 3.5rem (3rem on phones); the track starts after it.
-  ruler: { position: "relative", paddingBlock: "0.5rem" },
+  ruler: { position: "relative", paddingTop: "0.5rem", paddingBottom: "1rem" },
   canvas: { position: "relative" },
   hourRule: {
     position: "absolute",
@@ -60,6 +63,60 @@ export const tl = stylex.create({
     fontVariantNumeric: "tabular-nums",
     whiteSpace: "nowrap",
     color: "var(--trips-ink-tertiary)",
+    pointerEvents: "none",
+  },
+  hourTemp: {
+    position: "absolute",
+    top: "calc(100% + 0.3125rem)",
+    right: 0,
+    fontSize: "0.625rem",
+    color: "var(--trips-ink-tertiary)",
+  },
+
+  // ── Weather on the ruler ─────────────────────────────
+  // Behind the stops, the hours of dark are a faint wash of ink (so it follows
+  // the theme) under a dashed hairline at sunrise and sunset. Rain is never
+  // drawn over a stop: it is a dashed strip in the gutter between the hours and
+  // the track, and a line on the stops it meets.
+  dark: {
+    position: "absolute",
+    left: { default: "3.5rem", [PHONE]: "3rem" },
+    right: 0,
+    backgroundColor: "color-mix(in srgb, var(--trips-ink) 4%, transparent)",
+    pointerEvents: "none",
+  },
+  rain: {
+    position: "absolute",
+    left: { default: "3.125rem", [PHONE]: "2.625rem" },
+    width: "3px",
+    borderRadius: "2px",
+    backgroundImage: "repeating-linear-gradient(to bottom, var(--trips-ink-secondary) 0 4px, transparent 4px 7px)",
+  },
+  sunLine: {
+    position: "absolute",
+    left: { default: "3.5rem", [PHONE]: "3rem" },
+    right: 0,
+    height: 0,
+    borderTopWidth: "1px",
+    borderTopStyle: "dashed",
+    borderTopColor: "var(--trips-line-strong)",
+    pointerEvents: "none",
+  },
+  sunLabel: {
+    position: "absolute",
+    left: 0,
+    width: { default: "3rem", [PHONE]: "2.5rem" },
+    transform: "translateY(-50%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "0.1875rem",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.625rem",
+    lineHeight: 1,
+    fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap",
+    color: "var(--trips-ink-secondary)",
     pointerEvents: "none",
   },
   track: {
@@ -177,14 +234,6 @@ export const tl = stylex.create({
     lineHeight: "1.125rem",
     color: "var(--trips-ink)",
   },
-  // A stop that fills two hours or more is one of the day's big moments.
-  titleBig: {
-    fontFamily: "var(--trips-display)",
-    fontSize: "1.25rem",
-    fontWeight: 400,
-    lineHeight: "1.375rem",
-    letterSpacing: "-0.01em",
-  },
   meta: {
     gridColumn: "2",
     display: "flex",
@@ -210,6 +259,8 @@ export const tl = stylex.create({
     lineHeight: "1rem",
     color: "var(--trips-ink)",
   },
+  wet: { color: "var(--trips-ink-secondary)" },
+  warnWrap: { whiteSpace: "normal", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 },
   warnText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   noShrink: { flexShrink: 0 },
 
@@ -293,7 +344,7 @@ export const tl = stylex.create({
   },
 
   // ── Anytime list ─────────────────────────────────────
-  anytime: { display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0 },
+  anytime: { display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0, marginTop: "0.5rem" },
   anyList: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.375rem" },
   anyRow: { display: "flex", alignItems: "center", gap: "0.5rem", minHeight: "2.75rem", height: "auto", paddingBlock: "0.5rem" },
   anyTitle: { display: "block", fontSize: "0.875rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)", overflowWrap: "anywhere" },

@@ -40,7 +40,7 @@ export interface TimelineConflict {
 }
 
 export interface DayLayout {
-  /** The ruler's window, on whole hours, at least six hours long. */
+  /** The ruler's window: on whole hours, from the first stop's hour, at least three hours long. */
   start: number
   end: number
   blocks: TimelineBlock[]
@@ -51,12 +51,13 @@ export interface DayLayout {
 }
 
 const DAY = 24 * 60
-const MIN_WINDOW = 6 * 60
+const MIN_WINDOW = 3 * 60
+/** The window used when nothing is on the clock (only the empty state reads it). */
+const EMPTY_WINDOW = 6 * 60
 /** The ruler stops at 06:00 the next morning; a stay that runs on is drawn to the edge. */
 const LATEST_END = DAY + 6 * 60
 /** A stop with a guessed length keeps at least this long before it gives way to the next. */
 const MIN_ESTIMATE = 15
-/** The window used when nothing is on the clock (only the empty state reads it). */
 const EMPTY_START = 9 * 60
 
 /** Typical minutes at a stop, by booking type or place category. */
@@ -98,6 +99,21 @@ export function clockLabel(minutes: number): string {
 }
 
 /** How long a stop with no end time probably takes. Booking type wins over the place's category. */
+/**
+ * "8:00–9:30 AM", "11:30 AM–1 PM", or with `bare` (a narrow column beside the
+ * ruler's own AM / PM) "10:15–11:30". Whole hours in a range drop ":00" only
+ * when both ends are whole, so "2–5 PM" but "2:00–5:30 PM".
+ */
+export function clockRange(from: number, to: number, bare = false): string {
+  const [a, b] = [clockLabel(from), clockLabel(to)]
+  const whole = a.includes(":00 ") && b.includes(":00 ")
+  const trim = (label: string) => (whole ? label.replace(":00", "") : label)
+  const [timeA, halfA] = trim(a).split(" ")
+  const [timeB, halfB] = trim(b).split(" ")
+  if (bare) return `${timeA}–${timeB}`
+  return halfA === halfB ? `${timeA}–${timeB} ${halfB}` : `${timeA} ${halfA}–${timeB} ${halfB}`
+}
+
 export function typicalMinutes(item: Pick<ItineraryItem, "kind" | "reservation" | "location">): number {
   const keys = [item.kind === "reservation" ? item.reservation?.type : undefined, item.location?.category]
   for (const key of keys) {
@@ -199,16 +215,11 @@ function assignLanes(placed: readonly Placed[]): TimelineBlock[] {
 }
 
 function rulerWindow(placed: readonly Placed[]): { start: number; end: number } {
-  if (placed.length === 0) return { start: EMPTY_START, end: EMPTY_START + MIN_WINDOW }
-  let start = Math.floor(Math.min(...placed.map((p) => p.start)) / 60) * 60
-  let end = Math.min(Math.ceil(Math.max(...placed.map((p) => p.end)) / 60) * 60, LATEST_END)
-  if (end - start < MIN_WINDOW) {
-    // Pad both sides (no earlier than midnight) so a short day sits mid-ruler.
-    const pad = MIN_WINDOW - (end - start)
-    start -= Math.min(start, Math.ceil(pad / 2 / 60) * 60)
-    end = start + MIN_WINDOW
-  }
-  return { start, end }
+  if (placed.length === 0) return { start: EMPTY_START, end: EMPTY_START + EMPTY_WINDOW }
+  const start = Math.floor(Math.min(...placed.map((p) => p.start)) / 60) * 60
+  const end = Math.min(Math.ceil(Math.max(...placed.map((p) => p.end)) / 60) * 60, LATEST_END)
+  // A short day runs on after its last stop: the rest of it is still to plan.
+  return { start, end: Math.max(end, start + MIN_WINDOW) }
 }
 
 export function layoutDay(day: TripDay): DayLayout {

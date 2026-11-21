@@ -413,6 +413,23 @@ describe("TripWorkspace", () => {
       )
     })
 
+    it("says an empty day has nothing planned once, rather than counting zero", async () => {
+      renderWorkspace("/trips/lisbon/day/day-2")
+      expect(await screen.findByText("Nothing planned yet")).toBeInTheDocument()
+      expect(screen.queryByText("Nothing planned")).toBeNull()
+      expect(screen.queryByText(/0 stops/)).toBeNull()
+    })
+
+    it("marks the later of two overlapping stops in the list", async () => {
+      const tour = makeItem({ id: "it-tour", title: "Tile museum", time: "12:00", endTime: "13:30" })
+      renderWorkspace("/trips/lisbon/day/day-1", planned({ days: [{ id: "day-1", date: "2026-07-10", items: [market, tour] }] }))
+
+      const plan = within(await screen.findByRole("region", { name: "Day 1 plan" }))
+      const warning = plan.getByText("Overlaps Tile museum")
+      expect(warning.closest("[id^='item-']")).toHaveAttribute("id", "item-it-market")
+      expect(plan.getAllByText(/^Overlaps /)).toHaveLength(1)
+    })
+
     it("shows the selected-place card when a marker is clicked", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
       fireEvent.click(await screen.findByRole("button", { name: "Show Time Out Market on the map" }))

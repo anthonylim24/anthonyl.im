@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { dayPins, TO_SCHEDULE } from "../../map/geo"
 import type { ItineraryItem, TripDay } from "../../types"
 import { makeItem } from "../../__tests__/tripFixtures"
-import { clockLabel, clockMinutes, layoutDay, legEstimate, stopNumbers, stopTitle, timeScale, typicalMinutes, yAt } from "../timeline"
+import { clockLabel, clockMinutes, clockRange, layoutDay, legEstimate, stopNumbers, stopTitle, timeScale, typicalMinutes, yAt } from "../timeline"
 
 const at = (h: number, m = 0) => h * 60 + m
 
@@ -86,7 +86,7 @@ describe("layoutDay", () => {
     const layout = layoutDay(day([stop("bar", "22:00", { endTime: "02:00" })]))
     expect(block(layout, "bar")).toMatchObject({ start: at(22), end: at(26), estimated: false })
     expect(layout.end).toBeGreaterThanOrEqual(at(26))
-    expect(layout.end - layout.start).toBeGreaterThanOrEqual(360)
+    expect(layout.end - layout.start).toBeGreaterThanOrEqual(180)
   })
 
   it("stops the ruler at 06:00 the next morning for a stay that runs on", () => {
@@ -95,18 +95,9 @@ describe("layoutDay", () => {
     expect(layout.end).toBe(at(30))
   })
 
-  it("rounds the window out to whole hours, at least six of them", () => {
+  it("starts the ruler at the first stop's hour and gives a short day three hours", () => {
     const layout = layoutDay(day([stop("a", "10:20")]))
-    expect(layout.start % 60).toBe(0)
-    expect(layout.end % 60).toBe(0)
-    expect(layout.start).toBeLessThanOrEqual(at(10, 20))
-    expect(layout.end).toBeGreaterThanOrEqual(at(11, 20))
-    expect(layout.end - layout.start).toBe(360)
-  })
-
-  it("never pads the window before midnight", () => {
-    const layout = layoutDay(day([stop("early", "00:30", { endTime: "01:00" })]))
-    expect(layout).toMatchObject({ start: 0, end: 360 })
+    expect(layout).toMatchObject({ start: at(10), end: at(13) })
   })
 
   it("covers a long day without padding", () => {
@@ -148,7 +139,6 @@ describe("layoutDay", () => {
       ["c", 0, 2],
     ])
   })
-
   it("flags two stops at the same minute even when neither has an end time", () => {
     const layout = layoutDay(day([stop("a", "10:00"), stop("b", "10:00")]))
     expect(layout.blocks.map((b) => b.lanes)).toEqual([2, 2])
@@ -320,5 +310,21 @@ describe("timeScale", () => {
     expect(yAt(scale, at(15)) - yAt(scale, at(14, 50))).toBeCloseTo(44)
     expect(yAt(scale, at(6))).toBe(0)
     expect(yAt(scale, at(20))).toBe(scale.height)
+  })
+})
+
+describe("clockRange", () => {
+  it("names the half of the day once when both ends share it", () => {
+    expect(clockRange(8 * 60, 9 * 60 + 30)).toBe("8:00–9:30 AM")
+    expect(clockRange(11 * 60 + 30, 13 * 60)).toBe("11:30 AM–1:00 PM")
+  })
+
+  it("drops :00 only when both ends are whole hours", () => {
+    expect(clockRange(14 * 60, 17 * 60)).toBe("2–5 PM")
+    expect(clockRange(11 * 60, 13 * 60)).toBe("11 AM–1 PM")
+  })
+
+  it("leaves the half of the day to the ruler when bare", () => {
+    expect(clockRange(10 * 60 + 15, 11 * 60 + 30, true)).toBe("10:15–11:30")
   })
 })

@@ -259,6 +259,17 @@ export const ws = stylex.create({
     position: "sticky",
     top: { default: "var(--trips-chrome-h)", [WIDE]: 0 },
     zIndex: 20,
+    // The bar keeps its near-opaque paper; only the scroller inside is masked.
+    // A mask on the bar fades its background too, and cards scrolling
+    // underneath showed through its edges.
+    backgroundColor: "color-mix(in srgb, var(--trips-canvas) 96%, transparent)",
+    backdropFilter: "blur(14px)",
+    borderBottomWidth: "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: "var(--trips-line)",
+  },
+  railScroll: {
+    position: "relative",
     display: "flex",
     gap: "0.375rem",
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
@@ -267,14 +278,10 @@ export const ws = stylex.create({
     scrollbarWidth: "none",
     scrollSnapType: "x proximity",
     scrollPaddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
-    // Near-opaque, and no edge mask: a mask fades the bar's own background
-    // too, which let cards scrolling underneath show through its right edge.
-    backgroundColor: "color-mix(in srgb, var(--trips-canvas) 96%, transparent)",
-    backdropFilter: "blur(14px)",
-    borderBottomWidth: "1px",
-    borderBottomStyle: "solid",
-    borderBottomColor: "var(--trips-line)",
   },
+  railFadeStart: { maskImage: "linear-gradient(to right, transparent, #000 2.5rem)" },
+  railFadeEnd: { maskImage: "linear-gradient(to left, transparent, #000 2.5rem)" },
+  railFadeBoth: { maskImage: "linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent)" },
   railItem: {
     position: "relative",
     flexShrink: 0,
@@ -289,7 +296,8 @@ export const ws = stylex.create({
     borderRadius: "0.875rem",
     color: "var(--trips-ink-secondary)",
     textDecoration: "none",
-    scrollSnapAlign: "start",
+    // Centre, like the rail's own scroll to the day in view; "start" re-snapped it off centre.
+    scrollSnapAlign: "center",
     outline: "none",
     transitionProperty: "background-color, color",
     transitionDuration: "160ms",
@@ -319,7 +327,8 @@ export const ws = stylex.create({
   railEmpty: { fontWeight: 400, color: "var(--trips-ink-tertiary)" },
 
   // ── Day layout switch ─────────────────────────────────
-  viewSwitch: { display: "inline-grid", flexShrink: 0 },
+  // Each side hugs its label so the switch, Ideas and ⋯ share one row at 360px.
+  viewSwitch: { display: "inline-grid", gridTemplateColumns: "auto auto", flexShrink: 0 },
   viewSwitchBtn: {
     display: "inline-flex",
     alignItems: "center",
@@ -483,7 +492,19 @@ export const ws = stylex.create({
 
   // ── Day header ────────────────────────────────────────
   dayHead: { display: "flex", flexDirection: "column", gap: "0.5rem" },
-  dayTitle: { fontSize: "clamp(1.875rem, 4vw, 2.5rem)", lineHeight: 1.02 },
+  // Title on the left, the day's sky on the right; stacked on phones.
+  dayHeadTop: {
+    display: "flex",
+    flexDirection: { default: "row", "@media (max-width: 639.98px)": "column" },
+    alignItems: { default: "center", "@media (max-width: 639.98px)": "stretch" },
+    justifyContent: "space-between",
+    columnGap: "1.25rem",
+    rowGap: "0.75rem",
+    minWidth: 0,
+    marginBottom: "0.375rem",
+  },
+  dayHeadMain: { display: "flex", flexDirection: "column", gap: "0.5rem", flexGrow: 1, minWidth: 0 },
+  dayTitle: { fontSize: "clamp(1.875rem, 4vw, 2.5rem)", lineHeight: 1.02, textWrap: "balance" },
   inlineInput: {
     minWidth: "2.5rem",
     maxWidth: "100%",
@@ -673,6 +694,19 @@ export const ws = stylex.create({
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
   cardTitleEmpty: { color: "var(--trips-ink-faint)", fontWeight: 500 },
   cardSub: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.5rem", rowGap: "0.125rem", fontSize: "0.8125rem", color: "var(--trips-ink-tertiary)" },
+  cardStatus: { minHeight: "1.25rem", paddingInline: "0.5rem" },
+  cardAlert: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "0.3125rem",
+    marginTop: "0.0625rem",
+    fontSize: "0.75rem",
+    fontWeight: 500,
+    lineHeight: "1rem",
+    color: "var(--trips-ink)",
+  },
+  cardRain: { fontWeight: 400, color: "var(--trips-ink-secondary)" },
+  cardAlertIcon: { flexShrink: 0, marginTop: "0.125rem" },
   cardTime: { color: "var(--trips-ink)" },
   chevron: { transitionProperty: "transform", transitionDuration: "200ms", color: "var(--trips-ink-tertiary)", flexShrink: 0 },
   chevronOpen: { transform: "rotate(180deg)" },
