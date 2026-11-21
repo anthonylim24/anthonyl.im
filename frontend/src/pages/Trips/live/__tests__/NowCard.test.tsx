@@ -1,11 +1,12 @@
+import type { ComponentProps } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { FAHRENHEIT, type DayForecast } from "../../forecast"
 import type { Trip } from "../../types"
-import { NowCard } from "../NowCard"
+import { NowCard, type UpdateDay } from "../NowCard"
 import { NowLine } from "../NowLine"
-import { seoulTrip } from "./liveFixtures"
+import { place, seoulTrip } from "./liveFixtures"
 
 // Clocks are UTC instants; the trip is in Seoul (UTC+9).
 const BASE = "/trips/seoul"
@@ -37,7 +38,7 @@ describe("NowCard before the trip", () => {
     const booking = within(card).getByRole("link", { name: /First booking/ })
     expect(booking).toHaveTextContent("Flight UA 893")
     expect(booking).toHaveTextContent("Tue, May 26 · 10:40 AM")
-    expect(booking).toHaveAttribute("href", `${BASE}/day/d1#item-flight`)
+    expect(booking).toHaveAttribute("href", `${BASE}/day/d1#stop-flight`)
   })
 
   it("says tomorrow on the eve of the trip", () => {
@@ -64,7 +65,7 @@ describe("NowCard during the trip", () => {
     const directions = within(card).getByRole("link", { name: /^Directions to Gyeongbokgung Palace/ })
     expect(directions).toHaveAttribute("target", "_blank")
     expect(directions.getAttribute("href")).toContain("37.59")
-    expect(within(card).getByRole("link", { name: "Open today" })).toHaveAttribute("href", `${BASE}/day/d3#item-palace`)
+    expect(within(card).getByRole("link", { name: "Open today" })).toHaveAttribute("href", `${BASE}/day/d3#stop-palace`)
     expect(within(card).getByText("2 of 4 started")).toBeInTheDocument()
   })
 
@@ -87,15 +88,15 @@ describe("NowCard during the trip", () => {
     expect(screen.getByRole("status")).toHaveTextContent("First tomorrow: KTX to Busan")
     expect(screen.queryByText(/^in /)).toBeNull()
     expect(screen.queryByText(/Leave/)).toBeNull()
-    expect(screen.getByRole("link", { name: "Open tomorrow" })).toHaveAttribute("href", `${BASE}/day/d4#item-ktx`)
+    expect(screen.getByRole("link", { name: "Open tomorrow" })).toHaveAttribute("href", `${BASE}/day/d4#stop-ktx`)
   })
 
-  it("says so when nothing on today's plan has a time", () => {
+  it("says so plainly when today has nothing planned", () => {
     const trip = seoulTrip()
     trip.days[2]!.items = []
     trip.days[3]!.items = []
     renderCard(new Date("2026-05-28T04:42:00Z"), trip)
-    expect(screen.getByText("Nothing on today’s plan has a time.")).toBeInTheDocument()
+    expect(screen.getByText("Nothing is planned for today.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open today" })).toHaveAttribute("href", `${BASE}/day/d3`)
   })
 
@@ -162,6 +163,152 @@ describe("NowCard after the trip", () => {
     renderCard(new Date("2026-06-20T03:00:00Z"))
     const card = screen.getByRole("region", { name: "Ended 2 weeks ago · May 26 – Jun 6, 2026" })
     expect(within(card).getByText("12 days · 8 places · 2 cities")).toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: "See your recap" })).toBeNull()
+  })
+
+  it("opens the recap when the workspace offers one", () => {
+    const onOpenRecap = vi.fn()
+    renderWith(new Date("2026-06-20T03:00:00Z"), seoulTrip(), { onOpenRecap })
+    fireEvent.click(screen.getByRole("button", { name: "See your recap" }))
+    expect(onOpenRecap).toHaveBeenCalledTimes(1)
+  })
+})
+
+/** Day 2 ends at a pinned hotel in Anguk, so day 3 has a bed to go back to. */
+function hotelTrip(): Trip {
+  const trip = seoulTrip()
+  trip.days[1]!.items = [
+    place("stay", "Hotel in Anguk", 37.575, { kind: "reservation", time: "15:00", reservation: { type: "hotel", status: "confirmed" } }),
+  ]
+  return trip
+}
+
+function renderWith(now: Date, trip: Trip, props: Partial<ComponentProps<typeof NowCard>>) {
+  return render(
+    <MemoryRouter>
+      <NowCard trip={trip} basePath={BASE} now={now} {...props} />
+    </MemoryRouter>,
+  )
+}
+
+/** Apply the change the card asked for to the trip's own copy of that day. */
+function applied(update: ReturnType<typeof vi.fn<UpdateDay>>, trip: Trip, call = 0) {
+  const [dayId, change, undo] = update.mock.calls[call]!
+  return { day: change(trip.days.find((d) => d.id === dayId)!), dayId, undo }
+}
+
+describe("NowCard on the go", () => {
+  it("gives a viewer the way around, and no edits", () => {
+    const update = vi.fn<UpdateDay>()
+    renderWith(new Date("2026-05-28T02:00:00Z"), hotelTrip(), { onUpdateDay: update }) // 11:00, Bukchon under way
+    expect(screen.getByRole("link", { name: /^Directions to Gyeongbokgung Palace/ })).toBeInTheDocument()
+    const go = screen.getByRole("navigation", { name: "On the go" })
+    expect(within(go).getByRole("link", { name: /^Route today through the next 2 stops/ }).getAttribute("href")).toContain("waypoints=")
+    expect(within(go).getByRole("link", { name: /^Back to hotel Hotel in Anguk/ }).getAttribute("href")).toContain("37.575")
+    expect(within(go).getByRole("link", { name: "Essentials" })).toHaveAttribute("href", `${BASE}?tab=essentials`)
+    expect(screen.queryByRole("button", { name: /^Done/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^More for/ })).toBeNull()
+    expect(screen.queryByRole("link", { name: "Log expense" })).toBeNull()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it("links the stop under way and the next one into the day's list", () => {
+    renderCard(new Date("2026-05-28T02:00:00Z"))
+    expect(screen.getByRole("link", { name: "Bukchon Hanok Village" })).toHaveAttribute("href", `${BASE}/day/d3#stop-bukchon`)
+    expect(screen.getByRole("link", { name: "Gyeongbokgung Palace" })).toHaveAttribute("href", `${BASE}/day/d3#stop-palace`)
+  })
+
+  it("marks the stop under way done", () => {
+    const update = vi.fn<UpdateDay>()
+    const trip = hotelTrip()
+    renderWith(new Date("2026-05-28T02:00:00Z"), trip, { canEdit: true, onUpdateDay: update })
+    fireEvent.click(screen.getByRole("button", { name: "Done with Bukchon Hanok Village" }))
+    const { day, dayId, undo } = applied(update, trip)
+    expect(dayId).toBe("d3")
+    expect(day.items.find((i) => i.id === "bukchon")!.status).toBe("completed")
+    expect(undo).toEqual({ label: "Marked “Bukchon Hanok Village” done", toast: true })
+    expect(screen.getByRole("link", { name: "Log expense" })).toHaveAttribute("href", `${BASE}?tab=budget&add=expense`)
+  })
+
+  it("skips the next stop, or moves the rest of the day when running late", () => {
+    const update = vi.fn<UpdateDay>()
+    const trip = hotelTrip()
+    renderWith(new Date("2026-05-28T04:42:00Z"), trip, { canEdit: true, onUpdateDay: update }) // 13:42
+    const more = screen.getByRole("button", { name: "More for Gyeongbokgung Palace" })
+
+    fireEvent.click(more)
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Mark done",
+      "Skip",
+      "Running late · 15 min",
+      "Running late · 30 min",
+      "Running late · 1 hour",
+    ])
+    fireEvent.click(screen.getByRole("menuitem", { name: "Skip" }))
+    expect(applied(update, trip).day.items.find((i) => i.id === "palace")!.status).toBe("skipped")
+
+    fireEvent.click(more)
+    fireEvent.click(screen.getByRole("menuitem", { name: "Running late · 30 min" }))
+    const late = applied(update, trip, 1)
+    expect(late.day.items.find((i) => i.id === "palace")!.time).toBe("14:30")
+    expect(late.day.items.find((i) => i.id === "market")!.time).toBe("19:30")
+    expect(late.undo).toEqual({ label: "Moved the rest of today 30 min later", toast: true })
+  })
+
+  it("offers only the delays the day's clock can hold", () => {
+    const trip = seoulTrip()
+    trip.days[2]!.items = [place("late", "Late show", 37.57, { time: "23:30" })]
+    renderWith(new Date("2026-05-28T13:00:00Z"), trip, { canEdit: true, onUpdateDay: vi.fn() }) // 22:00
+    fireEvent.click(screen.getByRole("button", { name: "More for Late show" }))
+    // 23:45 is still tonight; midnight or later, alone, would read as this morning.
+    expect(screen.getByRole("menuitem", { name: "Running late · 15 min" })).toBeEnabled()
+    expect(screen.getByRole("menuitem", { name: "Running late · 30 min" })).toBeDisabled()
+    expect(screen.getByRole("menuitem", { name: "Running late · 1 hour" })).toBeDisabled()
+  })
+
+  it("on a day with no times, offers the first stop not done, with directions", () => {
+    const update = vi.fn<UpdateDay>()
+    const trip = seoulTrip()
+    trip.days[2]!.items = [place("tower", "Namsan Tower", 37.551, { status: "completed" }), place("myeongdong", "Myeongdong", 37.56), place("cheonggye", "Cheonggyecheon", 37.569)]
+    renderWith(new Date("2026-05-28T04:42:00Z"), trip, { canEdit: true, onUpdateDay: update })
+    expect(screen.getByText("Next · any time today")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Myeongdong" })).toHaveAttribute("href", `${BASE}/day/d3#stop-myeongdong`)
+    expect(screen.getByRole("link", { name: /^Directions to Myeongdong/ })).toBeInTheDocument()
+    expect(screen.queryByText(/^in /)).toBeNull()
+    // The rest of the list, in its order.
+    expect(screen.getByRole("link", { name: /^Route today through the next 2 stops/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "More for Myeongdong" }))
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Mark done", "Skip"])
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mark done" }))
+    expect(applied(update, trip).day.items.find((i) => i.id === "myeongdong")!.status).toBe("completed")
+  })
+
+  it("says so when everything on a day with no times is done", () => {
+    const trip = seoulTrip()
+    trip.days[2]!.items = [place("tower", "Namsan Tower", 37.551, { status: "completed" })]
+    trip.days[3]!.items = []
+    renderCard(new Date("2026-05-28T04:42:00Z"), trip)
+    expect(screen.getByText("Everything on today’s list is done.")).toBeInTheDocument()
+  })
+
+  it("stays on the night's last stops after midnight", () => {
+    const trip = seoulTrip()
+    trip.days[2]!.items = [
+      place("dinner", "Dinner in Euljiro", 37.566, { time: "19:00", endTime: "21:00" }),
+      place("bar", "Bar in Euljiro", 37.567, { time: "23:00" }),
+      place("club", "Club in Hongdae", 37.556, { time: "01:00", endTime: "04:00" }),
+    ]
+    renderCard(new Date("2026-05-28T15:30:00Z"), trip, new Map([["d3", SHOWERY]])) // 00:30 on the 29th
+    const card = screen.getByRole("region", { name: "Tonight · Day 3 of 12" })
+    expect(within(card).getByRole("img", { name: "Thu, May 28" })).toBeInTheDocument()
+    expect(within(card).getByText("12:30 AM")).toBeInTheDocument()
+    expect(within(card).getByText("Now")).toBeInTheDocument()
+    expect(within(card).getByRole("link", { name: "Bar in Euljiro" })).toBeInTheDocument()
+    expect(within(card).getByText("1:00 AM").parentElement).toHaveTextContent("Next · 1:00 AM")
+    expect(within(card).getByText("in 30 min")).toBeInTheDocument()
+    // Yesterday's forecast is no guide to the small hours.
+    expect(screen.queryByTitle("Forecast from Open-Meteo")).toBeNull()
   })
 })
 

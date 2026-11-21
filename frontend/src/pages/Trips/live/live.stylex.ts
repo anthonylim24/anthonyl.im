@@ -61,7 +61,16 @@ export const live = stylex.create({
   clock: { color: "var(--trips-ink-tertiary)" },
   rule: { height: "1px", backgroundColor: "var(--trips-line)", borderWidth: 0, margin: 0 },
 
-  // "Now" line: what is under way.
+  // "Now" line: what is under way, with Done at its end for editors.
+  nowBar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", minWidth: 0 },
+  doneBtn: { flexShrink: 0 },
+  // A stop's name that opens it in the day's list: ink, underlined only on hover.
+  stopLink: {
+    color: "inherit",
+    textDecoration: "none",
+    borderRadius: "4px",
+    [HOVER]: { ":hover": { textDecoration: "underline", textDecorationThickness: "1px", textUnderlineOffset: "0.15em" } },
+  },
   nowRow: {
     display: "flex",
     alignItems: "baseline",
@@ -105,6 +114,20 @@ export const live = stylex.create({
   },
   // On a phone the two actions share the row, each a full thumb target.
   action: { [PHONE]: { flexGrow: 1, flexBasis: 0 } },
+  // The next stop's name with its "…" (done, skip, running late) at the end, as on a stop in the list.
+  nameRow: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem", minWidth: 0 },
+  // Centred on the name's first line, and flush with the card's edge.
+  more: { marginTop: "-0.375rem", marginInlineEnd: "-0.5rem" },
+
+  // On the go: route, hotel, essentials, expense. Quiet, and wraps on a phone.
+  goRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.25rem",
+    // Ghost buttons: pull the first label back to the card's text edge.
+    marginInlineStart: "-0.875rem",
+    marginBlock: "-0.25rem",
+  },
 
   // Today's progress: one tick per timed stop, ink once it has started.
   progress: { display: "flex", alignItems: "center", gap: "0.75rem" },
