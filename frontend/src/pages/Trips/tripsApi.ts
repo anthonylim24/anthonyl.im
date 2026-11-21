@@ -4,16 +4,20 @@ import { bearerHeaders, fetchApi, parseJson, readAuthToken, requestJson, require
 import { runPromise } from "../../effect/runtime"
 import { TripConflictError } from "./tripConflict"
 import type {
+  ChecklistItem,
   EnhancementRun,
   GeneratePreferences,
   Trip,
   TripAccess,
   TripAppearance,
+  TripBudget,
   TripCenter,
   TripCollaborator,
   TripInvite,
   CollaboratorRole,
   TripDay,
+  TripExpense,
+  TripPerson,
   TripStatus,
   TripSummary,
 } from "./types"
@@ -60,6 +64,11 @@ export type UpdateTripPatch = {
   appearance?: TripAppearance
   description?: string | null
   center?: TripCenter
+  /** `null` removes the budget. */
+  budget?: TripBudget | null
+  party?: TripPerson[]
+  expenses?: TripExpense[]
+  checklist?: ChecklistItem[]
   /** The `updatedAt` this change was made against; see `updateTrip`. */
   baseUpdatedAt?: string
 }
@@ -145,8 +154,13 @@ export async function duplicateTrip(getToken: GetToken, source: Trip): Promise<T
   })
   const byDate = new Map(source.days.map((d) => [d.date, d]))
   const stamp = () => `it-${crypto.randomUUID().slice(0, 8)}`
+  // A copy is a template for another trip: the plan, budget and lists come
+  // along, ticks are cleared, and money already spent stays with the original.
   return updateTrip(getToken, created.id, {
     appearance: source.appearance,
+    budget: source.budget,
+    party: source.party,
+    checklist: source.checklist?.map((entry) => ({ ...entry, done: false })),
     days: created.days.map((day) => {
       const from = byDate.get(day.date)
       if (!from) return day

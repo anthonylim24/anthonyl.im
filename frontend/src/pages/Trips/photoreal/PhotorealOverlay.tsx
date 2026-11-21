@@ -12,7 +12,7 @@ import { centroid, type LngLat } from "../map/geo"
 import { formatClock, formatTripDate, itemIcon, plural, resolveAccent, titleCase } from "../meta"
 import type { Trip, TripDay } from "../types"
 import { tilesKey } from "./available"
-import { useStopPhoto, type PhotoState } from "./photo"
+import { useStopPhoto, type PhotoState } from "../stopPhoto"
 import { p } from "./photoreal.stylex"
 import { PhotorealScene, type Insets, type SceneStop } from "./scene"
 import {
@@ -421,7 +421,16 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   // Photos are looked up by the place's catalogue name ("Time Out Market Lisboa"),
   // whatever the stop is called in the plan ("Lunch at…" finds portraits, not markets).
   const photoOf = useMemo(
-    () => (selected ? { id: selected.id, title: selected.item.location?.name || selected.title, lat: selected.lat, lng: selected.lng } : null),
+    () =>
+      selected
+        ? {
+            id: selected.id,
+            title: selected.item.location?.name || selected.title,
+            lat: selected.lat,
+            lng: selected.lng,
+            category: selected.item.reservation?.type ?? selected.item.location?.category,
+          }
+        : null,
     [selected],
   )
   const photo = useStopPhoto(photoOf, city)

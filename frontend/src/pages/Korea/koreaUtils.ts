@@ -26,6 +26,10 @@ export function applyTheme(theme: Theme) {
   syncThemeColor(effective)
 }
 
+/** Fired on `window` with the chosen `Theme` when something other than the
+ *  ThemeToggle (the Trips command palette) changes the theme. */
+export const THEME_EVENT = "trips:theme"
+
 export function persistTheme(theme: Theme) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(THEME_KEY, theme)

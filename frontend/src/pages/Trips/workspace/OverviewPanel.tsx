@@ -3,13 +3,19 @@ import { Link } from "react-router-dom"
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatClock, formatTripDate, itemIcon, todayIsoIn } from "../meta"
-import { dayRoute, isLocated, routeMeters } from "../map/geo"
-import { formatDistance, upcomingReservations } from "../reservationView"
+import { dayRoute, distanceMeters, isLocated } from "../map/geo"
+import { formatDistance } from "../reservationView"
 import type { EnhancementRun, Trip } from "../types"
 import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
+import type { DayForecast } from "../forecast"
+import { ForecastChip } from "./ForecastChip"
+import { NowCard } from "../live/NowCard"
 import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief } from "./AiPanels"
+
+/** The longest leg counted as walked. */
+const WALKABLE_M = 1_600
 
 export function OverviewPanel({
   trip,
@@ -26,8 +32,11 @@ export function OverviewPanel({
   onApplyRun,
   onDismissRun,
   onStopAi,
+  forecast,
 }: {
   trip: Trip
+  /** dayId → live forecast, for days in the forecast window. */
+  forecast?: ReadonlyMap<string, DayForecast>
   basePath: string
   editable: boolean
   locked: boolean
@@ -54,10 +63,12 @@ export function OverviewPanel({
       pinned += day.items.filter(isLocated).length
       bookings += day.items.filter((i) => i.kind === "reservation").length
       stops += day.items.filter((i) => i.kind !== "section" && i.kind !== "note").length
+      // Only legs short enough to walk: a taxi, train or flight is not "on foot".
       const route = dayRoute(day)
-      const length = routeMeters(route)
-      // City-scale days only: a flight shouldn't count as "walking the route".
-      if (length < 60_000) meters += length
+      for (let i = 1; i < route.length; i++) {
+        const leg = distanceMeters(route[i - 1]!, route[i]!)
+        if (leg <= WALKABLE_M) meters += leg
+      }
     }
     return { pinned, stops, bookings, meters }
   }, [trip.days])
@@ -68,11 +79,11 @@ export function OverviewPanel({
     () => trip.days.flatMap((day) => day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item }))),
     [trip.days],
   )
-  const nextUp = today <= trip.endDate ? upcomingReservations(trip.days, today)[0] : undefined
   const description = trip.appearance?.headline ?? trip.description ?? trip.appearance?.subtitle
 
   return (
     <div {...sx(s.content)}>
+      <NowCard trip={trip} basePath={basePath} />
       {description && <p {...sx(a.body, a.wrap)}>{description}</p>}
 
       <dl {...sx(s.stats)}>
@@ -135,26 +146,6 @@ export function OverviewPanel({
         </section>
       )}
 
-      {nextUp && (
-        <Link to={`${basePath}/day/${nextUp.day.id}#item-${nextUp.item.id}`} {...sx(s.dayRow)}>
-          <span {...sx(s.dayDate)}>
-            {(() => {
-              const Icon = itemIcon("reservation", undefined, nextUp.item.reservation?.type)
-              return <Icon size={20} strokeWidth={1.5} aria-hidden />
-            })()}
-          </span>
-          <span {...sx(a.stack)} style={{ gap: "0.125rem" }}>
-            <span {...sx(a.eyebrow, a.accentText)}>Next booking</span>
-            <span {...sx(s.dayRowTitle, a.truncate)}>{nextUp.item.title}</span>
-            <span {...sx(a.small)}>
-              {formatTripDate(nextUp.day.date, trip.timezone)}
-              {nextUp.item.time ? ` · ${formatClock(nextUp.item.time)}` : ""}
-            </span>
-          </span>
-          <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
-        </Link>
-      )}
-
       <section aria-labelledby="days-title">
         <div {...sx(s.sectionHead)}>
           <h2 id="days-title" {...sx(a.display, s.sectionTitle)}>
@@ -197,6 +188,7 @@ export function OverviewPanel({
                     </span>
                   </span>
                   <span {...sx(a.row)}>
+                    {forecast?.get(day.id) && <ForecastChip forecast={forecast.get(day.id)!} compact />}
                     {day.city && multiCity && <span {...sx(a.chip)}>{day.city}</span>}
                     <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
                   </span>

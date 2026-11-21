@@ -126,3 +126,34 @@ describe("rebaseTrip", () => {
     expect(rebaseTrip(base, { ...base, name: "Mine" }, { ...base, name: "Theirs" })).toBeNull()
   })
 })
+
+describe("rebaseTrip: budget and the trip's lists", () => {
+  const base = makeTrip({ updatedAt: "2026-01-01T00:00:00Z" })
+  const expense = (id: string, title = id) => ({ id, title, amount: 10, currency: "EUR", category: "food" as const, createdAt: "2026-01-01T00:00:00Z" })
+  const task = (id: string, done = false) => ({ id, text: id, done, group: "packing" as const, createdAt: "2026-01-01T00:00:00Z" })
+
+  it("keeps expenses both sides added at the same time", () => {
+    const mine = { ...base, expenses: [expense("m")] }
+    const theirs = { ...base, updatedAt: "2026-01-02T00:00:00Z", expenses: [expense("t")] }
+    expect(rebaseTrip(base, mine, theirs)!.expenses!.map((e) => e.id).sort()).toEqual(["m", "t"])
+  })
+
+  it("merges checklist ticks entry by entry, the traveller's edit winning", () => {
+    const start = { ...base, checklist: [task("a"), task("b")] }
+    const mine = { ...start, checklist: [task("a", true), task("b")] }
+    const theirs = { ...start, updatedAt: "2026-01-02T00:00:00Z", checklist: [task("a"), task("b", true), task("c")] }
+    const out = rebaseTrip(start, mine, theirs)!
+    expect(out.checklist).toEqual([task("a", true), task("b", true), task("c")])
+  })
+
+  it("takes their list when the traveller left it alone", () => {
+    const theirs = { ...base, updatedAt: "2026-01-02T00:00:00Z", party: [{ id: "p1", name: "Sam" }] }
+    expect(rebaseTrip(base, { ...base, name: "Mine" }, theirs)!.party).toEqual([{ id: "p1", name: "Sam" }])
+  })
+
+  it("is a conflict when both set a different budget", () => {
+    const mine = { ...base, budget: { currency: "EUR", total: 100 } }
+    const theirs = { ...base, budget: { currency: "EUR", total: 200 } }
+    expect(rebaseTrip(base, mine, theirs)).toBeNull()
+  })
+})

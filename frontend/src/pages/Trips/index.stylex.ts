@@ -6,6 +6,7 @@ const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const PHONE = "@media (max-width: 899.98px)"
 const DESK = "@media (min-width: 900px)"
+const TINY = "@media (max-width: 359.98px)"
 
 const ping = stylex.keyframes({
   "0%": { transform: "scale(0.6)", opacity: 0.7 },
@@ -220,6 +221,47 @@ export const idx = stylex.create({
     borderBottomColor: "var(--trips-line-strong)",
   },
   listTitle: { fontSize: "2.25rem" },
+  // The heading and the lifetime figures, on one baseline when there is room.
+  listLead: {
+    display: "flex",
+    alignItems: "flex-end",
+    flexWrap: "wrap",
+    columnGap: "2rem",
+    rowGap: "0.875rem",
+    minWidth: 0,
+  },
+  // Lifetime figures: mono numerals over mono labels, hairlines between, like
+  // the legend on a chart. Two by two on the narrowest phones.
+  figures: {
+    display: "grid",
+    gridTemplateColumns: { default: "repeat(4, auto)", [TINY]: "repeat(2, auto)" },
+    justifyContent: "start",
+    rowGap: "0.75rem",
+    margin: 0,
+    paddingBottom: "0.25rem",
+  },
+  figure: {
+    display: "flex",
+    flexDirection: "column-reverse",
+    gap: "0.3125rem",
+    paddingInline: "1rem",
+    borderLeftWidth: "1px",
+    borderLeftStyle: "solid",
+    borderLeftColor: "var(--trips-line-strong)",
+    minWidth: 0,
+  },
+  // First in its row: no rule, no inset, so it lines up with the heading.
+  figureLead: { borderLeftWidth: 0, paddingLeft: 0 },
+  figureRowNarrow: { [TINY]: { borderLeftWidth: 0, paddingLeft: 0 } },
+  figureValue: {
+    margin: 0,
+    fontFamily: "var(--trips-mono)",
+    fontSize: "1.25rem",
+    lineHeight: 1,
+    letterSpacing: "-0.01em",
+    fontVariantNumeric: "tabular-nums",
+    color: "var(--trips-ink)",
+  },
   search: {
     display: "flex",
     alignItems: "center",

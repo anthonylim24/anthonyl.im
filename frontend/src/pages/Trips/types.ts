@@ -37,6 +37,13 @@ export interface TripLocation {
   confidence?: ConfidenceLevel
 }
 
+/** An amount in a currency's major unit (12.5 = twelve euros fifty). */
+export interface Money {
+  amount: number
+  /** ISO 4217, upper case ("EUR"). */
+  currency: string
+}
+
 export interface ItineraryItem {
   id: string
   kind: ItemKind
@@ -54,6 +61,8 @@ export interface ItineraryItem {
     contact?: string
     url?: string
   }
+  /** What this stop or booking costs: the planned side of the budget. */
+  cost?: Money
   createdBy: LocationSource
 }
 
@@ -92,6 +101,54 @@ export interface TripAppearance {
   cityTags?: Record<string, string>
 }
 
+/** Someone on the trip, whether or not they have an account. */
+export interface TripPerson {
+  id: string
+  name: string
+  /** Set when this person is a signed-in member (owner or collaborator). */
+  userId?: string
+}
+
+export type ExpenseCategory = "lodging" | "transport" | "food" | "activities" | "shopping" | "other"
+
+/** Money actually spent: the "spent" side of the budget. */
+export interface TripExpense {
+  id: string
+  title: string
+  amount: number
+  currency: string
+  category: ExpenseCategory
+  /** ISO date the money was spent. */
+  date?: string
+  /** The stop it paid for, when there is one. */
+  itemId?: string
+  /** `TripPerson.id` of whoever paid. */
+  paidBy?: string
+  /** `TripPerson.id`s sharing it equally; absent or empty means everyone. */
+  splitWith?: string[]
+  notes?: string
+  createdAt: string
+}
+
+export interface TripBudget {
+  /** The currency every total is shown in. */
+  currency: string
+  /** The whole-trip budget, in `currency`. */
+  total?: number
+}
+
+export type ChecklistGroup = "packing" | "todo" | "documents"
+
+export interface ChecklistItem {
+  id: string
+  text: string
+  done: boolean
+  group: ChecklistGroup
+  /** `TripPerson.id` it is assigned to. */
+  assignee?: string
+  createdAt: string
+}
+
 export interface Trip {
   id: string
   slug?: string
@@ -112,6 +169,12 @@ export interface Trip {
   /** Owner-only: active invite links. */
   invites?: TripInvite[]
   days: TripDay[]
+  /** Budget currency and limit. */
+  budget?: TripBudget
+  /** Who is travelling (for splitting costs and assigning tasks). */
+  party?: TripPerson[]
+  expenses?: TripExpense[]
+  checklist?: ChecklistItem[]
   createdAt: string
   updatedAt: string
 }

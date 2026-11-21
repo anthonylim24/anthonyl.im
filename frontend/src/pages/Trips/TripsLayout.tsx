@@ -12,6 +12,8 @@ import { shell as s } from "./index.stylex"
 import { Engraving } from "./components/kit"
 import compass from "./art/compass.webp"
 import { TripChatLauncher } from "./TripChatLauncher"
+import { CommandProvider } from "./command/CommandContext"
+import { CommandButton } from "./command/CommandButton"
 
 const DEV_BEARER: string | null =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
@@ -125,6 +127,7 @@ export function TripsLayout() {
   }, [])
 
   return (
+    <CommandProvider>
     <div {...sx("trips", s.root)}>
       <a href="#trips-main" {...sx(s.skip)}>
         Skip to content
@@ -148,6 +151,7 @@ export function TripsLayout() {
               <span {...sx(s.newLabel)}>New trip</span>
             </Link>
           )}
+          <CommandButton />
           <span {...sx("trip-tap-44")}>
             <ThemeToggle style={s.themeToggle} />
           </span>
@@ -161,5 +165,6 @@ export function TripsLayout() {
         <TripChatLauncher />
       </TripsAuthGate>
     </div>
+    </CommandProvider>
   )
 }

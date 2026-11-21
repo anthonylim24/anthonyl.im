@@ -581,6 +581,13 @@ export interface StillRequest {
   center?: LngLat
   /** The trip's accent fill, as a CSS colour. */
   color: string
+  /**
+   * One label per point, in order ("1", "2"…). Labelled points are drawn as
+   * numbered pins and never merged into a count badge.
+   */
+  labels?: readonly string[]
+  /** Ink for the labels on `color`. */
+  labelColor?: string
 }
 
 const STILL_W = 660
@@ -668,17 +675,41 @@ export function renderStills(
         layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Bold"], "text-size": 12, "text-allow-overlap": true },
         paint: { "text-color": "#ffffff" },
       })
+      // Numbered pins (print): never clustered, so "2" is always stop 2.
+      map.addSource("still-pins", { type: "geojson", data: empty })
+      map.addLayer({
+        id: "still-pin",
+        type: "circle",
+        source: "still-pins",
+        paint: { "circle-radius": 9, "circle-color": ["get", "color"], "circle-stroke-color": ring, "circle-stroke-width": 2 },
+      })
+      map.addLayer({
+        id: "still-pin-label",
+        type: "symbol",
+        source: "still-pins",
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": ["Noto Sans Bold"],
+          "text-size": 11,
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: { "text-color": ["get", "ink"] },
+      })
       for (const request of requests) {
         if (cancelled) return
         const city = request.points.length > 1 && spanMeters(request.points) < 60_000
-        ;(map.getSource("still") as GeoJSONSource).setData({
+        const numbered = request.labels?.length === request.points.length
+        const points: FeatureCollection = {
           type: "FeatureCollection",
-          features: request.points.map((p) => ({
+          features: request.points.map((p, i) => ({
             type: "Feature",
-            properties: { color: request.color },
+            properties: { color: request.color, label: request.labels?.[i] ?? "", ink: request.labelColor ?? "#ffffff" },
             geometry: { type: "Point", coordinates: [p.lng, p.lat] },
           })),
-        })
+        }
+        ;(map.getSource("still") as GeoJSONSource).setData(numbered ? empty : points)
+        ;(map.getSource("still-pins") as GeoJSONSource).setData(numbered ? points : empty)
         // Within one city the stops are joined in order, like the day map.
         ;(map.getSource("still-route") as GeoJSONSource).setData(
           city
