@@ -154,7 +154,7 @@ const plan = (trip: Trip): Plan => ({ days: trip.days, startDate: trip.startDate
 const samePlanRefs = (a: Trip, b: Trip) => a.days === b.days && a.startDate === b.startDate && a.endDate === b.endDate
 
 /** Same content as far as a save is concerned (the server stamps `updatedAt`). */
-const sameContent = (a: Trip, b: Trip) => sameJson({ ...a, updatedAt: "" }, { ...b, updatedAt: "" })
+export const sameContent = (a: Trip, b: Trip) => sameJson({ ...a, updatedAt: "" }, { ...b, updatedAt: "" })
 
 /** Turn `doc` from one plan to another, keeping anything that changed since on other days. */
 function replayPlan(doc: Trip, from: Plan, to: Plan): Trip {

@@ -2,16 +2,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { useLocation, useParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useReloadBlock } from "@/hooks/useReloadBlock"
 import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, generateItinerary, getTrip, updateTrip } from "./tripsApi"
 import { isTripConflict } from "./tripConflict"
-import { saveFailure } from "./offline/network"
+import { READ_TIMEOUT_MS, isNetworkError, isOffline, saveFailure, useOnline } from "./offline/network"
+import { dropDraft, keepDraft, keepTrip, readDraft, readTrip, type TripDraft } from "./offline/tripCopies"
+import { saveOnLeave } from "./offline/leaveSave"
+import { useShowCopy, useTripsDevice } from "./offline/tripsDevice"
 import { removeItem } from "./tripEdits"
 import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { formatTripDate, plural } from "./meta"
 import {
   canEdit,
   canWrite,
+  draftOutcome,
   editorReducer,
   initialEditor,
   savePatch,
@@ -28,8 +33,19 @@ import type { EnhancementRun, GeneratePreferences, ItineraryItem, Trip, TripColl
 // belong in the machine, not here.
 
 const SAVE_DEBOUNCE_MS = 900
-/** Starts every notice about a save the server refused, so a later good save can take it down. */
-const REFUSED_PREFIX = "Couldn’t save your latest edits."
+/** Unsaved edits are written to the device this long after the last keystroke (and at once when the page hides). */
+const DRAFT_DEBOUNCE_MS = 400
+/** The server's copy is kept on the device this long after it last changed. */
+const KEEP_COPY_MS = 1_500
+/** A save that failed for want of an answer is tried again after 5 s, doubling to a minute. */
+const retryDelay = (attempt: number) => Math.min(60_000, 5_000 * 2 ** attempt)
+
+/** What went wrong with a save the traveller left behind, in a few words. */
+function leftReason(err: unknown): string {
+  if (isTripConflict(err)) return "someone else changed the same thing"
+  if (isNetworkError(err)) return "there was no connection"
+  return errorText(err)
+}
 
 export interface DayOption {
   id: string
@@ -79,33 +95,152 @@ export function useTripEditor() {
   /** The document an AI run last put in place, so its changes aren't read as the traveller's. */
   const aiTripRef = useRef<Trip | null>(null)
   const settleWaiters = useRef(new Set<(s: Editor) => boolean>())
+  const device = useTripsDevice()
+  const { store, owner, mode } = device
+  /** The device as of the last render, for cleanups that must not re-run when it changes. */
+  const deviceRef = useRef(device)
+  useLayoutEffect(() => {
+    deviceRef.current = device
+  }, [device])
+  const online = useOnline()
+  /** The save-problem notice on screen, so the next good save can take it down. */
+  const saveNoticeRef = useRef<string | null>(null)
 
   const ready = state.s === "ready" ? state : null
-  const trip = ready?.doc ?? null
+  const copy = state.s === "copy" ? state : null
+  const trip = ready?.doc ?? copy?.doc ?? null
   const access = ready?.access ?? "view"
   const editable = canWrite(access)
-  const tripDocId = trip?.id
+  const tripDocId = ready?.doc.id
 
+  // Open the trip: from the server (waiting `READ_TIMEOUT_MS` at most), with
+  // any edits this device kept that never reached it; from the device when
+  // there is no connection or sign-in can't load.
   useEffect(() => {
     if (!tripId) return
     let cancelled = false
-    getTrip(readToken, tripId).then(
-      ({ trip: loaded, access: a }) => {
-        if (!cancelled) startTransition(() => dispatch({ type: "LOADED", trip: loaded, access: a }))
-      },
-      (err: unknown) => {
-        if (!cancelled) dispatch({ type: "LOAD_FAILED", message: errorText(err) })
-      },
-    )
+    const fromDevice = async (err: unknown) => {
+      const kept = owner ? await readTrip(store, owner, tripId) : { copy: null, draft: null }
+      if (cancelled) return
+      if (kept.copy) {
+        const doc = kept.draft && kept.draft.doc.id === kept.copy.trip.id ? kept.draft.doc : kept.copy.trip
+        dispatch({ type: "COPY_LOADED", trip: doc, savedAt: kept.copy.savedAt, unsaved: doc !== kept.copy.trip })
+      } else {
+        dispatch({ type: "LOAD_FAILED", message: errorText(err) })
+      }
+    }
+    if (mode === "copy" || isOffline()) {
+      void fromDevice(new Error("You’re offline, and this trip isn’t saved on this device yet."))
+    } else {
+      getTrip(readToken, tripId, { timeoutMs: READ_TIMEOUT_MS }).then(
+        async ({ trip: loaded, access: a }) => {
+          const draft = owner && canWrite(a) ? await readDraft(store, owner, loaded.id) : null
+          if (cancelled) return
+          const outcome = draft ? draftOutcome(loaded, draft) : "nothing"
+          startTransition(() => {
+            dispatch({ type: "LOADED", trip: loaded, access: a })
+            if (draft && outcome !== "nothing") dispatch({ type: "RESTORE_DRAFT", doc: draft.doc, base: draft.base })
+          })
+          if (draft && outcome === "nothing" && owner) void dropDraft(store, owner, loaded.id)
+          if (outcome === "replay") setNotice("Brought back edits made on this device that hadn’t been saved. Saving them now.")
+          if (outcome === "conflict") setNotice("Edits made on this device weren’t saved, and someone has since changed the same thing. Choose whose version to keep.")
+        },
+        (err: unknown) => {
+          if (cancelled) return
+          if (isNetworkError(err)) void fromDevice(err)
+          else dispatch({ type: "LOAD_FAILED", message: errorText(err) })
+        },
+      )
+    }
     return () => {
       cancelled = true
     }
-  }, [tripId, loadKey, readToken])
+  }, [tripId, loadKey, readToken, store, owner, mode])
 
   const reload = useCallback(() => {
     dispatch({ type: "RELOAD" })
     setLoadKey((k) => k + 1)
   }, [])
+
+  useShowCopy(copy ? { what: "trip", savedAt: copy.savedAt, unsaved: copy.unsaved } : null)
+
+  // Keep the server's latest copy on this device, to open with no connection.
+  const keptBase = ready?.base ?? null
+  useEffect(() => {
+    if (!owner || !keptBase) return
+    const timer = setTimeout(() => void keepTrip(store, owner, keptBase), KEEP_COPY_MS)
+    return () => clearTimeout(timer)
+  }, [keptBase, owner, store])
+
+  // Edits not stored yet go to the device too, so a closed tab, a crash or
+  // a dead battery loses nothing; they are dropped once the server has them.
+  const pendingDraft = useRef<TripDraft | null>(null)
+  const draftDoc = ready && canWrite(ready.access) ? ready.doc : null
+  const draftBase = ready?.base ?? null
+  const unsaved = !!ready && ready.sync.k !== "clean"
+  useEffect(() => {
+    if (!owner || !draftDoc || !draftBase) return
+    if (!unsaved) {
+      pendingDraft.current = null
+      void dropDraft(store, owner, draftDoc.id)
+      return
+    }
+    const draft = { doc: draftDoc, base: draftBase, savedAt: Date.now() }
+    pendingDraft.current = draft
+    const timer = setTimeout(() => {
+      pendingDraft.current = null
+      void keepDraft(store, owner, draft)
+    }, DRAFT_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [draftDoc, draftBase, unsaved, owner, store])
+
+  useEffect(() => {
+    if (!owner) return
+    // Phones may never come back to a hidden tab: write the draft now.
+    const writeNow = () => {
+      const draft = pendingDraft.current
+      if (!draft) return
+      pendingDraft.current = null
+      void keepDraft(store, owner, draft)
+    }
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") writeNow()
+    }
+    window.addEventListener("pagehide", writeNow)
+    document.addEventListener("visibilitychange", onHidden)
+    return () => {
+      window.removeEventListener("pagehide", writeNow)
+      document.removeEventListener("visibilitychange", onHidden)
+    }
+  }, [owner, store])
+
+  // An app update waits while anything is unsaved or an AI run is out.
+  const aiBusy = ready?.ai.k === "running" || ready?.ai.k === "applying"
+  useReloadBlock("trips-editor", unsaved || aiBusy)
+
+  // Back online: send what failed, or open what couldn't be opened.
+  useEffect(() => {
+    const onOnline = () => {
+      const now = stateRef.current
+      if (now.s === "ready" && now.sync.k === "saveError") dispatch({ type: "RETRY" })
+      else if ((now.s === "loadError" || now.s === "copy") && deviceRef.current.mode === "live") reload()
+    }
+    window.addEventListener("online", onOnline)
+    return () => window.removeEventListener("online", onOnline)
+  }, [reload])
+
+  // A save that got no answer, or a server error, is tried again by itself
+  // (backing off) while the browser says it is online.
+  const failedSave = ready?.sync.k === "saveError" && ready.sync.failure !== "refused" ? ready.sync : null
+  const retries = useRef(0)
+  useEffect(() => {
+    if (!failedSave || !online) return
+    const timer = setTimeout(() => {
+      retries.current += 1
+      dispatch({ type: "RETRY" })
+    }, retryDelay(retries.current))
+    return () => clearTimeout(timer)
+  }, [failedSave, online])
 
   // The concierge (and any other writer on this page) announces what it saved.
   useTripChanged(
@@ -120,7 +255,7 @@ export function useTripEditor() {
       if (document.visibilityState !== "visible") return
       const now = stateRef.current
       if (now.s !== "ready" || now.sync.k !== "clean" || !(now.ai.k === "idle" || now.ai.k === "review")) return
-      getTrip(readToken, tripDocId).then(
+      getTrip(readToken, tripDocId, { timeoutMs: READ_TIMEOUT_MS }).then(
         ({ trip: fresh, access: a }) => dispatch({ type: "LOADED", trip: fresh, access: a }),
         () => undefined, // a missed refresh changes nothing; the next save still checks
       )
@@ -146,8 +281,11 @@ export function useTripEditor() {
       (saved) => {
         dispatch({ type: "SAVE_OK", sent, saved })
         emitTripChanged(saved)
-        // Say what had to be cut to fit; a problem a refusal named is fixed now.
-        setNotice((current) => fitted ?? (current?.startsWith(REFUSED_PREFIX) ? null : current))
+        retries.current = 0
+        // Say what had to be cut to fit; the problem an earlier notice named is over.
+        const stale = saveNoticeRef.current
+        saveNoticeRef.current = null
+        setNotice((current) => fitted ?? (current !== null && current === stale ? null : current))
         return saved
       },
       (err: unknown) => {
@@ -158,8 +296,18 @@ export function useTripEditor() {
         const message = errorText(err)
         const failure = saveFailure(err)
         dispatch({ type: "SAVE_FAILED", sent, message, failure })
-        // Phones show only "Not saved": the reason, and what to do, go in the dock.
-        if (failure === "refused") setNotice(`${REFUSED_PREFIX} ${message} Change it and your edits will save.`)
+        // Phones show only a word and Retry: the reason, and what to do, go in the dock.
+        const kept = deviceRef.current.owner ? "on this device" : "on this page"
+        const text =
+          failure === "refused"
+            ? `Couldn’t save your latest edits. ${message} Change it and your edits will save.`
+            : isOffline()
+              ? `You’re offline. Your edits are kept ${kept} and will save when you’re back online.`
+              : failure === "network"
+                ? `Couldn’t save your latest edits: the server didn’t answer. They’re kept ${kept}, and saving will try again by itself.`
+                : `Couldn’t save your latest edits: the server had a problem (${message}). Saving will try again by itself.`
+        saveNoticeRef.current = text
+        setNotice(text)
         return null
       },
     )
@@ -204,22 +352,30 @@ export function useTripEditor() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload)
   }, [])
 
-  // Leaving the trip: stop any AI wait, and send what isn't saved yet (after
-  // the save in flight, so the two can't land out of order).
+  // Leaving the trip: stop any AI wait, keep what isn't saved on the device,
+  // and send it (after the save in flight, so the two can't land out of
+  // order). If it can't be stored, the layout says so, and the next visit
+  // brings the edits back.
   useEffect(
     () => () => {
       aiAbortRef.current?.abort()
       const now = stateRef.current
-      if (discardedRef.current || now.s !== "ready" || !canWrite(now.access)) return
+      if (discardedRef.current || now.s !== "ready" || !canWrite(now.access) || now.sync.k === "clean") return
       const { sync, doc, base } = now
-      const unsaved = sync.k === "dirty" || sync.k === "saveError" || (sync.k === "saving" && sync.queued)
-      if (!unsaved) return
+      const { store: kept, owner: whose, leftUnsaved } = deviceRef.current
+      pendingDraft.current = null
+      const drafted = whose ? keepDraft(kept, whose, { doc, base, savedAt: Date.now() }) : Promise.resolve()
+      if (sync.k === "conflict") {
+        leftUnsaved(doc.name, "someone else changed the same thing")
+        return
+      }
       const before = sync.k === "saving" ? inflightRef.current?.work : undefined
       void (async () => {
-        const saved = before ? await before : null
-        const written = await updateTrip(readToken, doc.id, savePatch(doc, (saved ?? base).updatedAt))
+        await drafted // written before the save that would drop it
+        const written = await saveOnLeave({ doc, base, before, update: (t, against) => updateTrip(readToken, t.id, savePatch(t, against)) })
+        if (whose) await Promise.all([dropDraft(kept, whose, doc.id), keepTrip(kept, whose, written)])
         emitTripChanged(written)
-      })().catch(() => undefined) // best effort: the page is gone, there is no one to tell
+      })().catch((err: unknown) => leftUnsaved(doc.name, leftReason(err)))
     },
     [readToken],
   )
@@ -481,6 +637,10 @@ export function useTripEditor() {
     trip,
     access,
     editable,
+    /** False while the browser says there is no connection (for `SaveIndicator`). */
+    online,
+    /** Showing the copy kept on this device, read-only: when it was taken, and whether it has unsaved edits. */
+    copy: copy ? { savedAt: copy.savedAt, unsaved: copy.unsaved } : null,
     sync: ready?.sync ?? { k: "clean" as const },
     ai,
     history: ready?.history ?? null,

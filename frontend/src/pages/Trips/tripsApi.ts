@@ -179,6 +179,16 @@ function templateItem(item: ItineraryItem, id: string): ItineraryItem {
   return out
 }
 
+/** A copy whose plan never arrived, and whose empty shell couldn't be removed. `cause` is why the plan failed. */
+class CopyLeftEmptyError extends Error {
+  readonly cause: unknown
+  constructor(message: string, cause: unknown) {
+    super(message)
+    this.name = "CopyLeftEmptyError"
+    this.cause = cause
+  }
+}
+
 /** Copy a trip (days, look, place) into a new draft owned by the caller. */
 export async function duplicateTrip(getToken: GetToken, source: Trip): Promise<Trip> {
   const name = `${source.name} (copy)`.slice(0, 160)
@@ -218,9 +228,10 @@ export async function duplicateTrip(getToken: GetToken, source: Trip): Promise<T
       () => false,
     )
     if (removed) throw err
-    throw new Error(`Couldn’t copy the plan, and an empty “${name}” is left in your trips to delete. (${err instanceof Error ? err.message : String(err)})`, {
-      cause: err,
-    })
+    throw new CopyLeftEmptyError(
+      `Couldn’t copy the plan, and an empty “${name}” is left in your trips to delete. (${err instanceof Error ? err.message : String(err)})`,
+      err,
+    )
   }
 }
 
