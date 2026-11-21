@@ -616,7 +616,8 @@ export const range = stylex.create({
     zIndex: 30,
     width: "max-content",
     maxWidth: "calc(100vw - 2rem)",
-    padding: "0.75rem",
+    // 7 × 44 px + this stays under the 335 px a 375 px phone leaves the field.
+    padding: { default: "0.75rem", [PHONE]: "0.5rem" },
     borderRadius: "var(--trips-radius-lg)",
     backgroundColor: "var(--trips-raised)",
     boxShadow: "var(--trips-shadow-3)",
@@ -628,7 +629,8 @@ export const range = stylex.create({
   months: { display: "flex", gap: "1.5rem", paddingInline: "0.25rem", paddingBottom: "0.25rem" },
   second: { "@media (max-width: 719.98px)": { display: "none" } },
   monthName: { margin: 0, marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 600, textAlign: "center", color: "var(--trips-ink)" },
-  grid: { display: "grid", gridTemplateColumns: "repeat(7, 2.5rem)", rowGap: "0.125rem" },
+  // 7 × 44 px days: a full touch target each, and still inside a 375 px phone.
+  grid: { display: "grid", gridTemplateColumns: "repeat(7, 2.75rem)", rowGap: "0.125rem" },
   dow: {
     display: "grid",
     placeItems: "center",
@@ -640,8 +642,8 @@ export const range = stylex.create({
   day: {
     display: "grid",
     placeItems: "center",
-    width: "2.5rem",
-    height: "2.5rem",
+    width: "2.75rem",
+    height: "2.75rem",
     padding: 0,
     backgroundColor: "transparent",
     color: "var(--trips-ink)",
@@ -659,8 +661,8 @@ export const range = stylex.create({
   dayNum: {
     display: "grid",
     placeItems: "center",
-    width: "2.25rem",
-    height: "2.25rem",
+    width: "2.5rem",
+    height: "2.5rem",
     borderRadius: "999px",
     transitionProperty: "background-color",
     transitionDuration: "120ms",
