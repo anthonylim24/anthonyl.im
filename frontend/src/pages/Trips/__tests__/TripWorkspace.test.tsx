@@ -219,6 +219,25 @@ describe("TripWorkspace", () => {
       expect(rail.getByRole("link", { name: /^Day 2, .*0 items$/ })).not.toHaveAttribute("aria-current")
     })
 
+    it("opens the tab named in ?tab=, counts what is left to tick, and goes back to the itinerary", async () => {
+      const trip = planned()
+      trip.checklist = [
+        { id: "c1", text: "Passport", done: false, group: "documents", createdAt: "2026-01-01T00:00:00Z" },
+        { id: "c2", text: "Charger", done: true, group: "packing", createdAt: "2026-01-01T00:00:00Z" },
+      ]
+      renderWorkspace("/trips/lisbon?tab=checklist", trip)
+
+      const tabs = within(await screen.findByRole("tablist", { name: "Trip overview" }))
+      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Budget", "Checklist1 left", "Essentials"])
+      expect(tabs.getByRole("tab", { name: /Checklist/ })).toHaveAttribute("aria-selected", "true")
+      expect(await screen.findByRole("heading", { name: "Documents" })).toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Day by day" })).toBeNull()
+
+      fireEvent.mouseDown(tabs.getByRole("tab", { name: "Itinerary" }), { button: 0 })
+      expect(await screen.findByRole("region", { name: "Day by day" })).toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: "Documents" })).toBeNull()
+    })
+
     it("maps one pin per day, with every located stop as a dot and no routes", async () => {
       const trip = planned()
       trip.days[1] = {
