@@ -339,6 +339,10 @@ export function savePatch(trip: Trip, baseUpdatedAt: string): UpdateTripPatch {
     description: trip.description ?? null,
     days: trip.days,
     center: trip.center,
+    budget: trip.budget ?? null,
+    party: trip.party,
+    expenses: trip.expenses,
+    checklist: trip.checklist,
     baseUpdatedAt,
   }
 }

@@ -1,4 +1,4 @@
-import type { ItineraryItem, Trip, TripDay } from "./types"
+import type { Trip, TripDay } from "./types"
 
 // Three-way merge of a trip document. `base` is the version the traveller's
 // edits started from, `mine` is the editor's working copy, `theirs` is what
@@ -44,7 +44,15 @@ export const TRIP_FIELDS = [
   "tags",
   "description",
   "center",
+  "budget",
 ] as const satisfies readonly (keyof Trip)[]
+
+/**
+ * Trip-level lists of records with ids (the party, expenses, the checklist).
+ * They merge entry by entry like a day's items, so two people adding at the
+ * same time both keep what they added.
+ */
+export const TRIP_LISTS = ["party", "expenses", "checklist"] as const satisfies readonly (keyof Trip)[]
 
 const DAY_FIELDS = ["date", "title", "city", "notes", "weather", "callouts"] as const satisfies readonly (keyof TripDay)[]
 
@@ -84,11 +92,11 @@ function arrange(primary: readonly string[], secondary: readonly string[], survi
   return out
 }
 
-export function mergeItems(base: readonly ItineraryItem[], mine: readonly ItineraryItem[], theirs: readonly ItineraryItem[]): ItineraryItem[] {
+export function mergeItems<T extends { id: string }>(base: readonly T[], mine: readonly T[], theirs: readonly T[]): T[] {
   const b = new Map(base.map((i) => [i.id, i]))
   const m = new Map(mine.map((i) => [i.id, i]))
   const t = new Map(theirs.map((i) => [i.id, i]))
-  const result = new Map<string, ItineraryItem>()
+  const result = new Map<string, T>()
   for (const id of new Set([...m.keys(), ...t.keys()])) {
     const bi = b.get(id)
     const mi = m.get(id)
@@ -162,6 +170,14 @@ export function rebaseTrip(base: Trip, mine: Trip, theirs: Trip): Trip | null {
     const value = pick(base[field], mine[field], theirs[field])
     if (value === NO_MERGE) return null
     ;(out as unknown as Record<string, unknown>)[field] = value
+  }
+  for (const field of TRIP_LISTS) {
+    const b = base[field] as readonly { id: string }[] | undefined
+    const m = mine[field] as readonly { id: string }[] | undefined
+    const t = theirs[field] as readonly { id: string }[] | undefined
+    if (sameJson(m, b)) continue // theirs already
+    const merged = sameJson(t, b) ? m : mergeItems(b ?? [], m ?? [], t ?? [])
+    ;(out as unknown as Record<string, unknown>)[field] = merged
   }
   return out
 }

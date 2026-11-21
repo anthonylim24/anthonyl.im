@@ -54,6 +54,13 @@ export interface ItineraryReservation {
   url?: string
 }
 
+/** An amount in a currency's major unit (12.5 = twelve euros fifty). */
+export interface Money {
+  amount: number
+  /** ISO 4217, upper case ("EUR"). */
+  currency: string
+}
+
 export interface ItineraryItem {
   id: string
   kind: ItemKind
@@ -65,6 +72,8 @@ export interface ItineraryItem {
   status: ItemStatus
   location?: TripLocation
   reservation?: ItineraryReservation
+  /** What this stop or booking costs: the planned side of the budget. */
+  cost?: Money
   createdBy: LocationSource
 }
 
@@ -115,6 +124,60 @@ export interface TripAppearance {
   cityTags?: Record<string, string>
 }
 
+// ── Planning extras (budget, party, checklist) ───────────────────────────
+//
+// Saved with the trip document like `days`. The client owns their shape;
+// the server only validates and stores them. Lists merge by id on the
+// client (`tripMerge.ts`), so two people adding at once both keep theirs.
+
+/** Someone on the trip, whether or not they have an account. */
+export interface TripPerson {
+  id: string
+  name: string
+  /** Set when this person is a signed-in member (owner or collaborator). */
+  userId?: string
+}
+
+export type ExpenseCategory = "lodging" | "transport" | "food" | "activities" | "shopping" | "other"
+
+/** Money actually spent: the "spent" side of the budget. */
+export interface TripExpense {
+  id: string
+  title: string
+  amount: number
+  currency: string
+  category: ExpenseCategory
+  /** ISO date the money was spent. */
+  date?: string
+  /** The stop it paid for, when there is one. */
+  itemId?: string
+  /** `TripPerson.id` of whoever paid. */
+  paidBy?: string
+  /** `TripPerson.id`s sharing it equally; absent or empty means everyone. */
+  splitWith?: string[]
+  notes?: string
+  createdAt: string
+}
+
+export interface TripBudget {
+  /** The currency every total is shown in. */
+  currency: string
+  /** The whole-trip budget, in `currency`. */
+  total?: number
+}
+
+export type ChecklistGroup = "packing" | "todo" | "documents"
+
+export interface ChecklistItem {
+  id: string
+  text: string
+  done: boolean
+  group: ChecklistGroup
+  /** `TripPerson.id` it is assigned to. */
+  assignee?: string
+  createdAt: string
+}
+
 export interface Trip {
   id: string
   /** URL permalink (unique across trips); routes resolve by id or slug. */
@@ -137,6 +200,12 @@ export interface Trip {
   sharedWithAllUsers?: boolean
   appearance?: TripAppearance
   days: TripDay[]
+  /** Budget currency and limit. */
+  budget?: TripBudget
+  /** Who is travelling (for splitting costs and assigning tasks). */
+  party?: TripPerson[]
+  expenses?: TripExpense[]
+  checklist?: ChecklistItem[]
   createdAt: string
   updatedAt: string
 }
@@ -308,6 +377,12 @@ export const locationSchema = z.object({
   confidence: z.enum(["high", "medium", "low"]).optional(),
 })
 
+const currencyCode = z.string().regex(/^[A-Z]{3}$/, "ISO 4217 code")
+/** Major units; generous ceiling, never negative. */
+const moneyAmount = z.number().finite().min(0).max(1_000_000_000)
+
+export const moneySchema = z.object({ amount: moneyAmount, currency: currencyCode })
+
 export const itemSchema = z.object({
   id: z.string().min(1).max(64),
   kind: z.enum(["place", "note", "section", "reservation"]),
@@ -327,6 +402,7 @@ export const itemSchema = z.object({
       url: z.string().max(2000).optional(),
     })
     .optional(),
+  cost: moneySchema.optional(),
   createdBy: z.enum(["user", "ai", "migration"]).default("user"),
 })
 
@@ -363,6 +439,41 @@ export const appearanceSchema = z.object({
   subtitle: z.string().max(120).optional(),
   headline: z.string().max(600).optional(),
   cityTags: z.record(z.string().max(80), z.string().max(4)).optional(),
+})
+
+export const personSchema = z.object({
+  id: z.string().min(1).max(64),
+  // Empty allowed mid-edit (see itemSchema note).
+  name: z.string().max(80),
+  userId: z.string().max(128).optional(),
+})
+
+export const expenseSchema = z.object({
+  id: z.string().min(1).max(64),
+  title: z.string().max(200),
+  amount: moneyAmount,
+  currency: currencyCode,
+  category: z.enum(["lodging", "transport", "food", "activities", "shopping", "other"]),
+  date: isoDate.optional(),
+  itemId: z.string().max(64).optional(),
+  paidBy: z.string().max(64).optional(),
+  splitWith: z.array(z.string().max(64)).max(50).optional(),
+  notes: z.string().max(2000).optional(),
+  createdAt: z.string().max(64),
+})
+
+export const budgetSchema = z.object({
+  currency: currencyCode,
+  total: moneyAmount.optional(),
+})
+
+export const checklistItemSchema = z.object({
+  id: z.string().min(1).max(64),
+  text: z.string().max(300),
+  done: z.boolean(),
+  group: z.enum(["packing", "todo", "documents"]),
+  assignee: z.string().max(64).optional(),
+  createdAt: z.string().max(64),
 })
 
 export const createTripSchema = z.object({
@@ -403,6 +514,11 @@ export const updateTripSchema = z.object({
   center: centerSchema.optional(),
   appearance: appearanceSchema.optional(),
   days: z.array(daySchema).max(60).optional(),
+  /** `null` removes the budget. */
+  budget: budgetSchema.nullable().optional(),
+  party: z.array(personSchema).max(50).optional(),
+  expenses: z.array(expenseSchema).max(1000).optional(),
+  checklist: z.array(checklistItemSchema).max(500).optional(),
 })
 
 export const generateRequestSchema = z.object({

@@ -458,6 +458,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         ...fresh,
         ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
         description: patch.description === null ? undefined : (patch.description ?? fresh.description),
+        budget: patch.budget === null ? undefined : (patch.budget ?? fresh.budget),
         updatedAt: nextUpdatedAt(fresh.updatedAt),
       }
       if (next.endDate < next.startDate) {
