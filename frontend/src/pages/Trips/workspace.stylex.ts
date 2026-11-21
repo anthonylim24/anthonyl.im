@@ -334,7 +334,7 @@ export const ws = stylex.create({
   // ── Overview tabs ─────────────────────────────────────
   tabs: {
     display: "flex",
-    gap: "1.25rem",
+    gap: { default: "1rem", "@media (min-width: 640px)": "1.25rem" },
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
     overflowX: "auto",
     scrollbarWidth: "none",
@@ -344,8 +344,11 @@ export const ws = stylex.create({
   },
   tab: {
     flexShrink: 0,
-    display: "inline-flex",
-    alignItems: "center",
+    // A grid so the mono count sits on the label's baseline, centred as a pair.
+    display: "inline-grid",
+    gridAutoFlow: "column",
+    alignItems: "baseline",
+    alignContent: "center",
     gap: "0.375rem",
     minHeight: "2.75rem",
     paddingInline: "0.125rem",
@@ -365,7 +368,18 @@ export const ws = stylex.create({
     [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
   },
   tabOn: { color: "var(--trips-ink)", borderBottomColor: "var(--trips-ink)" },
-  tabBadge: { fontFamily: "var(--trips-mono)", fontSize: "0.6875rem", fontWeight: 400, color: "var(--trips-ink-tertiary)" },
+  tabBadge: {
+    minWidth: "1.25rem",
+    paddingInline: "0.375rem",
+    paddingBlock: "0.0625rem",
+    borderRadius: "999px",
+    backgroundColor: "var(--trips-sunken)",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.6875rem",
+    fontWeight: 400,
+    textAlign: "center",
+    color: "var(--trips-ink-secondary)",
+  },
   tabPanel: { outline: "none", ":focus-visible": { boxShadow: "inset 0 0 0 2px var(--brand-ring)" } },
 
   // ── Content ───────────────────────────────────────────

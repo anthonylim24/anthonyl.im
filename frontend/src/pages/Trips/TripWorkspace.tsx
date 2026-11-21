@@ -45,7 +45,7 @@ import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./work
 import { DayPanel } from "./workspace/DayPanel"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
-import { OverviewTabs } from "./workspace/OverviewTabs"
+import { OverviewTabs, type TabBadge } from "./workspace/OverviewTabs"
 import { OVERVIEW_TABS, readOverviewTab, type OverviewTab } from "./workspace/overviewTab"
 import { calendarMenuItem, exportCalendar } from "./calendar/calendarMenu"
 import { tripCommands } from "./command/tripCommands"
@@ -1277,10 +1277,10 @@ function Workspace() {
   )
 }
 
-/** "3 left" beside Checklist while anything is unticked. */
-function tabBadges(trip: Trip): Partial<Record<OverviewTab, string>> {
+/** The count of unticked things beside Checklist, read as "3 left". */
+function tabBadges(trip: Trip): Partial<Record<OverviewTab, TabBadge>> {
   const open = (trip.checklist ?? []).filter((item) => !item.done).length
-  return open > 0 ? { checklist: `${open} left` } : {}
+  return open > 0 ? { checklist: { text: String(open), label: `${open} left` } } : {}
 }
 
 const tabLabel = (tab: OverviewTab) => OVERVIEW_TABS.find((t) => t.id === tab)?.label.toLowerCase() ?? tab

@@ -228,8 +228,9 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon?tab=checklist", trip)
 
       const tabs = within(await screen.findByRole("tablist", { name: "Trip overview" }))
-      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Budget", "Checklist1 left", "Essentials"])
-      expect(tabs.getByRole("tab", { name: /Checklist/ })).toHaveAttribute("aria-selected", "true")
+      expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Itinerary", "Budget", "Checklist1 1 left", "Essentials"])
+      // The count is shown as "1" and read as "1 left".
+      expect(tabs.getByRole("tab", { name: "Checklist 1 left" })).toHaveAttribute("aria-selected", "true")
       expect(await screen.findByRole("heading", { name: "Documents" })).toBeInTheDocument()
       expect(screen.queryByRole("region", { name: "Day by day" })).toBeNull()
 
