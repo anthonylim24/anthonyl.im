@@ -55,6 +55,7 @@ import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type CardConflict, type ItemCardProps } from "./ItemCard"
 import { dayList, type Leg } from "./dayList"
+import type { Holiday } from "../holidays"
 import { Parts } from "./Parts"
 import { rainBrief, stopAlerts } from "./stopAlerts"
 
@@ -98,6 +99,8 @@ export interface DayPanelProps {
   onInstagram?: (urls: string[]) => void
   /** The day's weather: the live forecast, the AI's, a held place while loading, or none. */
   sky: Sky
+  /** Public holidays where the day is spent (`useHolidays`). */
+  holidays?: readonly Holiday[]
 }
 
 type SortableProps = ItemCardProps & { leg: Leg | null; legWet: number | null }
@@ -199,6 +202,7 @@ export function DayPanel({
   onPhotoreal,
   onInstagram,
   sky,
+  holidays,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
@@ -486,6 +490,7 @@ export function DayPanel({
           <DaySky
             sky={sky}
             day={day}
+            holidays={holidays}
             now={dayClock}
             onStop={findStop}
             onRework={editable && !locked ? rework : undefined}

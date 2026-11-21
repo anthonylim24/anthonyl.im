@@ -2,6 +2,7 @@ import { applyDetailsPatch, detailsUndo } from "./workspace/tripDetails"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
+  BookOpen,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -41,6 +42,7 @@ import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
 import { daySky, useForecast } from "./forecast"
+import { useHolidays } from "./holidays"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
@@ -70,6 +72,7 @@ const IdeasPanel = lazyRetry(() => import("./workspace/IdeasPanel").then((m) => 
 const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
+const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -256,6 +259,7 @@ function Workspace() {
   const { trip, editable, locked } = editor
   const ai = editor.ai
   const forecast = useForecast(trip)
+  const holidays = useHolidays(trip)
   // An optional overlay (the printout, the 3D view, a sheet) that fails to
   // load closes and says so in the dock; the trip itself is untouched.
   const overlayFailed = (what: string, close: () => void) => (error: Error) => {
@@ -500,6 +504,7 @@ function Workspace() {
   // An overlay that fails to load or throws takes only itself down: close
   // it, keep the itinerary, and say what to do.
   const [pasting, setPasting] = useState(false)
+  const [recapOpen, setRecapOpen] = useState(false)
   const addPasted = (entries: BookingEntry[]) => {
     if (entries.length === 0) return
     editor.setDays((days) => addBookings(days, entries), { label: `Added ${plural(entries.length, "booking")}`, toast: true })
@@ -706,6 +711,7 @@ function Workspace() {
       : []),
     calendarMenuItem(trip),
     printMenuItem(printer),
+    { label: "Trip recap", icon: <BookOpen size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setRecapOpen(true) },
     copyMenuItem(trip, confirm),
     ...(onDevice
       ? []
@@ -902,6 +908,7 @@ function Workspace() {
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
             onInstagram={openInstagram}
             sky={daySky(day, forecast)}
+            holidays={holidays.get(day.id)}
           />
         ) : (
           <OverviewTabs
@@ -913,6 +920,7 @@ function Workspace() {
                       <OverviewPanel
                   trip={trip}
                   forecast={forecast.byDay}
+                  typical={forecast.typical}
                   basePath={basePath}
                   editable={editable}
                   locked={locked}
@@ -929,6 +937,7 @@ function Workspace() {
                   onAddBooking={addBookingByHand}
                   onPasteBookings={() => setPasting(true)}
                   onUpdateDay={(dayId, change, undo) => editor.setDays((days) => days.map((d) => (d.id === dayId ? change(d) : d)), undo)}
+                  onOpenRecap={() => setRecapOpen(true)}
                 />
               ) : (
                 <OverlayBoundary onError={overlayFailed(`The ${tabLabel(open)} tab`, () => setTab("itinerary"))}>
@@ -1226,6 +1235,13 @@ function Workspace() {
             onAdd={addFromInstagram}
           />
         </Suspense>
+        </OverlayBoundary>
+      )}
+      {recapOpen && (
+        <OverlayBoundary onError={overlayFailed("The recap", () => setRecapOpen(false))}>
+          <Suspense fallback={null}>
+            <TripRecap open trip={trip} onClose={() => setRecapOpen(false)} />
+          </Suspense>
         </OverlayBoundary>
       )}
       {editable && pasting && (

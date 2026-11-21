@@ -18,6 +18,7 @@ import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import type { DayForecast } from "../forecast"
+import type { TypicalDay } from "../climate"
 import { ForecastChip } from "./ForecastChip"
 import { NowCard, type UpdateDay } from "../live/NowCard"
 import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief } from "./AiPanels"
@@ -41,6 +42,7 @@ export function OverviewPanel({
   onDismissRun,
   onStopAi,
   forecast,
+  typical,
   onAddBooking,
   onPasteBookings,
   onUpdateDay,
@@ -49,6 +51,8 @@ export function OverviewPanel({
   trip: Trip
   /** dayId → live forecast, for days in the forecast window. */
   forecast?: ReadonlyMap<string, DayForecast>
+  /** dayId → the weather typical of the date, for days past the forecast's reach. */
+  typical?: ReadonlyMap<string, TypicalDay>
   basePath: string
   editable: boolean
   locked: boolean
@@ -215,7 +219,12 @@ export function OverviewPanel({
                     </span>
                   </span>
                   <span {...sx(a.row)}>
-                    {forecast?.get(day.id) && <ForecastChip forecast={forecast.get(day.id)!} />}
+                    {(() => {
+                      const live = forecast?.get(day.id)
+                      if (live) return <ForecastChip forecast={live} />
+                      const usual = typical?.get(day.id)
+                      return usual ? <ForecastChip typical={usual} /> : null
+                    })()}
                     {day.city && multiCity && <span {...sx(a.chip)}>{day.city}</span>}
                     <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
                   </span>

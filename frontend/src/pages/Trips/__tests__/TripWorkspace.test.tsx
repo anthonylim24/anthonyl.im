@@ -598,6 +598,7 @@ describe("TripWorkspace", () => {
         "Trip details",
         "Export to calendar",
         "Print itinerary",
+        "Trip recap",
         "Copy itinerary",
         "Duplicate trip",
         "Delete trip…",
@@ -1079,7 +1080,7 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
       expect(within(screen.getByRole("region", { name: "Day by day" })).getByText("Nothing planned")).toBeInTheDocument()
     })
 
@@ -1123,7 +1124,7 @@ describe("TripWorkspace", () => {
       expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
       expect(mockUpdateTrip).not.toHaveBeenCalled()
     })
 
@@ -1133,7 +1134,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText("View only")).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
     })
   })
 
@@ -1152,10 +1153,19 @@ describe("TripWorkspace", () => {
       expect(mockDeleteTrip.mock.calls[0]![1]).toBe("lisbon")
     })
 
+    it("opens the trip recap from the menu, and closes it", async () => {
+      renderWorkspace("/trips/lisbon")
+      fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Trip recap" }))
+      const dialog = await screen.findByRole("dialog", { name: "Lisbon Long Weekend" })
+      fireEvent.keyDown(dialog, { key: "Escape" })
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Lisbon Long Weekend" })).not.toBeInTheDocument())
+    })
+
     it("has no Delete for a trip shared with everyone", async () => {
       renderWorkspace("/trips/lisbon", planned({ sharedWithAllUsers: true }))
       fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Copy itinerary", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
     })
   })
 

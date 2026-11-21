@@ -55,6 +55,17 @@ describe("tonightsStay", () => {
     expect(tonightsStay(seoul, at("2026-12-22", "14:00"))).toMatchObject({ itemId: "h1", when: "first" })
   })
 
+  it("covers every night a booked stay runs to, and none after its check-out", () => {
+    const booked: ItineraryItem = {
+      ...hotel("h4", "Lotte Hotel"),
+      kind: "reservation",
+      reservation: { type: "hotel", status: "confirmed", endDate: "2026-12-25" },
+    }
+    const long = trip([booked], [museum], [museum], [museum])
+    expect(tonightsStay(long, at("2026-12-24"))).toMatchObject({ itemId: "h4", when: "tonight" })
+    expect(tonightsStay(long, at("2026-12-25"))).toBeNull()
+  })
+
   it("is nothing after the trip, or with no lodging by tonight", () => {
     expect(tonightsStay(seoul, at("2026-12-26"))).toBeNull()
     expect(tonightsStay(trip([museum], [museum]), at("2026-12-23"))).toBeNull()
