@@ -1,5 +1,5 @@
 import { describeSanitized, sanitizeForSave } from "./offline/sanitize"
-import { mergeDays, rebaseTrip, resolveTrip, sameJson } from "./tripMerge"
+import { mergeDays, mergeItems, rebaseTrip, resolveTrip, sameJson } from "./tripMerge"
 import type { UpdateTripPatch } from "./tripsApi"
 import type { EnhancementRun, Trip, TripAccess } from "./types"
 
@@ -22,7 +22,7 @@ import type { EnhancementRun, Trip, TripAccess } from "./types"
 // until the document changes: the same content would only be refused again.
 
 /** The part of a trip that Undo restores. Dates travel with days: shortening a trip drops days. */
-export type Plan = Pick<Trip, "days" | "startDate" | "endDate">
+export type Plan = Pick<Trip, "days" | "startDate" | "endDate" | "ideas">
 
 /**
  * Why a save didn't land, which decides what helps:
@@ -150,8 +150,9 @@ export function canEdit(state: Editor): state is Ready {
   return state.s === "ready" && canWrite(state.access) && (state.ai.k === "idle" || state.ai.k === "review")
 }
 
-const plan = (trip: Trip): Plan => ({ days: trip.days, startDate: trip.startDate, endDate: trip.endDate })
-const samePlanRefs = (a: Trip, b: Trip) => a.days === b.days && a.startDate === b.startDate && a.endDate === b.endDate
+const plan = (trip: Trip): Plan => ({ days: trip.days, startDate: trip.startDate, endDate: trip.endDate, ideas: trip.ideas })
+const samePlanRefs = (a: Trip, b: Trip) =>
+  a.days === b.days && a.startDate === b.startDate && a.endDate === b.endDate && a.ideas === b.ideas
 
 /** Same content as far as a save is concerned (the server stamps `updatedAt`). */
 export const sameContent = (a: Trip, b: Trip) => sameJson({ ...a, updatedAt: "" }, { ...b, updatedAt: "" })
@@ -159,7 +160,9 @@ export const sameContent = (a: Trip, b: Trip) => sameJson({ ...a, updatedAt: "" 
 /** Turn `doc` from one plan to another, keeping anything that changed since on other days. */
 function replayPlan(doc: Trip, from: Plan, to: Plan): Trip {
   const days = mergeDays(from.days, to.days, doc.days) ?? to.days
-  return { ...doc, days, startDate: to.startDate, endDate: to.endDate }
+  // The wishlist: a stop moved onto a day comes back to it on undo.
+  const ideas = from.ideas === to.ideas ? doc.ideas : mergeItems(from.ideas ?? [], to.ideas ?? [], doc.ideas ?? [])
+  return { ...doc, days, startDate: to.startDate, endDate: to.endDate, ideas }
 }
 
 function record(history: History, prev: Trip, next: Trip, undo: UndoMark | undefined): History {

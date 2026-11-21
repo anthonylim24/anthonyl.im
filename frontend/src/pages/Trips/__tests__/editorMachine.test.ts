@@ -487,6 +487,40 @@ describe("AI runs", () => {
 })
 
 describe("undo and redo", () => {
+  it("take a wishlist place back off the day it was moved to, and redo moves it again", () => {
+    const idea = makeItem({ id: "idea", title: "Sintra" })
+    const start = loaded(trip({ ideas: [idea] }))
+    const moved = editorReducer(start, {
+      type: "EDIT",
+      fn: (doc) => ({
+        ...doc,
+        ideas: [],
+        days: doc.days.map((d) => (d.id === "day-1" ? { ...d, items: [...d.items, idea] } : d)),
+      }),
+      undo: { label: "Moved Sintra to day 1", toast: true },
+    })
+    expect(itemIds(moved, 0)).toEqual(["market", "idea"])
+    const undone = editorReducer(moved, { type: "UNDO" }) as Ready
+    expect(itemIds(undone, 0)).toEqual(["market"])
+    expect(undone.doc.ideas?.map((i) => i.id)).toEqual(["idea"])
+    const redone = editorReducer(undone, { type: "REDO" }) as Ready
+    expect(itemIds(redone, 0)).toEqual(["market", "idea"])
+    expect(redone.doc.ideas).toEqual([])
+  })
+
+  it("undo a wishlist edit as its own step", () => {
+    const later = makeItem({ id: "later", title: "Later" })
+    const state = run(
+      [addTo("day-1", makeItem({ id: "added" }), { label: "Added", toast: true }), { type: "EDIT", fn: (doc) => ({ ...doc, ideas: [later] }) }],
+      loaded(),
+    )
+    const once = editorReducer(state, { type: "UNDO" }) as Ready
+    expect(once.doc.ideas ?? []).toEqual([])
+    expect(itemIds(once, 0)).toEqual(["market", "added"])
+    const twice = editorReducer(once, { type: "UNDO" }) as Ready
+    expect(itemIds(twice, 0)).toEqual(["market"])
+  })
+
   it("steps back and forward through structural edits", () => {
     const a = makeItem({ id: "a" })
     const state = run([addTo("day-1", a, { label: "Added a" }), removeFrom("day-1", "market")], loaded())

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
+import { MotionConfig } from "motion/react"
 import { ArrowLeft, Lock, Plus, RotateCw } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useClerk } from "@clerk/clerk-react"
 import { sx } from "@/styles/merge"
 import { CLERK_ENABLED } from "@/lib/clerk"
+import { syncManifest } from "@/lib/routeMetadata"
 import { useAuthStall, type StallCause } from "@/lib/authStall"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
@@ -232,6 +234,11 @@ export function TripsLayout() {
     applyTheme(getInitialTheme())
   }, [])
 
+  // Installing from here gets the app for where the traveller is (Trips, or the Korea trip).
+  useEffect(() => {
+    syncManifest(window.location.pathname)
+  }, [pathname])
+
   useEffect(() => {
     document.documentElement.dataset.tripsScroll = ""
     return () => {
@@ -240,6 +247,7 @@ export function TripsLayout() {
   }, [])
 
   return (
+    <MotionConfig reducedMotion="user">
     <CommandProvider>
     <div {...sx("trips", s.root)}>
       <a href="#trips-main" {...sx(s.skip)}>
@@ -290,5 +298,6 @@ export function TripsLayout() {
       </TripsAuthGate>
     </div>
     </CommandProvider>
+    </MotionConfig>
   )
 }

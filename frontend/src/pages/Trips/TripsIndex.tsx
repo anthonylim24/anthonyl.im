@@ -5,7 +5,7 @@ import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
-import { deleteTrip, duplicateTrip, getTrip, listTrips } from "./tripsApi"
+import { deleteTrip, duplicateTrip, getTrip } from "./tripsApi"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { ACCENT_FILL, dayCount, formatRange, plural, resolveAccent, tripTiming, visibleTags, type TripPhase } from "./meta"
 import { AtlasMap, canRenderMap, useIsDark } from "./map/AtlasMap"
@@ -17,6 +17,8 @@ import { atlasFigures } from "./live/atlasFigures"
 import { countdownLabel } from "./live/liveTrip"
 import { useNow } from "./live/useNow"
 import { todayDay } from "./today"
+import { useShowCopy, useTripsDevice } from "./offline/tripsDevice"
+import { canLoadTripList, loadTripList } from "./offline/tripList"
 import type { Trip, TripSummary } from "./types"
 import { a } from "./atlas.stylex"
 import { foldText } from "./command/commands"
@@ -115,6 +117,12 @@ export function TripsIndex() {
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [reloadKey, setReloadKey] = useState(0)
   const [, startTransition] = useTransition()
+  const { store, owner, mode } = useTripsDevice()
+  /** Set while the list on screen is the copy kept on this device: when it was taken. */
+  const [copiedAt, setCopiedAt] = useState<number | null>(null)
+  useShowCopy(copiedAt === null ? null : { what: "list", savedAt: copiedAt, unsaved: false })
+  /** Nothing that needs the server (create, share, duplicate, delete) while reading the device copy. */
+  const onDevice = copiedAt !== null || mode === "copy"
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
   const [hot, setHot] = useState<string | null>(null)
@@ -136,10 +144,14 @@ export function TripsIndex() {
   const liveFetch = useRef<{ id: string; promise: Promise<Pick<Trip, "timezone" | "days"> | null> } | null>(null)
 
   useEffect(() => {
-    if (!authReady) return
+    if (!canLoadTripList(authReady, { mode })) return
     let cancelled = false
-    listTrips(readToken).then(
-      (trips) => !cancelled && startTransition(() => setState({ status: "success", trips })),
+    loadTripList(readToken, { store, owner, mode }).then(
+      ({ trips, copiedAt: at }) => {
+        if (cancelled) return
+        setCopiedAt(at)
+        startTransition(() => setState({ status: "success", trips }))
+      },
       (err: unknown) => {
         if (cancelled) return
         const message = err instanceof Error ? err.message : String(err)
@@ -150,7 +162,7 @@ export function TripsIndex() {
     return () => {
       cancelled = true
     }
-  }, [authReady, reloadKey, readToken])
+  }, [authReady, reloadKey, readToken, store, owner, mode])
 
   useEffect(() => {
     mounted.current = true
@@ -381,16 +393,18 @@ export function TripsIndex() {
           <p {...sx(s.heroLede)}>
             Plan each day on a live 3D map, let AI draft the first pass, and share the whole thing with whoever’s coming.
           </p>
-          <div {...sx(s.heroActions)}>
-            <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
-              <Plus size={18} strokeWidth={2} aria-hidden />
-              Plan a trip
-            </Link>
-            <Link to="/trips/new?ai=1" {...sx(a.btn, a.btnSecondary)}>
-              <Sparkles size={16} strokeWidth={1.75} aria-hidden />
-              Draft one with AI
-            </Link>
-          </div>
+          {!onDevice && (
+            <div {...sx(s.heroActions)}>
+              <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
+                <Plus size={18} strokeWidth={2} aria-hidden />
+                Plan a trip
+              </Link>
+              <Link to="/trips/new?ai=1" {...sx(a.btn, a.btnSecondary)}>
+                <Sparkles size={16} strokeWidth={1.75} aria-hidden />
+                Draft one with AI
+              </Link>
+            </div>
+          )}
           {nextUp && nextHref && (
             <Link
               to={nextHref}
@@ -485,10 +499,12 @@ export function TripsIndex() {
           ) : (
             <p {...sx(a.body)}>Name a place and some dates. You can fill in the days yourself or have AI sketch them.</p>
           )}
-          <Link to={sharedPost ? `/trips/new?instagram=${encodeURIComponent(sharedPost)}` : "/trips/new"} {...sx(a.btn, a.btnPrimary)}>
-            <Plus size={18} strokeWidth={2} aria-hidden />
-            Plan your first trip
-          </Link>
+          {!onDevice && (
+            <Link to={sharedPost ? `/trips/new?instagram=${encodeURIComponent(sharedPost)}` : "/trips/new"} {...sx(a.btn, a.btnPrimary)}>
+              <Plus size={18} strokeWidth={2} aria-hidden />
+              Plan your first trip
+            </Link>
+          )}
         </div>
       )}
 
@@ -621,7 +637,7 @@ export function TripsIndex() {
                               )}
                             </span>
                             <span {...sx(s.cardMenu)}>
-                              {action?.id === trip.id ? (
+                              {onDevice ? null : action?.id === trip.id ? (
                                 <span {...sx(a.iconBtn)} role="status" aria-label="Working">
                                   <Spinner />
                                 </span>
@@ -639,7 +655,7 @@ export function TripsIndex() {
                       </li>
                     )
                   })}
-                  {index === groups.length - 1 && !searching && (
+                  {index === groups.length - 1 && !searching && !onDevice && (
                     <li>
                       <Link to="/trips/new" {...sx(s.newCard)}>
                         <span {...sx(s.newCardPlus)}>

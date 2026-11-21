@@ -34,7 +34,8 @@ import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
-import type { HistoryEntry, Sync } from "./editorMachine"
+import type { HistoryEntry } from "./editorMachine"
+import { SaveIndicator } from "./offline/SaveIndicator"
 import { scrollBehavior } from "./workspace/scroll"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
@@ -109,28 +110,6 @@ type Dialog = null | "share" | "details" | "delete" | "clear" | { ai: "day" | "t
 /** Long enough to read and reach (WCAG 2.2.1); paused while hovered or focused. */
 const UNDO_TOAST_MS = 12_000
 
-
-/** "Saved" / "Saving" / "Not saved · Retry", read out politely as it changes. */
-function SaveStatus({ sync, locked, compact, onRetry }: { sync: Sync; locked: boolean; compact?: boolean; onRetry: () => void }) {
-  const busy = sync.k === "dirty" || sync.k === "saving"
-  const failed = sync.k === "saveError" || sync.k === "conflict"
-  return (
-    <span {...sx(s.saveState, compact && s.saveCompact)} role="status" aria-live="polite">
-      <span {...sx(s.saveDot, busy && s.saveDotBusy, failed && s.saveDotError)} aria-hidden />
-      {sync.k === "saveError" ? (
-        <button type="button" {...sx(a.link)} disabled={locked} onClick={onRetry}>
-          Not saved · Retry
-        </button>
-      ) : sync.k === "conflict" ? (
-        "Not saved"
-      ) : busy ? (
-        "Saving"
-      ) : (
-        "Saved"
-      )}
-    </span>
-  )
-}
 
 /**
  * The offer to take back a destructive change. Stays for 12 s, and not
@@ -695,6 +674,11 @@ function Workspace() {
   const showMap = wide || view === "map"
   const sync = editor.sync
   const running = ai.k === "running" ? ai.run : null
+  /** Reading the copy kept on this device: nothing that needs the server. */
+  const onDevice = editor.copy !== null
+  /** One save line in the page: in the header from 1024px, in the bottom bar below. */
+  const saveLine = (place: "header" | "bar") =>
+    editable && <SaveIndicator sync={sync} online={editor.online} locked={locked} onRetry={editor.retrySave} place={place} />
 
   const menu: MenuItem[] = [
     ...(editable && dayId
@@ -723,17 +707,21 @@ function Workspace() {
     calendarMenuItem(trip),
     printMenuItem(printer),
     copyMenuItem(trip, confirm),
-    {
-      label: "Duplicate trip",
-      icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,
-      onSelect: () =>
-        void act("duplicate", async () => {
-          await editor.flush()
-          const copy = await duplicateTrip(editor.readToken, editor.trip ?? trip)
-          if (!aliveRef.current) return
-          navigate(`/trips/${copy.slug ?? copy.id}`)
-        }),
-    },
+    ...(onDevice
+      ? []
+      : [
+          {
+            label: "Duplicate trip",
+            icon: <Copy size={16} strokeWidth={1.75} aria-hidden />,
+            onSelect: () =>
+              void act("duplicate", async () => {
+                await editor.flush()
+                const copy = await duplicateTrip(editor.readToken, editor.trip ?? trip)
+                if (!aliveRef.current) return
+                navigate(`/trips/${copy.slug ?? copy.id}`)
+              }),
+          },
+        ]),
     ...(owner && !trip.sharedWithAllUsers
       ? [
           {
@@ -766,11 +754,13 @@ function Workspace() {
             </Link>
             <span {...sx(a.mono, a.muted, a.noShrink, s.compactDates)}>{formatRange(trip.startDate, trip.endDate)}</span>
             <span {...sx(a.grow)} />
-            {editable && <SaveStatus sync={sync} locked={locked} compact onRetry={editor.retrySave} />}
-            <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
-              <Share2 size={14} strokeWidth={1.75} aria-hidden />
-              Share
-            </button>
+            {wide && saveLine("header")}
+            {!onDevice && (
+              <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
+                <Share2 size={14} strokeWidth={1.75} aria-hidden />
+                Share
+              </button>
+            )}
             {busy === "duplicate" ? (
               <span {...sx(a.iconBtn, a.iconBtnSm)} role="status" aria-label="Duplicating">
                 <Spinner />
@@ -834,10 +824,12 @@ function Workspace() {
               {!editable && <span {...sx(a.chip)}>View only</span>}
             </div>
             <div {...sx(s.headActions)}>
-              <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
-                <Share2 size={14} strokeWidth={1.75} aria-hidden />
-                Share
-              </button>
+              {!onDevice && (
+                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
+                  <Share2 size={14} strokeWidth={1.75} aria-hidden />
+                  Share
+                </button>
+              )}
               {editable && (
                 <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={() => setDialog({ ai: "trip" })}>
                   <Sparkles size={14} strokeWidth={1.75} aria-hidden />
@@ -863,7 +855,7 @@ function Workspace() {
                   items={menu}
                 />
               )}
-              {editable && <SaveStatus sync={sync} locked={locked} onRetry={editor.retrySave} />}
+              {wide && saveLine("header")}
             </div>
           </header>
         )}
@@ -1159,6 +1151,7 @@ function Workspace() {
       )}
 
       <div {...sx(s.bar)}>
+        {!wide && saveLine("bar")}
         <div {...sx(share.segment, s.barSegment)} role="radiogroup" aria-label="View" onKeyDown={onViewKey}>
           <button
             type="button"
