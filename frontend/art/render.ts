@@ -24,6 +24,7 @@ import { join } from 'node:path'
 import { ITEMS } from '../src/chat/world/spec'
 import { BADGES } from '../src/breathflow/gamify/badges'
 import { sealInk } from '../src/breathflow/pigments'
+import { WORK, frame, level, rgba } from './sky'
 
 const ART = import.meta.dir
 const CACHE = join(ART, '.cache')
@@ -31,8 +32,15 @@ const BLENDER = process.env.BLENDER ?? '/Applications/Blender.app/Contents/MacOS
 const STILL = 240
 const FRAME = 160
 const SEAL = 144
-const ENGRAVING = 640
-const ENGRAVINGS = ['serpent', 'compass']
+/** Engraving → its mask's edge in px. */
+const ENGRAVINGS: Record<string, number> = { serpent: 640, compass: 640 }
+/** The forecast's skies (shown at most ~6rem wide), each as one ink mask for both themes. */
+const SKIES = ['clear', 'partly-cloudy', 'cloudy', 'fog', 'drizzle', 'rain', 'showers', 'snow', 'thunder']
+const SKY_EDGE = 384
+/** Skies whose fine strokes (rain, drizzle, the bolt, the flakes) need weight to survive the downscale. */
+const SKY_WEIGHT: Record<string, number> = { showers: 0.5, drizzle: 0.85, rain: 0.4, thunder: 0.6, snow: 0.6 }
+/** Stroke tone every sky is levelled to; fog's soft mist reads heavy at the same tone, so a little less. */
+const SKY_TONE: Record<string, number> = { fog: 0.42 }
 const FONT = 'https://github.com/google/fonts/raw/main/ofl/fraunces/Fraunces-Italic%5BSOFT,WONK,opsz,wght%5D.ttf'
 
 const arg = (name: string, fallback: string) => {
@@ -103,13 +111,25 @@ async function seals() {
 async function engravings() {
   const dest = join(ART, '../src/pages/Trips/art')
   mkdirSync(dest, { recursive: true })
-  const ink = `format=rgba,geq=r=0:g=0:b=0:a='clip((255-r(X,Y))*1.12-18,0,255)',scale=${ENGRAVING}:${ENGRAVING}:flags=lanczos`
-  for (const name of ENGRAVINGS) {
+  mkdirSync(CACHE, { recursive: true })
+  for (const [name, edge] of Object.entries(ENGRAVINGS)) {
+    const ink = `format=rgba,geq=r=0:g=0:b=0:a='clip((255-r(X,Y))*1.12-18,0,255)',scale=${edge}:${edge}:flags=lanczos`
     const mask = join(CACHE, `${name}.mask.png`)
     const file = join(dest, `${name}.webp`)
     await $`ffmpeg -loglevel error -y -i ${join(ART, 'concepts', `${name}.webp`)} -vf ${ink} ${mask}`
     await $`cwebp -quiet -q 40 -alpha_q 85 ${mask} -o ${file}`
-    console.log(`${name.padEnd(10)} ${(statSync(file).size / 1024).toFixed(1)} kB`)
+    console.log(`${name.padEnd(18)} ${(statSync(file).size / 1024).toFixed(1)} kB`)
+  }
+  for (const sky of SKIES) {
+    const source = join(ART, 'concepts', `sky-${sky}.webp`)
+    const size = Number((await $`ffprobe -v error -show_entries stream=width -of csv=p=0 ${source}`.text()).trim())
+    const grey = new Uint8Array(await $`ffmpeg -loglevel error -i ${source} -vf format=gray -f rawvideo -pix_fmt gray -`.arrayBuffer())
+    const ink = level(frame(grey, size), SKY_TONE[sky] ?? 0.5, SKY_WEIGHT[sky] ?? 0)
+    const png = join(CACHE, `sky-${sky}.png`)
+    const file = join(dest, `sky-${sky}.webp`)
+    await $`ffmpeg -loglevel error -y -f rawvideo -pix_fmt rgba -s ${WORK}x${WORK} -i - ${png} < ${Buffer.from(rgba(ink))}`
+    await $`cwebp -quiet -q 40 -alpha_q 85 -resize ${SKY_EDGE} ${SKY_EDGE} ${png} -o ${file}`
+    console.log(`${`sky-${sky}`.padEnd(18)} ${(statSync(file).size / 1024).toFixed(1)} kB`)
   }
 }
 

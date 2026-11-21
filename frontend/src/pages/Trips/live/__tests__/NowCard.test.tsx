@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
+import { FAHRENHEIT, type DayForecast } from "../../forecast"
 import type { Trip } from "../../types"
 import { NowCard } from "../NowCard"
 import { NowLine } from "../NowLine"
@@ -9,10 +10,10 @@ import { seoulTrip } from "./liveFixtures"
 // Clocks are UTC instants; the trip is in Seoul (UTC+9).
 const BASE = "/trips/seoul"
 
-function renderCard(now: Date | undefined, trip: Trip = seoulTrip()) {
+function renderCard(now: Date | undefined, trip: Trip = seoulTrip(), forecast?: ReadonlyMap<string, DayForecast>) {
   const view = render(
     <MemoryRouter>
-      <NowCard trip={trip} basePath={BASE} now={now} />
+      <NowCard trip={trip} basePath={BASE} now={now} forecast={forecast} />
     </MemoryRouter>,
   )
   return {
@@ -110,6 +111,49 @@ describe("NowCard during the trip", () => {
 
     at(new Date("2026-05-28T05:01:00Z")) // 14:01
     expect(status).toHaveTextContent("Next: Gwangjang Market")
+  })
+})
+
+/** Day 3 (May 28): partly cloudy, 15 °C all day, showers likely 14:00 to 17:00. */
+const SHOWERY: DayForecast = {
+  date: "2026-05-28",
+  highC: 18,
+  lowC: 9,
+  rainChance: 60,
+  code: 2,
+  hours: Array.from({ length: 24 }, (_, h) => ({
+    time: `${String(h).padStart(2, "0")}:00`,
+    tempC: 15,
+    rainChance: h >= 14 && h <= 16 ? 60 : 10,
+    code: h >= 14 && h <= 16 ? 81 : 2,
+  })),
+}
+const deg = (c: number, f: number) => `${FAHRENHEIT ? f : c}°`
+
+describe("NowCard sky line", () => {
+  it("gives this hour's temperature and the wet spell still to come", () => {
+    renderCard(new Date("2026-05-28T04:42:00Z"), seoulTrip(), new Map([["d3", SHOWERY]])) // 13:42
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Showers 2–5 PM`)
+  })
+
+  it("says when the spell ends while it is under way", () => {
+    renderCard(new Date("2026-05-28T06:30:00Z"), seoulTrip(), new Map([["d3", SHOWERY]])) // 15:30
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Showers until 5 PM`)
+  })
+
+  it("says the day's sky once the spell is over", () => {
+    renderCard(new Date("2026-05-28T09:50:00Z"), seoulTrip(), new Map([["d3", SHOWERY]])) // 18:50
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`${deg(15, 59)} now · Partly cloudy`)
+  })
+
+  it("names the high when there are no hours", () => {
+    renderCard(new Date("2026-05-28T04:42:00Z"), seoulTrip(), new Map([["d3", { ...SHOWERY, hours: undefined }]]))
+    expect(screen.getByTitle("Forecast from Open-Meteo")).toHaveTextContent(`High ${deg(18, 64)} · Partly cloudy`)
+  })
+
+  it("draws nothing without today's forecast", () => {
+    renderCard(new Date("2026-05-28T04:42:00Z"), seoulTrip(), new Map([["d4", SHOWERY]]))
+    expect(screen.queryByTitle("Forecast from Open-Meteo")).toBeNull()
   })
 })
 

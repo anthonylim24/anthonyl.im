@@ -1,20 +1,28 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { isToSchedule, TO_SCHEDULE } from "../map/geo"
-import { ArrowDown, ArrowUp, ChevronDown, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, CloudRain, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2, TriangleAlert } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
+import { clockMinutes, clockRange } from "../timeline/timeline"
 import { CostField } from "../budget/CostField"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { scrollBehavior } from "./scroll"
+import type { ConflictAlert } from "./stopAlerts"
+import { StopRef } from "../timeline/StopRef"
+import { Parts } from "./Parts"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
 import { ItemIcon } from "../ItemIcon"
+import { weatherKind } from "../forecast"
+
+/** A clash with an earlier stop, and that stop's map number (else its title) to name it by: "Overlaps ②". */
+export type CardConflict = ConflictAlert & { otherNumber: number | null; otherTitle: string }
 
 export interface ItemCardProps {
   item: ItineraryItem
@@ -23,6 +31,16 @@ export interface ItemCardProps {
   count: number
   /** Number shown on the map pin, when the item has coordinates. */
   pinLabel: string | null
+  /** This stop collides with an earlier one (`stopAlerts`). */
+  conflict: CardConflict | null
+  /** "Showers until 5 PM · 60%": rain is likely while it is on. */
+  rain: string | null
+  /** The rain is 70% likely or more, or a storm. */
+  rainHeavy: boolean
+  /** The WMO code of what falls: its glyph, the same as the timeline's. */
+  rainCode: number | null
+  /** Over by now (today only): set back in secondary ink. */
+  past: boolean
   editable: boolean
   locked: boolean
   hot: boolean
@@ -57,6 +75,11 @@ export const ItemCard = memo(function ItemCard({
   index,
   count,
   pinLabel,
+  conflict,
+  rain,
+  rainHeavy,
+  rainCode,
+  past,
   editable,
   locked,
   hot,
@@ -88,6 +111,7 @@ export const ItemCard = memo(function ItemCard({
   const rowRef = useRef<HTMLDivElement>(null)
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
   const canEdit = editable && !locked
+  const RainIcon = rainCode === null ? CloudRain : weatherKind(rainCode).icon
   const name = `“${item.title || "Untitled"}”`
   const move = (step: -1 | 1) => onChange((days) => moveItem(days, dayId, item.id, step), { label: `Moved ${name}`, key: `move:${item.id}` })
 
@@ -145,6 +169,7 @@ export const ItemCard = memo(function ItemCard({
   }
 
   const pinned = pinLabel !== null
+  const [start, end] = [clockMinutes(item.time), clockMinutes(item.endTime)]
   const sub = item.location?.address || firstLine(item.notes)
   const category = item.kind === "reservation" ? titleCase(item.reservation?.type ?? "Booking") : item.location?.category ? titleCase(item.location.category) : null
   const maps = pinned || item.location?.address ? externalMapsLink({ name: item.location?.name ?? item.title, address: item.location?.address, lat: item.location?.lat, lng: item.location?.lng }) : null
@@ -156,7 +181,7 @@ export const ItemCard = memo(function ItemCard({
         {pinned ? (
           <button
             type="button"
-            {...sx(s.marker, s.markerPinned, active && s.markerActive)}
+            {...sx(s.marker, s.markerPinned, past && s.markerPast, active && s.markerActive)}
             aria-label={`Show ${item.title || "this stop"} on the map`}
             onClick={() => onLocate(item.id)}
           >
@@ -191,39 +216,57 @@ export const ItemCard = memo(function ItemCard({
             onAnnounce?.(`${item.title || "Stop"} moved ${step < 0 ? "up" : "down"}, now ${index + step + 1} of ${count}.`)
           }}
         >
+          {/* Empty for an Anytime stop, so every title keeps one indent. */}
           <span {...sx(s.cardTimeCol)}>
-            {item.time ? (
+            {item.time && (
               <>
-                <span {...sx(s.cardTime)}>{formatClock(item.time)}</span>
+                <span {...sx(s.cardTime, past && s.cardTimePast)}>{formatClock(item.time)}</span>
                 {item.endTime && <span {...sx(s.cardTimeEnd)}>{formatClock(item.endTime)}</span>}
               </>
-            ) : (
-              <span {...sx(s.cardTimeEnd)} aria-hidden>
-                ––
-              </span>
             )}
           </span>
           <span {...sx(s.cardText)}>
             {item.time && (
               <span {...sx(s.cardTimeTop)}>
-                {formatClock(item.time)}
-                {item.endTime ? ` – ${formatClock(item.endTime)}` : ""}
+                {start !== null && end !== null && end !== start ? clockRange(start, end) : formatClock(item.time)}
               </span>
             )}
-            <span {...sx(s.cardTitle, a.wrap, !item.title && s.cardTitleEmpty)}>
+            <span {...sx(s.cardTitle, a.wrap, past && s.cardTitlePast, !item.title && s.cardTitleEmpty)}>
               {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
             </span>
             {(category || sub || item.status !== "none") && (
               <span {...sx(s.cardSub)}>
                 {category && <span>{category}</span>}
-                {item.status !== "none" && (
-                  <span {...sx(a.chip, item.status === "booked" ? a.chipOk : undefined)}>{STATUS_LABEL[item.status]}</span>
-                )}
+                {item.status !== "none" && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{STATUS_LABEL[item.status]}</span>}
                 {sub && (
                   <span {...sx(a.truncate)} style={{ flexBasis: "100%" }}>
                     {sub}
                   </span>
                 )}
+              </span>
+            )}
+            {conflict && (
+              <span {...sx(s.cardAlert)}>
+                <TriangleAlert size={12} strokeWidth={2} aria-hidden {...sx(s.cardAlertIcon)} />
+                <span {...sx(a.wrap)}>
+                  <Parts
+                    parts={[
+                      <>
+                        {conflict.kind === "overlap" ? "Overlaps" : "Tight after"} <StopRef number={conflict.otherNumber} title={conflict.otherTitle} />
+                      </>,
+                      conflict.detail,
+                      conflict.more > 0 && `+${conflict.more}`,
+                    ]}
+                  />
+                </span>
+              </span>
+            )}
+            {rain && (
+              <span {...sx(s.cardAlert, s.cardRain, rainHeavy && s.cardRainHeavy)}>
+                <RainIcon size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
+                <span {...sx(a.wrap)}>
+                  <Parts parts={rain.split(" · ")} />
+                </span>
               </span>
             )}
           </span>

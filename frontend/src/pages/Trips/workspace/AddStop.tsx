@@ -286,7 +286,7 @@ export function AddStop({
           aria-label="Add a place, note or booking"
           autoComplete="off"
           enterKeyHint="done"
-          placeholder={onInstagram ? "Add a place, note or Instagram link…" : "Add a place, note or booking…"}
+          placeholder={onInstagram ? "Add a place, note or link…" : "Add a place, note or booking…"}
           value={text}
           disabled={disabled}
           {...sx(a.fieldBare)}

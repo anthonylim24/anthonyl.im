@@ -153,6 +153,8 @@ const hotel = makeItem({
 
 const reviewRun = { id: "run-1", tripId: "lisbon", scope: "trip", status: "complete", suggestions: [], appliedSuggestionIds: [], createdAt: "2026-07-01T00:00:00Z" }
 
+/** The place card's eyebrow as one line of text: the lead, then the category on its own line. */
+const eyebrow = (card: ReturnType<typeof within>) => card.getByText(/^Stop \d+ of \d+/).closest("p")
 const stat = (label: string) => screen.getByText(label, { selector: "dt" }).parentElement
 
 const belem: PlaceResult = {
@@ -210,7 +212,9 @@ describe("TripWorkspace", () => {
       expect(booking).toHaveAttribute("href", "/trips/lisbon/day/day-1#item-it-fado")
       expect(booking).toHaveTextContent("8:00 PM")
       expect(booking).toHaveTextContent("FD-2291")
-      expect(booking).toHaveTextContent("Confirmed")
+      // The same word as the day's stop card, in a mono outline chip.
+      expect(booking).toHaveTextContent("Booked")
+      expect(booking).not.toHaveTextContent("Confirmed")
 
       // The rail links the overview and each day.
       const rail = within(screen.getByRole("navigation", { name: "Days" }))
@@ -382,8 +386,9 @@ describe("TripWorkspace", () => {
     it("lists the day's items and numbers only the located ones", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
 
-      expect(await screen.findByRole("textbox", { name: "Day title" })).toHaveValue("Arrival")
-      expect(screen.getByText(/Day 1 of 2 · Friday, July 10/)).toBeInTheDocument()
+      const title = await screen.findByRole("textbox", { name: "Day title" })
+      expect(title).toHaveValue("Arrival")
+      expect(title.closest("header")).toHaveTextContent(/Day 1 of 2 · Friday, July 10/)
 
       const plan = within(screen.getByRole("region", { name: "Day 1 plan" }))
       expect(plan.getAllByRole("listitem")).toHaveLength(4)
@@ -401,7 +406,8 @@ describe("TripWorkspace", () => {
 
       const map = within(screen.getByRole("region", { name: "Map of day 1 with 2 pinned stops" }))
       expect(map.getAllByRole("button").map((b) => b.textContent)).toEqual(["Pin 1: Time Out Market", "Pin 2: Fado dinner"])
-      expect(map.getByText("Day 1 · Lisbon · 2 places")).toBeInTheDocument()
+      // Counted as the day header counts: stops, and how many of them have a pin.
+      expect(map.getByText("Day 1 · Lisbon · 2 of 3 stops")).toBeInTheDocument()
 
       expect(within(screen.getByRole("navigation", { name: "Days" })).getByRole("link", { name: /^Day 1,/ })).toHaveAttribute(
         "aria-current",
@@ -413,13 +419,30 @@ describe("TripWorkspace", () => {
       )
     })
 
+    it("says an empty day has nothing planned once, rather than counting zero", async () => {
+      renderWorkspace("/trips/lisbon/day/day-2")
+      expect(await screen.findByText("Nothing planned yet")).toBeInTheDocument()
+      expect(screen.queryByText("Nothing planned")).toBeNull()
+      expect(screen.queryByText(/0 stops/)).toBeNull()
+    })
+
+    it("marks the later of two overlapping stops in the list", async () => {
+      const tour = makeItem({ id: "it-tour", title: "Tile museum", time: "12:00", endTime: "13:30" })
+      renderWorkspace("/trips/lisbon/day/day-1", planned({ days: [{ id: "day-1", date: "2026-07-10", items: [market, tour] }] }))
+
+      const plan = within(await screen.findByRole("region", { name: "Day 1 plan" }))
+      const warning = plan.getByText("Overlaps Tile museum")
+      expect(warning.closest("[id^='item-']")).toHaveAttribute("id", "item-it-market")
+      expect(plan.getAllByText(/^Overlaps /)).toHaveLength(1)
+    })
+
     it("shows the selected-place card when a marker is clicked", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
       fireEvent.click(await screen.findByRole("button", { name: "Show Time Out Market on the map" }))
 
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Time Out Market" })).toBeInTheDocument()
-      expect(card.getByText("Stop 1 of 2 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 1 of 2 · 12:30 PM Market$/)
       expect(card.getByText("Av. 24 de Julho 49")).toBeInTheDocument()
       expect(card.getByRole("link", { name: "Directions" })).toHaveAttribute("target", "_blank")
       // On the day page there is no "open day" hop.
@@ -435,7 +458,7 @@ describe("TripWorkspace", () => {
 
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
-      expect(card.getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 2 of 2 · 8:00 PM$/)
 
       fireEvent.click(card.getByRole("button", { name: "Close place" }))
       expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
@@ -452,12 +475,12 @@ describe("TripWorkspace", () => {
       // Next skips the unpinned note and café between the two pinned stops.
       fireEvent.click(card().getByRole("button", { name: "Next stop" }))
       expect(card().getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
-      expect(card().getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(eyebrow(card())).toHaveTextContent(/^Stop 2 of 2 · 8:00 PM$/)
       expect(card().getByRole("button", { name: "Next stop" })).toBeDisabled()
 
       fireEvent.click(card().getByRole("button", { name: "Previous stop" }))
       expect(card().getByRole("heading", { name: "Time Out Market" })).toBeInTheDocument()
-      expect(card().getByText("Stop 1 of 2 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(eyebrow(card())).toHaveTextContent(/^Stop 1 of 2 · 12:30 PM Market$/)
     })
 
     it("has no stepper when the day has a single pinned stop", async () => {
@@ -468,7 +491,7 @@ describe("TripWorkspace", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Show Time Out Market on the map" }))
 
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
-      expect(card.getByText("Stop 1 of 1 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 1 of 1 · 12:30 PM Market$/)
       expect(card.queryByRole("button", { name: "Previous stop" })).toBeNull()
       expect(card.queryByRole("button", { name: "Next stop" })).toBeNull()
     })
@@ -491,7 +514,7 @@ describe("TripWorkspace", () => {
       const order = () =>
         plan()
           .getAllByRole("listitem")
-          .map((li) => li.querySelector("[id^='item-']")?.id)
+          .flatMap((li) => li.querySelector("[id^='item-']")?.id ?? [])
       const row = (name: RegExp) => plan().getByRole("button", { name, expanded: false })
 
       await screen.findByRole("textbox", { name: "Day title" })
@@ -502,9 +525,12 @@ describe("TripWorkspace", () => {
       expect(order()).toEqual(["item-it-cash", "item-it-market", "item-it-cafe", "item-it-fado"])
       expect(screen.getByText("Time Out Market moved down, now 2 of 4.")).toHaveAttribute("aria-live", "polite")
 
+      expect(plan().queryByRole("heading", { name: "Anytime" })).toBeNull()
       fireEvent.keyDown(row(/Fado dinner/), { key: "ArrowUp", altKey: true })
       expect(order()).toEqual(["item-it-cash", "item-it-market", "item-it-fado", "item-it-cafe"])
       expect(screen.getByText("Fado dinner moved up, now 3 of 4.")).toBeInTheDocument()
+      // The untimed cafe now follows the last timed stop: it waits under Anytime.
+      expect(plan().getByRole("heading", { name: "Anytime" })).toBeInTheDocument()
       // Pin numbers follow the new order.
       expect(screen.getByRole("button", { name: "Show Time Out Market on the map" })).toHaveTextContent("1")
       expect(screen.getByRole("button", { name: "Show Fado dinner on the map" })).toHaveTextContent("2")
@@ -1074,7 +1100,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
       fireEvent.click(screen.getByRole("button", { name: "Show Fado dinner on the map" }))
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
-      expect(card.getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(eyebrow(card)).toHaveTextContent(/^Stop 2 of 2 · 8:00 PM$/)
       expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))

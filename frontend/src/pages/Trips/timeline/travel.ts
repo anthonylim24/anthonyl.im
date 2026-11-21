@@ -1,14 +1,14 @@
 // Honest travel-time guesses from straight-line distance. There is no
 // routing behind these: a speed per distance band plus a fixed overhead
 // (waiting for a train, getting out of the city, airport time). Anything
-// past a walk is labelled "≈" and never names a line or a road.
+// past a walk is labelled "~" and never names a line or a road.
 
 export type TravelMode = "walk" | "transit" | "road" | "flight"
 
 export interface TravelEstimate {
   mode: TravelMode
   minutes: number
-  /** "6 min walk", "≈ 35 min by transit", "≈ 2 h 10 by road or rail", "Flight · ≈ 3 h 40". */
+  /** "6 min walk", "~35 min by transit", "~2 h 10 by road or rail", "Flight · ~3 h 40". ("≈" reads as "=" in the small mono.) */
   label: string
 }
 
@@ -49,12 +49,12 @@ export function travelEstimate(meters: number): TravelEstimate {
   }
   if (m <= TRANSIT_MAX_M) {
     const minutes = roundTo5(minutesAt(km, TRANSIT_KMH, TRANSIT_OVERHEAD_MIN))
-    return { mode: "transit", minutes, label: `≈ ${formatMinutes(minutes)} by transit` }
+    return { mode: "transit", minutes, label: `~${formatMinutes(minutes)} by transit` }
   }
   if (m <= ROAD_MAX_M) {
     const minutes = roundTo5(minutesAt(km, ROAD_KMH, ROAD_OVERHEAD_MIN))
-    return { mode: "road", minutes, label: `≈ ${formatMinutes(minutes)} by road or rail` }
+    return { mode: "road", minutes, label: `~${formatMinutes(minutes)} by road or rail` }
   }
   const minutes = roundTo5(minutesAt(km, FLIGHT_KMH, FLIGHT_OVERHEAD_MIN))
-  return { mode: "flight", minutes, label: `Flight · ≈ ${formatMinutes(minutes)}` }
+  return { mode: "flight", minutes, label: `Flight · ~${formatMinutes(minutes)}` }
 }

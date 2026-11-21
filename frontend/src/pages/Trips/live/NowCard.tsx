@@ -4,11 +4,15 @@ import { ArrowRight, ChevronRight, Navigation } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsAppName, externalMapsLink } from "@/lib/externalMaps"
 import { dayCount, formatClock, formatRange, formatTripDate, plural } from "../meta"
+import { FAHRENHEIT, formatTemp, weatherKind, wetSpells, wetWord, type DayForecast } from "../forecast"
+import { clockLabel, clockRange } from "../timeline/timeline"
+import { formatMinutes } from "../timeline/travel"
 import { ItemIcon } from "../ItemIcon"
+import { Parts } from "../workspace/Parts"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { a } from "../atlas.stylex"
 import { live as s } from "./live.stylex"
-import { durationText, liveState, type LiveAfter, type LiveBefore, type LiveDuring, type LiveNext } from "./liveTrip"
+import { liveState, type LiveAfter, type LiveBefore, type LiveDuring, type LiveNext } from "./liveTrip"
 import { useNow } from "./useNow"
 
 /**
@@ -17,16 +21,28 @@ import { useNow } from "./useNow"
  * under way and the next one, with when to leave and how to get there; after
  * it, a one-line recap. `now` pins the clock (tests, previews); without it the
  * card follows the real time, minute by minute, while the tab is visible.
+ * `forecast` (dayId → live forecast) adds today's sky.
  */
-export function NowCard({ trip, basePath, now: fixed }: { trip: Trip; basePath: string; now?: Date }) {
+export function NowCard({
+  trip,
+  basePath,
+  now: fixed,
+  forecast,
+}: {
+  trip: Trip
+  basePath: string
+  now?: Date
+  forecast?: ReadonlyMap<string, DayForecast>
+}) {
   const clock = useNow(60_000, fixed === undefined)
   const state = liveState(trip, fixed ?? clock)
   const titleId = useId()
+  const sky = state.phase === "during" && state.day ? forecast?.get(state.day.id) : undefined
 
   return (
     <section {...sx(s.card)} aria-labelledby={titleId}>
       {state.phase === "before" && <Before trip={trip} basePath={basePath} state={state} titleId={titleId} />}
-      {state.phase === "during" && <During trip={trip} basePath={basePath} state={state} titleId={titleId} />}
+      {state.phase === "during" && <During trip={trip} basePath={basePath} state={state} titleId={titleId} sky={sky} />}
       {state.phase === "after" && <After trip={trip} state={state} titleId={titleId} />}
     </section>
   )
@@ -119,7 +135,19 @@ function Before({ trip, basePath, state, titleId }: { trip: Trip; basePath: stri
 
 // ── During ────────────────────────────────────────────────────────────────
 
-function During({ trip, basePath, state, titleId }: { trip: Trip; basePath: string; state: LiveDuring; titleId: string }) {
+function During({
+  trip,
+  basePath,
+  state,
+  titleId,
+  sky,
+}: {
+  trip: Trip
+  basePath: string
+  state: LiveDuring
+  titleId: string
+  sky: DayForecast | undefined
+}) {
   const { day, current, next } = state
   const dayName = day?.title?.trim() || day?.city?.trim()
   const lastDay = state.dayIndex === state.dayCount - 1
@@ -128,15 +156,19 @@ function During({ trip, basePath, state, titleId }: { trip: Trip; basePath: stri
       <div {...sx(s.head)}>
         <DateTile {...tileFor(state.date, trip.timezone, "weekday")} />
         <div {...sx(s.headText)}>
-          <h2 id={titleId} {...sx(a.eyebrow)}>
-            Today · Day {state.dayIndex + 1} of {state.dayCount}
-          </h2>
+          {/* The clock shares the eyebrow's row, so the name and the sky have the full width. */}
+          <div {...sx(s.headTop)}>
+            <h2 id={titleId} {...sx(a.eyebrow)}>
+              Today · Day {state.dayIndex + 1} of {state.dayCount}
+            </h2>
+            <p {...sx(a.mono, s.clock)} title={`Local time (${trip.timezone})`}>
+              {formatClock(state.clock)}
+              <span {...sx(a.srOnly)}> local time</span>
+            </p>
+          </div>
           {dayName && <p {...sx(a.display, s.dayTitle, a.wrap)}>{dayName}</p>}
+          {sky && <SkyLine forecast={sky} clock={state.clock} />}
         </div>
-        <p {...sx(a.mono, s.clock)} title={`Local time (${trip.timezone})`}>
-          {formatClock(state.clock)}
-          <span {...sx(a.srOnly)}> local time</span>
-        </p>
       </div>
 
       {current && (
@@ -194,6 +226,34 @@ function During({ trip, basePath, state, titleId }: { trip: Trip; basePath: stri
   )
 }
 
+/**
+ * Today's sky in one line: "57° now · Showers 2–5 PM", or "Showers until
+ * 5 PM" once it has begun (this hour's temperature, then the wet spell under
+ * way or still to come), or the day's
+ * sky word once no wet spell is left. Without hourly data, the day's high.
+ */
+function SkyLine({ forecast, clock }: { forecast: DayForecast; clock: string }) {
+  const minute = Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5))
+  const hour = forecast.hours?.find((h) => Number(h.time.slice(0, 2)) === Math.floor(minute / 60))
+  const spell = wetSpells(forecast.hours ?? []).find((wet) => wet.to > minute)
+  const Icon = weatherKind(spell?.code ?? forecast.code).icon
+  const temp = hour ? `${formatTemp(hour.tempC, FAHRENHEIT)} now` : `High ${formatTemp(forecast.highC, FAHRENHEIT)}`
+  // Under way, only its end is news: "Showers until 5 PM".
+  const words = !spell
+    ? weatherKind(forecast.code).word
+    : spell.from <= minute
+      ? `${wetWord(spell.code)} until ${clockLabel(spell.to).replace(":00 ", " ")}`
+      : `${wetWord(spell.code)} ${clockRange(spell.from, spell.to, "prose")}`
+  return (
+    <p {...sx(a.small, s.sky)} title="Forecast from Open-Meteo">
+      <Icon size={16} strokeWidth={1.75} aria-hidden {...sx(s.skyIcon)} />
+      <span>
+        <Parts parts={[temp, words]} />
+      </span>
+    </p>
+  )
+}
+
 function NextStop({ basePath, next, state }: { basePath: string; next: LiveNext; state: LiveDuring }) {
   const location = next.item.location
   const maps = location
@@ -206,7 +266,7 @@ function NextStop({ basePath, next, state }: { basePath: string; next: LiveNext;
         <p {...sx(a.eyebrow)}>
           {next.tomorrow ? "First tomorrow" : "Next"} · <span {...sx(a.ink)}>{formatClock(next.start)}</span>
         </p>
-        {minutesToNext !== null && <p {...sx(s.countdown)}>in {durationText(minutesToNext)}</p>}
+        {minutesToNext !== null && <p {...sx(s.countdown)}>in {formatMinutes(minutesToNext)}</p>}
       </div>
       <p {...sx(a.display, s.nextName, a.wrap)}>{next.item.title || "Untitled"}</p>
       {travel && leaveBy && leaveIn !== null ? (

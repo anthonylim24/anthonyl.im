@@ -26,7 +26,7 @@ export const share = stylex.create({
   segmentOn: {
     backgroundColor: "var(--trips-raised)",
     color: "var(--trips-ink)",
-    boxShadow: "var(--trips-shadow-1)",
+    boxShadow: "0 0 0 1px var(--trips-selected-edge, transparent), var(--trips-shadow-1)",
   },
   linkBox: {
     display: "flex",
@@ -81,6 +81,8 @@ export const share = stylex.create({
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const NARROW = "@media (max-width: 1023.98px)"
 const WIDE = "@media (min-width: 1024px)"
+/** Where the compact trip header gives way (`headCompactHide`). */
+const PHONE_W = "@media (max-width: 639.98px)"
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
 
 const riseIn = stylex.keyframes({
@@ -259,22 +261,44 @@ export const ws = stylex.create({
     position: "sticky",
     top: { default: "var(--trips-chrome-h)", [WIDE]: 0 },
     zIndex: 20,
-    display: "flex",
-    gap: "0.375rem",
-    paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
-    paddingBlock: "0.625rem",
-    overflowX: "auto",
-    scrollbarWidth: "none",
-    scrollSnapType: "x proximity",
-    scrollPaddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
-    // Near-opaque, and no edge mask: a mask fades the bar's own background
-    // too, which let cards scrolling underneath show through its right edge.
+    // The bar keeps its near-opaque paper; only the scroller inside is masked.
+    // A mask on the bar fades its background too, and cards scrolling
+    // underneath showed through its edges.
     backgroundColor: "color-mix(in srgb, var(--trips-canvas) 96%, transparent)",
     backdropFilter: "blur(14px)",
     borderBottomWidth: "1px",
     borderBottomStyle: "solid",
     borderBottomColor: "var(--trips-line)",
+    // Overview holds the first column; only the days scroll.
+    display: "flex",
+    alignItems: "center",
+    paddingInlineStart: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
   },
+  railRule: { flexShrink: 0, width: "1px", height: "2rem", marginInlineStart: "0.5rem", backgroundColor: "var(--trips-line)" },
+  railScroll: {
+    position: "relative",
+    display: "flex",
+    flexGrow: 1,
+    minWidth: 0,
+    gap: "0.375rem",
+    // The rail rests with a whole day 12px in from its start edge (snap, and
+    // DayRail's quantised scroll), so the strip before it only ever holds the
+    // gap and the empty padding of the day before: nothing is cut mid-glyph
+    // against the rule. The same 12px at rest keeps the first day's ring inside.
+    // `--rail-tail` (DayRail's fitTail) lets the last resting place be whole too.
+    marginInlineStart: "0.25rem",
+    paddingInlineStart: "0.75rem",
+    paddingInlineEnd: { default: "calc(1.25rem + var(--rail-tail, 0px))", "@media (min-width: 640px)": "calc(1.75rem + var(--rail-tail, 0px))" },
+    paddingBlock: "0.625rem",
+    overflowX: "auto",
+    scrollbarWidth: "none",
+    scrollSnapType: "x mandatory",
+    scrollPaddingInline: { default: "0.75rem 1.25rem", "@media (min-width: 640px)": "0.75rem 1.75rem" },
+  },
+  // The start fade covers only that 12px strip; the end fade a day's width.
+  railFadeStart: { maskImage: "linear-gradient(to right, transparent, #000 0.75rem)" },
+  railFadeEnd: { maskImage: "linear-gradient(to left, transparent, #000 2.5rem)" },
+  railFadeBoth: { maskImage: "linear-gradient(to right, transparent, #000 0.75rem, #000 calc(100% - 2.5rem), transparent)" },
   railItem: {
     position: "relative",
     flexShrink: 0,
@@ -289,6 +313,7 @@ export const ws = stylex.create({
     borderRadius: "0.875rem",
     color: "var(--trips-ink-secondary)",
     textDecoration: "none",
+    // A whole day at the start edge; DayRail picks the one that leaves the day in view near the middle.
     scrollSnapAlign: "start",
     outline: "none",
     transitionProperty: "background-color, color",
@@ -319,7 +344,8 @@ export const ws = stylex.create({
   railEmpty: { fontWeight: 400, color: "var(--trips-ink-tertiary)" },
 
   // ── Day layout switch ─────────────────────────────────
-  viewSwitch: { display: "inline-grid", flexShrink: 0 },
+  // Each side hugs its label so the switch, Ideas and ⋯ share one row at 360px.
+  viewSwitch: { display: "inline-grid", gridTemplateColumns: "auto auto", flexShrink: 0 },
   viewSwitchBtn: {
     display: "inline-flex",
     alignItems: "center",
@@ -329,6 +355,16 @@ export const ws = stylex.create({
     minWidth: "2.75rem",
     paddingInline: { default: "0.625rem", "@media (min-width: 480px)": "0.875rem" },
     fontSize: "0.8125rem",
+    // Looks 36px; the band reaches over the track's padding to a 44px target.
+    position: "relative",
+    "::after": { content: '""', position: "absolute", inset: "-4px 0" },
+  },
+  /** "Ideas for this day": an outline in brand ink, quieter than a filled pill beside the plan. */
+  ideasBtn: {
+    backgroundColor: "transparent",
+    color: "var(--brand)",
+    borderColor: "var(--trips-line-strong)",
+    [HOVER]: { ":hover": { backgroundColor: "var(--brand-soft)", borderColor: "transparent" } },
   },
 
   // ── Overview tabs ─────────────────────────────────────
@@ -387,9 +423,10 @@ export const ws = stylex.create({
     flexShrink: 0,
     display: "flex",
     flexDirection: "column",
-    gap: "1.5rem",
+    // Tighter on a phone, where the first stop still to come has to clear the day's header and sky.
+    gap: { default: "1.5rem", [PHONE_W]: "0.75rem" },
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
-    paddingTop: "1.5rem",
+    paddingTop: { default: "1.5rem", [PHONE_W]: "1rem" },
     paddingBottom: { default: "7rem", [WIDE]: "5rem" },
     animationName: riseIn,
     animationDuration: "420ms",
@@ -417,6 +454,13 @@ export const ws = stylex.create({
     minWidth: 0,
   },
   statFirst: { borderLeftWidth: 0 },
+  // Two columns on a narrow phone: the third tile starts a row, so it takes the row's rule, not a column's.
+  statRowStart: { borderLeftWidth: { default: "1px", "@media (max-width: 419.98px)": 0 } },
+  statSecondRow: {
+    borderTopWidth: { default: 0, "@media (max-width: 419.98px)": "1px" },
+    borderTopStyle: "solid",
+    borderTopColor: "var(--trips-line)",
+  },
   statValue: { fontFamily: "var(--trips-display)", fontSize: "2rem", lineHeight: 1, color: "var(--trips-ink)" },
 
   // Overview day rows
@@ -452,7 +496,43 @@ export const ws = stylex.create({
     color: "var(--ta)",
   },
   dayDateNum: { fontFamily: "var(--trips-display)", fontSize: "1.5rem", lineHeight: 0.9 },
+  /**
+   * Today's tile: "Today" in place of the weekday, ringed in the trip's colour.
+   * Not a solid fill: 10px white on most accent fills is under 4.5:1.
+   */
+  dayDateToday: { boxShadow: "inset 0 0 0 1px var(--ta)" },
   dayRowTitle: { fontSize: "0.9375rem", fontWeight: 600, color: "var(--trips-ink)" },
+  // Two lines before it gives way: on a phone the forecast takes a third of the row.
+  dayRowTitleClamp: {
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    overflowWrap: "anywhere",
+    lineHeight: 1.3,
+  },
+  // A day row's forecast: glyph | high over low, the chance of rain under them.
+  rowSky: {
+    display: "grid",
+    gridTemplateColumns: "1.25rem auto",
+    alignItems: "center",
+    columnGap: "0.5rem",
+    minWidth: "4.75rem",
+  },
+  rowSkyIcon: { gridRow: "1 / span 2", color: "var(--trips-ink-secondary)" },
+  rowSkyTemps: { display: "flex", alignItems: "baseline", gap: "0.25rem", lineHeight: 1, whiteSpace: "nowrap" },
+  rowSkyHigh: { fontFamily: "var(--trips-display)", fontSize: "1.25rem", lineHeight: 1, color: "var(--trips-ink)" },
+  // The low in the serif too, smaller and in tertiary, as in the day header.
+  rowSkyLow: { fontFamily: "var(--trips-display)", fontSize: "0.9375rem", lineHeight: 1, color: "var(--trips-ink-tertiary)" },
+  rowSkyChance: {
+    gridColumn: 2,
+    marginTop: "0.1875rem",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.6875rem",
+    lineHeight: 1,
+    letterSpacing: "0.04em",
+    color: "var(--trips-ink-secondary)",
+  },
 
   // Bookings
   booking: {
@@ -483,7 +563,40 @@ export const ws = stylex.create({
 
   // ── Day header ────────────────────────────────────────
   dayHead: { display: "flex", flexDirection: "column", gap: "0.5rem" },
-  dayTitle: { fontSize: "clamp(1.875rem, 4vw, 2.5rem)", lineHeight: 1.02 },
+  // Phones have no trip header on a day page: the trip's name leads the
+  // eyebrow on one line, the rail already shows the date, and the name gives
+  // way before "Today" does. The gap is one space of the mono face.
+  dayEyebrow: { [PHONE_W]: { display: "flex", alignItems: "baseline", columnGap: "0.72em", minWidth: 0 } },
+  dayEyebrowPart: { [PHONE_W]: { flexShrink: 0, whiteSpace: "nowrap" } },
+  eyebrowTrip: {
+    display: { default: "none", [PHONE_W]: "block" },
+    flexShrink: 1,
+    minWidth: 0,
+    // A 44px target from an 11px line: the padding reaches into the space above, never over the title.
+    paddingTop: "1.3rem",
+    paddingBottom: "0.5rem",
+    marginTop: "-1.3rem",
+    marginBottom: "-0.5rem",
+    color: "var(--trips-ink-secondary)",
+    textDecoration: "none",
+    borderRadius: "0.25rem",
+    outline: "none",
+    ":focus-visible": { boxShadow: ring },
+    [HOVER]: { ":hover": { color: "var(--brand)" } },
+  },
+  phoneOnly: { display: { default: "none", [PHONE_W]: "inline" } },
+  wideOnlyPart: { [PHONE_W]: { display: "none" } },
+  // Title and its line, then the day's sky as a band under them, at every
+  // width: the title keeps the pane's full measure and the sky its place.
+  dayHeadTop: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: "0.75rem",
+    minWidth: 0,
+    marginBottom: "0.375rem",
+  },
+  dayHeadMain: { display: "flex", flexDirection: "column", gap: "0.5rem", flexGrow: 1, minWidth: 0 },
+  dayTitle: { fontSize: "clamp(1.875rem, 4vw, 2.5rem)", lineHeight: 1.02, textWrap: "balance" },
   inlineInput: {
     minWidth: "2.5rem",
     maxWidth: "100%",
@@ -610,7 +723,18 @@ export const ws = stylex.create({
     // A 28px dot with a 44px target.
     "::after": { content: '""', position: "absolute", inset: "-8px" },
   },
-  markerActive: { backgroundColor: "var(--trips-ink)", color: "var(--trips-canvas)", transform: "scale(1.15)" },
+  // Over by now: a ring in the trip's colour, as on the timeline. Paper inside, so the gutter line stays hidden.
+  markerPast: {
+    backgroundColor: "var(--trips-canvas)",
+    color: "var(--ta)",
+    boxShadow: { default: "inset 0 0 0 1.5px var(--ta-fill)", ":focus-visible": `inset 0 0 0 1.5px var(--ta-fill), ${ring}` },
+  },
+  markerActive: {
+    backgroundColor: "var(--trips-ink)",
+    color: "var(--trips-canvas)",
+    transform: "scale(1.15)",
+    boxShadow: { default: "none", ":focus-visible": ring },
+  },
   card: {
     marginBlock: "0.3125rem",
     borderRadius: "var(--trips-radius)",
@@ -657,7 +781,9 @@ export const ws = stylex.create({
     whiteSpace: "nowrap",
     "@media (max-width: 639.98px)": { display: "none" },
   },
-  cardTimeEnd: { color: "var(--trips-ink-faint)" },
+  // The end: smaller than the start, in tertiary (4.5:1 on the card in both themes), never faint.
+  cardTimeEnd: { fontSize: "0.6875rem", color: "var(--trips-ink-tertiary)" },
+  cardTimePast: { color: "var(--trips-ink-secondary)" },
   // Phones: the time rides above the title so the title gets the full width.
   cardTimeTop: {
     display: "none",
@@ -671,8 +797,53 @@ export const ws = stylex.create({
   addEnd: { display: "flex", alignItems: "flex-end", paddingBottom: "0.25rem" },
   cardText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
+  cardTitlePast: { color: "var(--trips-ink-secondary)", fontWeight: 500 },
   cardTitleEmpty: { color: "var(--trips-ink-faint)", fontWeight: 500 },
   cardSub: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.5rem", rowGap: "0.125rem", fontSize: "0.8125rem", color: "var(--trips-ink-tertiary)" },
+  cardStatus: { minHeight: "1.25rem", paddingInline: "0.5rem" },
+  cardAlert: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "0.3125rem",
+    marginTop: "0.0625rem",
+    fontSize: "0.75rem",
+    fontWeight: 500,
+    lineHeight: "1rem",
+    color: "var(--trips-ink)",
+  },
+  cardRain: { fontWeight: 400, color: "var(--trips-ink-secondary)" },
+  // Soaking or stormy: weight, not colour, says it matters.
+  cardRainHeavy: { fontWeight: 600, color: "var(--trips-ink)" },
+  // Under the card's row, at its text's indent (past the time column on wide screens).
+  cardFoot: {
+    display: "flex",
+    marginTop: "-0.375rem",
+    paddingBottom: "0.375rem",
+    paddingLeft: { default: "5.5rem", "@media (max-width: 639.98px)": "0.875rem" },
+    paddingRight: "0.875rem",
+  },
+  rework: {
+    position: "relative",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.3125rem",
+    minHeight: "2rem",
+    paddingInline: "0.375rem",
+    marginLeft: "-0.375rem",
+    borderRadius: "0.375rem",
+    backgroundColor: "transparent",
+    color: "var(--brand)",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    outline: "none",
+    ":focus-visible": { boxShadow: ring },
+    ":disabled": { opacity: 0.5, cursor: "default" },
+    [HOVER]: { ":hover": { textDecoration: "underline", textUnderlineOffset: "0.1875rem" } },
+    // A 32px row with a 44px target.
+    "::after": { content: '""', position: "absolute", insetBlock: "-6px", insetInline: 0 },
+  },
+  cardAlertIcon: { flexShrink: 0, marginTop: "0.125rem" },
   cardTime: { color: "var(--trips-ink)" },
   chevron: { transitionProperty: "transform", transitionDuration: "200ms", color: "var(--trips-ink-tertiary)", flexShrink: 0 },
   chevronOpen: { transform: "rotate(180deg)" },
@@ -694,16 +865,25 @@ export const ws = stylex.create({
     ":active": { cursor: "grabbing" },
     [HOVER]: { ":hover": { color: "var(--trips-ink)", backgroundColor: "var(--trips-sunken)" } },
   },
+  // The mode's glyph, then the words; "Leave by" on a second line under the words.
   leg: {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
     alignItems: "center",
-    gap: "0.375rem",
+    columnGap: "0.375rem",
+    margin: 0,
     paddingBlock: "0.125rem",
     fontFamily: "var(--trips-mono)",
     fontSize: "0.6875rem",
+    lineHeight: "1rem",
     letterSpacing: "0.03em",
     color: "var(--trips-ink-tertiary)",
   },
+  legLeave: { gridColumn: 2, color: "var(--trips-ink-secondary)" },
+  legWet: { display: "inline", verticalAlign: "-0.125rem" },
+  // Today's finished stops, folded: in the cards' column, spaced like a card.
+  // Flush on a phone: the next stop still to come has to clear the tab bar.
+  foldRow: { listStyle: "none", paddingBlock: { default: "0.3125rem", [PHONE_W]: 0 } },
 
   // Editor panel inside a card
   editor: {
@@ -913,10 +1093,14 @@ export const ws = stylex.create({
     [REDUCE]: { animationName: "none" },
   },
   placeTitle: { fontSize: "1.5rem", lineHeight: 1.05 },
+  // The place card's category: after "· " on a wide card, on its own line on a phone.
+  placeCategory: { display: "block" },
   /** The stop's photo across the top of the place card, bled to its edges. */
   placePhoto: {
     display: "block",
     width: "calc(100% + 2rem)",
+    // The reset caps images at 100%, which left the bleed 2rem short on the right.
+    maxWidth: "none",
     marginTop: "-1rem",
     marginInline: "-1rem",
     marginBottom: "0.125rem",
