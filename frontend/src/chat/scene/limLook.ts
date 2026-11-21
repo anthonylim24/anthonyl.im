@@ -11,6 +11,7 @@ import {
   atan,
   attribute,
   cameraNear,
+  cameraPosition,
   cameraProjectionMatrix,
   cameraViewMatrix,
   color,
@@ -35,6 +36,7 @@ import {
   pow,
   reflect,
   saturate,
+  saturation,
   sin,
   smoothstep,
   toneMapping,
@@ -267,8 +269,8 @@ type LitOptions = {
   normal?: V3
 }
 
-/** The Blender studio's view transform (Khronos PBR Neutral, +0.3 EV), applied per lit material so the unlit sky, floor and ink keep their exact colours. */
-const EXPOSURE = 2 ** 0.3
+/** The Blender studio's view transform (Khronos PBR Neutral, +0.4 EV), applied per lit material so the unlit sky, floor and ink keep their exact colours. */
+const EXPOSURE = 2 ** 0.4
 
 /**
  * Sorbet plastic, as the Blender renders draw it: a soft dielectric under a clear coat, lit by the
@@ -276,7 +278,8 @@ const EXPOSURE = 2 ** 0.3
  */
 export function plastic(albedo: V3, o: LitOptions = {}): THREE.MeshPhysicalNodeMaterial {
   const m = new THREE.MeshPhysicalNodeMaterial()
-  m.colorNode = albedo
+  // A touch richer than the toon colour: the neutral view transform softens saturated hues as they brighten.
+  m.colorNode = saturation(albedo, 1.14)
   m.roughness = o.rough ?? 0.32
   m.clearcoat = o.coat ?? 1
   if (typeof o.coatRough === 'number' || o.coatRough === undefined) m.clearcoatRoughness = (o.coatRough as number | undefined) ?? 0.06
@@ -297,17 +300,41 @@ export function plastic(albedo: V3, o: LitOptions = {}): THREE.MeshPhysicalNodeM
 }
 
 /**
+ * The colours a shared toy material carries (in `userData`): its own, the shade the toon look falls
+ * to, and a painted pattern's. An outline material carries its width instead.
+ */
+export type Drawn = { base: THREE.Color; shade: THREE.Color; ink: THREE.Color; inkShade: THREE.Color; width: number }
+
+/**
+ * A value read per draw from the material being drawn. three.js keys a shader build by its node
+ * instances, not their values, so materials that share these nodes and differ only in `userData`
+ * share one build: a new toy reuses shaders the stage built while it loaded.
+ */
+export function drawn(key: 'base' | 'shade' | 'ink' | 'inkShade'): V3 {
+  const node = uniform(new THREE.Color()).onObjectUpdate(({ material }) => (material?.userData as Partial<Drawn> | undefined)?.[key])
+  return node as unknown as V3
+}
+export function drawnWidth(): F {
+  return uniform(0).onObjectUpdate(({ material }) => (material?.userData as Partial<Drawn> | undefined)?.width) as unknown as F
+}
+/** 1 while the drawn object is in hand (`userData.onTop`), for `nearDepth`. */
+export function drawnOnTop(): F {
+  return uniform(0).onObjectUpdate(({ object }) => (object?.userData.onTop as number | undefined) ?? 0) as unknown as F
+}
+
+/**
  * Clear glass for the lit look (a snow globe's dome, a crystal, an ice cube): tinted, thin face-on and
  * denser at the rim, under the studio's reflections. It is blended, not transmissive, because the
  * floor and sky are transparent (they fade into the page) and transmission sees only opaque surfaces.
  * Writing no depth keeps it out of the screen-space passes, which would grain it with occlusion.
  */
-export function glassMaterial(u: LimUniforms, hex: string): THREE.MeshPhysicalNodeMaterial {
+export function glassFill(u: LimUniforms, onTop: F): THREE.MeshPhysicalNodeMaterial {
   const m = new THREE.MeshPhysicalNodeMaterial({ transparent: true, depthWrite: false, roughness: 0.05, ior: 1.45 })
-  m.colorNode = col(hex).mul(mix(float(1), float(0.86), u.night))
+  m.colorNode = drawn('base').mul(mix(float(1), float(0.86), u.night))
   const rim = pow(float(1).sub(saturate(dot(normalize(normalView), positionViewDirection))), 2)
   m.opacityNode = mix(float(0.12), float(0.8), rim)
   m.outputNode = toneMapping(THREE.NeutralToneMapping, float(EXPOSURE), output)
+  m.vertexNode = nearDepth(onTop)
   return m
 }
 
@@ -350,8 +377,49 @@ function skin(u: LimUniforms, base: V3, reach: F) {
 
 export type FaceAnchors = { restC: Vec3; eyeX: number; eyeY: number }
 
-/** Lim's body colour: gel shading plus the painted blush, brows and mouth. */
-export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceAnchors, window = 1): V3 {
+/** Air caught in the jelly, in rest units about its centre: each rises on its own clock and is gone at the top. */
+const BUBBLES = [
+  { x: -0.42, z: 0.12, r: 0.085, speed: 0.045, phase: 0.1 },
+  { x: 0.5, z: -0.04, r: 0.06, speed: 0.06, phase: 0.55 },
+  { x: -0.16, z: -0.36, r: 0.05, speed: 0.072, phase: 0.8 },
+  { x: 0.26, z: 0.3, r: 0.04, speed: 0.083, phase: 0.3 },
+  { x: 0.08, z: -0.12, r: 0.07, speed: 0.05, phase: 0.95 },
+  { x: -0.56, z: -0.18, r: 0.045, speed: 0.066, phase: 0.45 },
+  { x: 0.36, z: 0.42, r: 0.03, speed: 0.09, phase: 0.7 },
+]
+
+/**
+ * The bubbles seen from this point of the surface: the view ray is followed into the body in its rest
+ * space, so they ride every squash and sit at their true depth as Lim turns. Their bright rim, their
+ * slightly lighter middle, and a glint up toward the key light.
+ */
+function bubbles(u: LimUniforms, rest: V3, centre: Vec3) {
+  const o = rest.sub(vec3(...centre))
+  // `v × M` is Mᵀv: world into rest space.
+  const d = normalize(normalize(cameraPosition.sub(positionWorld)).mul(u.rot as unknown as Node<'mat3'>)).negate() as unknown as V3
+  let edge: F = float(0)
+  let fill: F = float(0)
+  let glint: F = float(0)
+  BUBBLES.forEach((b, i) => {
+    const k = fract(u.time.mul(b.speed).add(b.phase))
+    const r = smoothstep(0, 0.12, k).mul(float(1).sub(smoothstep(0.82, 1, k))).mul(b.r)
+    const c = vec3(sin(u.time.mul(0.9).add(i * 1.7)).mul(0.035).add(b.x), mix(float(-0.62), float(0.5), k), b.z)
+    const q = o.add(d.mul(max(dot(c.sub(o), d), 0))).sub(c)
+    const dist = length(q)
+    const disc = float(1).sub(smoothstep(r.mul(0.82), r, dist))
+    edge = max(edge, smoothstep(r.mul(0.45), r.mul(0.95), dist).mul(disc))
+    fill = max(fill, disc)
+    glint = max(glint, float(1).sub(smoothstep(r.mul(0.14), r.mul(0.3), length(q.xy.sub(vec2(r.mul(-0.38), r.mul(0.4)))))))
+  })
+  return { edge, fill, glint: glint.mul(fill) }
+}
+
+/**
+ * Lim's body: gel shading, the bubbles inside, then the painted blush, brows and mouth. `alpha` is
+ * how much of what is behind the jelly it hides: the middle lets most through, the edges (the long
+ * way through) little, the paint none.
+ */
+export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceAnchors, window = 1): { color: V3; alpha: F } {
   const rest = attribute('rest', 'vec3') as unknown as V3
   const rn = normalize(rest.sub(vec3(...a.restC)))
   const front = smoothstep(0.3, 0.55, rn.z).mul(smoothstep(0.3, 0.55, n.view.z))
@@ -367,6 +435,10 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
   let c = u.lit ? s.base : gel(n.view, n.spec, { ...s, window, gloss })
   // At night the jelly glows a little from inside.
   c = c.add(s.rim.mul(u.night).mul(u.lit ? 0.03 : 0.07))
+  const bub = bubbles(u, rest, a.restC)
+  c = mix(c, s.light, bub.fill.mul(0.22))
+  c = mix(c, s.rim, bub.edge.mul(0.75))
+  c = mix(c, vec3(1, 1, 1), bub.glint.mul(0.9))
 
   // The back of the head isn't blank: a small swirl, like the knot on a balloon.
   const back = smoothstep(0.3, 0.55, rn.z.negate())
@@ -379,7 +451,8 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
   const cheekY = a.eyeY - 0.29
   const cheekX = a.eyeX + 0.24
   const cheek = (x: number) => float(1).sub(smoothstep(0.05, 0.15, length(vec2(p.x.sub(x), p.y.sub(cheekY).mul(1.4)))))
-  c = mix(c, col(PAL.blush), cheek(-cheekX).add(cheek(cheekX)).mul(u.blush).mul(front).mul(0.78))
+  const blush = cheek(-cheekX).add(cheek(cheekX)).mul(u.blush).mul(front)
+  c = mix(c, col(PAL.blush), blush.mul(0.78))
 
   // Brows: rounded segments, tilt (radians) + raise per side.
   const brow = (x: number, b: typeof u.browL) => {
@@ -391,7 +464,8 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
     const ry = qy.mul(cs).sub(qx.mul(sn))
     return aaStep(length(vec2(max(abs(rx).sub(0.085), 0), ry)).sub(0.024))
   }
-  c = mix(c, col(PAL.brow), brow(-a.eyeX, u.browL).add(brow(a.eyeX, u.browR)).min(1).mul(u.brow).mul(front))
+  const brows = brow(-a.eyeX, u.browL).add(brow(a.eyeX, u.browR)).min(1).mul(u.brow).mul(front)
+  c = mix(c, col(PAL.brow), brows)
 
   // Mouth: the lens between two parabolas, rounding into an "o"; teeth and a
   // tongue show once it opens.
@@ -416,7 +490,13 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
     .mul(float(1).sub(saturate(u.mouthO.mul(2.5))))
   let inside: V3 = mix(col(PAL.mouth), col(PAL.tongue), tongue)
   inside = mix(inside, col('#FFF8F2'), teeth)
-  return mix(c, inside, mouth)
+  const through = pow(float(1).sub(saturate(dot(n.view, positionViewDirection))), 1.3)
+  // The base stays fuller, so the floor shows through as a tint rather than greying it. The lit look's
+  // temporal resolve follows Lim, not the floor seen through it, so there the floor shows least.
+  const fuller = float(1).sub(smoothstep(-0.75, -0.1, rest.y.sub(a.restC[1]))).mul(u.lit ? 0.24 : 0.14)
+  const jelly = mix(float(u.lit ? 0.7 : 0.6), float(0.96), through).add(fuller).add(bub.edge.mul(0.2)).add(bub.glint)
+  const paint = max(max(mouth, brows), max(swirl.mul(back), blush.mul(0.5)))
+  return { color: mix(c, inside, mouth), alpha: saturate(max(jelly, paint)) }
 }
 
 /* ── Eyes ────────────────────────────────────────────────────────── */
@@ -533,24 +613,32 @@ export function paintMask(kind: Paint, d: V3): F {
   return float(0)
 }
 
-export type ToyPaint = { kind: Paint; ink: string; shade: string; dir: V3 }
-
-export function toyMaterial(u: LimUniforms, hex: string, shadeHex: string, paint?: ToyPaint) {
-  const n = normalize(normalView)
+/**
+ * A toy's surface in one colour, with a painted pattern laid over it along `dir` (from the part's
+ * centre). The colours come from the material drawn (`Drawn`), so one shader serves every colour.
+ */
+export function toyFill(u: LimUniforms, onTop: F, paint?: { kind: Paint; dir: V3 }): THREE.NodeMaterial {
+  const base = drawn('base')
   const mask = paint && paint.kind !== 'plain' ? paintMask(paint.kind, paint.dir) : null
-  const base = mask && paint ? mix(col(hex), col(paint.ink), mask) : col(hex)
-  if (u.lit) return plastic(base.mul(mix(float(1), float(0.86), u.night)), { glow: col(hex) })
-  const mat = new THREE.MeshBasicNodeMaterial()
-  const shade = mask && paint ? mix(col(shadeHex), col(paint.shade), mask) : col(shadeHex)
-  mat.colorNode = gel(n, n, {
-    base: base.mul(mix(float(1), float(0.8), u.night)),
-    shade: shade.mul(mix(float(1), float(0.7), u.night)),
-    light: col('#FFFFFF').mul(0.92),
-    rim: mix(col('#FFFFFF'), col(PAL.nightRim), u.night),
-    rimAmt: float(0.45),
-    glow: col(hex),
-    window: 0,
-  })
+  const painted = mask ? mix(base, drawn('ink'), mask) : base
+  let mat: THREE.NodeMaterial
+  if (u.lit) {
+    mat = plastic(painted.mul(mix(float(1), float(0.86), u.night)), { glow: base })
+  } else {
+    const n = normalize(normalView)
+    const shade = mask ? mix(drawn('shade'), drawn('inkShade'), mask) : drawn('shade')
+    mat = new THREE.MeshBasicNodeMaterial()
+    mat.colorNode = gel(n, n, {
+      base: painted.mul(mix(float(1), float(0.8), u.night)),
+      shade: shade.mul(mix(float(1), float(0.7), u.night)),
+      light: col('#FFFFFF').mul(0.92),
+      rim: mix(col('#FFFFFF'), col(PAL.nightRim), u.night),
+      rimAmt: float(0.45),
+      glow: base,
+      window: 0,
+    })
+  }
+  mat.vertexNode = nearDepth(onTop)
   return mat
 }
 
@@ -628,8 +716,9 @@ export function floorMaterial(u: LimUniforms, place: FloorPlace) {
  * Soft contact shadow. `caustic` adds what real gelatin does: the shadow takes
  * the jelly's colour and a bright spot where the body focuses the light.
  */
+/** A soft contact shadow; how dark each one is comes from its mesh (`userData.strength`), so the toys share one. */
 export function shadowMaterial(u: LimUniforms, tint: string | null) {
-  const strength = uniform(0.3)
+  const strength = uniform(0.3).onObjectUpdate(({ object }) => object?.userData.strength as number | undefined)
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false })
   const d = length(uv().sub(0.5)).mul(2)
   let c: V3 = mix(col(PAL.shadow), col('#07040F'), u.night)
@@ -642,7 +731,7 @@ export function shadowMaterial(u: LimUniforms, tint: string | null) {
   }
   mat.colorNode = c
   mat.opacityNode = alpha
-  return { mat, strength }
+  return mat
 }
 
 /** A ring that spreads across the floor (landings, taps). */

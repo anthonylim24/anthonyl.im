@@ -59,7 +59,6 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
   const pointer = { ndc: new THREE.Vector2(), inside: false }
   const ray = new THREE.Raycaster()
   const sphere = new THREE.Sphere()
-  const hit = new THREE.Vector3()
   const plane = new THREE.Plane()
   const onPlane = new THREE.Vector3()
   let drag: {
@@ -82,20 +81,32 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
     ray.setFromCamera(pointer.ndc, camera)
   }
 
+  /**
+   * The body under the pointer and where you touched it: the point on the ray level with the nearest
+   * particle it passes close to. A bounding sphere only rules bodies out, so a long toy is not grabbed
+   * by the air beside it, and a grab holds the body where the pointer is instead of jumping to a particle.
+   */
   const pick = (): { body: Jelly; point: THREE.Vector3 } | null => {
-    let best: { body: Jelly; point: THREE.Vector3 } | null = null
-    let bestD = Infinity
+    const { origin: o, direction: d } = ray.ray
+    let found: Jelly | null = null
+    let near = Infinity
     for (const body of bodies) {
       sphere.center.set(...body.center)
       sphere.radius = body.radius * pickScale
-      if (!ray.ray.intersectSphere(sphere, hit)) continue
-      const d = hit.distanceTo(ray.ray.origin)
-      if (d < bestD) {
-        bestD = d
-        best = { body, point: hit.clone() }
+      if (!ray.ray.intersectsSphere(sphere)) continue
+      const reach2 = (body.radius * 0.3) ** 2
+      const x = body.x
+      for (let i = 0; i < x.length; i += 3) {
+        const px = x[i] - o.x
+        const py = x[i + 1] - o.y
+        const pz = x[i + 2] - o.z
+        const t = px * d.x + py * d.y + pz * d.z
+        if (t <= 0 || t >= near || px * px + py * py + pz * pz - t * t > reach2) continue
+        near = t
+        found = body
       }
     }
-    return best
+    return found ? { body: found, point: ray.ray.at(near, new THREE.Vector3()) } : null
   }
 
   const poke = (body: Jelly, point: THREE.Vector3, strength = 1) => {

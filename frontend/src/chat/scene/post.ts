@@ -82,7 +82,8 @@ export function createPost(
         gi.stepCount.value = mobile ? 8 : 10
         gi.radius.value = 2
         gi.giIntensity.value = 1.5
-        gi.aoIntensity.value = 1
+        // A toy box, not a cave: occlusion marks a contact, it never greys a whole side.
+        gi.aoIntensity.value = 0.45
         gi.resolutionScale = mobile ? 0.5 : 1
         gi.useTemporalFiltering = temporal
         owned.push(gi)
@@ -95,7 +96,7 @@ export function createPost(
         occlusion.useTemporalFiltering = temporal
         owned.push(occlusion)
         // At full strength GTAO dims whole curved bodies, not just their contact; the renders keep the colours bright.
-        out = vec4(color.rgb.mul(mix(float(1), occlusion.getTextureNode().r, 0.55)), color.a)
+        out = vec4(color.rgb.mul(mix(float(1), occlusion.getTextureNode().r, 0.3)), color.a)
       }
       if (surface) {
         const reflect = ssr(color, depth, normal, { metalnessNode: scenePass.getTextureNode('material').a, roughnessNode: float(0.06), camera })

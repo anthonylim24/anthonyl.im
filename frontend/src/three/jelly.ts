@@ -106,13 +106,20 @@ export class Jelly {
   private readonly cn: Float32Array
   private readonly cf: Float32Array
   private readonly sN: Vec3 = [0, 0, 0]
-  private readonly rest0: Vec3
+  /** The rest shape's centroid: rest points are measured from here. */
+  readonly rest0: Vec3
   private readonly aqq: number[]
   private readonly p: Float32Array
+  /**
+   * The particles' own best-fit linear map from the rest shape (row-major, volume-normalised), as of
+   * the last step: the goal's rotation plus every squash and stretch the body is going through.
+   */
+  readonly fit = [1, 0, 0, 0, 1, 0, 0, 0, 1]
   /** Best-fit rotation as a quaternion (x, y, z, w), warm-started every step. */
   readonly rotation: [number, number, number, number] = [0, 0, 0, 1]
   /** Blended goal matrix from the last substep (row-major 3×3). */
-  private readonly m = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+  /** The goal's linear map from the rest shape (row-major): rotation, lean and `beta` of the stretch. */
+  readonly m = [1, 0, 0, 0, 1, 0, 0, 0, 1]
   private readonly pins = new Map<number, { target: Vec3; k: number }>()
   // Scratch for step(): it runs every frame for every body, so it allocates nothing.
   private readonly sVbar: Vec3 = [0, 0, 0]
@@ -431,9 +438,12 @@ export class Jelly {
       const m = this.m
       if (det > EPS) {
         const inv = 1 / Math.cbrt(det)
-        for (let k = 0; k < 9; k++) m[k] = this.beta * a[k] * inv + (1 - this.beta) * r[k]
+        for (let k = 0; k < 9; k++) {
+          this.fit[k] = a[k] * inv
+          m[k] = this.beta * this.fit[k] + (1 - this.beta) * r[k]
+        }
       } else {
-        for (let k = 0; k < 9; k++) m[k] = r[k]
+        for (let k = 0; k < 9; k++) m[k] = this.fit[k] = r[k]
       }
       this.center[0] = c[0]
       this.center[1] = c[1]
@@ -720,11 +730,21 @@ export function extractRotation(a: number[], q: [number, number, number, number]
   return q
 }
 
+const unitSpheres = new Map<number, { positions: Float32Array; index: Uint32Array }>()
+
 /**
- * Indexed icosphere (shared vertices, so the soft body has no seams).
- * Returns rest positions and triangle indices.
+ * Indexed icosphere (shared vertices, so the soft body has no seams): rest positions and triangle
+ * indices. Built once per detail; every call gets its own copy, since callers reshape it.
  */
 export function icosphere(radius: number, detail: number): { positions: Float32Array; index: Uint32Array } {
+  let unit = unitSpheres.get(detail)
+  if (!unit) unitSpheres.set(detail, (unit = unitIcosphere(detail)))
+  const positions = new Float32Array(unit.positions.length)
+  for (let i = 0; i < positions.length; i++) positions[i] = unit.positions[i] * radius
+  return { positions, index: unit.index.slice() }
+}
+
+function unitIcosphere(detail: number): { positions: Float32Array; index: Uint32Array } {
   const t = (1 + Math.sqrt(5)) / 2
   const verts: Vec3[] = [
     [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
@@ -761,11 +781,7 @@ export function icosphere(radius: number, detail: number): { positions: Float32A
     faces = next
   }
   const positions = new Float32Array(verts.length * 3)
-  verts.forEach((p, i) => {
-    positions[i * 3] = p[0] * radius
-    positions[i * 3 + 1] = p[1] * radius
-    positions[i * 3 + 2] = p[2] * radius
-  })
+  verts.forEach((p, i) => positions.set(p, i * 3))
   return { positions, index: Uint32Array.from(faces.flat()) }
 }
 

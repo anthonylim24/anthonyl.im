@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { Matrix4, Vector3 } from 'three'
 import { describe, expect, it } from 'vitest'
 import { Jelly } from '../../three/jelly'
 import {
-  bindToBody,
   boundsOf,
-  carryToy,
+  carryMatrix,
   catalogKey,
   fitToyMesh,
   itemBounds,
@@ -105,40 +105,28 @@ describe('toy meshes', () => {
 describe('carrying a model on its soft body', () => {
   const body = new Float32Array([1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1])
   const model = new Float32Array([0.9, 0, 0, 0, 0.5, 0.5, 0, 3, 0])
-
-  it('shares out no more than all of a vertex, and nothing beyond reach', () => {
-    const bind = bindToBody(model, body, 0.8)
-    for (let v = 0; v < 3; v++) {
-      let total = 0
-      for (let j = bind.start[v]; j < bind.start[v + 1]; j++) total += bind.weight[j]
-      expect(total).toBeLessThanOrEqual(1 + 1e-6)
-    }
-    expect(bind.start[3] - bind.start[2]).toBe(0)
-  })
+  const box = boundsOf(model)
+  const carried = (jelly: Jelly, floor = -Infinity) => {
+    const m = carryMatrix(jelly, box, floor, 0.7, new Matrix4())
+    return [0, 3, 6].flatMap((i) => new Vector3(model[i], model[i + 1], model[i + 2]).applyMatrix4(m).toArray())
+  }
 
   it('leaves the model as fitted while the body is at rest, and follows it when it moves', () => {
     const jelly = new Jelly(body)
-    const bind = bindToBody(model, body, 0.8)
-    const out = new Float32Array(model.length)
-    carryToy(model, bind, jelly, jelly.goal, out, -Infinity)
-    expect(Array.from(out)).toEqual(Array.from(model).map((v) => expect.closeTo(v, 6)))
+    expect(carried(jelly)).toEqual(Array.from(model).map((v) => expect.closeTo(v, 6)))
     jelly.translate(2, 0.5, -1)
-    carryToy(model, bind, jelly, jelly.goal, out, -Infinity)
-    expect(Array.from(out)).toEqual(Array.from(model).map((v, i) => expect.closeTo(v + [2, 0.5, -1][i % 3], 6)))
+    expect(carried(jelly)).toEqual(Array.from(model).map((v, i) => expect.closeTo(v + [2, 0.5, -1][i % 3], 6)))
   })
 
-  it('takes its share of the skin giving, and is lifted whole off the floor', () => {
+  it('squashes with the body, and is lifted whole off the floor', () => {
     const jelly = new Jelly(body)
-    const bind = bindToBody(model, body, 0.8)
-    const skin = Float32Array.from(jelly.goal)
-    skin[0] += 0.2
-    const out = new Float32Array(model.length)
-    carryToy(model, bind, jelly, skin, out, -Infinity)
-    expect(out[0]).toBeGreaterThan(model[0])
-    expect(out[6]).toBeCloseTo(model[6], 6)
-    carryToy(model, bind, jelly, jelly.goal, out, 0.25)
-    expect(Math.min(out[1], out[4], out[7])).toBeCloseTo(0.25, 6)
-    expect(out[7] - out[1]).toBeCloseTo(3, 6)
+    jelly.squash = [1.25, 0.8, 1.25]
+    const squashed = carried(jelly)
+    expect(squashed[7] - squashed[1]).toBeCloseTo(3 * 0.8, 6)
+    expect(squashed[0]).toBeCloseTo(0.9 * 1.25, 6)
+    const lifted = carried(jelly, 0.25)
+    expect(Math.min(lifted[1], lifted[4], lifted[7])).toBeCloseTo(0.25, 6)
+    expect(lifted[7] - lifted[1]).toBeCloseTo(squashed[7] - squashed[1], 6)
   })
 })
 

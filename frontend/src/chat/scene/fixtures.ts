@@ -12,8 +12,7 @@ import * as THREE from 'three/webgpu'
 import { bound, boxCollider, capsuleCollider, torusCollider, type Collider } from '../../three/physics'
 import type { Vec3 } from '../../three/jelly'
 import type { ItemSpec } from '../world/spec'
-import { shadeOf, solidGeometry } from './items'
-import { hullMaterial, netMaterial, toyMaterial, type LimUniforms, type V3 } from './limLook'
+import { solidGeometry, type ItemMaterials } from './items'
 
 export type FixtureKind = 'hoop' | 'goal'
 export const fixtureKind = (spec: ItemSpec): FixtureKind | null =>
@@ -61,14 +60,14 @@ export class Fixture {
   private grow = 1
   private growV = 0
 
-  constructor(readonly spec: ItemSpec, u: LimUniforms, ink: V3) {
+  constructor(readonly spec: ItemSpec, mats: ItemMaterials) {
     const kind = fixtureKind(spec) ?? 'hoop'
     this.kind = kind
     this.side = kind === 'hoop' ? 1 : -1
     const frame = spec.parts[0].color
     const accent = spec.parts[1]?.color ?? '#F0524F'
-    const fill = (hex: string) => this.own(toyMaterial(u, hex, shadeOf(hex)))
-    const line = this.own(hullMaterial(ink, 0.016))
+    const fill = (hex: string) => mats.fill({ color: hex })
+    const line = mats.hull(0.016)
     const solid = (geo: THREE.BufferGeometry, mat: THREE.Material, at: Vec3) => {
       this.own(geo)
       const holder = new THREE.Group()
@@ -111,7 +110,7 @@ export class Fixture {
       this.head.add(solid(ring, rim, [RIM_X, 0, 0]))
       const mesh = new THREE.CylinderGeometry(RIM - 0.02, RIM * 0.6, 0.56, 16, 1, true)
       this.own(mesh)
-      const net = new THREE.Mesh(mesh, this.own(netMaterial(u, '#FFFFFF', [16, 3])))
+      const net = new THREE.Mesh(mesh, mats.net([16, 3]))
       net.position.set(RIM_X, -0.28 - TUBE, 0)
       this.net = net
       this.head.add(net)
@@ -122,7 +121,7 @@ export class Fixture {
     } else {
       const post = fill(frame)
       const stay = fill(spec.parts[1]?.color ?? frame)
-      const cord = this.own(netMaterial(u, '#FFFFFF', [1, 1]))
+      const cord = mats.net([1, 1])
       for (const z of [-MOUTH, MOUTH]) {
         bar([0, 0, z], [0, BAR, z], 0.055, post)
         bar([0, BAR, z], [-TOP, BAR, z], 0.03, stay)

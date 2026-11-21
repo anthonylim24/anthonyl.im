@@ -4,7 +4,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { stage as s, chatbot } from '@/styles/chatbot.stylex'
 import { LimArt } from './LimArt'
 import type { Stunt } from './eggs'
-import type { LimMood, LimReaction, LimScene, LimWorld, Score, ScoreEvent } from './scene/limScene'
+import type { LimMood, LimReaction, LimScene, LimWorld, LoadStep, Score, ScoreEvent } from './scene/limScene'
 import type { Graphics, Tier } from './scene/quality'
 import type { WorldOp } from './world/spec'
 import { loadWorld, saveWorld } from './world/worldApi'
@@ -28,7 +28,8 @@ export type LimStageHandle = {
 const POKE_WORDS = ['hehe!', 'boop!', 'eep!', 'squish!', 'tee-hee', 'wobble!', 'again!']
 const DOT_COLORS = ['#FF7E6B', '#B9A6FF', '#7FD6B5']
 
-const canRender3D = () =>
+/** WebGPU or WebGL2 is there to draw the live stage; without either the drawing stays. */
+export const canRender3D = () =>
   typeof navigator !== 'undefined' && ('gpu' in navigator || typeof window.WebGL2RenderingContext !== 'undefined')
 
 /**
@@ -45,6 +46,16 @@ export type StageState =
   | { kind: 'live'; scene: LimScene }
   | { kind: 'failed'; reason: 'unsupported' | 'init' | 'lost' }
 
+/**
+ * How far the live stage has come, for a loading screen: its code downloading (`code`), then the
+ * scene's own steps. `done` runs from 0 to 1. `ready` once its first frame is drawn (it then waits
+ * for `revealed`); `failed` when the drawing stays.
+ */
+export type StageLoad = { kind: 'loading'; step: 'code' | LoadStep; done: number } | { kind: 'ready' } | { kind: 'failed' }
+
+/** The share of the load the code download stands for; the scene's steps fill the rest. */
+const CODE_SHARE = 0.15
+
 const sceneOf = (state: StageState) => (state.kind === 'ready' || state.kind === 'live' ? state.scene : null)
 
 /**
@@ -60,6 +71,8 @@ export function LimStage({
   onTier,
   onWorld,
   onScore,
+  onLoad,
+  revealed = true,
   ref,
 }: {
   mood: LimMood
@@ -71,6 +84,10 @@ export function LimStage({
   /** The items or the place changed (also called once when the scene comes up); null once there is no live scene. */
   onWorld?: (world: LimWorld | null) => void
   onScore?: (event: ScoreEvent) => void
+  /** Progress while the live stage comes up, then `ready` or `failed`. */
+  onLoad?: (load: StageLoad) => void
+  /** Whether the page shows the stage. Lim makes its entrance once the scene is ready and this is true. */
+  revealed?: boolean
   ref?: Ref<LimStageHandle>
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -97,6 +114,7 @@ export function LimStage({
   const onWorldRef = useRef(onWorld)
   const onScoreRef = useRef(onScore)
   const onTierRef = useRef(onTier)
+  const onLoadRef = useRef(onLoad)
   // Auto gave up the lit look mid-visit: the scene is built again on the toon look.
   const [rebuilds, setRebuilds] = useState(0)
   useLayoutEffect(() => {
@@ -104,6 +122,7 @@ export function LimStage({
     onWorldRef.current = onWorld
     onScoreRef.current = onScore
     onTierRef.current = onTier
+    onLoadRef.current = onLoad
   })
 
   const emote = useCallback((word: string) => {
@@ -180,9 +199,14 @@ export function LimStage({
       }
     }
 
+    const progress = (step: 'code' | LoadStep, done: number) => {
+      if (!disposed) onLoadRef.current?.({ kind: 'loading', step, done })
+    }
+    progress('code', 0)
     void (async () => {
       const { createLimScene } = await import('./scene/limScene')
       if (disposed) return
+      progress('gpu', CODE_SHARE)
       setStage({ kind: 'loading' })
       const next = await createLimScene({
         canvas: gl,
@@ -190,6 +214,7 @@ export function LimStage({
         reducedMotion,
         graphics,
         onTier: (tier) => onTierRef.current?.(tier),
+        onProgress: (step, done) => progress(step, CODE_SHARE + (1 - CODE_SHARE) * done),
         onRebuild: () => setRebuilds((n) => n + 1),
         night: initial.current.night,
         mood: initial.current.mood,
@@ -243,6 +268,14 @@ export function LimStage({
       setStage({ kind: 'drawing' })
     }
   }, [reducedMotion, graphics, rebuilds, emote, setStage])
+
+  useEffect(() => {
+    if (stage.kind === 'live') onLoadRef.current?.({ kind: 'ready' })
+    else if (stage.kind === 'failed') onLoadRef.current?.({ kind: 'failed' })
+  }, [stage.kind])
+  useEffect(() => {
+    if (revealed && live) scene?.enter()
+  }, [revealed, live, scene])
 
   useEffect(() => {
     scene?.setMood(mood)
