@@ -51,11 +51,22 @@ export type PlaceDetailsLookup = (query: PlaceDetailsQuery, signal?: AbortSignal
 
 /** Google answered with an error status. Carries the status only: never Google's body, never a URL. */
 export class PlaceDetailsUpstreamError extends Error {
-  constructor(readonly status: number) {
+  /** `unknownId`: Google said the place id itself is not one it knows. */
+  constructor(
+    readonly status: number,
+    readonly unknownId = false,
+  ) {
     super(`place details ${status}`)
     this.name = "PlaceDetailsUpstreamError"
   }
 }
+
+/**
+ * Google answers an id it does not know (a place that moved or merged, or
+ * one that was never Google's) with a 400 "The provided Place ID: … is not
+ * valid." A broken field mask is a 400 too, so the body tells them apart.
+ */
+const UNKNOWN_ID = /place id\b[^"]*\bis not valid/i
 
 /**
  * Every field the popover shows, by its Place Details (New) name (no
@@ -275,7 +286,11 @@ export function createGooglePlaceDetails(
       headers: { ...(init.headers as Record<string, string>), "X-Goog-Api-Key": apiKey },
       signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
     })
-    if (!res.ok) throw new PlaceDetailsUpstreamError(res.status)
+    if (!res.ok) {
+      // Read only to classify; the body never leaves this function.
+      const unknownId = res.status === 400 && UNKNOWN_ID.test(await res.text().catch(() => ""))
+      throw new PlaceDetailsUpstreamError(res.status, unknownId)
+    }
     return res
   }
 
@@ -366,8 +381,8 @@ export function createGooglePlaceDetails(
       )
     } catch (err) {
       // An id Google no longer knows (places move and merge) is an answer: nothing.
-      // A 400 stays a failure, so a broken field mask is never mistaken for an empty place.
-      if (err instanceof PlaceDetailsUpstreamError && err.status === 404) {
+      // Any other 400 stays a failure, so a broken field mask is never mistaken for an empty place.
+      if (err instanceof PlaceDetailsUpstreamError && (err.status === 404 || err.unknownId)) {
         answers.set(placeId, null, ttlMs)
         return null
       }

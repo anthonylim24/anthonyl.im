@@ -254,6 +254,39 @@ describe("createGooglePlaceDetails", () => {
     await expect(createGooglePlaceDetails(KEY, google.fetchImpl)({ placeId: PALACE_ID })).rejects.toBeInstanceOf(PlaceDetailsUpstreamError)
   })
 
+  // Google's real answer for a dead id (measured live): 400, not 404.
+  const invalidId = (id: string) =>
+    new Response(JSON.stringify({ error: { code: 400, message: `The provided Place ID: ${id} is not valid.\n`, status: "INVALID_ARGUMENT" } }), { status: 400 })
+
+  it("answers null for the 400 Google gives an id it does not know", async () => {
+    const calls: string[] = []
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      calls.push(String(input))
+      return invalidId(PALACE_ID)
+    }) as typeof fetch
+    const lookup = createGooglePlaceDetails(KEY, fetchImpl)
+    expect(await lookup({ placeId: PALACE_ID })).toBeNull()
+    expect(await lookup({ placeId: PALACE_ID })).toBeNull()
+    expect(calls).toHaveLength(1)
+  })
+
+  it("falls back to the name and point after that 400", async () => {
+    const dead = "ChIJod7tSseifDUR9hXHLFNGZZZ"
+    const base = fakeGoogle()
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes(`/places/${dead}?`) ? invalidId(dead) : base.fetchImpl(input, init)) as typeof fetch
+    const place = await createGooglePlaceDetails(KEY, fetchImpl)({ placeId: dead, fallback: { name: "Gyeongbokgung", near: { lat: 37.5796, lng: 126.977 } } })
+    expect(place?.placeId).toBe(PALACE_ID)
+  })
+
+  it("keeps a field-mask 400 a failure", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ error: { code: 400, message: "Request contains an invalid argument.", details: [{ fieldViolations: [{ field: "id,notAField" }] }] } }), { status: 400 })) as typeof fetch
+    const err = await createGooglePlaceDetails(KEY, fetchImpl)({ placeId: PALACE_ID }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PlaceDetailsUpstreamError)
+    expect((err as PlaceDetailsUpstreamError).unknownId).toBe(false)
+  })
+
   describe("with no place id", () => {
     const near = { lat: 37.5796, lng: 126.977 }
 
