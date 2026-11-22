@@ -235,7 +235,9 @@ html.dark[data-trips-look="glass"][data-trips-scroll] {
   --tg-blur: var(--trips-glass-blur-bar);
   background-color: var(--tg-tint);
   -webkit-backdrop-filter: blur(var(--tg-blur)) saturate(var(--trips-glass-saturate)) brightness(var(--trips-glass-bright));
-  backdrop-filter: var(--tg-refract,) blur(var(--tg-blur)) saturate(var(--trips-glass-saturate)) brightness(var(--trips-glass-bright));
+  /* Blur, then bend. With the lens first, Chromium let the sharp backdrop
+     show through the rim (ghost text under sheets and the dock). */
+  backdrop-filter: blur(var(--tg-blur)) var(--tg-refract,) saturate(var(--trips-glass-saturate)) brightness(var(--trips-glass-bright));
   border-color: transparent;
   box-shadow: var(--trips-glass-shadow);
 }
