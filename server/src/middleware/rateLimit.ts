@@ -115,8 +115,17 @@ export function hashedIdentityKey(token: string): string {
   return createHash("sha256").update(token).digest("hex").slice(0, 32);
 }
 
+/**
+ * `RATE_LIMITS=off` turns every limiter off on a local or e2e stack, where
+ * one dev user drives many tests at once. Production ignores it.
+ */
+export function rateLimitsOff(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.RATE_LIMITS === "off" && env.NODE_ENV !== "production";
+}
+
 export function createRateLimit(opts: RateLimitOpts): MiddlewareHandler {
   const { windowMs, max, keyPrefix, key: keyFn = trustedProxyClientAddress } = opts;
+  if (rateLimitsOff()) return (_c, next) => next();
 
   return async (c, next) => {
     // Idempotency guard: skip if this prefix was already counted for this request

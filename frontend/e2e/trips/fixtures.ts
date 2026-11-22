@@ -196,6 +196,11 @@ export const test = base.extend<{ aiTripwire: string[]; pageErrors: string[] }, 
       const body = await res.text()
       await deleteTrip(request, trip.id)
       await request.dispose()
+      if (res.status() === 429) {
+        throw new Error(
+          `The stack at ${baseURL} rate-limits the dev user. Start its API with RATE_LIMITS=off, as playwright.config.ts does.`,
+        )
+      }
       if (res.status() !== 503 || !body.includes('ai_not_configured')) {
         throw new Error(
           `Refusing to run: the stack at ${baseURL} has AI configured (bookings/parse answered ${res.status()}). ` +

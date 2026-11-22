@@ -57,6 +57,7 @@ export default defineConfig({
             CORS_ORIGIN: `http://localhost:${FRONTEND_PORT}`,
             SITE_URL: `http://localhost:${BACKEND_PORT}`,
             NODE_ENV: 'development',
+            RATE_LIMITS: 'off',
             TRIPS_STORE: 'memory',
             SUPABASE_SERVICE_ROLE_KEY: NO_KEY,
             GEMINI_API_KEY: NO_KEY,

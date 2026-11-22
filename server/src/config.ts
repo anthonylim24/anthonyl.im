@@ -120,6 +120,10 @@ export const config = {
   ),
 } as const;
 
+if (process.env.NODE_ENV === 'production' && process.env.RATE_LIMITS === 'off') {
+  console.warn('[config] !!! RATE_LIMITS=off set with NODE_ENV=production — IGNORED. Rate limits stay on in production.');
+}
+
 // Warn about keys for features that are enabled. Nothing is required at boot:
 // a missing key degrades that feature, it does not take the site down.
 if (config.igWorkerEnabled) {

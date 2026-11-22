@@ -5,6 +5,7 @@ import {
   consumeRateLimit,
   createRateLimit,
   rateLimitStore,
+  rateLimitsOff,
   trustedProxyClientAddress,
   userOrClientKey,
 } from "./rateLimit";
@@ -115,6 +116,30 @@ describe("createRateLimit", () => {
     expect((await app.request("/", { headers: { ...ip, "x-test-user": "u2" } })).status).toBe(200);
     expect((await app.request("/", { headers: ip })).status).toBe(200);
     expect((await app.request("/", { headers: ip })).status).toBe(429);
+  });
+});
+
+describe("RATE_LIMITS=off", () => {
+  test("is honoured only outside production", () => {
+    expect(rateLimitsOff({ RATE_LIMITS: "off", NODE_ENV: "development" })).toBe(true);
+    expect(rateLimitsOff({ RATE_LIMITS: "off" })).toBe(true);
+    expect(rateLimitsOff({ RATE_LIMITS: "off", NODE_ENV: "production" })).toBe(false);
+    expect(rateLimitsOff({ NODE_ENV: "development" })).toBe(false);
+  });
+
+  test("lets every request through a limiter made while it is set", async () => {
+    const before = process.env.RATE_LIMITS;
+    process.env.RATE_LIMITS = "off";
+    try {
+      const app = makeApp(1);
+      for (let i = 0; i < 3; i++) {
+        const res = await app.request("/", { headers: { "x-forwarded-for": "10.0.0.9" } });
+        expect(res.status).toBe(200);
+      }
+    } finally {
+      if (before === undefined) delete process.env.RATE_LIMITS;
+      else process.env.RATE_LIMITS = before;
+    }
   });
 });
 
