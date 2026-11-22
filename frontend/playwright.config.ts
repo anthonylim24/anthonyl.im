@@ -2,12 +2,15 @@ import { defineConfig, devices } from '@playwright/test'
 
 // Two boot modes:
 //   1. Default — Playwright owns the lifecycle of both the Hono backend
-//      (:3000) and the Vite frontend (:5173). Hermetic; what CI and the
-//      cloud env use.
+//      (:3210) and the Vite frontend (:5210). Hermetic; what CI and the
+//      cloud env use. The ports are not the dev ports on purpose: a dev
+//      server on :3000 reads the real .env, and reusing it would send test
+//      trips to Supabase and test turns to the paid models.
 //   2. E2E_BASE_URL set — point at an already-running stack (e.g. when
 //      iterating locally with `.codex/dev.sh` in another terminal).
-const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 5173)
-const BACKEND_PORT = Number(process.env.PORT ?? 3000)
+const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 5210)
+const BACKEND_PORT = Number(process.env.PORT ?? 3210)
+const NO_KEY = ''
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${FRONTEND_PORT}`
 
 export default defineConfig({
@@ -36,8 +39,9 @@ export default defineConfig({
     : [
         {
           // Hono backend. `bun start` runs server/app.ts which reads PORT.
-          // The env stubs match .codex/dev.sh so config.ts's required-env
-          // check passes without touching real secrets.
+          // Bun loads the root .env but never overrides a variable that is
+          // already set, so the empty values below win: trips live in memory
+          // and every AI feature answers "not set up" instead of calling out.
           command: 'bun start',
           cwd: '..',
           url: `http://localhost:${BACKEND_PORT}/health`,
@@ -52,6 +56,20 @@ export default defineConfig({
             PORT: String(BACKEND_PORT),
             CORS_ORIGIN: `http://localhost:${FRONTEND_PORT}`,
             SITE_URL: `http://localhost:${BACKEND_PORT}`,
+            NODE_ENV: 'development',
+            TRIPS_STORE: 'memory',
+            SUPABASE_SERVICE_ROLE_KEY: NO_KEY,
+            GEMINI_API_KEY: NO_KEY,
+            GROQ_API_KEY: NO_KEY,
+            JEV_API_KEY: NO_KEY,
+            CEREBRAS_API_KEY: NO_KEY,
+            DEEPSEEK_API_KEY: NO_KEY,
+            KLUSTER_API_KEY: NO_KEY,
+            APIFY_TOKEN: NO_KEY,
+            BRIGHT_DATA_API_KEY: NO_KEY,
+            GOOGLE_MAPS_API_KEY: NO_KEY,
+            GOOGLE_VISION_API_KEY: NO_KEY,
+            KAKAO_REST_API_KEY: NO_KEY,
           },
         },
         {
@@ -66,6 +84,7 @@ export default defineConfig({
           stderr: 'pipe',
           env: {
             VITE_DEV_BEARER: 'codex-dev-bearer',
+            API_PROXY_TARGET: `http://localhost:${BACKEND_PORT}`,
           },
         },
       ],
