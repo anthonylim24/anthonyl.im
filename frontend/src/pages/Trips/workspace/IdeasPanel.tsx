@@ -336,7 +336,7 @@ function IdeaRow({
           {editable ? <ThemeMenu idea={idea} locked={locked} onEdit={onEdit} /> : <ThemeTag idea={idea} />}
           {where && <span {...sx(a.small, a.wrap)}>{where}</span>}
         </div>
-        {idea.notes && <span {...sx(a.small, a.wrap)}>{idea.notes}</span>}
+        {idea.notes && <span {...sx(a.small, a.wrap, s.ideaNotes)}>{idea.notes}</span>}
         {links.length > 0 && (
           <ul {...sx(s.links)} aria-label="Links">
             {links.map((link) => (

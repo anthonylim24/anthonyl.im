@@ -69,6 +69,12 @@ export function useIdeaNav() {
 
   const close = useLatestCallback(() => {
     if (!params.has(IDEA_PARAM) && !params.has(IDEA_ADD_PARAM)) return
+    // The browser is already on another entry that React has yet to show (the
+    // router commits navigations in a transition): a press outside that opened
+    // another idea, or a Back on its way. What is open is about to change, and
+    // closing it now would undo that navigation.
+    const live = (window.history.state as { key?: unknown } | null)?.key
+    if (typeof live === "string" && live !== location.key) return
     if (markOf(location.state)?.pushed) {
       if (backFrom.current === location.key) return
       backFrom.current = location.key

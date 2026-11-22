@@ -186,6 +186,20 @@ function liveRow(row: RefObject<HTMLElement>, ideaId: string): HTMLElement | nul
   return found
 }
 
+/**
+ * Focus back on the row, flagged as the card's own move. Effects do this as
+ * the card goes (and React's StrictMode runs them twice as it opens): that is
+ * not "focus moved elsewhere". Escape and Tab, which mean "done", also close.
+ */
+function handFocusBack(row: RefObject<HTMLElement>, ideaId: string, handing: RefObject<boolean>) {
+  handing.current = true
+  try {
+    liveRow(row, ideaId)?.focus({ preventScroll: true })
+  } finally {
+    handing.current = false
+  }
+}
+
 /** Over the sticky header and the map, like a kit menu. */
 const FLOATING = { position: "fixed", right: "auto", bottom: "auto" } as const
 
@@ -223,6 +237,9 @@ function Popover({
   const close = useLatestCallback(onClose)
   /** A press outside is under way: its click decides, not the focus it moves. */
   const pressing = useRef(false)
+  /** The card itself is handing focus back to the row: not a reason to close. */
+  const handing = useRef(false)
+  const handBack = useLatestCallback(() => handFocusBack(row, anchorId, handing))
 
   // Placed before it paints, and again when the page scrolls or resizes, or
   // the card's own height changes as its details arrive. Written to the node:
@@ -264,16 +281,16 @@ function Popover({
     node?.focus({ preventScroll: true })
     return () => {
       const active = document.activeElement
-      if (!active || active === document.body || node?.contains(active)) liveRow(row, anchorId)?.focus({ preventScroll: true })
+      if (!active || active === document.body || node?.contains(active)) handBack()
     }
-  }, [closing, anchorId])
+  }, [closing, handBack])
 
   // Closing makes the card inert, which would drop focus to <body>: hand it to the row first.
   useLayoutEffect(() => {
     if (!closing) return
     const active = document.activeElement
-    if (active && ref.current?.contains(active)) liveRow(row, anchorId)?.focus({ preventScroll: true })
-  }, [closing, anchorId])
+    if (active && ref.current?.contains(active)) handBack()
+  }, [closing, handBack])
 
   // A press outside closes it once its click has landed, and only if that
   // click left this card open: a press on another idea, a pin or Add to day
@@ -309,7 +326,7 @@ function Popover({
 
   /** Leave for the row: Escape, or Tab past either end of the card. */
   const leaveToRow = () => {
-    liveRow(row, anchorId)?.focus({ preventScroll: true })
+    handBack()
     close()
   }
 
@@ -338,7 +355,7 @@ function Popover({
   // settles; not into another Trips portal such as a toast): it is done.
   const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget as Element | null
-    if (!next || pressing.current || ref.current?.contains(next) || next.closest?.(".trips-portal")) return
+    if (!next || pressing.current || handing.current || ref.current?.contains(next) || next.closest?.(".trips-portal")) return
     close()
   }
 

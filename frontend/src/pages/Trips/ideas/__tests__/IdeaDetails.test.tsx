@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { useState, type ReactNode } from "react"
+import { StrictMode, useState, type ReactNode } from "react"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { makeItem, makeTrip, stubMatchMedia } from "../../__tests__/tripFixtures"
 import { Presence } from "../../components/presence"
@@ -351,6 +351,20 @@ describe("IdeaDetails", () => {
     expect(fireEvent.keyDown(select, { key: "Tab" })).toBe(true)
     expect(document.activeElement).toBe(select)
     expect(screen.getByRole("dialog")).not.toHaveAttribute("data-state", "closed")
+  })
+
+  it("stays open under StrictMode, whose doubled effects hand focus to the row and back", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))
+    render(
+      <StrictMode>
+        <Harness />
+      </StrictMode>,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Open Gyeongbokgung" }))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    const dialog = screen.getByRole("dialog", { name: "Gyeongbokgung" })
+    expect(dialog).not.toHaveAttribute("data-state", "closed")
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
   })
 
   it("closes when focus moves elsewhere on the page", async () => {
