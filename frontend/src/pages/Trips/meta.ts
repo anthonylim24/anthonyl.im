@@ -86,16 +86,6 @@ function tripDateFormat(opts?: TripDateParts): Intl.DateTimeFormat {
 }
 
 /**
- * The page's first Intl date format costs some 30 ms on a slow phone, which
- * ever format it is: the runtime loading its locale data. The workspace calls
- * this while the trip is on its way, so that cost isn't paid between the trip
- * arriving and it being drawn.
- */
-export function warmDateFormats(): void {
-  tripDateFormat()
-}
-
-/**
  * "Fri, Jul 10" for a trip date; `opts` replaces any part (pass `undefined` to
  * drop one). `_timezone` is ignored: a trip date is a calendar date, and
  * formatting its noon in a zone 12 or more hours ahead of UTC named the next

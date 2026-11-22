@@ -24,7 +24,7 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
-import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming, warmDateFormats } from "./meta"
+import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap, canRenderMap, loadMapEngine, type AtlasMapProps } from "./map/AtlasMap"
 import { liveValue, useLiveValue, type LiveValue } from "./workspace/liveValue"
 import { addItem, makeItem } from "./tripEdits"
@@ -281,13 +281,6 @@ function Workspace() {
       aliveRef.current = false
     }
   }, [])
-  // The first date format is slow (`warmDateFormats`): make it while the trip is on its way.
-  const loading = editor.state.s === "loading"
-  useEffect(() => {
-    if (!loading) return
-    const timer = setTimeout(warmDateFormats, 0)
-    return () => clearTimeout(timer)
-  }, [loading])
 
   const { trip, editable, locked } = editor
   const ai = editor.ai

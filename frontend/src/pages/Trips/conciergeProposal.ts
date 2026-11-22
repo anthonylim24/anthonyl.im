@@ -12,7 +12,8 @@ export { insertByTime }
 // for every day on each render (it was most of the main thread while a
 // reply streamed under a long conversation). Built on first use, not on
 // import: this module loads with the workspace, and the page's first date
-// format costs some 30 ms on a slow phone (`warmDateFormats` in meta.ts).
+// format costs some 30 ms on a slow phone (the runtime loading its locale
+// data), which on import was a long task of its own.
 let short: Intl.DateTimeFormat | null = null
 let weekday: Intl.DateTimeFormat | null = null
 
