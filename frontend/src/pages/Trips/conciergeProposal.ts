@@ -10,9 +10,11 @@ export { insertByTime }
 // One formatter each, built once: `toLocaleDateString` with options builds a
 // new Intl.DateTimeFormat per call, and every place card's day picker asks
 // for every day on each render (it was most of the main thread while a
-// reply streamed under a long conversation).
-const SHORT = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
-const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" })
+// reply streamed under a long conversation). Built on first use, not on
+// import: this module loads with the workspace, and the page's first date
+// format costs some 30 ms on a slow phone (`warmDateFormats` in meta.ts).
+let short: Intl.DateTimeFormat | null = null
+let weekday: Intl.DateTimeFormat | null = null
 
 function formatDate(format: Intl.DateTimeFormat, iso: string): string {
   const date = new Date(`${iso}T12:00:00Z`)
@@ -21,12 +23,14 @@ function formatDate(format: Intl.DateTimeFormat, iso: string): string {
 
 /** "Sat 14 Nov" for a day, from its calendar date (no timezone drift). */
 export function dayShort(day: Pick<TripDay, "date">): string {
-  return formatDate(SHORT, day.date)
+  short ??= new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+  return formatDate(short, day.date)
 }
 
 /** "Saturday" for a day. */
 export function dayWeekday(day: Pick<TripDay, "date">): string {
-  return formatDate(WEEKDAY, day.date)
+  weekday ??= new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" })
+  return formatDate(weekday, day.date)
 }
 
 export function dayLabel(day: TripDay, index: number): string {

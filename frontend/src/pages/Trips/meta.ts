@@ -64,17 +64,35 @@ export function visibleTags(tags: readonly string[]): string[] {
 const noonUtc = (iso: string) => new Date(`${iso}T12:00:00Z`)
 
 // Building an Intl.DateTimeFormat costs far more than using one, and a day
-// rail formats three labels per day on every render.
-const formats = new Map<string, Intl.DateTimeFormat>()
+// rail formats three labels per day on every render. Each kind of format is
+// kept under a key of the few things that vary in it (not a JSON of its
+// options: these run hundreds of times a render).
 
-function cachedFormat(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-  const key = `${locale}|${JSON.stringify(options)}`
-  let format = formats.get(key)
+/** The parts of a trip date a caller can change. */
+export type TripDateParts = Pick<Intl.DateTimeFormatOptions, "weekday" | "month" | "day" | "year">
+
+const TRIP_DATE: TripDateParts = { weekday: "short", month: "short", day: "numeric" }
+const tripDateFormats = new Map<string, Intl.DateTimeFormat>()
+
+function tripDateFormat(opts?: TripDateParts): Intl.DateTimeFormat {
+  const parts = opts ? { ...TRIP_DATE, ...opts } : TRIP_DATE
+  const key = `${parts.weekday}|${parts.month}|${parts.day}|${parts.year}`
+  let format = tripDateFormats.get(key)
   if (!format) {
-    format = new Intl.DateTimeFormat(locale, options)
-    formats.set(key, format)
+    format = new Intl.DateTimeFormat("en-US", { ...parts, timeZone: "UTC" })
+    tripDateFormats.set(key, format)
   }
   return format
+}
+
+/**
+ * The page's first Intl date format costs some 30 ms on a slow phone, which
+ * ever format it is: the runtime loading its locale data. The workspace calls
+ * this while the trip is on its way, so that cost isn't paid between the trip
+ * arriving and it being drawn.
+ */
+export function warmDateFormats(): void {
+  tripDateFormat()
 }
 
 /**
@@ -83,25 +101,34 @@ function cachedFormat(locale: string, options: Intl.DateTimeFormatOptions): Intl
  * formatting its noon in a zone 12 or more hours ahead of UTC named the next
  * day. Never throws: an unreadable date comes back as the raw string.
  */
-export function formatTripDate(iso: string, _timezone?: string, opts?: Intl.DateTimeFormatOptions): string {
+export function formatTripDate(iso: string, _timezone?: string, opts?: TripDateParts): string {
   const date = noonUtc(iso)
   if (Number.isNaN(date.getTime())) return iso ?? ""
   try {
-    return cachedFormat("en-US", { weekday: "short", month: "short", day: "numeric", ...opts, timeZone: "UTC" }).format(date)
+    return tripDateFormat(opts).format(date)
   } catch {
     return iso
   }
 }
 
+const todayFormats = new Map<string, Intl.DateTimeFormat>()
+
 /** Today's date in `timezone`, "YYYY-MM-DD"; UTC's for a zone the runtime does not know. */
 export function todayIsoIn(timezone: string): string {
-  const parts = { year: "numeric", month: "2-digit", day: "2-digit" } as const
   try {
-    return cachedFormat("en-CA", { timeZone: timezone, ...parts }).format(new Date())
+    let format = todayFormats.get(timezone)
+    if (!format) {
+      format = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
+      todayFormats.set(timezone, format)
+    }
+    return format.format(new Date())
   } catch {
     return new Date().toISOString().slice(0, 10)
   }
 }
+
+let monthFormat: Intl.DateTimeFormat | null = null
+let monthYearFormat: Intl.DateTimeFormat | null = null
 
 export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000)
@@ -121,7 +148,8 @@ export function addDays(iso: string, days: number): string {
 export function formatRange(startIso: string, endIso: string): string {
   const start = noonUtc(startIso)
   const end = noonUtc(endIso)
-  const month = (d: Date) => cachedFormat("en-US", { month: "short", timeZone: "UTC" }).format(d)
+  monthFormat ??= new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" })
+  const month = (d: Date) => monthFormat!.format(d)
   const sameYear = start.getUTCFullYear() === end.getUTCFullYear()
   const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth()
   const year = end.getUTCFullYear()
@@ -145,11 +173,8 @@ export function tripTiming(trip: Pick<TripSummary, "startDate" | "endDate" | "ti
   const today = todayIsoIn(trip.timezone)
   const daysAway = daysBetween(today, trip.startDate)
   if (today > trip.endDate) {
-    return {
-      phase: "past",
-      daysAway,
-      label: cachedFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(noonUtc(trip.startDate)),
-    }
+    monthYearFormat ??= new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
+    return { phase: "past", daysAway, label: monthYearFormat.format(noonUtc(trip.startDate)) }
   }
   if (today >= trip.startDate) {
     return {
