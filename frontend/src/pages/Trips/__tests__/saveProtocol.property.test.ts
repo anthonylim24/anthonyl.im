@@ -163,7 +163,7 @@ class World {
   editor: Editor = initialEditor
   server = new Server()
   inflight: InFlight[] = []
-  private lastFor: unknown = null
+  private lastSent: Trip | null = null
   private tokens = 0
   ledger: Ledger = {
     mine: new Map(),
@@ -193,8 +193,8 @@ class World {
     this.editor = editorReducer(this.editor, event)
     const sync = this.ready?.sync
     // useTripEditor's save effect: every request the machine asks for goes out once.
-    if (sync?.k === "saving" && sync !== this.lastFor) {
-      this.lastFor = sync
+    if (sync?.k === "saving" && sync.sent !== this.lastSent) {
+      this.lastSent = sync.sent
       this.inflight.push({ sent: sync.sent, against: sync.against })
     }
     if (sync?.k === "conflict") this.ledger.asked = true
@@ -393,10 +393,7 @@ const undoAcrossTheirCopy: Step[] = [
 describe("save protocol (property)", () => {
   const params = (...examples: Step[][]) => ({ numRuns: RUNS, examples: examples.map((steps): [Step[]] => [steps]) })
 
-  // DEFECT: an edit while a save is out sends that save twice; when the copy
-  // answers 409 before its twin's 200 arrives, the traveller is asked to
-  // choose between two of their own versions.
-  it.fails("a traveller alone is never asked to choose between two copies", () => {
+  it("a traveller alone is never asked to choose between two copies", () => {
     fc.assert(
       fc.property(stepsArb({ undo: true, theirs: false, lossy: false }), (steps) => {
         const world = play(steps)

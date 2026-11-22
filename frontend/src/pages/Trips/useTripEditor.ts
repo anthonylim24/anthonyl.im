@@ -35,7 +35,6 @@ import {
   type AiRun,
   type Editor,
   type EditorEvent,
-  type Sync,
   type UndoMark,
 } from "./editorMachine"
 import type { EnhancementRun, GeneratePreferences, ItineraryItem, Trip, TripCollaborator, TripDay } from "./types"
@@ -117,8 +116,8 @@ export function useTripEditor() {
   useLayoutEffect(() => {
     stateRef.current = state
   }, [state])
-  /** The PATCH on its way (one per `saving` state), resolving to the saved trip (null on failure). */
-  const inflightRef = useRef<{ for: Sync; work: Promise<Trip | null> } | null>(null)
+  /** The PATCH on its way (one per save request, named by its `sent`), resolving to the saved trip (null on failure). */
+  const inflightRef = useRef<{ sent: Trip; work: Promise<Trip | null> } | null>(null)
   const aiAbortRef = useRef<AbortController | null>(null)
   /** The review this page follows, once the server has named it. */
   const followingRef = useRef<string | null>(null)
@@ -324,7 +323,7 @@ export function useTripEditor() {
   // Send each save the machine asks for, once. Never aborted: see editorMachine.
   const saving = ready?.sync.k === "saving" ? ready.sync : null
   useEffect(() => {
-    if (!saving || inflightRef.current?.for === saving) return
+    if (!saving || inflightRef.current?.sent === saving.sent) return
     const { sent, against, fitted } = saving
     const work = updateTrip(readToken, sent.id, savePatch(sent, against)).then(
       (saved) => {
@@ -360,7 +359,7 @@ export function useTripEditor() {
         return null
       },
     )
-    inflightRef.current = { for: saving, work }
+    inflightRef.current = { sent, work }
   }, [saving, readToken])
 
   // Resolve `flush()` callers once the save they waited for has settled.

@@ -408,7 +408,8 @@ describe("someone else's changes", () => {
       expect(itemIds(merged, 0)).toEqual(["market", "concierge"])
       const next = editorReducer(merged, { type: "SAVE_CONFLICT", sent, theirs: theirsWithAdd() }) as Ready
       expect(next.sync).toMatchObject({ k: "saving", against: T1 })
-      expect(next.sync.k === "saving" && next.sync.sent).toBe(next.doc)
+      expect(next.sync.k === "saving" && next.sync.sent).toEqual(next.doc)
+      expect(next.sync.k === "saving" && next.sync.sent, "a new request, not the one that got the 409").not.toBe(sent)
     })
 
     it("heals an older server that overwrote the concierge: the merged copy is sent next", () => {

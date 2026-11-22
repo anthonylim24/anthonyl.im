@@ -37,9 +37,11 @@ export type Sync =
   | { k: "clean" }
   | { k: "dirty" }
   /**
-   * `against`: the `updatedAt` the PATCH names as its base. `queued`: edits
-   * since, to send next. `fitted`: what had to change to fit the server's
-   * limits, as a notice (null when nothing did).
+   * `sent`: this request's own object; every save request gets a new one, so
+   * the shell sends each request once and an answer to an older request is
+   * ignored. `against`: the `updatedAt` the PATCH names as its base.
+   * `queued`: edits since, to send next. `fitted`: what had to change to fit
+   * the server's limits, as a notice (null when nothing did).
    */
   | { k: "saving"; sent: Trip; against: string; queued: boolean; fitted: string | null }
   | { k: "saveError"; message: string; failure: "network" | "server" }
@@ -244,7 +246,7 @@ const fit = (doc: Trip, base: Trip) => sanitizeForSave(doc, base)
 /** A save of the working copy, made against `base` (whose name stands in for a blank one). */
 function send(state: Ready, base: Trip = state.base): Sync {
   const fitted = fit(state.doc, base)
-  return { k: "saving", sent: fitted.trip, against: base.updatedAt, queued: false, fitted: describeSanitized(fitted) }
+  return { k: "saving", sent: { ...fitted.trip }, against: base.updatedAt, queued: false, fitted: describeSanitized(fitted) }
 }
 
 /** The server refused this very content: sending it again can't help until it changes. */
