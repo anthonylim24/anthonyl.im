@@ -56,8 +56,28 @@ export function reloadForNewBuild(now = Date.now()): boolean {
   return reloadOnce(RELOAD_KEY, now)
 }
 
-/** React.lazy with one retry built in. Use for every lazily loaded component. */
+/**
+ * React.lazy with one retry built in. Use for every lazily loaded component.
+ * `preload()` starts the download early (say, while something above it is
+ * still waiting) and the first render uses that same import. A failed
+ * preload is forgotten, so rendering tries again and reports the error.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function lazyRetry<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) {
-  return lazy(() => importWithRetry(load))
+  let started: Promise<{ default: T }> | null = null
+  const start = () => {
+    started ??= importWithRetry(load).catch((error: unknown) => {
+      started = null
+      throw error
+    })
+    return started
+  }
+  return Object.assign(
+    lazy(start),
+    {
+      preload: () => {
+        start().catch(() => {})
+      },
+    },
+  )
 }

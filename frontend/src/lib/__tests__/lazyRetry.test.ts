@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { importWithRetry, isChunkLoadError, reloadForNewBuild } from "../lazyRetry"
+import { createElement, Suspense, type ReactElement } from "react"
+import { render, screen } from "@testing-library/react"
+import { importWithRetry, isChunkLoadError, lazyRetry, reloadForNewBuild } from "../lazyRetry"
 
 const stale = () => new TypeError("Failed to fetch dynamically imported module: https://x/assets/photoreal-abc.js")
 
@@ -54,5 +56,33 @@ describe("reloadForNewBuild", () => {
     expect(reloadForNewBuild(1_030_000)).toBe(false)
     expect(reloadForNewBuild(1_061_000)).toBe(true)
     expect(reload).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("lazyRetry preload", () => {
+  type Module = { default: () => ReactElement }
+
+  it("starts the import once, and the render reuses it", async () => {
+    const load = vi.fn((): Promise<Module> => Promise.resolve({ default: () => createElement("p", null, "Trips index") }))
+    const Page = lazyRetry(load)
+    Page.preload()
+    Page.preload()
+    expect(load).toHaveBeenCalledTimes(1)
+    render(createElement(Suspense, { fallback: null }, createElement(Page)))
+    expect(await screen.findByText("Trips index")).toBeInTheDocument()
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  it("forgets a failed preload, so the render tries again", async () => {
+    const load = vi
+      .fn<() => Promise<Module>>()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue({ default: () => createElement("p", null, "Loaded") })
+    const Page = lazyRetry(load)
+    Page.preload()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    render(createElement(Suspense, { fallback: null }, createElement(Page)))
+    expect(await screen.findByText("Loaded")).toBeInTheDocument()
+    expect(load).toHaveBeenCalledTimes(2)
   })
 })
