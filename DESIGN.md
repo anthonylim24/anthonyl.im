@@ -135,6 +135,26 @@ Vars: `--ta` (text-safe, 4.5:1 on canvas and surface), `--ta-fill` (pins, route,
 - `meta.ts`: pure date / accent / icon helpers. `useTripEditor.ts`: document state, autosave and AI runs.
 - `index.css` `.trips` block owns tokens, accents, `.atlas-pin*`, MapLibre chrome overrides and the few rules StyleX can't express.
 
+## Liquid Glass (opt-in look)
+
+Code: `pages/Trips/glass/`. Design intent and where it is off: `PRODUCT.md`, "The Liquid Glass look". Everything is scoped to `:root[data-trips-look="glass"]` in `glass/glass.css` (unlayered, so it wins over the StyleX it reskins) and excluded from `.trips-glass-off`, `.trips-print-root` and `.trips-recap-print-root`.
+
+**Materials** (class hooks, inert in the atlas):
+
+| Class | On | Tint (light / dark) | Blur |
+|-------|----|---------------------|------|
+| `.trips-glass-bar` | header, day rail, phone dock | `--trips-glass-tint-bar`: white .58 / `rgb(30 33 42 / .72)` | 10px |
+| `.trips-glass-pill` | map controls, map chip, concierge button (brand-tinted) | `--trips-glass-tint-pill`: white .56 / `rgb(34 37 46 / .7)` | 4px |
+| `.trips-glass-sheet` | Modal, Menu, ⌘K, place card, concierge, Instagram sheet, date picker | `--trips-glass-tint-sheet`: `rgb(252 252 254 / .8)` / `rgb(26 29 37 / .86)` | 30px |
+
+All three add `saturate(1.9)` and a brightness lift (1.06 light, 0.9 dark), the `--trips-glass-shadow` (inner glow, soft drop) and a 1px specular rim (`::before`, a conic gradient from `--tg-light`; `light.ts` writes that angle on the surfaces themselves, a registered property that does not inherit, so a pointer move restyles a dozen elements rather than the page). In Chromium, `refraction.ts` writes `--tg-refract: url(#tg-lens-N)` (a registered, non-inheriting property) on at most twelve on-screen surfaces, pills first, and the CSS bends the blurred backdrop (blur first: a lens ahead of the blur let the unblurred backdrop show through at the rim); the bezel is 14 / 16 / 22 px and the largest shift 12 / 14 / 16 px for pill / bar / sheet. Modifiers: `.trips-glass-dock` and `.trips-glass-rail` (the capsules), `.trips-glass-segment` and `.trips-glass-tabs` (track `--trips-glass-track`, thumb `--trips-glass-thumb`), `.trips-glass-map` (the phone map runs under the dock).
+
+**Tokens it changes** (light / dark): canvas `#eef1f6` / `#0b0f18` (stays opaque: it is ink buttons' text and every focus ring's gap); surface white .6 / `rgb(40 44 54 / .56)`; raised white .86 / `rgb(46 50 61 / .9)`; sunken `rgb(118 118 128 / .12)` / `.22`; line `rgb(60 60 67 / .12)` / `rgb(235 235 245 / .1)`; tertiary ink `#4f545b` / `#9a9fa6`; `--brand` `#9a3409` (light); `--ta` takes `--ta-strong` (light); radii 1.25 / 0.875 / 1.75rem; `--trips-chrome-h` 3.75rem (the header floats 8px down); display, text and mono faces become the system face. Shadows gain a top inner highlight.
+
+**Wallpaper**: `GlassLayer` (lazy) paints `wallpaper.ts`'s shader once per size class, theme and accent (the trip in `#trips-main`, else brand), at half the viewport, to a WebP still, then releases the context (`WEBGL_lose_context`). `palette.ts` holds it in its luminance band.
+
+**Preferences**: `prefers-reduced-transparency` → solid (`--trips-glass-solid`), no wallpaper; `prefers-contrast: more` → solid plus 1px `--trips-line-strong` edges; `prefers-reduced-motion` → light at rest, no press squish.
+
 ## Motion
 
 Spring (`--trips-spring`) on pins and buttons, fly-to camera moves, a drop-in for newly added pins (`.atlas-pin--fresh`), staggered card rise. All gated on `prefers-reduced-motion`: the map uses `jumpTo` and the index globe does not spin.
@@ -151,7 +171,7 @@ Spring (`--trips-spring`) on pins and buttons, fly-to camera moves, a drop-in fo
 ## Don't
 
 - Bring back the previous toy / sticker look: ink outlines with hard offset shadows, pastel fills.
-- Stack glassmorphism, use gradient text, stock travel photography, or generic SaaS dashboard chrome.
+- Stack glassmorphism, use gradient text, stock travel photography, or generic SaaS dashboard chrome. (The opt-in Liquid Glass look is one layer of glass over content, never glass over glass.)
 - Put two maps in one viewport.
 - Tint chrome (focus rings, AI actions, switches, links) with the trip accent, or trip identity with the brand.
 - Add destination-specific routes, or restyle Trips into the Korea dossier.

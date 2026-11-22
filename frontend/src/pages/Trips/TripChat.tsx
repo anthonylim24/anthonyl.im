@@ -817,8 +817,8 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
 
   const accent = resolveAccent(trip?.appearance?.accent)
   const panelSx = expanded
-    ? sx("trip-chat-panel", "trip-chat-panel-expanded", c.panel)
-    : sx("trip-chat-panel", c.panel, c.panelDocked)
+    ? sx("trip-chat-panel", "trip-chat-panel-expanded", c.panel, "trips-glass-sheet")
+    : sx("trip-chat-panel", c.panel, c.panelDocked, "trips-glass-sheet")
   const panelStyle: CSSProperties = {
     ...(viewport.inset > 0 && !expanded
       ? { bottom: viewport.inset, maxHeight: Math.max(240, viewport.height - 8) }

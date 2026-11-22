@@ -32,7 +32,7 @@ export function OverviewTabs({
   const tabs = only ? OVERVIEW_TABS.filter((t) => only.includes(t.id)) : OVERVIEW_TABS
   return (
     <Tabs.Root value={tab} onValueChange={(v) => onTab(readOverviewTab(v))} activationMode="manual">
-      <Tabs.List {...sx(s.tabs)} aria-label="Trip overview">
+      <Tabs.List {...sx(s.tabs, "trips-glass-tabs")} aria-label="Trip overview">
         {tabs.map((t) => {
           const badge = badges?.[t.id]
           return (

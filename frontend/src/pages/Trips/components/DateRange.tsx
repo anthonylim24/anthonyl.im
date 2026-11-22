@@ -150,7 +150,7 @@ export function DateRange({
         <span {...sx(a.small, a.noShrink)}>{plural(count, "day")}</span>
       </button>
       {open && (
-        <div id={panelId} role="dialog" aria-label={`Choose ${label.toLowerCase()}`} {...sx(r.panel)} onKeyDown={onKeyDown}>
+        <div id={panelId} role="dialog" aria-label={`Choose ${label.toLowerCase()}`} {...sx(r.panel, "trips-glass-sheet")} onKeyDown={onKeyDown}>
           <div {...sx(a.between)}>
             <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
               <ChevronLeft size={18} strokeWidth={1.75} aria-hidden />

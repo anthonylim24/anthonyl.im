@@ -792,7 +792,7 @@ function DayViewSwitch({ view, onChange }: { view: "list" | "timeline"; onChange
     <div
       role="radiogroup"
       aria-label="Day layout"
-      {...sx(share.segment, s.viewSwitch)}
+      {...sx(share.segment, s.viewSwitch, "trips-glass-segment")}
       onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return
         // Keep the workspace's ←/→ day keys from also firing.

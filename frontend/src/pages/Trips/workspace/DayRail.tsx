@@ -104,7 +104,7 @@ export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: strin
   const marks = monthMarks(trip.days)
 
   return (
-    <nav {...sx(s.rail)} aria-label="Days">
+    <nav {...sx(s.rail, "trips-glass-bar trips-glass-rail")} aria-label="Days">
       {/* Outside the scroller, so centring a late day never pushes it off. */}
       <Link to={basePath} {...sx(s.railItem, s.railAll, !dayId && s.railItemOn)} aria-current={!dayId ? "page" : undefined}>
         <LayoutGrid size={15} strokeWidth={1.75} aria-hidden />
