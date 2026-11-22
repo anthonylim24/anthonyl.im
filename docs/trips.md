@@ -61,7 +61,10 @@ forecast, plus the trip's description, tags, party, budget (planned and
 spent), open checklist items and the **wishlist** (`trip.ideas`). It fills
 gaps from the wishlist first: such an add carries `fromIdeaId`, and applying
 it (auto-apply or `/apply`) takes the idea off the wishlist in the same write.
-An attempt's `AbortSignal` bounds every model, tool mode and lookup it makes;
+An attempt's `AbortSignal` bounds every model, tool mode and lookup it makes,
+and its `deadlineAt` sizes the Gemini ladder: the first (Maps) try gets all
+but 30 s of the attempt, up to 210 s (`modeTimeoutMs`), since a grounded
+review on Gemini 4 Neon often takes 100 to 150 s;
 `enhanceTrip` throws `ReviewAttemptError` for what a retry could fix and
 returns a failed run only for what it cannot (day gone, prompt refused).
 

@@ -6,7 +6,10 @@ import {
   createGroqLlm,
   enhanceTrip,
   fillMissingCoordinates,
+  GEMINI_FALLBACK_RESERVE_MS,
+  GEMINI_MAX_REQUEST_MS,
   isRetryableReviewError,
+  modeTimeoutMs,
   LlmAbortError,
   ReviewAttemptError,
   reviewReplyIsUsable,
@@ -492,6 +495,42 @@ describe("applying wishlist adds", () => {
     }
     const { trip: next } = applySuggestions(trip, run, ["sug-plain"])
     expect("ideas" in next).toBe(false)
+  })
+})
+
+describe("deadline: each try's share of it", () => {
+  test("with no deadline, every try gets the fixed per-request timeout", () => {
+    expect(modeTimeoutMs({ first: true, perRequestMs: 150_000 })).toBe(150_000)
+    expect(modeTimeoutMs({ first: false, perRequestMs: 150_000 })).toBe(150_000)
+  })
+
+  test("the first try gets all but the fallback's reserve, up to the cap", () => {
+    const now = 1_000_000
+    expect(modeTimeoutMs({ first: true, perRequestMs: 150_000, deadlineAt: now + 240_000, now })).toBe(
+      Math.min(240_000 - GEMINI_FALLBACK_RESERVE_MS, GEMINI_MAX_REQUEST_MS),
+    )
+    expect(modeTimeoutMs({ first: true, perRequestMs: 150_000, deadlineAt: now + 600_000, now })).toBe(GEMINI_MAX_REQUEST_MS)
+  })
+
+  test("later tries get what is left, never less than a second", () => {
+    const now = 1_000_000
+    expect(modeTimeoutMs({ first: false, perRequestMs: 150_000, deadlineAt: now + 25_000, now })).toBe(25_000)
+    expect(modeTimeoutMs({ first: true, perRequestMs: 150_000, deadlineAt: now + 10_000, now })).toBe(1_000)
+  })
+
+  test("enhanceTrip hands the deadline to the model", async () => {
+    let seen: number | undefined
+    const llm: LlmCall = async (args) => {
+      seen = args.deadlineAt
+      return JSON.stringify({ summary: "Fine as is.", outcome: "no_adds_needed", outcomeReason: "Well paced.", suggestions: [] })
+    }
+    const trip = {
+      id: "t", ownerId: "u", name: "T", destinations: ["Seoul"], startDate: "2026-12-05", endDate: "2026-12-05",
+      timezone: "Asia/Seoul", status: "draft", tags: [], collaborators: [], createdAt: "", updatedAt: "",
+      days: [{ id: "day-1", date: "2026-12-05", items: [] }],
+    } as unknown as Trip
+    await enhanceTrip({ trip, scope: "trip", llm, deadlineAt: 123 })
+    expect(seen).toBe(123)
   })
 })
 

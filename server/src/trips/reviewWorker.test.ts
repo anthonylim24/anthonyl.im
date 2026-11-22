@@ -289,6 +289,24 @@ describe("review worker: one attempt", () => {
     })
   })
 
+  test("the review is told when its deadline falls, on the wall clock", async () => {
+    const { store, runId } = await setup()
+    let deadlineAt: number | undefined
+    const before = Date.now()
+    const { w } = worker(
+      store,
+      async (trip, _request, _signal, at) => {
+        deadlineAt = at
+        return reviewAdding(trip, "Ichiran")
+      },
+      { attemptDeadlineMs: 60_000 },
+    )
+    w.kick(runId)
+    await idle(w)
+    expect(deadlineAt).toBeGreaterThanOrEqual(before + 60_000)
+    expect(deadlineAt).toBeLessThanOrEqual(Date.now() + 60_000)
+  })
+
   test("a trip that is gone fails the run for good, without asking the model", async () => {
     const { store, runId, run } = await setup()
     store.get = async () => null

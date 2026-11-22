@@ -46,6 +46,8 @@ export type RunReview = (
   trip: Trip,
   request: ReviewRequest,
   signal: AbortSignal,
+  /** When `signal` aborts for the deadline (wall clock, epoch ms). */
+  deadlineAt: number,
 ) => Promise<CompleteEnhancementRun | FailedEnhancementRun>
 
 export interface ReviewWorkerDeps {
@@ -139,7 +141,7 @@ export function createTripReviewWorker(
     workerId: reviewWorkerId(),
     isRetryable: isRetryableReviewError,
     ...worker,
-    runReview: (trip, request, signal) =>
+    runReview: (trip, request, signal, deadlineAt) =>
       enhanceTrip({
         trip,
         scope: request.scope,
@@ -149,6 +151,7 @@ export function createTripReviewWorker(
         fetchWeather,
         geocode,
         signal,
+        deadlineAt,
       }).catch((err: unknown) => {
         // The run's error is shown to the traveller: never a raw stack or SDK message.
         throw err instanceof ReviewAttemptError
@@ -364,9 +367,11 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
 
     const deadline = setTimeout(() => abort.abort(new AttemptStopped("deadline")), deadlineMs)
     deadline.unref?.()
+    // Wall clock on purpose: the model's own timeouts run on real time.
+    const deadlineAt = Date.now() + deadlineMs
     let review: CompleteEnhancementRun | FailedEnhancementRun
     try {
-      review = await untilAborted(() => deps.runReview(trip, claim.request, abort.signal), abort.signal)
+      review = await untilAborted(() => deps.runReview(trip, claim.request, abort.signal, deadlineAt), abort.signal)
     } catch (err) {
       const why = stoppedBy(abort.signal)
       if (why === "lost") return "lost (another worker holds the run)"

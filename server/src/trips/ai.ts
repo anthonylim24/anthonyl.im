@@ -57,6 +57,9 @@ export type LlmCall = (args: {
   /** The caller's whole budget for this call, across every model and tool
    *  mode it tries. Aborting it rejects the call. */
   signal?: AbortSignal
+  /** When that budget runs out (epoch ms), if the caller knows. A model
+   *  with a fallback ladder sizes each try from it (see `modeTimeoutMs`). */
+  deadlineAt?: number
 }) => Promise<string>
 
 /** `signal` is the caller's budget; a geocoder that ignores it still works,
@@ -108,6 +111,23 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 }
 
 /** One request's own timeout, inside the caller's whole budget when there is one. */
+/** The most one Gemini request may take, however much budget is left. */
+export const GEMINI_MAX_REQUEST_MS = 210_000
+/** What the first mode leaves for a quicker fallback when a deadline is known. */
+export const GEMINI_FALLBACK_RESERVE_MS = 30_000
+
+/** How long one try on the ladder may take. With no deadline, the fixed
+ *  per-request timeout. With one, the first mode gets all of it but a short
+ *  reserve: a Maps-grounded review often takes 100 to 150 s, and a fixed
+ *  150 s cut it off just short and left the fallback too little time to
+ *  answer. Later modes get whatever is left. */
+export function modeTimeoutMs(args: { first: boolean; perRequestMs: number; deadlineAt?: number; now?: number }): number {
+  if (args.deadlineAt === undefined) return args.perRequestMs
+  const left = args.deadlineAt - (args.now ?? Date.now())
+  const budget = args.first ? left - GEMINI_FALLBACK_RESERVE_MS : left
+  return Math.max(1_000, Math.min(budget, GEMINI_MAX_REQUEST_MS))
+}
+
 function requestSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
   const timeout = AbortSignal.timeout(timeoutMs)
   return signal ? AbortSignal.any([signal, timeout]) : timeout
@@ -263,10 +283,10 @@ export function createGeminiLlm(
   opts?: { model?: string },
 ): LlmCall {
   const model = opts?.model ?? GEMINI_MODEL
-  return async ({ system, user, maxTokens, latLng, effort, signal }) => {
+  return async ({ system, user, maxTokens, latLng, effort, signal, deadlineAt }) => {
     const perRequestMs = effort && effort !== "low" ? 150_000 : 90_000
     const toolConfig = mapsRetrievalConfig(latLng)
-    const run = async (mode: GeminiMode): Promise<string> => {
+    const run = async (mode: GeminiMode, first: boolean): Promise<string> => {
       const generationConfig: Record<string, unknown> = {
         temperature: 0.55,
         // Thinking tokens count against this cap: 16k was cutting long
@@ -290,7 +310,7 @@ export function createGeminiLlm(
               ...(toolConfig && toolsIncludeMaps(tools) ? { toolConfig } : {}),
               generationConfig,
             }),
-            signal: requestSignal(signal, perRequestMs),
+            signal: requestSignal(signal, modeTimeoutMs({ first, perRequestMs, deadlineAt })),
           },
           fetchImpl,
         )
@@ -328,9 +348,9 @@ export function createGeminiLlm(
 
     throwIfAborted(signal)
     let lastErr: Error | null = null
-    for (const mode of GEMINI_MODES) {
+    for (const [i, mode] of GEMINI_MODES.entries()) {
       try {
-        return await run(mode)
+        return await run(mode, i === 0)
       } catch (err) {
         // The caller's budget is spent (whatever the error says by now):
         // no further mode could answer in time.
@@ -1549,6 +1569,8 @@ export async function enhanceTrip(args: {
   geocode?: Geocoder | null
   /** The attempt's deadline. Aborting it stops the review. */
   signal?: AbortSignal
+  /** When that deadline falls (epoch ms), so the model can size its tries. */
+  deadlineAt?: number
 }): Promise<CompleteEnhancementRun | FailedEnhancementRun> {
   const { trip, scope, dayId, llm, signal } = args
   const days = scope === "day" ? trip.days.filter((d) => d.id === dayId) : trip.days
@@ -1585,6 +1607,7 @@ export async function enhanceTrip(args: {
       latLng: tripLatLngHint(trip, scope === "day" ? dayId : undefined) ?? undefined,
       effort: "medium",
       signal,
+      deadlineAt: args.deadlineAt,
     })
     throwIfAborted(signal)
     const parsed = salvageSuggestions(raw)
