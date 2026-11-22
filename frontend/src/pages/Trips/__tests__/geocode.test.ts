@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cityLabel, isClutter, searchCities, searchPlaces } from "../geocode"
+import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, rankPlaces, searchCities, searchPlaces, type PlaceResult } from "../geocode"
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -187,19 +187,23 @@ describe("searchPlaces", () => {
     ])
   })
 
-  it("adds the bias params only when a nearby point is given", async () => {
+  it("searches worldwide without a nearby point, and also inside a box around one", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => json({ features: [] }))
 
     await searchPlaces("pastel de nata", null)
+    expect(spy).toHaveBeenCalledTimes(1)
     const plain = String(spy.mock.calls[0]![0])
     expect(plain).toContain("https://photon.komoot.io/api/?")
     expect(plain).toContain(`q=${encodeURIComponent("pastel de nata")}`)
     expect(plain).not.toContain("lat=")
-    expect(plain).not.toContain("location_bias_scale")
+    expect(plain).not.toContain("bbox=")
 
+    spy.mockClear()
     await searchPlaces("pastel de nata", { lat: 38.70712, lng: -9.13549 })
-    const biased = String(spy.mock.calls[1]![0])
-    expect(biased).toContain("&lat=38.71&lon=-9.14&location_bias_scale=0.4")
+    const urls = spy.mock.calls.map((call) => String(call[0]))
+    expect(urls).toHaveLength(2)
+    expect(urls.find((url) => url.includes("bbox="))).toContain(`&bbox=${localBox({ lat: 38.70712, lng: -9.13549 })}`)
+    expect(urls.find((url) => !url.includes("bbox="))).toContain("&lat=38.71&lon=-9.14&location_bias_scale=0.1")
   })
 
   it("returns [] on a non-OK response", async () => {
@@ -262,5 +266,129 @@ describe("searchPlaces ranking", () => {
     expect(isClutter("amenity", "restaurant")).toBe(false)
     expect(isClutter("tourism", "hotel")).toBe(false)
     expect(isClutter(undefined, undefined)).toBe(false)
+  })
+})
+
+describe("searchPlaces with Google", () => {
+  const honolulu = { lat: 21.3, lng: -157.86 }
+  const gohan: PlaceResult = {
+    id: "g:ChIJgohan",
+    name: "GOHAN",
+    context: "1314 S King St Ste G3, Honolulu",
+    address: "1314 S King St Ste G3, Honolulu, HI 96814, USA",
+    lat: 21.2978,
+    lng: -157.8367,
+    category: "restaurant",
+    placeId: "ChIJgohan",
+  }
+  // What OpenStreetMap answers for "Gohan": a Korean station and an Indian village, nothing on O'ahu.
+  const osmGohan = {
+    features: [
+      { geometry: { coordinates: [128.66, 37.42] }, properties: { osm_id: 1, osm_type: "N", osm_key: "railway", osm_value: "station", name: "Gohan", country: "South Korea" } },
+      { geometry: { coordinates: [78.1, 22.9] }, properties: { osm_id: 2, osm_type: "R", osm_key: "place", osm_value: "village", name: "Gohan", country: "India" } },
+    ],
+  }
+  const route = (handlers: { places?: () => Response; photon?: (url: string) => Response }) =>
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/api/places/search")) return handlers.places ? handlers.places() : json({ places: [] })
+      if (url.includes("photon.komoot.io")) return handlers.photon ? handlers.photon(url) : json({ features: [] })
+      throw new Error(`unexpected fetch ${url}`)
+    })
+
+  it("puts the local Google match first, ahead of same-named places abroad", async () => {
+    const spy = route({ places: () => json({ places: [gohan] }), photon: (url) => json(url.includes("bbox=") ? { features: [] } : osmGohan) })
+    const places = await searchPlaces("Gohan", honolulu, undefined, async () => "token")
+    expect(places.map((p) => [p.name, p.context])).toEqual([
+      ["GOHAN", "1314 S King St Ste G3, Honolulu"],
+      ["Gohan", "South Korea"],
+      ["Gohan", "India"],
+    ])
+    expect(places[0]!.placeId).toBe("ChIJgohan")
+    expect(places[0]!.address).toBe("1314 S King St Ste G3, Honolulu, HI 96814, USA")
+
+    const call = spy.mock.calls.find((c) => String(c[0]).includes("/api/places/search"))!
+    expect(String(call[0])).toContain("q=Gohan&lat=21.30&lng=-157.86")
+    expect(new Headers((call[1] as RequestInit).headers).get("Authorization")).toBe("Bearer token")
+  })
+
+  it("keeps the OpenStreetMap results when the server refuses", async () => {
+    route({ places: () => json({ error: "place search unavailable" }, 503), photon: () => json(osmGohan) })
+    const places = await searchPlaces("Gohan", null, undefined, async () => "token")
+    expect(places.map((p) => p.context)).toEqual(["South Korea", "India"])
+  })
+
+  it("keeps Google's results when Photon is down", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/api/places/search")) return json({ places: [gohan] })
+      throw new TypeError("Failed to fetch")
+    })
+    expect((await searchPlaces("Gohan", honolulu, undefined, async () => "token")).map((p) => p.name)).toEqual(["GOHAN"])
+  })
+
+  it("fails only when every source failed", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"))
+    await expect(searchPlaces("Gohan", honolulu, undefined, async () => "token")).rejects.toThrow(/Failed to fetch/)
+  })
+
+  it("skips Google when signed out or for a two-letter query", async () => {
+    const spy = route({})
+    await searchPlaces("Gohan", honolulu, undefined, async () => null)
+    await searchPlaces("Go", honolulu, undefined, async () => "token")
+    expect(spy.mock.calls.some((c) => String(c[0]).includes("/api/places/search"))).toBe(false)
+  })
+
+  it("ignores malformed server rows", async () => {
+    route({ places: () => json({ places: [gohan, { id: "g:x", name: "No point" }, { name: "No id", lat: 1, lng: 2 }, null] }) })
+    expect((await searchPlaces("Gohan", null, undefined, async () => "token")).map((p) => p.name)).toEqual(["GOHAN"])
+  })
+})
+
+describe("rankPlaces", () => {
+  const place = (id: string, name: string, lat: number, lng: number): PlaceResult => ({ id, name, context: "", lat, lng })
+  const waikiki = { lat: 21.28, lng: -157.83 }
+
+  it("lists local places first, each tier in source order", () => {
+    const google = [place("g1", "Duke's Tokyo", 35.68, 139.76), place("g2", "Duke's Waikiki", 21.2766, -157.8278)]
+    const osm = [place("o1", "Duke's Dress Shop", 21.5, -158.02), place("o2", "Duke's Barcelona", 41.38, 2.17)]
+    expect(rankPlaces([google, osm], waikiki).map((p) => p.id)).toEqual(["g2", "o1", "g1", "o2"])
+  })
+
+  it("keeps source order without a point", () => {
+    expect(rankPlaces([[place("a", "A", 50, 50)], [place("b", "B", 0, 0)]], null).map((p) => p.id)).toEqual(["a", "b"])
+  })
+
+  it("merges one place found twice, keeping the earlier source's copy", () => {
+    const google = [place("g1", "Leonard's Bakery", 21.2848, -157.8133)]
+    const osm = [place("o1", "Leonard’s Bakery", 21.2849, -157.8134), place("o2", "LEONARDS BAKERY", 21.4, -157.8), place("g1", "copy", 0, 0)]
+    expect(rankPlaces([google, osm], waikiki).map((p) => p.id)).toEqual(["g1", "o2"])
+  })
+
+  it("caps the list", () => {
+    const many = Array.from({ length: 20 }, (_, i) => place(`p${i}`, `Place ${i}`, 21.3, -157.86))
+    expect(rankPlaces([many], waikiki)).toHaveLength(8)
+    expect(rankPlaces([many], waikiki, 3)).toHaveLength(3)
+  })
+
+  it("counts O'ahu's North Shore as local to Honolulu", () => {
+    const north = place("n", "Turtle Bay", 21.705, -157.998)
+    const tokyo = place("t", "Turtle Bay Tokyo", 35.68, 139.76)
+    expect(rankPlaces([[tokyo, north]], { lat: 21.3, lng: -157.86 }).map((p) => p.id)).toEqual(["n", "t"])
+    expect(LOCAL_METERS).toBeGreaterThan(50_000)
+  })
+})
+
+describe("nameKey", () => {
+  it("ignores case, accents, apostrophes and punctuation", () => {
+    expect(nameKey("Leonard’s Bakery")).toBe(nameKey("LEONARDS bakery"))
+    expect(nameKey("Café  Kaila!")).toBe("cafe kaila")
+    expect(nameKey("광장시장")).toBe("광장시장")
+  })
+})
+
+describe("localBox", () => {
+  it("is a box about 110 km tall around the point, wider in longitude away from the equator", () => {
+    expect(localBox({ lat: 21.3, lng: -157.86 })).toBe("-158.40,20.80,-157.32,21.80")
+    expect(localBox({ lat: 0, lng: 179.9 })).toBe("179.40,-0.50,180.00,0.50")
   })
 })
