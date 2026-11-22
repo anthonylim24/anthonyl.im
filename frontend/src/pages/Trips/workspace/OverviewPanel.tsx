@@ -4,7 +4,7 @@ import { ArrowRight, ChevronRight, ClipboardPaste, PenLine, Plus, Sparkles } fro
 import { sx } from "@/styles/merge"
 import { formatTripDate, STATUS_LABEL, titleCase, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated } from "../map/geo"
-import { formatDistance } from "../reservationView"
+import { walkingStat } from "../reservationView"
 import type { EnhancementRun, ItineraryItem, Trip } from "../types"
 import { Menu, type MenuItem } from "../components/kit"
 import { Presence } from "../components/presence"
@@ -135,7 +135,7 @@ export function OverviewPanel({
               ? { label: "Cities", value: String(cities), unit: "" }
               : { label: "Days", value: String(trip.days.length), unit: "" },
           { label: "Bookings", value: String(stats.bookings), unit: "" },
-          { label: "Walking", value: stats.meters > 500 ? formatDistance(stats.meters).replace(" km", "") : "–", unit: stats.meters > 500 ? "km" : "" },
+          { label: "Walking", ...walkingStat(stats.meters) },
         ].map((stat, i) => (
           <div key={stat.label} {...sx(s.stat, i === 0 && s.statFirst, i === 2 && s.statRowStart, i >= 2 && s.statSecondRow)}>
             <dt {...sx(a.eyebrow)}>{stat.label}</dt>
