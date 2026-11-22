@@ -37,6 +37,7 @@ export function OverviewPanel({
   progress,
   applying,
   run,
+  skipReasons,
   dayOptions,
   onDraft,
   onHoverDay,
@@ -65,6 +66,8 @@ export function OverviewPanel({
   progress?: ReviewProgress
   applying: boolean
   run: EnhancementRun | null
+  /** Why suggestions of `run` couldn’t be applied, by id. */
+  skipReasons?: Readonly<Record<string, string>>
   dayOptions: DayOption[]
   onDraft: (brief: DraftBrief) => void
   /** Hovering a day row lifts that day's pin on the map. */
@@ -162,7 +165,7 @@ export function OverviewPanel({
         />
       )}
       {run && !enhancing && (
-        <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
+        <SuggestionsReview run={run} trip={trip} skipReasons={skipReasons} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
       )}
 
       {empty && editable && !drafting && (

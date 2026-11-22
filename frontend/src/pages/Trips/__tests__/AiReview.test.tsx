@@ -35,7 +35,7 @@ const add = (id: string, title: string, more: Partial<EnhancementSuggestion> = {
 const going = (queue?: RunQueueInfo): EnhancementRun => ({ ...base, status: "running", ...(queue ? { queue } : {}) })
 
 const review = (run: EnhancementRun) =>
-  render(<SuggestionsReview run={run} dayOptions={days} applying={false} onApply={vi.fn()} onDismiss={vi.fn()} />)
+  render(<SuggestionsReview run={run} trip={makeTrip()} dayOptions={days} applying={false} onApply={vi.fn()} onDismiss={vi.fn()} />)
 
 describe("reviewProgress", () => {
   it("names each place in the server's queue in a few calm words", () => {
@@ -123,6 +123,49 @@ describe("SuggestionsReview and the wishlist", () => {
       appliedSuggestionIds: ["s1", "s2", "s3"],
     })
     expect(screen.getByText(/Added 3 places .* 2 came from your wishlist\./)).toBeInTheDocument()
+  })
+
+  it("shows a reorder's new clock in one capped line, in time order", () => {
+    const names = ["Castle", "Tram", "Lunch", "Tiles", "Fado"]
+    const trip = makeTrip({
+      days: [{ id: "day-1", date: "2026-07-10", items: names.map((title, i) => makeItem({ id: `it-${i}`, title })) }, { id: "day-2", date: "2026-07-11", items: [] }],
+    })
+    const reorder: EnhancementSuggestion = {
+      id: "s-order",
+      kind: "reorder",
+      dayId: "day-1",
+      title: "Castle first, before the heat",
+      detail: "",
+      confidence: "high",
+      proposedTimes: {
+        "it-1": { time: "10:30" },
+        "it-0": { time: "09:00", endTime: "10:15" },
+        "it-4": { time: "20:00" },
+        "it-2": { time: "12:30" },
+        "it-3": { time: "15:00" },
+      },
+    }
+    render(<SuggestionsReview run={{ ...base, suggestions: [reorder] }} trip={trip} dayOptions={days} applying={false} onApply={vi.fn()} onDismiss={vi.fn()} />)
+    expect(screen.getByText("Castle 9:00 AM · Tram 10:30 AM · Lunch 12:30 PM · Tiles 3:00 PM …")).toBeInTheDocument()
+  })
+
+  it("says why a suggestion couldn’t be applied and leaves it unticked", () => {
+    const sintra = add("s1", "Sintra")
+    const market = add("s2", "Time Out Market")
+    render(
+      <SuggestionsReview
+        run={{ ...base, suggestions: [sintra, market] }}
+        trip={makeTrip()}
+        skipReasons={{ s1: "Day 1 has no room left." }}
+        dayOptions={days}
+        applying={false}
+        onApply={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole("checkbox", { name: /Sintra/ })).not.toBeChecked()
+    expect(screen.getByText(/Couldn’t apply: Day 1 has no room left\./)).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: /Time Out Market/ })).toBeChecked()
   })
 
   it("gives the server's reason for a failed review, and only then promises nothing changed", () => {

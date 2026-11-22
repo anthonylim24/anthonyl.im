@@ -75,6 +75,8 @@ export interface DayPanelProps {
   progress?: ReviewProgress
   applying: boolean
   run: EnhancementRun | null
+  /** Why suggestions of `run` couldn’t be applied, by id. */
+  skipReasons?: Readonly<Record<string, string>>
   dayOptions: DayOption[]
   recentIds: ReadonlySet<string>
   /** The stop under the pointer, shared with the map's pins. Only the cards it names re-render. */
@@ -226,6 +228,7 @@ export function DayPanel({
   progress,
   applying,
   run,
+  skipReasons,
   dayOptions,
   recentIds,
   hot,
@@ -600,7 +603,7 @@ export function DayPanel({
         />
       )}
       {run && !enhancing && (
-        <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
+        <SuggestionsReview run={run} trip={trip} skipReasons={skipReasons} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
       )}
 
       <p {...sx(a.srOnly)} role="status" aria-live="polite">

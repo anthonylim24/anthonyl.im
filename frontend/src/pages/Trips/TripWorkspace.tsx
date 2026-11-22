@@ -77,6 +77,7 @@ const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
 const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
 const IdeaOverlay = lazyRetry(() => import("./ideas/IdeaOverlay").then((m) => ({ default: m.IdeaOverlay })))
+const ChangesSheet = lazyRetry(() => import("./changes/ChangesSheet").then((m) => ({ default: m.ChangesSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -939,6 +940,7 @@ function Workspace() {
             progress={reviewing}
             applying={ai.k === "applying"}
             run={editor.activeRun && editor.activeRun.scope === "day" && editor.activeRun.dayId === day.id ? editor.activeRun : null}
+            skipReasons={editor.skipReasons}
             dayOptions={editor.dayOptions}
             recentIds={editor.recentIds}
             hot={hot}
@@ -979,6 +981,7 @@ function Workspace() {
                   progress={reviewing}
                   applying={ai.k === "applying"}
                   run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
+                  skipReasons={editor.skipReasons}
                   dayOptions={editor.dayOptions}
                   onDraft={(brief) => void draft(brief)}
                   onHoverDay={(id) => hot.set(id ? `${DAY_PIN}${id}` : null)}
@@ -1012,7 +1015,7 @@ function Workspace() {
                         <ChecklistPanel trip={trip} editable={editable} locked={locked} people={trip.party} onEdit={editor.edit} />
                       )}
                       {open === "essentials" && <EssentialsPanel trip={trip} />}
-                      {open === "wishlist" && <IdeasPanel trip={trip} editable={editable} locked={locked} near={near} onEdit={editor.edit} />}
+                      {open === "wishlist" && <IdeasPanel trip={trip} basePath={basePath} editable={editable} locked={locked} near={near} onEdit={editor.edit} />}
                     </div>
                   </Suspense>
                 </OverlayBoundary>
@@ -1288,6 +1291,13 @@ function Workspace() {
             onAdd={addFromInstagram}
           />
         </Suspense>
+        </OverlayBoundary>
+      )}</Presence>
+      <Presence when={editor.changes}>{(changes) => (
+        <OverlayBoundary onError={overlayFailed("The summary of changes", editor.closeChanges)}>
+          <Suspense fallback={null}>
+            <ChangesSheet changes={changes} basePath={basePath} accent={accent} reduce={editor.reduce ?? false} onClose={editor.closeChanges} />
+          </Suspense>
         </OverlayBoundary>
       )}</Presence>
       <Presence when={recapOpen}>{() => (
