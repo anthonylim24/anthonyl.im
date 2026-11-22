@@ -109,18 +109,30 @@ function renderOverlay(
         <button
           type="button"
           onClick={() =>
-            // As the workspace's tabs do: replace, keeping every other param.
+            // As the workspace's tabs do.
+            nav.replaceClosing((params) => {
+              params.set("tab", "budget")
+              return params
+            })
+          }
+        >
+          Tab: Budget
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            // Something else that replaces the URL and keeps every other param.
             setParams(
               (prev) => {
                 const next = new URLSearchParams(prev)
-                next.set("tab", "budget")
+                next.set("note", "1")
                 return next
               },
               { replace: true },
             )
           }
         >
-          Tab: Budget
+          Replace, keeping the place
         </button>
         <button type="button" onClick={() => nav.open("idea-other", "row")}>
           Row: Other
@@ -287,15 +299,15 @@ describe("IdeaOverlay", () => {
       const pending = () => window.history.replaceState({ key: "not-yet-shown" }, "")
       afterEach(() => window.history.replaceState(null, ""))
 
-      it("still closes once that entry shows the same place (a tab that kept ?idea)", () => {
+      it("still closes once that entry shows the same place", () => {
         const state = renderOverlay(twoDays(), fromTrips)
         fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
         pending()
         fireEvent.click(screen.getByRole("button", { name: "Close details" }))
         expect(params(state).get("idea")).toBe("idea-tram")
         window.history.replaceState(null, "")
-        fireEvent.click(screen.getByRole("button", { name: "Tab: Budget" }))
-        expect(params(state).get("tab")).toBe("budget")
+        fireEvent.click(screen.getByRole("button", { name: "Replace, keeping the place" }))
+        expect(params(state).get("note")).toBe("1")
         expect(params(state).has("idea")).toBe(false)
       })
 
@@ -309,6 +321,23 @@ describe("IdeaOverlay", () => {
         expect(params(state).get("idea")).toBe("idea-other")
         expect(screen.getByRole("dialog", { name: "Details: Other" })).toBeInTheDocument()
       })
+    })
+
+    it("closes an opened place on a tab change, made on the entry before it: the next Back leaves the trip", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Tab: Budget" }))
+      expect(state.search).toBe("?tab=budget")
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    it("closes a pasted link's place on a tab change in the same entry", () => {
+      const state = renderOverlay(twoDays(), { url: "/trips/lisbon?tab=wishlist&idea=idea-tram", before: ["/trips"] })
+      fireEvent.click(screen.getByRole("button", { name: "Tab: Budget" }))
+      expect(state.search).toBe("?tab=budget")
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
     })
 
     it("replaces a pasted link's entry rather than going back past it", () => {

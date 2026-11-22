@@ -296,6 +296,25 @@ describe("IdeaDetails", () => {
     await waitFor(() => expect(within(dialog).getByText("A royal palace, newly described.")).toBeInTheDocument())
   })
 
+  it("keeps a lapsed answer when asking again fails", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json({ place: palace }))
+    const { opener, rerender } = openDetails()
+    await waitFor(() => expect(screen.getByText(palace.summary!)).toBeInTheDocument())
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+    await waitFor(() => expect(screen.queryByText(palace.summary!)).toBeNull())
+    fireEvent.click(opener)
+    const dialog = screen.getByRole("dialog", { name: "Gyeongbokgung" })
+
+    const now = Date.now()
+    vi.spyOn(Date, "now").mockReturnValue(now + 60 * 60_000)
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"))
+    rerender({ item: idea({ notes: "Go at opening time." }) })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    expect(within(dialog).getByText(palace.summary!)).toBeInTheDocument()
+    expect(within(dialog).queryByRole("alert")).toBeNull()
+  })
+
   it("opens as a sheet on a phone", async () => {
     stubMatchMedia(false)
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))

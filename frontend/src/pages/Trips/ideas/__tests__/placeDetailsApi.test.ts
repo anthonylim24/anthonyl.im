@@ -7,6 +7,7 @@ import {
   cleanDetails,
   clearPlaceDetailsCache,
   detailsTarget,
+  KEPT_PLACES,
   loadPlaceDetails,
   PlaceDetailsError,
   titleMatches,
@@ -205,6 +206,15 @@ describe("loadPlaceDetails", () => {
     await loadPlaceDetails(getToken, detailsTarget(place())!)
     const url = new URL(urls(spy)[0]!, "https://example.test")
     expect(Object.fromEntries(url.searchParams)).toEqual({ name: "Gyeongbokgung", lat: "37.5796", lng: "126.977" })
+  })
+
+  it("keeps the last 200 places' answers, dropping the oldest", async () => {
+    stubFetch(() => json({ place: palace }))
+    const target = (n: number): DetailsTarget => ({ ...byId, place: `id:p${n}`, key: `id:p${n}`, placeId: `p${n}` })
+    for (let n = 0; n <= KEPT_PLACES; n++) await loadPlaceDetails(getToken, target(n))
+    expect(cachedPlaceDetails(target(0))).toBeUndefined()
+    expect(cachedPlaceDetails(target(1))).toEqual(palace)
+    expect(cachedPlaceDetails(target(KEPT_PLACES))).toEqual(palace)
   })
 
   it("keeps the answer for the session", async () => {

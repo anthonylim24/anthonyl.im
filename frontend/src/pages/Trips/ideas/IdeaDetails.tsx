@@ -93,13 +93,14 @@ function usePlaceDetails(target: DetailsTarget | null, getToken: IdeaDetailsProp
   const asked: DetailsLoad =
     known !== undefined ? { status: "ready", details: known } : answer?.key === requestKey ? answer.load : { status: "loading" }
   // While an answer that lapsed is asked for again, the card keeps showing it
-  // (no skeleton, the carousel stays where it was).
+  // (no skeleton, the carousel stays where it was), and keeps it if asking
+  // again fails: an older answer beats an error.
   const [shown, setShown] = useState<{ key: string; details: PlaceDetails | null } | null>(null)
   const placeKey = target?.key ?? ""
   if (asked.status === "ready" && (shown?.key !== placeKey || shown.details !== asked.details)) {
     setShown({ key: placeKey, details: asked.details })
   }
-  const load: DetailsLoad = asked.status === "loading" && shown?.key === placeKey ? { status: "ready", details: shown.details } : asked
+  const load: DetailsLoad = asked.status !== "ready" && shown?.key === placeKey ? { status: "ready", details: shown.details } : asked
   return { load, retry: () => setAttempt((n) => n + 1) }
 }
 

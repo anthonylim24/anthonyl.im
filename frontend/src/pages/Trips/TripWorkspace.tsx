@@ -244,18 +244,17 @@ function Workspace() {
   const [searchParams, setSearchParams] = useSearchParams()
   const ideaNav = useIdeaNav()
   const tab = readOverviewTab(searchParams.get("tab"))
+  // A tab replaces the entry; a wishlist place open on it closes with it, its
+  // own entry gone back from first, so the visit keeps one entry.
+  const { replaceClosing } = ideaNav
   const setTab = useCallback(
     (next: OverviewTab) =>
-      setSearchParams(
-        (prev) => {
-          const params = new URLSearchParams(prev)
-          if (next === "itinerary") params.delete("tab")
-          else params.set("tab", next)
-          return params
-        },
-        { replace: true },
-      ),
-    [setSearchParams],
+      replaceClosing((params) => {
+        if (next === "itinerary") params.delete("tab")
+        else params.set("tab", next)
+        return params
+      }),
+    [replaceClosing],
   )
   /** What this opening of the Instagram import has added: one undo step, one toast. */
   const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
