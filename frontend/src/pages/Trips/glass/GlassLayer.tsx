@@ -111,9 +111,30 @@ function useWallpaper(wall: Wall): string | null {
   return url
 }
 
+/**
+ * Starts an engine once the page is idle after its first paint, so a trip's
+ * first frames never wait on observers or lens maps; the frosted material
+ * and the resting light hold until then.
+ */
+function useIdleStart(start: () => () => void) {
+  useEffect(() => {
+    let dispose: (() => void) | null = null
+    const run = () => {
+      dispose = start()
+    }
+    const hasIdle = "requestIdleCallback" in window
+    const handle = hasIdle ? window.requestIdleCallback(run, { timeout: 2000 }) : window.setTimeout(run, 300)
+    return () => {
+      if (dispose) dispose()
+      else if (hasIdle) window.cancelIdleCallback(handle)
+      else window.clearTimeout(handle)
+    }
+  }, [start])
+}
+
 export default function GlassLayer() {
-  useEffect(() => startRefraction(), [])
-  useEffect(() => startLight(), [])
+  useIdleStart(startRefraction)
+  useIdleStart(startLight)
   const url = useWallpaper(useWall())
   return (
     <div className="trips-glass-wallpaper" aria-hidden>

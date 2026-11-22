@@ -123,11 +123,20 @@ export function edgeAt(x: number, y: number, width: number, height: number, corn
   return { depth: db, nx: 0, ny: 1 }
 }
 
+/** Where the bent rim shows (0 rim, 1 flat top): full at the edge, easing out
+ * through the inner part of the bezel, so the lensed band has no hard line. */
+export function rimMask(u: number): number {
+  const t = clamp01((clamp01(u) - 0.4) / 0.6)
+  return 1 - t * t * (3 - 2 * t)
+}
+
 /**
  * The displacement map for `spec`, `columns` × `rows` pixels (the element at
  * any scale; the filter stretches it back). Red carries the x shift and green
  * the y shift, 128 meaning none; every shift points inward, so the rim shows
- * backdrop from inside the glass, never the empty space beyond it.
+ * backdrop from inside the glass, never the empty space beyond it. Blue is
+ * the rim mask (`rimMask`, 255 at the edge, 0 on the flat top): the filter
+ * shows the bent, nearly sharp backdrop there and the frosted one elsewhere.
  */
 export function fillDisplacement(spec: LensSpec, columns: number, rows: number): Uint8ClampedArray {
   const { width, height, bezel } = spec
@@ -142,17 +151,20 @@ export function fillDisplacement(spec: LensSpec, columns: number, rows: number):
       const at = (row * columns + col) * 4
       let r = 128
       let g = 128
+      let b = 0
       if (bezel > 0) {
         const { depth, nx, ny } = edgeAt(x, y, width, height, corners)
         if (depth < bezel) {
-          const shift = shiftAt(Math.max(0, depth) / bezel)
+          const u = Math.max(0, depth) / bezel
+          const shift = shiftAt(u)
           r = 128 - Math.round(127 * shift * nx)
           g = 128 - Math.round(127 * shift * ny)
+          b = Math.round(255 * rimMask(u))
         }
       }
       out[at] = r
       out[at + 1] = g
-      out[at + 2] = 128
+      out[at + 2] = b
       out[at + 3] = 255
     }
   }

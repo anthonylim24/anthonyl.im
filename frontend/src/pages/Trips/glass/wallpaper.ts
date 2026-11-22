@@ -79,13 +79,26 @@ const PLACES = [
   [0.22, 0.95, 0.6],
 ] as const
 
+// Status is read only after linking, and only once the driver says it is
+// done (KHR_parallel_shader_compile), so compiling never blocks the page.
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type)
   if (!shader) throw new Error("no shader")
   gl.shaderSource(shader, source)
   gl.compileShader(shader)
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) ?? "shader")
   return shader
+}
+
+const COMPLETION_STATUS_KHR = 0x91b1
+
+/** Resolves when the program has linked, polling between frames where the driver links in parallel. */
+async function linked(gl: WebGL2RenderingContext, program: WebGLProgram): Promise<void> {
+  if (gl.getExtension("KHR_parallel_shader_compile")) {
+    for (let i = 0; i < 120 && !gl.getProgramParameter(program, COMPLETION_STATUS_KHR); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 16))
+    }
+  }
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? "link")
 }
 
 const flat = (list: readonly (Linear | readonly number[])[]) => new Float32Array(list.flatMap((v) => [...v]))
@@ -113,7 +126,7 @@ export async function paintWallpaper(spec: WallSpec): Promise<string | null> {
     gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX))
     gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT))
     gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? "link")
+    await linked(gl, program)
     gl.useProgram(program)
     const buffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)

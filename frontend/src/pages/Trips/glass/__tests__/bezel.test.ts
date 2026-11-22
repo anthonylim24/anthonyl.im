@@ -8,6 +8,7 @@ import {
   mapSize,
   pickRefracting,
   refractionProfile,
+  rimMask,
   shiftAt,
   snappedSpec,
   squircleHeight,
@@ -100,6 +101,16 @@ describe("edgeAt", () => {
   })
 })
 
+describe("rimMask", () => {
+  it("is full at the rim, gone by the flat top, and eases between", () => {
+    expect(rimMask(0)).toBe(1)
+    expect(rimMask(0.4)).toBe(1)
+    expect(rimMask(1)).toBe(0)
+    expect(rimMask(0.7)).toBeCloseTo(0.5, 5)
+    for (let u = 0; u < 1; u += 0.05) expect(rimMask(u + 0.05)).toBeLessThanOrEqual(rimMask(u))
+  })
+})
+
 describe("fillDisplacement", () => {
   const spec: LensSpec = { width: 120, height: 40, corners: round(20), bezel: 12 }
   const columns = 60
@@ -110,11 +121,17 @@ describe("fillDisplacement", () => {
     return { r: map[at]!, g: map[at + 1]!, b: map[at + 2]!, a: map[at + 3]! }
   }
 
-  it("is opaque, with blue neutral everywhere", () => {
-    for (let i = 0; i < map.length; i += 4) {
-      expect(map[i + 2]).toBe(128)
-      expect(map[i + 3]).toBe(255)
-    }
+  it("is opaque everywhere", () => {
+    for (let i = 0; i < map.length; i += 4) expect(map[i + 3]).toBe(255)
+  })
+
+  it("masks the rim in blue: full at the edge, none on the flat top", () => {
+    expect(px(30, 0).b).toBeGreaterThan(240)
+    expect(px(0, 10).b).toBeGreaterThan(240)
+    expect(px(30, 10).b).toBe(0)
+    // Easing in from the edge, never rising.
+    const column = Array.from({ length: rows / 2 }, (_, row) => px(30, row).b)
+    for (let i = 1; i < column.length; i++) expect(column[i]).toBeLessThanOrEqual(column[i - 1]!)
   })
 
   it("leaves the centre clear", () => {
