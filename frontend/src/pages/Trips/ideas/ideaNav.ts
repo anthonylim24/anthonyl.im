@@ -8,7 +8,14 @@ import { IDEA_ADD_PARAM, IDEA_PARAM, withIdea, type IdeaOpener } from "./contrac
 // goes back when the entry is one this page pushed, so Back never meets a
 // dead entry, and replaces otherwise (a pasted `?idea=` link, whose earlier
 // entry may be another site). Moving between the details and the picker, or
-// to another idea while one is open, replaces and keeps the mark.
+// to another idea while one is open, replaces and keeps the mark. Anything
+// else that replaces the URL while a place is open (an overview tab) goes
+// through `replaceClosing`, so the place's entry goes with it.
+//
+// The router shows a navigation a moment after the browser makes it (Back
+// lands on `popstate`; every navigation commits in a transition). Acting on
+// what is shown meanwhile would push twice, or replace the wrong entry, so
+// every call made then waits for the next entry to show and runs again there.
 
 const MARK = "wishlistIdea"
 
@@ -36,24 +43,63 @@ export function ideaOpenState(from: IdeaOpener, pushed = true) {
   return marked({ from, pushed })
 }
 
+/**
+ * The entry a Back was sent from, until another entry shows. Shared by every
+ * caller (the list, the map and the overlay each hold their own hook), so a
+ * second close from anywhere never goes back twice and leaves the trip.
+ */
+let backFrom: string | null = null
+/** How long a Back may take to land before the page stops waiting for it. */
+const BACK_LANDS_MS = 1000
+
+/** The browser's own record of the current entry, which leads what the router shows. */
+const liveEntry = () => window.history.state as { key?: unknown; idx?: unknown } | null
+
+/** A call made while a navigation was on its way, made again once it shows. */
+type Later =
+  | { call: "open"; ideaId: string; from: IdeaOpener; add?: boolean }
+  | { call: "show"; ideaId: string; add?: boolean }
+  /** Closes only if the same thing is still open then. */
+  | { call: "close"; ideaId: string | null; add: string | null }
+  | { call: "replace"; update: (prev: URLSearchParams) => URLSearchParams }
+
 export function useIdeaNav() {
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
+  const deferred = useRef<Later | null>(null)
+
   /**
-   * The entry a Back was already sent from. In a browser, Back lands a moment
-   * later; a second close before then (a removal, then the effect that sees
-   * the idea gone) must not go back twice and leave the trip.
+   * Whether the browser is on an entry the router has yet to show: a Back is
+   * on its way, or a navigation is waiting for its transition to commit. A
+   * page's first entry has no key in `history.state` until something navigates.
    */
-  const backFrom = useRef<string | null>(null)
-  /**
-   * A close asked for while the browser was already on an entry React had yet
-   * to show, and what was open then. Settled once the next entry shows.
-   */
-  const deferred = useRef<{ idea: string | null; add: string | null } | null>(null)
+  const pending = () => {
+    if (backFrom === location.key) return true
+    const live = liveEntry()?.key
+    return typeof live === "string" && live !== location.key
+  }
+
+  /** Back to the entry before this one, when this page pushed it and it is not the first. */
+  const goBack = () => {
+    if (!markOf(location.state)?.pushed) return false
+    const idx = liveEntry()?.idx
+    if (typeof idx === "number" && idx < 1) return false
+    const from = location.key
+    backFrom = from
+    setTimeout(() => {
+      if (backFrom === from) backFrom = null
+    }, BACK_LANDS_MS)
+    navigate(-1)
+    return true
+  }
 
   /** Open `ideaId`'s details (or, with `add`, its day picker). Nothing happens when they are already open. */
   const open = useLatestCallback((ideaId: string, from: IdeaOpener, add?: boolean) => {
+    if (pending()) {
+      deferred.current = { call: "open", ideaId, from, add }
+      return
+    }
     if (params.get(IDEA_PARAM) === ideaId && (params.get(IDEA_ADD_PARAM) === "1") === Boolean(add)) return
     const next = (prev: URLSearchParams) => withIdea(prev, ideaId, add)
     if (!params.has(IDEA_PARAM)) {
@@ -66,39 +112,52 @@ export function useIdeaNav() {
 
   /** Switch between the open idea's details and its picker, keeping the entry and its mark. */
   const show = useLatestCallback((ideaId: string, add?: boolean) => {
+    if (pending()) {
+      deferred.current = { call: "show", ideaId, add }
+      return
+    }
+    if (params.get(IDEA_PARAM) !== ideaId) return
     setParams((prev) => withIdea(prev, ideaId, add), { replace: true, state: location.state })
   })
 
   const close = useLatestCallback(() => {
     if (!params.has(IDEA_PARAM) && !params.has(IDEA_ADD_PARAM)) return
-    // The browser is already on another entry that React has yet to show (the
-    // router commits navigations in a transition): a press outside that opened
-    // another idea, or a Back on its way. What is open is about to change, and
-    // closing it now would undo that navigation.
-    // Once it shows, the close still stands if the same thing is open there (a
-    // tab that kept `?idea`), and lapses if not.
-    const live = (window.history.state as { key?: unknown } | null)?.key
-    if (typeof live === "string" && live !== location.key) {
-      deferred.current = { idea: params.get(IDEA_PARAM), add: params.get(IDEA_ADD_PARAM) }
+    // A Back already on its way closes it.
+    if (backFrom === location.key) return
+    if (pending()) {
+      // A press outside that opened another idea, a tab, or a Back from the
+      // browser: the close still stands if the same thing is open once that
+      // shows, and lapses if not.
+      deferred.current = { call: "close", ideaId: params.get(IDEA_PARAM), add: params.get(IDEA_ADD_PARAM) }
       return
     }
-    if (markOf(location.state)?.pushed) {
-      if (backFrom.current === location.key) return
-      backFrom.current = location.key
-      navigate(-1)
-      return
-    }
+    if (goBack()) return
     setParams((prev) => withIdea(prev, null), { replace: true })
   })
 
+  /**
+   * Replace the URL with `update` (an overview tab, say), closing any open
+   * idea with it: an entry this page pushed is gone back from first, and the
+   * change made on the entry Back lands on, so the visit keeps one entry.
+   */
+  const replaceClosing = useLatestCallback((update: (prev: URLSearchParams) => URLSearchParams) => {
+    if (pending() || (params.has(IDEA_PARAM) && goBack())) {
+      deferred.current = { call: "replace", update }
+      return
+    }
+    setParams((prev) => withIdea(update(new URLSearchParams(prev)), null), { replace: true })
+  })
+
   const settle = useLatestCallback(() => {
-    if (backFrom.current !== location.key) backFrom.current = null
-    const wanted = deferred.current
-    if (!wanted) return
+    if (backFrom !== null && backFrom !== location.key) backFrom = null
+    const later = deferred.current
     deferred.current = null
-    if (params.get(IDEA_PARAM) === wanted.idea && params.get(IDEA_ADD_PARAM) === wanted.add) close()
+    if (later?.call === "open") open(later.ideaId, later.from, later.add)
+    else if (later?.call === "show") show(later.ideaId, later.add)
+    else if (later?.call === "replace") replaceClosing(later.update)
+    else if (later?.call === "close" && params.get(IDEA_PARAM) === later.ideaId && params.get(IDEA_ADD_PARAM) === later.add) close()
   })
   useEffect(() => settle(), [location.key, settle])
 
-  return { open, show, close }
+  return { open, show, close, replaceClosing }
 }

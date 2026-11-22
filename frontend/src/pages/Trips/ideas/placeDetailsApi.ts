@@ -56,7 +56,7 @@ export function detailsErrorMessage(status: number): string {
 
 const OFFLINE = "Couldn’t reach the server. Check your connection and try again."
 const TOO_SLOW = "This place’s details are taking too long. Try again in a moment."
-/** The server gives Google 5 s and each photo 3.5 s; past this, something is stuck. */
+/** The server answers within 11 s (4 s for each call to Google, 3 s for each photo); past this, something is stuck. */
 const SERVER_DEADLINE_MS = 15_000
 const WIKI_DEADLINE_MS = 8_000
 
@@ -377,6 +377,19 @@ interface Kept {
   details: PlaceDetails | null
 }
 
+/** Answers kept in each cache at most; the oldest goes first. */
+export const KEPT_PLACES = 200
+
+/** Keep `details` for `place`, as the newest entry, dropping the oldest past `KEPT_PLACES`. */
+function keepIn(cache: Map<string, Kept>, place: string, kept: Kept) {
+  cache.delete(place)
+  cache.set(place, kept)
+  for (const oldest of cache.keys()) {
+    if (cache.size <= KEPT_PLACES) break
+    cache.delete(oldest)
+  }
+}
+
 /** Google's answers by `DetailsTarget.place`. Null: Google knows nothing about the place. */
 const fromGoogle = new Map<string, Kept>()
 /** Wikipedia's answers by `DetailsTarget.place`, for places Google knows nothing about. Null: no article names it. Failures are never kept. */
@@ -408,7 +421,7 @@ export function clearPlaceDetailsCache() {
 const loadEffect = Effect.fn("PlaceDetails.load")(function* (getToken: GetToken, target: DetailsTarget, signal?: AbortSignal) {
   // An answer cut short by closing the popover is not an answer to keep.
   const keep = (cache: Map<string, Kept>, details: PlaceDetails | null, ms: number) => {
-    if (!signal?.aborted) cache.set(target.place, { until: Date.now() + ms, details })
+    if (!signal?.aborted) keepIn(cache, target.place, { until: Date.now() + ms, details })
   }
   let google = keptIn(fromGoogle, target.place, Date.now())
   if (google === undefined) {
