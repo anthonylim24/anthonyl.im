@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 import { render, screen, within } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { AiBusy, SuggestionsReview, reviewProgress } from "../workspace/AiPanels"
+import { OverviewPanel } from "../workspace/OverviewPanel"
 import type { EnhancementRun, EnhancementSuggestion, RunQueueInfo } from "../types"
-import { makeItem } from "./tripFixtures"
+import { makeItem, makeTrip } from "./tripFixtures"
 
 const days = [
   { id: "day-1", label: "Day 1 · Fri 10 Jul" },
@@ -59,6 +61,45 @@ describe("reviewProgress", () => {
       (["queued", "working", "done"] as const).map((state) => reviewProgress(going({ state, attempt, maxAttempts: 3 }), "your trip")),
     )
     for (const progress of lines) expect(`${progress?.line} ${progress?.hint ?? ""}`).not.toMatch(/!|sorry|oops|fail/i)
+  })
+})
+
+describe("a draft in progress", () => {
+  const drafting = (dayCount: number) => {
+    const noop = vi.fn()
+    const trip = makeTrip({
+      days: Array.from({ length: dayCount }, (_, i) => ({ id: `day-${i + 1}`, date: `2026-07-${String(10 + i).padStart(2, "0")}`, items: [] })),
+    })
+    render(
+      <MemoryRouter>
+        <OverviewPanel
+          trip={trip}
+          forecast={new Map()}
+          basePath="/trips/lisbon"
+          editable
+          locked
+          drafting
+          enhancing={false}
+          applying={false}
+          run={null}
+          dayOptions={[]}
+          onDraft={noop}
+          onHoverDay={noop}
+          onApplyRun={noop}
+          onDismissRun={noop}
+          onStopAi={noop}
+        />
+      </MemoryRouter>,
+    )
+    return screen.getByText("Reading up on the area…", { exact: false })
+  }
+
+  it("tells a long trip it takes a few minutes, not about a minute", () => {
+    expect(drafting(12)).toHaveTextContent("A trip this long takes a few minutes.")
+  })
+
+  it("keeps the shorter promise for a trip drafted in one go", () => {
+    expect(drafting(4)).toHaveTextContent("This usually takes about a minute.")
   })
 })
 
