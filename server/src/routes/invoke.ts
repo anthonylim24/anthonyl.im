@@ -66,11 +66,11 @@ type LimRequest = {
 };
 
 /**
- * Jev (lim/jev.ts) picks the Gemini model: Hydrogen for questions about
- * Anthony (or anything else), Carbon for playing with the jelly. If the
- * Gemini stream cannot be opened (no key, quota, outage), the previous model
- * on Groq answers instead — unless the visitor already left, when opening a
- * second paid stream would only bill for nobody.
+ * Jev (lim/jev.ts) picks the Gemini model: Hydrogen for regular chat, Neon
+ * for playing with the jelly (toy-world orders and the toys Lim invents).
+ * If the Gemini stream cannot be opened (no key, quota, outage), the previous
+ * model on Groq answers instead, unless the visitor already left, when
+ * opening a second paid stream would only bill for nobody.
  */
 async function openLimStream({ prompt, messages, world, system, signal }: LimRequest): Promise<AsyncIterable<string>> {
   try {

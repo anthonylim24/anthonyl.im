@@ -153,7 +153,7 @@ describe("readGeminiAgentRound", () => {
       body(
         [
           {
-            modelVersion: "gemini-4-hydrogen",
+            modelVersion: "gemini-4-neon",
             candidates: [{ content: { parts: [{ thoughtSignature: "s1", toolCall: { toolType: "GOOGLE_SEARCH_WEB", args: { queries: ["metro strike"] } } }] } }],
           },
           { candidates: [{ content: { parts: [{ toolResponse: { toolType: "GOOGLE_SEARCH_WEB" } }, { text: "hidden", thought: true }, { text: "Olá, " }] } }] },
@@ -176,11 +176,11 @@ describe("readGeminiAgentRound", () => {
         onModelVersion: (model) => void seen.push(`model:${model}`),
       },
     )
-    expect(seen).toEqual(["model:gemini-4-hydrogen", "tool:GOOGLE_SEARCH_WEB:metro strike", "text:Olá, ", "text:Lisboa."])
+    expect(seen).toEqual(["model:gemini-4-neon", "tool:GOOGLE_SEARCH_WEB:metro strike", "text:Olá, ", "text:Lisboa."])
     expect(round.text).toBe("Olá, Lisboa.")
     expect(round.functionCalls).toEqual([{ name: "find_places", args: { query: "café" }, id: "c1" }])
     expect(round.finishReason).toBe("STOP")
-    expect(round.modelVersion).toBe("gemini-4-hydrogen")
+    expect(round.modelVersion).toBe("gemini-4-neon")
     expect(round.grounding?.chunks[0]?.uri).toBe("https://example.com/a")
     // Parts are kept verbatim, signatures included, for the follow-up request.
     expect(round.parts).toHaveLength(6)

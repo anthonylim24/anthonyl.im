@@ -1,6 +1,6 @@
 /** Gemini built-in grounding tools, and a fetch that retries one transient 5xx.
  *
- *  Gemini 4 Hydrogen answers 400 to Search and Maps together ("'google_maps'
+ *  Gemini 4 Neon answers 400 to Search and Maps together ("'google_maps'
  *  and 'google_search' cannot be combined"), as does its backup, so callers
  *  send one or the other. (The trips concierge has its own tool loop: see
  *  trips/chat.ts.)

@@ -5,9 +5,11 @@
  *
  *   GEMINI_API_KEY=… [JEV_API_KEY=…] bun scripts/eval-lim-world.ts [model]
  *
- * With JEV_API_KEY and no model argument, each case is routed by Jev
- * (`server/src/lim/jev.ts`) as in production, and Jev's routing is scored
- * too: chat must go to Hydrogen ("anthony"), orders to Neon ("jelly").
+ * With a model argument, every case runs on that model. With JEV_API_KEY and
+ * no model argument, each case is routed by Jev (`server/src/lim/jev.ts`) as
+ * in production, and Jev's routing is scored too: chat must go to Hydrogen
+ * ("anthony"), orders to Neon ("jelly"). With neither, every case runs on
+ * both Hydrogen and Neon, since production uses both.
  * `--route-only` scores Jev's routing alone, with no Gemini calls.
  *
  * Chat messages must be answered in prose. Orders must come back as a
@@ -16,20 +18,22 @@
  * op. None of the HELD_OUT messages appear in the prompt, so they show
  * whether its rules generalise; the rest include its own examples. Also
  * checked: a conversation with earlier orders in it, and a page with no 3D
- * scene. Exits non-zero on any miss.
+ * scene. An answer from a fallback model (the key cannot use the one asked
+ * for) is not scored as that model's: it is reported as FALLBACK. Exits
+ * non-zero on any miss or fallback.
  */
 const { geminiText } = await import("../server/src/geminiText");
 const { SYSTEM_PROMPT } = await import("../server/src/routes/constants");
 const { WORLD_MARK, worldPrompt } = await import("../server/src/lim/world");
-const { limGeminiModel } = await import("../server/src/lim/model");
-const { routeLimModel } = await import("../server/src/lim/jev");
+const { ANTHONY_MODEL, JELLY_MODEL, routeLimModel } = await import("../server/src/lim/jev");
 const { readWorldReply, hasWorldOrder } = await import("../frontend/src/chat/world/worldApi");
 type Op = ReturnType<typeof readWorldReply>["ops"][number];
 
 const routeOnly = process.argv.includes("--route-only");
 const fixedModel = process.argv.slice(2).find((a) => !a.startsWith("--"));
 const useJev = !fixedModel && !!process.env.JEV_API_KEY;
-const model = fixedModel || (useJev ? "jev-routed" : limGeminiModel());
+/** The models each case runs on; "jev-routed" lets Jev pick per case. */
+const models = fixedModel ? [fixedModel] : useJev ? ["jev-routed"] : [ANTHONY_MODEL, JELLY_MODEL];
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey && !routeOnly) throw new Error("GEMINI_API_KEY is required");
 if (routeOnly && !useJev) throw new Error("--route-only needs JEV_API_KEY and no model argument");
@@ -109,17 +113,32 @@ const jobs: Job[] = [
   { set: "no 3D scene", message: "Where has he worked?", expect: "chat", world: { items: [], place: "studio", unavailable: true } },
 ];
 
-type Row = Job & { ok: boolean; ms: number; out: string; route?: string | null; via?: string; jevMs?: number };
+type Row = Job & {
+  ok: boolean; ms: number; out: string; route?: string | null; via?: string; jevMs?: number;
+  /** The models column: a model, or "jev-routed". */
+  label: string;
+  /** Asked for this model, but another answered (the key cannot use it). */
+  fellBack?: { asked: string; answered: string };
+};
 const rows: Row[] = [];
+const tasks = (routeOnly ? ["jev-routed"] : models).flatMap((label) => jobs.map((job) => ({ label, job })));
 let next = 0;
 await Promise.all(
   Array.from({ length: 6 }, async () => {
-    while (next < jobs.length) {
-      const job = jobs[next++];
+    while (next < tasks.length) {
+      const { label, job } = tasks[next++];
       const t0 = performance.now();
       let out = "";
       let routed: Awaited<ReturnType<typeof routeLimModel>> | undefined;
       let jevMs: number | undefined;
+      // geminiText steps down to another model when the key cannot use the one asked
+      // for; the last model URL fetched is the one that answered.
+      let answered = "";
+      const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
+        answered = /\/models\/([^/:]+):/.exec(input instanceof Request ? input.url : String(input))?.[1] ?? answered;
+        return fetch(input, init);
+      }) as typeof fetch;
+      const asked = () => routed?.model ?? label;
       try {
         if (useJev) {
           const j0 = performance.now();
@@ -127,12 +146,12 @@ await Promise.all(
           jevMs = performance.now() - j0;
         }
         if (routeOnly) {
-          rows.push({ ...job, ok: true, ms: performance.now() - t0, out: "", route: routed?.route, via: routed?.via, jevMs });
+          rows.push({ ...job, label, ok: true, ms: performance.now() - t0, out: "", route: routed?.route, via: routed?.via, jevMs });
           continue;
         }
         out = await geminiText({
-          apiKey: apiKey!, model: routed?.model ?? model, system: SYSTEM_PROMPT + worldPrompt(job.world ?? world),
-          messages: [...(job.history ?? []), { role: "user", content: job.message }], signal: AbortSignal.timeout(60_000),
+          apiKey: apiKey!, model: asked(), system: SYSTEM_PROMPT + worldPrompt(job.world ?? world),
+          messages: [...(job.history ?? []), { role: "user", content: job.message }], signal: AbortSignal.timeout(60_000), fetchImpl,
         });
       } catch (err) {
         out = `ERROR ${err instanceof Error ? err.message : String(err)}`;
@@ -140,16 +159,23 @@ await Promise.all(
       // Judged as the page would see it: the same detector, reader and cleaners.
       const ordered = hasWorldOrder(out);
       const ok = !out.startsWith("ERROR") && (job.expect === "chat" ? !ordered : ordered && job.expect(readWorldReply(out).ops));
-      rows.push({ ...job, ok, ms: performance.now() - t0, out, route: routed?.route, via: routed?.via, jevMs });
+      const fellBack = !out.startsWith("ERROR") && answered && answered !== asked() ? { asked: asked(), answered } : undefined;
+      rows.push({ ...job, label, ok, fellBack, ms: performance.now() - t0, out, route: routed?.route, via: routed?.via, jevMs });
     }
   }),
 );
 
-for (const set of routeOnly ? [] : [...new Set(jobs.map((j) => j.set))]) {
-  const group = rows.filter((r) => r.set === set);
-  const times = group.map((r) => r.ms).sort((a, b) => a - b);
-  console.log(`${model} ${set}: ${group.filter((r) => r.ok).length}/${group.length}, median ${(times[times.length >> 1] / 1000).toFixed(1)} s, max ${(times[times.length - 1] / 1000).toFixed(1)} s`);
-  for (const r of group.filter((x) => !x.ok)) console.log(`  MISS ${JSON.stringify(r.message)} -> ${JSON.stringify(r.out.slice(0, 160))}`);
+for (const label of routeOnly ? [] : models) {
+  for (const set of [...new Set(jobs.map((j) => j.set))]) {
+    const group = rows.filter((r) => r.label === label && r.set === set);
+    // Only answers from the model asked for count toward its score.
+    const scored = group.filter((r) => !r.fellBack);
+    const times = group.map((r) => r.ms).sort((a, b) => a - b);
+    const fallbacks = group.length - scored.length;
+    console.log(`${label} ${set}: ${scored.filter((r) => r.ok).length}/${scored.length}${fallbacks ? `, ${fallbacks} FALLBACK` : ""}, median ${(times[times.length >> 1] / 1000).toFixed(1)} s, max ${(times[times.length - 1] / 1000).toFixed(1)} s`);
+    for (const r of scored.filter((x) => !x.ok)) console.log(`  MISS ${JSON.stringify(r.message)} -> ${JSON.stringify(r.out.slice(0, 160))}`);
+    for (const r of group.filter((x) => x.fellBack)) console.log(`  FALLBACK ${JSON.stringify(r.message)}: asked ${r.fellBack!.asked}, answered by ${r.fellBack!.answered}`);
+  }
 }
 let routeOk = true;
 if (useJev) {
@@ -161,4 +187,4 @@ if (useJev) {
   for (const r of wrong) console.log(`  MISROUTE ${JSON.stringify(r.message)} -> ${r.route ?? r.via}`);
   routeOk = wrong.length === 0;
 }
-process.exit(rows.every((r) => r.ok) && routeOk ? 0 : 1);
+process.exit(rows.every((r) => r.ok && !r.fellBack) && routeOk ? 0 : 1);

@@ -1,16 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { ANTHONY_MODEL, JELLY_MODEL, JEV_MODEL, JEV_URL, routeLimModel } from "./jev";
-import { limGeminiModel } from "./model";
 
 const world = { items: ["ball"], place: "studio" };
 const jevSays = (choice: string, jelly = choice === "jelly" ? 0.9 : 0.1) =>
   new Response(JSON.stringify({ model: "jev-1.13.0", answers: { intent: { type: "choice", choice, confidence: 0.9, probabilities: { anthony: 1 - jelly, jelly } } } }));
 
 describe("routeLimModel (Jev)", () => {
-  afterEach(() => {
-    delete process.env.LIM_GEMINI_MODEL;
-  });
-
   test("questions about Anthony go to Hydrogen, playing with the jelly to Neon", async () => {
     const anthony = await routeLimModel({ prompt: "Where has he worked?", world, apiKey: "K", fetchImpl: (async () => jevSays("anthony")) as unknown as typeof fetch });
     expect(anthony).toMatchObject({ model: ANTHONY_MODEL, route: "anthony", via: "jev" });
@@ -45,20 +40,12 @@ describe("routeLimModel (Jev)", () => {
     expect(calls).toBe(0);
   });
 
-  test("LIM_GEMINI_MODEL pins a model and skips Jev", async () => {
-    process.env.LIM_GEMINI_MODEL = "gemini-4-argon";
-    let calls = 0;
-    const fetchImpl = (async () => (calls++, jevSays("jelly"))) as unknown as typeof fetch;
-    expect(await routeLimModel({ prompt: "kick it", world, apiKey: "K", fetchImpl })).toMatchObject({ model: "gemini-4-argon", via: "pinned" });
-    expect(calls).toBe(0);
-  });
-
-  test("no key, an error, a bad answer or a timeout falls back to the date default", async () => {
-    expect(await routeLimModel({ prompt: "x", world, apiKey: "" })).toMatchObject({ model: limGeminiModel(), via: "no-key" });
+  test("no key, an error, a bad answer or a timeout falls back to Hydrogen", async () => {
+    expect(await routeLimModel({ prompt: "x", world, apiKey: "" })).toMatchObject({ model: ANTHONY_MODEL, via: "no-key" });
     const status = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
-    expect(await routeLimModel({ prompt: "x", world, apiKey: "K", fetchImpl: status })).toMatchObject({ model: limGeminiModel(), via: "jev-failed" });
+    expect(await routeLimModel({ prompt: "x", world, apiKey: "K", fetchImpl: status })).toMatchObject({ model: ANTHONY_MODEL, via: "jev-failed" });
     const odd = (async () => jevSays("banana")) as unknown as typeof fetch;
-    expect(await routeLimModel({ prompt: "x", world, apiKey: "K", fetchImpl: odd })).toMatchObject({ via: "jev-failed" });
+    expect(await routeLimModel({ prompt: "x", world, apiKey: "K", fetchImpl: odd })).toMatchObject({ model: ANTHONY_MODEL, via: "jev-failed" });
     const hang = ((_: string, init: RequestInit) =>
       new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal?.reason)))) as unknown as typeof fetch;
     const aborted = new AbortController();

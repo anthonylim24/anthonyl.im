@@ -10,11 +10,11 @@
  * One Choice question, one fast call. The route only picks the model: both
  * models get the same system prompt (profile + toy-world rules), so a wrong
  * route still gets a correct answer, just from the other model. Jev is
- * skipped when the page has no live toy world (nothing to play with), when
- * `LIM_GEMINI_MODEL` pins a model, and when `JEV_API_KEY` is missing;
- * if Jev errors or is slow, the date-based default (`limGeminiModel`) answers.
+ * skipped when the page has no live toy world (nothing to play with) and
+ * when `JEV_API_KEY` is missing; then, and if Jev errors or is slow,
+ * Hydrogen answers. Lim's routing ignores `GEMINI_MODEL`, which sets the
+ * model for the rest of the app.
  */
-import { LIM_MODEL_AFTER_SWITCH, limGeminiModel } from "./model";
 import type { WorldState } from "./world";
 
 export const JEV_URL = "https://api.typesafe.ai/v1/systemone";
@@ -22,15 +22,16 @@ export const JEV_MODEL = "jev-latest";
 /** Jev answers in well under this; past it, the chat should not wait. */
 export const JEV_TIMEOUT_MS = 2_000;
 
-export const ANTHONY_MODEL = LIM_MODEL_AFTER_SWITCH; // gemini-4-hydrogen
-/** Writes the toy-world orders, inventions included. Its own constant: the date-based fallback is unrelated. */
+/** Regular chat, and the default whenever Jev does not decide. */
+export const ANTHONY_MODEL = "gemini-4-hydrogen";
+/** Writes the toy-world orders, inventions included. */
 export const JELLY_MODEL = "gemini-4-neon";
 
 export type LimRoute = {
   model: string;
   route: "anthony" | "jelly" | null;
   /** Why this model: Jev decided, or why Jev was not asked / did not answer. */
-  via: "jev" | "pinned" | "no-world" | "no-key" | "jev-failed";
+  via: "jev" | "no-world" | "no-key" | "jev-failed";
   /** Jev's probability for "jelly", when it answered. */
   pJelly?: number;
 };
@@ -68,11 +69,9 @@ export async function routeLimModel(opts: {
   signal?: AbortSignal;
 }): Promise<LimRoute> {
   const { prompt, messages = [], world, apiKey = process.env.JEV_API_KEY, fetchImpl = fetch } = opts;
-  const pinned = process.env.LIM_GEMINI_MODEL?.trim();
-  if (pinned) return { model: pinned, route: null, via: "pinned" };
   // No live toy world: there is no jelly to play with, so everything is a question.
   if (!world || world.unavailable) return { model: ANTHONY_MODEL, route: "anthony", via: "no-world" };
-  if (!apiKey) return { model: limGeminiModel(), route: null, via: "no-key" };
+  if (!apiKey) return { model: ANTHONY_MODEL, route: null, via: "no-key" };
 
   try {
     const signal = AbortSignal.any([AbortSignal.timeout(JEV_TIMEOUT_MS), ...(opts.signal ? [opts.signal] : [])]);
@@ -89,7 +88,7 @@ export async function routeLimModel(opts: {
     if (route !== "anthony" && route !== "jelly") throw new Error(`jev returned no route: ${JSON.stringify(body).slice(0, 200)}`);
     return { model: route === "jelly" ? JELLY_MODEL : ANTHONY_MODEL, route, via: "jev", pJelly: answer?.probabilities?.jelly };
   } catch (err) {
-    console.warn("[lim/jev] routing failed, using the default model:", err instanceof Error ? err.message : String(err));
-    return { model: limGeminiModel(), route: null, via: "jev-failed" };
+    console.warn("[lim/jev] routing failed, using Hydrogen:", err instanceof Error ? err.message : String(err));
+    return { model: ANTHONY_MODEL, route: null, via: "jev-failed" };
   }
 }

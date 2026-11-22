@@ -88,17 +88,15 @@ export function coerceSignalSource(input: unknown, fallback: IgSignalSource = 'c
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 /** Single source of truth for which Gemini model every Gemini surface uses
- *  (IG text/video/carousel extraction, geocode dispute resolution, busyness,
- *  concierge chat, trips generation and review). Gemini 4 Hydrogen is the
- *  current fast tier: stronger grounding and planning than 3.x Flash at
- *  lower latency. Override with the `GEMINI_MODEL` env var; per-call `model`
- *  overrides on the factories still work.
+ *  (Lim's chat, IG text/video/carousel extraction, geocode dispute
+ *  resolution, busyness, concierge chat, trips generation and review).
+ *  Override with the `GEMINI_MODEL` env var; per-call `model` overrides on
+ *  the factories still work.
  *
- *  Hydrogen differences that matter here (Google's migration guide):
- *  thinking is `thinkingLevel` only (`thinkingBudget` and MINIMAL are 400s),
- *  `temperature` / `topP` / `topK` are ignored, and a request's history may
- *  not end on a model turn. */
-export const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrogen'
+ *  Gemini 4 Neon limits that matter here (probed 2026-11-20): thinking
+ *  level MINIMAL is a 400, and a request's history may not end on a model
+ *  turn. */
+export const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-4-neon'
 
 /** Previous app model. Used automatically when the primary model is not
  *  available to this API key (404, or a 400 that names the model), so a
@@ -148,7 +146,7 @@ export function resetGeminiModelFallback(): void {
   primaryModelUnavailable = false
 }
 
-/** Thinking levels. Hydrogen accepts low / medium / high / xhigh and rejects
+/** Thinking levels. Neon accepts low / medium / high / xhigh and rejects
  *  `minimal` (as 3.7 Flash did), so `minimal` maps to `low` and every
  *  Gemini surface stays valid on both the app model and the fallback. */
 export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high'
