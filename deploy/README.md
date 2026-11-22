@@ -51,7 +51,7 @@ Set these under **repo → Settings → Secrets and variables → Actions**:
 | `SSH_HOST` | droplet's public IP or `anthonyl.im` |
 | `SSH_USERNAME` | linux user the bun process runs as (e.g. `root`) |
 | `SSH_KEY` | passphrase-free private SSH key authorized on the droplet |
-| `FRONTEND_ENV` | the entire body of what Vite expects in `frontend/.env`. **All build-time `VITE_*` vars live here**, one per line. The workflow passes it to the build step as an environment variable and writes it to `frontend/.env` verbatim (`printf '%s\n' "$FRONTEND_ENV"`), so `$`, quotes and backticks in values are kept literally. |
+| `FRONTEND_ENV` | the entire body of what Vite expects in `frontend/.env`. **All build-time `VITE_*` vars live here**, one per line. The workflow passes it to the build step as an environment variable and `deploy/write-frontend-env.sh` writes it to `frontend/.env` (`printf '%s\n' "$FRONTEND_ENV"`, so `$`, quotes and backticks in values are kept literally), swapping in the `VITE_CLERK_PUBLISHABLE_KEY` secret and the `VITE_CLERK_PROXY_URL` / `VITE_SUPABASE_ANON_KEY` variables and dropping `VITE_DEV_BEARER`. PR previews use the same script. |
 
 ### What `FRONTEND_ENV` must include
 

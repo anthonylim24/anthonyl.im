@@ -21,7 +21,13 @@ The sticky PR comment (`<!-- pr-preview -->`) and the GitHub deployment
 ## What it is (and is not)
 
 - **Is:** the PR's Vite production build, with `base=/preview/pr/<n>/`,
-  service worker **off**, Clerk/Supabase keys from `FRONTEND_ENV`.
+  service worker **off**, and production's Clerk and Supabase values
+  (`deploy/write-frontend-env.sh`, shared with the deploy). Previews run on
+  the **production Clerk instance** (publishable key + `/__clerk` proxy),
+  because the sidecar verifies tokens with the droplet's production
+  `CLERK_SECRET_KEY`; a bundle on another instance gets 401 from every
+  gated call. CI fails the publish if the bundle holds a `pk_test_` key or
+  lacks the production one.
 - **Is:** a loopback copy of the PR's `/api/*` server (IG worker off),
   proxied by production Hono at `/preview/pr/<n>/api/*`. The preview
   frontend sets `VITE_API_BASE=/preview/pr/<n>` and calls that mount
@@ -113,10 +119,12 @@ Index of published previews: `https://anthonyl.im/preview/`.
 PR opened/sync
   → GitHub Actions (.github/workflows/preview.yml)
       ├─ bun install (root + frontend) via setup-ci
-      ├─ FRONTEND_ENV → frontend/.env  (VITE_DEV_BEARER stripped)
+      ├─ deploy/write-frontend-env.sh → frontend/.env
+      │    (production Clerk key + proxy and Supabase key; VITE_DEV_BEARER stripped)
       ├─ VITE_BASE=/preview/pr/<n>/  VITE_API_BASE=/preview/pr/<n>
       ├─ VITE_ENABLE_SERVICE_WORKER=false
       ├─ vite build on the runner (never on the 1 GB droplet)
+      ├─ check dist: production Clerk key present, no pk_test_ key
       ├─ bun server/src/previewStamp.ts  → preview.json + HTML chrome
       ├─ tar dist + server/src → SCP → droplet
       └─ deploy/publish-preview.sh publish <n> <frontend.tgz> <api.tgz>
@@ -153,6 +161,9 @@ Same-origin untrusted HTML can read production cookies. Mitigations:
 - Same-repo PRs only (`head.repo.full_name == github.repository`)
 - Dependabot skipped
 - No `VITE_DEV_BEARER` in the preview bundle
+- Previews share production's Clerk instance, so a personal production
+  session on this origin is live in PR-controlled JS and the sidecar
+  accepts it. That is why previews are same-repo only.
 - Preview JS never falls back to production `/api`
 - Agent login uses a dedicated Clerk screenshot user — never a personal
   production session. That user can edit the shared `korea-2026` seed
@@ -186,6 +197,7 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | --- | --- |
 | `.github/workflows/preview.yml` | CI publish + cleanup |
 | `deploy/publish-preview.sh` | atomic extract / remove / prune |
+| `deploy/write-frontend-env.sh` | `frontend/.env` for preview and production builds (same Clerk / Supabase values) |
 | `server/src/preview.ts` | path guard, stamp, Hono router, API proxy, wait helper |
 | `server/src/previewApi.ts` | loopback API sidecar entry |
 | `server/src/previewApiApp.ts` | API-only Hono app (no SPA, no IG worker) |
