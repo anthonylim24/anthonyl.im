@@ -1170,6 +1170,10 @@ describe("TripWorkspace", () => {
 
     describe("a tab from the command palette", () => {
       const runCommand = (id: string) => act(() => registered.get("trip")!.find((command) => command.id === id)!.run())
+      // An open place's sheet hides the rest of the page from the accessibility
+      // tree (names and all) once its chunk has loaded: find these by label and text.
+      const address = () => screen.getByLabelText("Address")
+      const back = () => fireEvent.click(screen.getByText("Back"))
       function renderAt(path: string) {
         mockGetTrip.mockResolvedValue({ trip: planned({ ideas }), access: "owner" })
         render(
@@ -1188,10 +1192,10 @@ describe("TripWorkspace", () => {
       it("changes the tab on the overview as the tab bar does: an open place closes with it, and Back leaves the trip", async () => {
         renderAt("/trips/lisbon?tab=wishlist")
         fireEvent.click(await screen.findByRole("button", { name: "Idea idea: LX Factory" }))
-        expect(screen.getByRole("status", { name: "Address" })).toHaveTextContent("/trips/lisbon?tab=wishlist&idea=idea-lx")
+        expect(address()).toHaveTextContent("/trips/lisbon?tab=wishlist&idea=idea-lx")
         runCommand("trip:tab-budget")
-        expect(screen.getByRole("status", { name: "Address" })).toHaveTextContent(/^\/trips\/lisbon\?tab=budget$/)
-        fireEvent.click(screen.getByRole("button", { name: "Back" }))
+        expect(address()).toHaveTextContent(/^\/trips\/lisbon\?tab=budget$/)
+        back()
         expect(screen.getByText("All trips page")).toBeInTheDocument()
       })
 
@@ -1199,9 +1203,9 @@ describe("TripWorkspace", () => {
         renderAt("/trips/lisbon/day/day-1")
         await screen.findByRole("button", { name: "Idea idea: LX Factory" })
         runCommand("trip:tab-budget")
-        expect(screen.getByRole("status", { name: "Address" })).toHaveTextContent(/^\/trips\/lisbon\?tab=budget$/)
-        fireEvent.click(screen.getByRole("button", { name: "Back" }))
-        expect(screen.getByRole("status", { name: "Address" })).toHaveTextContent(/^\/trips\/lisbon\/day\/day-1$/)
+        expect(address()).toHaveTextContent(/^\/trips\/lisbon\?tab=budget$/)
+        back()
+        expect(address()).toHaveTextContent(/^\/trips\/lisbon\/day\/day-1$/)
       })
     })
   })

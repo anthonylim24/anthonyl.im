@@ -90,6 +90,17 @@ describe("useIdeaNav while the browser is ahead of the page", () => {
     expect(calls).toHaveLength(1)
   })
 
+  it("ignores a close that names a place no longer open", () => {
+    const view = render(<Probe />)
+    land(opened("b"), 2, view)
+    // The popover of `a`, pressed outside as `b` opened, closing after `b` shows.
+    act(() => nav.close("a"))
+    expect(calls).toEqual([])
+    act(() => nav.close("b"))
+    expect(calls).toEqual([{ kind: "back", search: "-1" }])
+    land(list, 1, view)
+  })
+
   it("replaces rather than going back from a page's first entry", () => {
     const view = render(<Probe />)
     land({ ...opened("a"), key: "default" }, 0, view)

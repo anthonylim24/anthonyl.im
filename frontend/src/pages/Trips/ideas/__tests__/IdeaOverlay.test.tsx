@@ -357,6 +357,20 @@ describe("IdeaOverlay", () => {
       expect(state.pathname).toBe("/trips")
     })
 
+    it("keeps a place open when the last one's close lands after it opened (a fast press on another row)", () => {
+      const state = renderOverlay(makeTrip({ ...twoDays(), ideas: [tram, makeItem({ id: "idea-other", title: "Other" })] }), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      // Tram 28's details took the press on the other row as a press outside;
+      // their close timer still holds the callbacks they had then.
+      const tramDetails = detailsProps.mock.lastCall![0]
+      expect(tramDetails.idea.id).toBe("idea-tram")
+      fireEvent.click(screen.getByRole("button", { name: "Row: Other" }))
+      expect(state.search).toBe("?tab=wishlist&idea=idea-other")
+      act(() => tramDetails.onClose())
+      expect(state.search).toBe("?tab=wishlist&idea=idea-other")
+      expect(screen.getByRole("dialog", { name: "Details: Other" })).toBeInTheDocument()
+    })
+
     it("closes a pasted link's place on a tab change in the same entry", () => {
       const state = renderOverlay(twoDays(), { url: "/trips/lisbon?tab=wishlist&idea=idea-tram", before: ["/trips"] })
       fireEvent.click(screen.getByRole("button", { name: "Tab: Budget" }))

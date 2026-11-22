@@ -135,8 +135,15 @@ export function useIdeaNav() {
   /** Switch between the open idea's details and its picker, keeping the entry and its mark. */
   const show = useLatestCallback((ideaId: string, add?: boolean) => request({ call: "show", ideaId, add }))
 
-  const close = useLatestCallback(() => {
+  /**
+   * Close what is open. With `ideaId`, only while that idea is the one open:
+   * a popover's close can land after another idea opened (a fast press on
+   * another row reads to it as a press outside, and its timer outlives the
+   * switch), and must not close the new one.
+   */
+  const close = useLatestCallback((ideaId?: string) => {
     if (!params.has(IDEA_PARAM)) return
+    if (ideaId !== undefined && params.get(IDEA_PARAM) !== ideaId) return
     // A Back already on its way closes it.
     if (backFrom === location.key) return
     // Made while another entry is on its way (a press outside that opened
