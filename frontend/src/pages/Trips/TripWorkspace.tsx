@@ -1114,10 +1114,9 @@ function Workspace() {
             // Pushed, not replaced: Back closes the wishlist place again.
             onSelectIdea={(ideaId) => setSearchParams((prev) => withIdea(prev, ideaId))}
             label={
-              (day
+              day
                 ? `Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`
-                : `Map of the whole trip with ${plural(pins.length, "pinned place")}`) +
-              (wishPins.length > 0 ? ` and ${plural(wishPins.length, "wishlist place")}` : "")
+                : `Map of the whole trip with ${plural(pins.length, "pinned place")}`
             }
           >
             <p {...sx(s.mapChip, "trips-glass-pill")}>

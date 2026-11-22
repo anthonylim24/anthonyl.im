@@ -63,9 +63,13 @@ describe("AtlasMap wishlist pins", () => {
     expect(legend()).toHaveAttribute("aria-pressed", "true")
     expect(legend()).toHaveTextContent("Wishlist · 2")
 
+    expect(screen.getByRole("region", { name: "Map of day 1 with 2 pinned stops and 2 wishlist places" })).toBeInTheDocument()
+
     fireEvent.click(legend()!)
     expect(legend()).toHaveAttribute("aria-pressed", "false")
     expect(screen.queryAllByRole("button", { name: /on the wishlist$/ })).toHaveLength(0)
+    // Hidden places are not announced as being on the map.
+    expect(screen.getByRole("region", { name: "Map of day 1 with 2 pinned stops" })).toBeInTheDocument()
     unmount()
 
     renderMap({ ideaPins: ideas })

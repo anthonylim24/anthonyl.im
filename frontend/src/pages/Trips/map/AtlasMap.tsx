@@ -282,7 +282,7 @@ export function AtlasMap({
   const showLegend = ideaPins.length > 0 && !ambient && !bare
 
   return (
-    <div {...sx(s.root, ambient && s.rootAmbient)} role="region" aria-label={label}>
+    <div {...sx(s.root, ambient && s.rootAmbient)} role="region" aria-label={ideas.length > 0 ? `${label} and ${ideas.length} wishlist place${ideas.length === 1 ? "" : "s"}` : label}>
       <div ref={hostRef} {...sx(s.canvas, !ambient && s.canvasQuick, status === "ready" && s.canvasReady)} />
       {status !== "ready" && !(ambient && status === "loading") && (
         <StaticChart pins={pins} ideas={ideas} loading={status === "loading"} onSelectIdea={selectIdea} />

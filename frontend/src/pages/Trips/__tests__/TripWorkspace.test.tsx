@@ -1110,7 +1110,8 @@ describe("TripWorkspace", () => {
       unmount()
 
       renderWorkspace("/trips/lisbon", planned({ ideas }))
-      const map = await screen.findByRole("region", { name: "Map of the whole trip with 1 pinned place and 2 wishlist places" })
+      // The stop wording is unchanged; AtlasMap itself adds "and 2 wishlist places" while they show.
+      const map = await screen.findByRole("region", { name: "Map of the whole trip with 1 pinned place" })
       expect(within(map).getAllByRole("button").map((b) => b.textContent)).toEqual([
         "Pin 1: Day 1, Arrival: 2 pinned stops",
         "Idea idea: Pastéis de Belém",
@@ -1127,7 +1128,7 @@ describe("TripWorkspace", () => {
       unmount()
 
       renderWorkspace("/trips/lisbon/day/day-1", planned({ ideas }))
-      const map = await screen.findByRole("region", { name: "Map of day 1 with 2 pinned stops and 2 wishlist places" })
+      const map = await screen.findByRole("region", { name: "Map of day 1 with 2 pinned stops" })
       expect(within(map).getAllByRole("button", { name: /^Pin / }).map((b) => b.textContent)).toEqual([
         "Pin 1: Time Out Market",
         "Pin 2: Fado dinner",
