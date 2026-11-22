@@ -100,9 +100,10 @@ AGENT_GITHUB_REPO=anthonylim24/anthonyl.im
 #   2. Skip-video text extractor (caption-only primary)
 #   3. Groq Whisper 429 fallback (video transcription)
 #   4. Last-resort text extractor when the primary chain yields 0 places
-# Model is set app-wide in `server/src/igPlaces/gemini.ts` → GEMINI_MODEL
-# (gemini-4-neon everywhere but Lim's chat; gemini-3.8-flash as the
-# automatic fallback).
+# Model is set app-wide in `server/src/igPlaces/gemini.ts` → GEMINI_MODEL.
+# Default: gemini-4-neon everywhere but Lim's chat; gemini-3.8-flash as the
+# automatic fallback. A GEMINI_MODEL line in this file overrides the default
+# and survives deploys (the deploy copies ~/.env). Remove it to use the default.
 GEMINI_API_KEY=AIza...
 # TypeSafe key for Jev, which routes each Lim chat message: regular chat to
 # Gemini 4 Hydrogen, playing with the jelly to Gemini 4 Neon
