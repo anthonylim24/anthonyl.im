@@ -5,6 +5,7 @@ import { splitDay, TO_SCHEDULE } from "../map/geo"
 import {
   addIdea,
   addItem,
+  duplicateItem,
   ideaToDay,
   insertByTime,
   makeItem,
@@ -172,6 +173,18 @@ describe("the ideas list", () => {
     expect(added.ideas![0]!.time).toBeUndefined()
     expect(removeIdea(added, added.ideas![0]!.id).ideas).toEqual([])
     expect(removeIdea(added, "ghost")).toBe(added)
+  })
+
+  it("marks a place it puts on a day as from the wishlist, and drops the mark when it goes back or is copied", () => {
+    const trip = tripWith({ ideas: [stop("gallery")] })
+    const scheduled = ideaToDay(trip, "gallery", "day-1")
+    expect(scheduled.days[0]!.items.find((i) => i.id === "gallery")?.fromWishlist).toBe(true)
+
+    const copied = duplicateItem(scheduled.days, "day-1", "gallery")
+    expect(copied[0]!.items.filter((i) => i.title === "gallery").map((i) => i.fromWishlist)).toEqual([true, undefined])
+
+    const back = saveForLater(scheduled, "day-1", "gallery")
+    expect(back.ideas).toEqual([stop("gallery")])
   })
 
   it("leaves a missing idea or day alone", () => {
