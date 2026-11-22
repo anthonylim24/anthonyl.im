@@ -614,6 +614,7 @@ const SCENARIOS = {
       await page.keyboard.type(" and the long walk back up", { delay: 40 })
       await page.waitForTimeout(600)
       await rec(page, false)
+      await page.keyboard.press("Escape")
     },
   },
   // The pointer down the day's cards, then across its pins: each card and
