@@ -241,11 +241,12 @@ const DAY_ONLY = new Set(["id", "time", "endTime", "highlight"])
 
 /**
  * Take off the wishlist every idea that is also on a day, carrying the
- * traveller's edits to it (since `base`) onto that stop. In a merge an edit
- * beats a delete, so without this an idea someone else scheduled comes back
- * as soon as the traveller touches it, and the trip lists it twice.
+ * traveller's edits to it (from `base` to `mine`) onto that stop. In a merge
+ * an edit beats a delete, so without this an idea someone else scheduled
+ * comes back as soon as the traveller touches it (or undoes an edit to it),
+ * and the trip lists it twice.
  */
-function scheduledOnce(base: Trip, mine: Trip, trip: Trip): Trip {
+export function scheduledOnce<T extends Pick<Trip, "days" | "ideas">>(base: Pick<Trip, "ideas">, mine: Pick<Trip, "ideas">, trip: T): T {
   const ideas = trip.ideas ?? []
   if (ideas.length === 0) return trip
   const onDays = new Set(trip.days.flatMap((d) => d.items.map((i) => i.id)))

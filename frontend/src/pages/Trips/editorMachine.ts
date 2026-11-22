@@ -1,5 +1,5 @@
 import { describeSanitized, sanitizeForSave } from "./offline/sanitize"
-import { mergeDays, mergeItems, rebaseTrip, resolveTrip, sameJson } from "./tripMerge"
+import { mergeDays, mergeItems, rebaseTrip, resolveTrip, sameJson, scheduledOnce } from "./tripMerge"
 import type { UpdateTripPatch } from "./tripsApi"
 import type { EnhancementRun, Trip, TripAccess } from "./types"
 
@@ -185,7 +185,8 @@ function replayPlan(doc: Trip, from: Plan, to: Plan): Trip {
   const days = mergeDays(from.days, to.days, doc.days) ?? to.days
   // The wishlist: a stop moved onto a day comes back to it on undo.
   const ideas = from.ideas === to.ideas ? doc.ideas : mergeItems(from.ideas ?? [], to.ideas ?? [], doc.ideas ?? [])
-  return { ...doc, days, startDate: to.startDate, endDate: to.endDate, ideas }
+  // An idea scheduled since (by a review) stays on its day, the undone edit with it.
+  return scheduledOnce(from, to, { ...doc, days, startDate: to.startDate, endDate: to.endDate, ideas })
 }
 
 function record(history: History, prev: Trip, next: Trip, undo: UndoMark | undefined): History {

@@ -554,6 +554,53 @@ describe("AI runs", () => {
     expect(redone.doc.ideas?.map((i) => i.id)).toEqual(["other"])
   })
 
+  describe("a review that finished after Stop (no run to tell the editor)", () => {
+    const idea = makeItem({ id: "idea", title: "Sintra" })
+    const other = makeItem({ id: "other", title: "Cascais" })
+    // The server's scheduled stop keeps the idea's id.
+    const stop = { ...idea, time: "09:00", status: "needs_review" as const, createdBy: "ai" as const }
+    const fromServer = (updatedAt: string) =>
+      trip({
+        updatedAt,
+        ideas: [other],
+        days: [
+          { id: "day-1", date: "2026-07-10", items: [market, stop] },
+          { id: "day-2", date: "2026-07-11", items: [museum] },
+        ],
+      })
+    const editIdea: EditorEvent = {
+      type: "EDIT",
+      fn: (doc) => ({ ...doc, ideas: doc.ideas!.map((i) => (i.id === "idea" ? { ...i, notes: "Go early" } : i)) }),
+      undo: { label: "Edited Sintra" },
+    }
+
+    it("an unsaved edit to the idea moves onto the stop when the server's copy arrives", () => {
+      const dirty = run([editIdea], loaded(trip({ ideas: [idea, other] })))
+      const state = editorReducer(dirty, { type: "EXTERNAL_CHANGE", trip: fromServer(T1) }) as Ready
+      expect(state.doc.ideas?.map((i) => i.id)).toEqual(["other"])
+      expect(state.doc.days[0]!.items.find((i) => i.id === "idea")).toMatchObject({ notes: "Go early", time: "09:00" })
+    })
+
+    it("a save refused as a conflict lands the same way", () => {
+      const { state, sent } = saving(run([editIdea], loaded(trip({ ideas: [idea, other] }))))
+      const after = editorReducer(state, { type: "SAVE_CONFLICT", sent, theirs: fromServer(T1) }) as Ready
+      expect(after.doc.ideas?.map((i) => i.id)).toEqual(["other"])
+      expect(after.doc.days[0]!.items.filter((i) => i.id === "idea")).toHaveLength(1)
+    })
+
+    it("Undo of the edit does not bring the idea back", () => {
+      const edited = run([editIdea], loaded(trip({ ideas: [idea, other] })))
+      const { state, sent } = saving(edited)
+      const clean = editorReducer(state, { type: "SAVE_OK", sent, saved: { ...sent, updatedAt: T1 } }) as Ready
+      const landed = editorReducer(clean, { type: "EXTERNAL_CHANGE", trip: fromServer(T2) }) as Ready
+      const undone = editorReducer(landed, { type: "UNDO" }) as Ready
+      expect(undone.doc.ideas?.map((i) => i.id)).toEqual(["other"])
+      expect(undone.doc.days[0]!.items.filter((i) => i.id === "idea")).toHaveLength(1)
+      const redone = editorReducer(undone, { type: "REDO" }) as Ready
+      expect(redone.doc.ideas?.map((i) => i.id)).toEqual(["other"])
+    })
+  })
+
   it("make “replace my itinerary” undoable", () => {
     const drafted = trip({ updatedAt: T1, days: [{ id: "day-1", date: "2026-07-10", items: [] }, { id: "day-2", date: "2026-07-11", items: [] }] })
     const state = run(
