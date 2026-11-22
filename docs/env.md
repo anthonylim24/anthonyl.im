@@ -22,6 +22,7 @@ Optional / feature-gated:
 - `AGENT_LOGIN_SECRET`, `CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL`, `AGENT_GITHUB_REPO` — preview screenshot login
 - `METRICS_TOKEN` — optional. `Authorization: Bearer <METRICS_TOKEN>` reads `/health/metrics` from off the droplet; unset, only a local request can (see [`observability.md`](observability.md))
 - `IG_WORKER_*` — worker knobs
+- `TRIPS_REVIEW_WORKER` — the AI review queue's sweep (`server/src/trips/reviewWorker.ts`): every 10 s, and once at boot, it claims retries, runs whose worker died, and runs a restart left behind. Default on when `NODE_ENV=production`, off otherwise (so `bun test` starts no timers and a dev server holding real Supabase keys never claims production reviews). Off, a review still starts in this process the moment `/enhance` queues it, and retries its own failed attempts; set `TRIPS_REVIEW_WORKER=true` locally to exercise restarts
 - `IG_DEV_BEARER` / `VITE_DEV_BEARER` — **non-production** Clerk bypass only (compared in constant time). With `NODE_ENV=production` (the droplet and the PR-preview sidecar) both are ignored and the server logs one loud `[config] !!!` warning at boot if either is set; it does not refuse to start. **Never** set them in production or PR previews.
 
 Frontend (`frontend/.env` from CI secret `FRONTEND_ENV`):
