@@ -326,9 +326,14 @@ describe("TripCreate", () => {
     mockGenerateItinerary.mockReturnValue(new Promise(() => {}))
     renderCreate()
     await pickCity("Lis", /Lisbon/)
-    fireEvent.click(screen.getByRole("button", { name: "Create and draft itinerary" }))
+    // Inside act, the drafting phase renders and its effects run, so the
+    // clock's interval is set before time moves. Found later (`findBy*`),
+    // the interval could still be pending and the jump below tick nothing.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Create and draft itinerary" }))
+    })
 
-    const stop = await screen.findByRole("button", { name: "Stop" })
+    const stop = screen.getByRole("button", { name: "Stop" })
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/trips")
     expect(screen.getByRole("status")).toHaveTextContent("Drafting the itinerary with AI…")
     expect(screen.getAllByText("Drafting the itinerary · 0 s").length).toBeGreaterThan(0)
