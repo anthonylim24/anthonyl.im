@@ -566,7 +566,9 @@ export function createGooglePlaceDetails(
     const outcome = answers.get(placeId)?.value ?? (await fetchId(placeId, budget))
     if (outcome.kind !== "moved") return outcome
     const next = answers.get(outcome.to)?.value ?? (await fetchId(outcome.to, budget))
-    return next.kind === "moved" ? { kind: "closed" } : next
+    // The old place closed for good either way. A new home Google cannot show,
+    // or one that moved again, is still nothing: searching by name would land on a neighbour.
+    return next.kind === "place" ? next : { kind: "closed" }
   }
 
   const byName = async ({ name, near }: NamedPoint, budget: Budget): Promise<PlaceDetails | null> => {

@@ -288,7 +288,9 @@ export function placeMatch(
 export function formatKm(km: number): string {
   const meters = Math.round((km * 1000) / 50) * 50
   if (meters < 1000) return `${Math.max(50, meters)} m`
-  return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`
+  // Rounded before choosing the form: 9.96 is "10 km", never "10.0 km".
+  const tenths = Math.round(km * 10) / 10
+  return tenths < 10 ? `${tenths.toFixed(1)} km` : `${Math.round(km)} km`
 }
 
 const stopsSoFar = (n: number) =>

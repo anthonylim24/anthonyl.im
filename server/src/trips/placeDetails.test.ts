@@ -314,6 +314,26 @@ describe("createGooglePlaceDetails", () => {
     expect(await createGooglePlaceDetails(KEY, fetchImpl)({ placeId: PALACE_ID })).toBeNull()
   })
 
+  it("counts a move to an id Google does not know as closed, never a search by name", async () => {
+    const OLD = "ChIJoldClosedPlace0002"
+    const NEW = "ChIJnewHomeUnknown0002"
+    const base = fakeGoogle()
+    const calls: string[] = []
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      calls.push(url)
+      if (url.includes(`/places/${OLD}?`)) return Response.json({ id: OLD, displayName: { text: "Old" }, businessStatus: "CLOSED_PERMANENTLY", movedPlaceId: NEW })
+      if (url.includes(`/places/${NEW}?`)) return new Response("", { status: 404 })
+      return base.fetchImpl(input, init)
+    }) as typeof fetch
+    const place = await createGooglePlaceDetails(KEY, fetchImpl)({
+      placeId: OLD,
+      fallback: { name: "Gyeongbokgung", near: { lat: 37.5796, lng: 126.977 } },
+    })
+    expect(place).toBeNull()
+    expect(calls.some((url) => url.endsWith("places:searchText"))).toBe(false)
+  })
+
   it("asks only for fields it shows", () => {
     expect(DETAILS_FIELDS.split(",")).not.toContain("location")
   })

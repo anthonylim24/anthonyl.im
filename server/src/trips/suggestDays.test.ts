@@ -259,6 +259,8 @@ describe("the nearby fallback", () => {
     expect(formatKm(0.98)).toBe("1.0 km")
     expect(formatKm(1.234)).toBe("1.2 km")
     expect(formatKm(12.6)).toBe("13 km")
+    expect(formatKm(9.94)).toBe("9.9 km")
+    expect(formatKm(9.96)).toBe("10 km")
   })
 })
 
