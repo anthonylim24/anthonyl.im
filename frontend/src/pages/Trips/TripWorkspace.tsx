@@ -659,12 +659,15 @@ function Workspace() {
               exportCalendar: () => exportCalendar(trip),
               print: printFromPalette,
               copyText: copyFromPalette,
-              openTab: (next) => navigate(next === "itinerary" ? basePath : `${basePath}?tab=${next}`),
+              // On the overview, exactly the tab bar (an open wishlist place
+              // closes with it). From a day it is a move to the overview, a
+              // new entry like any other link off the day.
+              openTab: (next) => (dayId ? navigate(next === "itinerary" ? basePath : `${basePath}?tab=${next}`) : setTab(next)),
             },
           })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `paletteDay` rebuilds the list when the trip's date turns over ("Go to today")
-    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette, paletteDay],
+    [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette, paletteDay, setTab],
   )
   useRegisterCommands("trip", paletteCommands)
 

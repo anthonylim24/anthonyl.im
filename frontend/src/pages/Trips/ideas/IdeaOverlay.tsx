@@ -77,7 +77,7 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
     onEdit((doc) => ideaToDay(doc, target.id, dayId), { label: `Added “${name}” to day ${index + 1}`, toast: true })
     announce(`Added ${name} to day ${index + 1}`)
     finished.current = target.id
-    close()
+    close(target.id)
   }
 
   const onPickerClose = (target: ItineraryItem) => {
@@ -85,7 +85,7 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
     if (addFromDetails.current === target.id) {
       addFromDetails.current = null
       nav.show(target.id)
-    } else close()
+    } else close(target.id)
   }
 
   const onRemove = (target: ItineraryItem) => {
@@ -94,11 +94,11 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
     onEdit((doc) => removeIdea(doc, target.id), { label: `Removed “${name}” from the wishlist`, toast: true })
     announce(`Removed ${name}`)
     finished.current = target.id
-    close()
+    close(target.id)
   }
 
   const onDetailsClose = (target: ItineraryItem) => {
-    if (showing(target, "details")) close()
+    if (showing(target, "details")) close(target.id)
   }
 
   // Each piece leaves through its own Presence, which keeps showing the idea

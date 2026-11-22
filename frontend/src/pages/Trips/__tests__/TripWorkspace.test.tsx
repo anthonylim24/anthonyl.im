@@ -80,6 +80,16 @@ vi.mock("../map/AtlasMap", () => ({
   ),
 }))
 
+// The palette itself is tested elsewhere: keep what the workspace registers, to run it.
+const registered = vi.hoisted(() => new Map<string, readonly Command[]>())
+vi.mock("../command/CommandContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../command/CommandContext")>()),
+  useRegisterCommands: (source: string, commands: readonly Command[]) => {
+    registered.set(source, commands)
+  },
+}))
+
+import type { Command } from "../command/commands"
 import { TripWorkspace } from "../TripWorkspace"
 
 const market = makeItem({
@@ -1156,6 +1166,47 @@ describe("TripWorkspace", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Back" }))
       expect(screen.getByRole("status", { name: "Address" })).toHaveTextContent(/^\/trips\/lisbon\/day\/day-1\?tab=plan$/)
+    })
+
+    describe("a tab from the command palette", () => {
+      const runCommand = (id: string) => act(() => registered.get("trip")!.find((command) => command.id === id)!.run())
+      // An open place's sheet hides the rest of the page from the accessibility
+      // tree (names and all) once its chunk has loaded: find these by label and text.
+      const address = () => screen.getByLabelText("Address")
+      const back = () => fireEvent.click(screen.getByText("Back"))
+      function renderAt(path: string) {
+        mockGetTrip.mockResolvedValue({ trip: planned({ ideas }), access: "owner" })
+        render(
+          <MemoryRouter initialEntries={["/trips", path]} initialIndex={1}>
+            <Address />
+            <Back />
+            <Routes>
+              <Route path="/trips/:tripId" element={<TripWorkspace />} />
+              <Route path="/trips/:tripId/day/:dayId" element={<TripWorkspace />} />
+              <Route path="/trips" element={<p>All trips page</p>} />
+            </Routes>
+          </MemoryRouter>,
+        )
+      }
+
+      it("changes the tab on the overview as the tab bar does: an open place closes with it, and Back leaves the trip", async () => {
+        renderAt("/trips/lisbon?tab=wishlist")
+        fireEvent.click(await screen.findByRole("button", { name: "Idea idea: LX Factory" }))
+        expect(address()).toHaveTextContent("/trips/lisbon?tab=wishlist&idea=idea-lx")
+        runCommand("trip:tab-budget")
+        expect(address()).toHaveTextContent(/^\/trips\/lisbon\?tab=budget$/)
+        back()
+        expect(screen.getByText("All trips page")).toBeInTheDocument()
+      })
+
+      it("goes from a day to that tab of the overview as a new entry, like any link off the day", async () => {
+        renderAt("/trips/lisbon/day/day-1")
+        await screen.findByRole("button", { name: "Idea idea: LX Factory" })
+        runCommand("trip:tab-budget")
+        expect(address()).toHaveTextContent(/^\/trips\/lisbon\?tab=budget$/)
+        back()
+        expect(address()).toHaveTextContent(/^\/trips\/lisbon\/day\/day-1$/)
+      })
     })
   })
 

@@ -126,16 +126,26 @@ export function ideaName(idea: Pick<ItineraryItem, "title" | "location">): strin
 }
 
 export const IDEA_PARAM = "idea"
+/**
+ * The idea's day picker, but only beside `?idea`: other panels use `add` too
+ * (Budget's `?tab=budget&add=expense`, held while the trip is locked).
+ */
 export const IDEA_ADD_PARAM = "add"
 /** `data-idea-anchor="<id>"` on the element a row opens the popover from. */
 export const IDEA_ANCHOR_ATTR = "data-idea-anchor"
 
-/** The params with `ideaId`'s details (or its day picker) open; null closes both. Never mutates `params`. */
+/**
+ * The params with `ideaId`'s details (or its day picker) open; null closes
+ * both. Closing leaves an `add` alone when no idea was open, since it is then
+ * another panel's. Opening takes `add` over: a place opened on top of another
+ * panel's request pushes its own entry, so Back brings the request back.
+ * Never mutates `params`.
+ */
 export function withIdea(params: URLSearchParams, ideaId: string | null, add = false): URLSearchParams {
   const next = new URLSearchParams(params)
   if (ideaId) next.set(IDEA_PARAM, ideaId)
   else next.delete(IDEA_PARAM)
   if (ideaId && add) next.set(IDEA_ADD_PARAM, "1")
-  else next.delete(IDEA_ADD_PARAM)
+  else if (ideaId || params.has(IDEA_PARAM)) next.delete(IDEA_ADD_PARAM)
   return next
 }
