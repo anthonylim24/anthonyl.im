@@ -120,6 +120,19 @@ function renderOverlay(
         </button>
         <button
           type="button"
+          onClick={() => {
+            // One instance holds the tab bar and the map pins (TripWorkspace): both in one task.
+            nav.replaceClosing((params) => {
+              params.set("tab", "budget")
+              return params
+            })
+            nav.open("idea-other", "map")
+          }}
+        >
+          Tab: Budget, then Pin: Other
+        </button>
+        <button
+          type="button"
           onClick={() =>
             // Something else that replaces the URL and keeps every other param.
             setParams(
@@ -327,6 +340,18 @@ describe("IdeaOverlay", () => {
       const state = renderOverlay(twoDays(), fromTrips)
       fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
       fireEvent.click(screen.getByRole("button", { name: "Tab: Budget" }))
+      expect(state.search).toBe("?tab=budget")
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    it("makes a tab change and a pin pressed with it both, in order", () => {
+      const state = renderOverlay(makeTrip({ ...twoDays(), ideas: [tram, makeItem({ id: "idea-other", title: "Other" })] }), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Tab: Budget, then Pin: Other" }))
+      expect(state.search).toBe("?tab=budget&idea=idea-other")
+      expect(screen.getByRole("dialog", { name: "Details: Other" })).toHaveAttribute("data-from", "map")
+      act(() => state.navigate(-1))
       expect(state.search).toBe("?tab=budget")
       act(() => state.navigate(-1))
       expect(state.pathname).toBe("/trips")

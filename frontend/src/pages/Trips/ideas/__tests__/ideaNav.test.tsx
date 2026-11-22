@@ -111,4 +111,71 @@ describe("useIdeaNav while the browser is ahead of the page", () => {
     land(list, 1, view)
     expect(calls[1]).toEqual({ kind: "replace", search: "tab=budget", state: undefined })
   })
+
+  it("makes a tab change and a pin pressed in the same moment both, in order", () => {
+    const view = render(<Probe />)
+    land(opened("a"), 2, view)
+    act(() => {
+      nav.replaceClosing(toTab("budget"))
+      nav.open("b", "map")
+    })
+    expect(calls).toEqual([{ kind: "back", search: "-1" }])
+    land(list, 1, view)
+    // The tab first, on the entry Back lands on; the pin waits for that to show.
+    expect(calls.slice(1)).toEqual([{ kind: "replace", search: "tab=budget", state: undefined }])
+    land({ search: "tab=budget", key: "k-budget", state: null }, 1, view)
+    expect(calls.slice(2)).toEqual([{ kind: "push", search: "tab=budget&idea=b", state: ideaOpenState("map") }])
+  })
+
+  describe("when a Back takes longer than a second to land (a busy main thread)", () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it("still goes back only once, so a second close never leaves the trip", () => {
+      const view = render(<Probe />)
+      land(opened("a"), 2, view)
+      act(() => nav.close())
+      act(() => vi.advanceTimersByTime(5000))
+      act(() => nav.close())
+      expect(calls).toEqual([{ kind: "back", search: "-1" }])
+      land(list, 1, view)
+      expect(calls).toHaveLength(1)
+    })
+
+    it("holds a press made meanwhile for the entry Back lands on", () => {
+      const view = render(<Probe />)
+      land({ ...opened("a"), key: "k-open-slow" }, 2, view)
+      act(() => nav.close())
+      act(() => vi.advanceTimersByTime(5000))
+      act(() => nav.open("b", "row"))
+      expect(calls).toEqual([{ kind: "back", search: "-1" }])
+      land(list, 1, view)
+      expect(calls.slice(1)).toEqual([{ kind: "push", search: "tab=wishlist&idea=b", state: ideaOpenState("row") }])
+    })
+  })
+
+  describe("another panel's `add` (Budget's ?add=expense)", () => {
+    const budget: Entry = { search: "tab=budget&add=expense", key: "k1", state: null }
+
+    it("survives a tab change with no place open", () => {
+      const view = render(<Probe />)
+      land(budget, 1, view)
+      act(() => nav.replaceClosing(toTab("wishlist")))
+      expect(calls).toEqual([{ kind: "replace", search: "tab=wishlist&add=expense", state: undefined }])
+    })
+
+    it("is not a place: a close with none open changes nothing", () => {
+      const view = render(<Probe />)
+      land(budget, 1, view)
+      act(() => nav.close())
+      expect(calls).toEqual([])
+    })
+  })
 })
+
+function toTab(tab: string) {
+  return (params: URLSearchParams) => {
+    params.set("tab", tab)
+    return params
+  }
+}
