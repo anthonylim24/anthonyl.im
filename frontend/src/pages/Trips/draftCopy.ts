@@ -19,7 +19,7 @@ export function draftNotice(stops: number, days: number, incompleteDays: readonl
   return `Drafted ${plural(stops, "stop")} across ${plural(days, "day")}. Everything is editable.`
 }
 
-/** "48 s", "1 min 12 s": elapsed time in plain words, for a wait that can run two minutes. */
+/** "48 s", "1 min 12 s": elapsed time in plain words, for a wait that can run a few minutes. */
 export function elapsedText(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
   return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`

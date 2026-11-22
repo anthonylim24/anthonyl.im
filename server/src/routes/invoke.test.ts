@@ -1,4 +1,4 @@
-import { test, expect, describe, mock, afterEach } from "bun:test";
+import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
 import { Hono } from "hono";
 
 // Build a fake async-iterable of Groq chunks
@@ -42,6 +42,36 @@ const { default: invoke } = await import("./invoke");
 function makeApp() {
   return new Hono().route("/api/invoke", invoke);
 }
+
+// These tests mean "Gemini and Jev are not configured, so the mocked Groq
+// answers". The route reads both keys from process.env per request, and Bun
+// fills that from the repo's .env, so on a machine with GEMINI_API_KEY the
+// route would ask the real Gemini (and, with a world, the real Jev) instead.
+// Clear them for each test, and fail any test that still reaches the network:
+// the Groq fallback would otherwise swallow a stray call and stay green.
+const MODEL_KEYS = ["GEMINI_API_KEY", "JEV_API_KEY"] as const;
+const savedKeys = MODEL_KEYS.map((key) => [key, process.env[key]] as const);
+const realFetch = globalThis.fetch;
+let outbound: string[] = [];
+
+beforeEach(() => {
+  for (const key of MODEL_KEYS) delete process.env[key];
+  outbound = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = input instanceof Request ? input.url : String(input);
+    outbound.push(url);
+    throw new TypeError(`unexpected network call in invoke.test.ts: ${url}`);
+  }) as unknown as typeof fetch;
+});
+
+afterEach(() => {
+  globalThis.fetch = realFetch;
+  for (const [key, value] of savedKeys) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  expect(outbound).toEqual([]);
+});
 
 describe("POST /api/invoke", () => {
   test("missing prompt returns 400", async () => {

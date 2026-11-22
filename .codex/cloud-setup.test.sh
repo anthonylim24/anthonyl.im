@@ -65,7 +65,8 @@ assert_contains ".github/actions/setup-ci/action.yml" "Set up Bun (retry)"
   exit 1
 }
 assert_contains ".github/workflows/preview.yml" "/preview/pr/"
-assert_contains ".github/workflows/preview.yml" "VITE_ENABLE_SERVICE_WORKER=false"
+assert_contains ".github/workflows/preview.yml" "write-frontend-env.sh .env --preview"
+assert_contains ".github/workflows/deploy.yml" "write-frontend-env.sh frontend/.env"
 assert_contains ".github/workflows/preview.yml" "dependabot[bot]"
 assert_contains ".github/workflows/preview.yml" "head.repo.full_name"
 if grep -A30 '^  pr-gate:' "$ROOT_DIR/.github/workflows/pr.yml" | grep -q 'preview'; then
@@ -74,6 +75,24 @@ if grep -A30 '^  pr-gate:' "$ROOT_DIR/.github/workflows/pr.yml" | grep -q 'previ
 fi
 assert_executable "deploy/publish-preview.sh"
 bash -n "$ROOT_DIR/deploy/publish-preview.sh"
+# A preview .env carries the production Clerk key, never the dev bearer,
+# with the service worker off and the API on the PR's sidecar.
+assert_executable "deploy/write-frontend-env.sh"
+ENV_OUT="$(mktemp)"
+FRONTEND_ENV=$'VITE_DEV_BEARER=x\nVITE_CLERK_PUBLISHABLE_KEY=pk_test_x\nVITE_ENABLE_SERVICE_WORKER=true' \
+  IN_CLERK_PUBLISHABLE_KEY=pk_live_x \
+  bash "$ROOT_DIR/deploy/write-frontend-env.sh" "$ENV_OUT" --preview 7
+for line in VITE_CLERK_PUBLISHABLE_KEY=pk_live_x VITE_ENABLE_SERVICE_WORKER=false VITE_API_BASE=/preview/pr/7; do
+  grep -qxF "$line" "$ENV_OUT" || {
+    echo "[codex-cloud-test] preview .env is missing: $line" >&2
+    exit 1
+  }
+done
+if grep -qE 'VITE_DEV_BEARER|pk_test_|SERVICE_WORKER=true' "$ENV_OUT"; then
+  echo "[codex-cloud-test] preview .env kept a line it must replace or drop" >&2
+  exit 1
+fi
+rm -f "$ENV_OUT"
 assert_contains "deploy/publish-preview.sh" "preview.json"
 [ -f "$ROOT_DIR/server/src/preview.ts" ] || {
   echo "[codex-cloud-test] missing server/src/preview.ts" >&2

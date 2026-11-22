@@ -38,12 +38,16 @@ export const DEFAULT_SESSION_SECONDS = 1800;
 export const DEFAULT_UPSTREAM_TIMEOUT_MS = 10_000;
 
 /**
- * Dedicated Clerk screenshot identity for this repo's login helper.
+ * Dedicated Clerk screenshot identity for this repo's login helper:
+ * screenshots@anthonyl.im on the **production** instance, the one previews
+ * sign in with (the old id was the development instance's user, which a
+ * production secret cannot find). It has no password; sessions come from
+ * agent-task sign-in tokens only.
  * Production still requires CLERK_AGENT_USER_ID / _EMAIL on the droplet.
  * Cloud agents often have CLERK_SECRET_KEY but not the user id — the helper
  * falls back to this user (not a personal production session).
  */
-export const DEFAULT_CLERK_AGENT_USER_ID = "user_3HtDY4Oexea4W5jv3ZZDi0b3Grk";
+export const DEFAULT_CLERK_AGENT_USER_ID = "user_3MSIwE8zb87eOCjaBd9WlyqO6A8";
 
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
