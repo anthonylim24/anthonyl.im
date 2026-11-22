@@ -93,11 +93,31 @@ const LATIN_QUERY = /^[a-z0-9]+$/
 // The same tier in the title beats it in a keyword, which beats it in the subtitle.
 const weigh = (tier: number, field: 0 | 1 | 2) => (tier === TIER.none ? 0 : tier * 4 + field)
 
+interface Folded {
+  title: string
+  keywords: string[]
+  subtitle: string
+}
+
+/**
+ * Each command's text, folded once. Folding (NFKD, jamo) was most of the
+ * palette's work per keystroke on a long trip. Commands are never changed in
+ * place (screens build new ones), so the command itself is the key.
+ */
+const foldedText = new WeakMap<Command, Folded>()
+
+function folded(command: Command): Folded {
+  let entry = foldedText.get(command)
+  if (!entry) {
+    entry = { title: foldText(command.title), keywords: (command.keywords ?? []).map(foldText), subtitle: foldText(command.subtitle ?? "") }
+    foldedText.set(command, entry)
+  }
+  return entry
+}
+
 /** How well one command matches a folded query; 0 is no match. */
 function score(command: Command, query: string): number {
-  const title = foldText(command.title)
-  const keywords = (command.keywords ?? []).map(foldText)
-  const subtitle = foldText(command.subtitle ?? "")
+  const { title, keywords, subtitle } = folded(command)
   let best = weigh(matchTier(title, query), 2)
   for (const keyword of keywords) best = Math.max(best, weigh(matchTier(keyword, query), 1))
   best = Math.max(best, weigh(matchTier(subtitle, query), 0))

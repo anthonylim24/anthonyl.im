@@ -62,17 +62,15 @@ describe("DateRange", () => {
     expect(screen.getByRole("dialog", { name: "Choose trip dates" })).toBeInTheDocument()
   })
 
-  it("opens on the start month and the one after, with the current range marked", () => {
+  it("opens on the start month, with the current range marked", () => {
     render(<Host />)
     fireEvent.click(trigger())
 
     expect(trigger()).toHaveAttribute("aria-expanded", "true")
-    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["December 2026", "January 2027"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["December 2026"])
     expect(panel().getByRole("status")).toHaveTextContent("Pick the first day")
     expect(pressed()).toEqual(["Friday, December 4, 2026", "Tuesday, December 8, 2026"])
-    // 31 days in each of the two months.
     expect(within(panel().getByRole("group", { name: "December 2026" })).getAllByRole("button")).toHaveLength(31)
-    expect(within(panel().getByRole("group", { name: "January 2027" })).getAllByRole("button")).toHaveLength(31)
   })
 
   it("focuses the start day on opening, so the arrow keys work straight away", async () => {
@@ -160,13 +158,14 @@ describe("DateRange", () => {
     render(<Host />)
     fireEvent.click(trigger())
 
-    fireEvent.click(panel().getByRole("button", { name: "Later months" }))
-    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["January 2027", "February 2027"])
-    fireEvent.click(panel().getByRole("button", { name: "Earlier months" }))
-    fireEvent.click(panel().getByRole("button", { name: "Earlier months" }))
-    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026", "December 2026"])
+    fireEvent.click(panel().getByRole("button", { name: "Next month" }))
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["January 2027"])
+    fireEvent.click(panel().getByRole("button", { name: "Previous month" }))
+    fireEvent.click(panel().getByRole("button", { name: "Previous month" }))
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026"])
 
     fireEvent.click(day("Monday, November 30, 2026"))
+    fireEvent.click(panel().getByRole("button", { name: "Next month" }))
     fireEvent.click(day("Wednesday, December 2, 2026"))
     expect(onChange).toHaveBeenCalledWith("2026-11-30", "2026-12-02")
   })
@@ -196,7 +195,18 @@ describe("DateRange", () => {
 
     fireEvent.keyDown(first, { key: "ArrowLeft" })
     await waitFor(() => expect(day("Monday, November 30, 2026")).toHaveFocus())
-    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026", "December 2026"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026"])
+  })
+
+  it("keeps one tab stop in a month paged away from the range", () => {
+    render(<Host />)
+    fireEvent.click(trigger())
+    fireEvent.click(panel().getByRole("button", { name: "Previous month" }))
+    const stops = panel()
+      .getAllByRole("button")
+      .filter((b) => b.hasAttribute("data-day") && b.getAttribute("tabindex") === "0")
+      .map((b) => b.getAttribute("aria-label"))
+    expect(stops).toEqual(["Sunday, November 1, 2026"])
   })
 
   it("picks a range from the keyboard", async () => {
@@ -246,12 +256,13 @@ describe("DateRange", () => {
   it("reopens on the month of the new start", () => {
     render(<Host />)
     fireEvent.click(trigger())
-    fireEvent.click(panel().getByRole("button", { name: "Later months" }))
+    fireEvent.click(panel().getByRole("button", { name: "Next month" }))
+    fireEvent.click(panel().getByRole("button", { name: "Next month" }))
     fireEvent.click(day("Monday, February 1, 2027"))
     fireEvent.click(day("Wednesday, February 3, 2027"))
 
     fireEvent.click(trigger())
-    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["February 2027", "March 2027"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["February 2027"])
     expect(pressed()).toEqual(["Monday, February 1, 2027", "Wednesday, February 3, 2027"])
   })
 

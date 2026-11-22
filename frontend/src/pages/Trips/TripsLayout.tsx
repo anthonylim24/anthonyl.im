@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from "react-router-dom"
 import { MotionConfig } from "motion/react"
 import { ArrowLeft, Lock, Plus, RotateCw } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useClerk } from "@clerk/clerk-react"
-import { sx } from "@/styles/merge"
+import { stylex, sx } from "@/styles/merge"
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { syncManifest } from "@/lib/routeMetadata"
 import { useAuthStall, type StallCause } from "@/lib/authStall"
@@ -283,7 +283,7 @@ export function TripsLayout() {
               <ArrowLeft size={18} strokeWidth={1.75} aria-hidden />
             </Link>
           )}
-          <Link to="/trips" {...sx("group", s.brand)} aria-label="Trips home">
+          <Link to="/trips" {...sx(stylex.defaultMarker(), s.brand)} aria-label="Trips home">
             <CompassMark style={s.brandMark} />
             Trips
           </Link>

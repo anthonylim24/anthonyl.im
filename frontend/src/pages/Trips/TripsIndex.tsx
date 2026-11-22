@@ -1,7 +1,18 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type RefObject } from "react"
+import {
+  memo,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowRight, Copy, MoreHorizontal, Plus, RotateCcw, Search, Share2, Sparkles, Trash2, Users } from "lucide-react"
-import { sx } from "@/styles/merge"
+import { stylex, sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
@@ -55,6 +66,29 @@ export function tripHref(trip: Pick<TripSummary, "id" | "slug">): string {
   return `/trips/${trip.slug ?? trip.id}`
 }
 
+/** Runs `fn` when the browser is next idle (by `timeout` at the latest); returns a cancel. */
+function whenIdle(fn: () => void, timeout: number): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(fn, { timeout })
+    return () => window.cancelIdleCallback(id)
+  }
+  const timer = setTimeout(fn, 300)
+  return () => clearTimeout(timer)
+}
+
+/**
+ * Cover pictures drawn this session, by trip version and theme, so coming
+ * back to the index draws nothing again. Oldest first; a few dozen at most.
+ */
+const drawnStills = new Map<string, string>()
+const STILLS_KEPT = 48
+
+function keepStill(key: string, url: string) {
+  drawnStills.delete(key)
+  drawnStills.set(key, url)
+  if (drawnStills.size > STILLS_KEPT) drawnStills.delete(drawnStills.keys().next().value!)
+}
+
 const PHONE_QUERY = "(max-width: 899.98px)"
 
 /** On a phone the globe waits for its turn: the list comes first. Elsewhere, or without the APIs to wait with, it mounts at once. */
@@ -82,13 +116,7 @@ function useGlobeReady(ref: RefObject<HTMLElement | null>): boolean {
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return
         observer.disconnect()
-        if (typeof window.requestIdleCallback === "function") {
-          const id = window.requestIdleCallback(() => setReady(true), { timeout: 2000 })
-          cancelIdle = () => window.cancelIdleCallback(id)
-        } else {
-          const timer = setTimeout(() => setReady(true), 300)
-          cancelIdle = () => clearTimeout(timer)
-        }
+        cancelIdle = whenIdle(() => setReady(true), 2000)
       },
       { rootMargin: "200px" },
     )
@@ -100,6 +128,124 @@ function useGlobeReady(ref: RefObject<HTMLElement | null>): boolean {
   }, [ready, ref])
   return ready
 }
+
+interface CardActions {
+  share: (trip: TripSummary) => void
+  duplicate: (trip: TripSummary) => void
+  remove: (trip: TripSummary) => void
+}
+
+const TripCard = memo(function TripCard({
+  trip,
+  live,
+  when,
+  order,
+  still,
+  actions,
+  onHot,
+}: {
+  trip: TripSummary
+  /** The trip is under way. */
+  live: boolean
+  /** The countdown chip ("In 23 days"), or the month for long-past trips. */
+  when: string
+  /** Position in its row, for the staggered rise. */
+  order: number
+  still: string | undefined
+  /** The card's menu; "working" while a duplicate or delete runs; null on the device copy. */
+  actions: CardActions | "working" | null
+  onHot: Dispatch<SetStateAction<string | null>>
+}) {
+  const tags = visibleTags(trip.tags)
+  const points = useMemo(() => (trip.points ?? []).map(([lng, lat]) => ({ lat, lng })), [trip.points])
+  const coverPoints = useMemo(() => (points.length > 0 ? points : trip.center ? [trip.center] : []), [points, trip.center])
+  const shared = trip.sharedWithAllUsers || trip.collaborators.length > 0
+  const places = trip.destinations.join(" · ")
+  const line = [places.toLowerCase() === trip.name.trim().toLowerCase() ? "" : places, ...tags.slice(0, 2)].filter(Boolean).join(" · ")
+  const enter = () => onHot(trip.id)
+  const leave = () => onHot((current) => (current === trip.id ? null : current))
+  const items: MenuItem[] =
+    actions && actions !== "working"
+      ? [
+          { label: "Share…", icon: <Share2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => actions.share(trip) },
+          { label: "Duplicate", icon: <Copy size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => actions.duplicate(trip) },
+          ...(trip.access === "owner" && !trip.sharedWithAllUsers
+            ? [
+                {
+                  label: "Delete trip…",
+                  icon: <Trash2 size={16} strokeWidth={1.75} aria-hidden />,
+                  danger: true,
+                  separated: true,
+                  onSelect: () => actions.remove(trip),
+                },
+              ]
+            : []),
+        ]
+      : []
+  return (
+    <article
+      {...sx(stylex.defaultMarker(), s.card)}
+      style={{ animationDelay: `${Math.min(order, 8) * 60}ms` }}
+      data-trip-accent={resolveAccent(trip.accent)}
+      onMouseEnter={enter}
+      onMouseLeave={leave}
+    >
+      <span {...sx(s.cardLift)} aria-hidden />
+      <Link
+        to={tripHref(trip)}
+        {...sx(s.cardLink)}
+        aria-label={`${trip.name}, ${formatRange(trip.startDate, trip.endDate)}`}
+        onFocus={enter}
+        onBlur={leave}
+      />
+      <div {...sx(s.cardCover)}>
+        <TripCover seed={trip.id} points={coverPoints} still={still} />
+        <div {...sx(s.cardBadges)}>
+          <span {...sx(s.badge)}>
+            {live && <span {...sx(s.liveDot)} aria-hidden />}
+            {when}
+          </span>
+          {trip.status === "draft" && <span {...sx(s.badge)}>Draft</span>}
+        </div>
+      </div>
+      <div {...sx(s.cardBody)}>
+        <h4 {...sx(a.display, s.cardTitle, a.wrap)}>{trip.name}</h4>
+        <p {...sx(a.small)}>
+          {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
+        </p>
+        {line ? <p {...sx(a.small, a.wrap)}>{line}</p> : null}
+      </div>
+      <div {...sx(s.cardFoot)}>
+        <span {...sx(a.row, a.small)}>
+          {plural(trip.placeCount ?? 0, "place")}
+          <span aria-hidden>·</span>
+          {shared ? (
+            <span {...sx(a.chip)} title={trip.sharedWithAllUsers ? "Shared with everyone" : plural(trip.collaborators.length, "guest")}>
+              <Users size={12} strokeWidth={2} aria-hidden />
+              {trip.sharedWithAllUsers ? "Everyone" : `${trip.collaborators.length + 1} people`}
+            </span>
+          ) : (
+            "Only you"
+          )}
+        </span>
+        <span {...sx(s.cardMenu)}>
+          {actions === null ? null : actions === "working" ? (
+            <span {...sx(a.iconBtn)} role="status" aria-label="Working">
+              <Spinner />
+            </span>
+          ) : (
+            <Menu
+              label={`Options for ${trip.name}`}
+              side="up"
+              trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
+              items={items}
+            />
+          )}
+        </span>
+      </div>
+    </article>
+  )
+})
 
 /** The day of a trip under way that is today, as a path; the trip itself when no day is today. */
 function todayPath(trip: Pick<TripSummary, "id" | "slug">, doc: Pick<Trip, "timezone" | "days">, now: number): string {
@@ -135,7 +281,7 @@ export function TripsIndex() {
   const [actionError, setActionError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const dark = useIsDark()
-  const [stills, setStills] = useState<Record<string, string>>({})
+  const [stills, setStills] = useState<Record<string, string>>(() => Object.fromEntries(drawnStills))
   const now = useNow(COUNTDOWN_STEP_MS)
   const globeRef = useRef<HTMLDivElement>(null)
   const globeReady = useGlobeReady(globeRef)
@@ -197,7 +343,9 @@ export function TripsIndex() {
   useRegisterCommands("trips", listCommands)
 
   // Cover pictures: one off-screen map draws each trip in turn. Cards show
-  // their chart until the picture arrives (and for good without WebGL).
+  // their chart until the picture arrives (and for good without WebGL). The
+  // map waits for an idle moment, so it never competes with the list's first
+  // paint or the globe's.
   const stillKey = (trip: TripSummary) => `${trip.id}:${trip.updatedAt}:${dark ? "d" : "l"}`
   useEffect(() => {
     if (!trips || !canRenderMap()) return
@@ -212,12 +360,18 @@ export function TripsIndex() {
     if (todo.length === 0) return
     let cancel = () => {}
     let dead = false
-    void import("./map/engine").then(({ renderStills }) => {
-      if (dead) return
-      cancel = renderStills(todo, dark, (key, url) => setStills((current) => ({ ...current, [key]: url })))
-    })
+    const cancelIdle = whenIdle(() => {
+      void import("./map/engine").then(({ renderStills }) => {
+        if (dead) return
+        cancel = renderStills(todo, dark, (key, url) => {
+          keepStill(key, url)
+          setStills((current) => ({ ...current, [key]: url }))
+        })
+      })
+    }, 1500)
     return () => {
       dead = true
+      cancelIdle()
       cancel()
     }
     // `stills` is read, not a trigger: finished pictures must not restart the queue.
@@ -357,24 +511,14 @@ export function TripsIndex() {
 
   const deleting = confirm !== null && action?.kind === "delete" && action.id === confirm.id
 
-  const menuFor = (trip: TripSummary): MenuItem[] => [
-    { label: "Share…", icon: <Share2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setShareId(trip.id) },
-    { label: "Duplicate", icon: <Copy size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => void duplicate(trip) },
-    ...(trip.access === "owner" && !trip.sharedWithAllUsers
-      ? [
-          {
-            label: "Delete trip…",
-            icon: <Trash2 size={16} strokeWidth={1.75} aria-hidden />,
-            danger: true,
-            separated: true,
-            onSelect: () => {
-              setActionError(null)
-              setConfirm(trip)
-            },
-          },
-        ]
-      : []),
-  ]
+  // Stable, so a card re-renders only when its own trip, picture or chip changes.
+  const share = useLatestCallback((trip: TripSummary) => setShareId(trip.id))
+  const copy = useLatestCallback((trip: TripSummary) => void duplicate(trip))
+  const askDelete = useLatestCallback((trip: TripSummary) => {
+    setActionError(null)
+    setConfirm(trip)
+  })
+  const cardActions = useMemo<CardActions>(() => ({ share, duplicate: copy, remove: askDelete }), [share, copy, askDelete])
 
   return (
     <div {...sx(s.page)}>
@@ -405,6 +549,9 @@ export function TripsIndex() {
               </Link>
             </div>
           )}
+          {/* Holds the "Next" link's place while the list loads, so the globe
+              and the list under it (on phones) don't jump when it arrives. */}
+          {state.status === "loading" && <span {...sx(a.skeleton, s.nextUpSkeleton)} aria-hidden />}
           {nextUp && nextHref && (
             <Link
               to={nextHref}
@@ -460,8 +607,14 @@ export function TripsIndex() {
 
       {state.status === "loading" && (
         <div role="status" aria-label="Loading trips">
+          {/* The same shape as the loaded head (figures, search), so the cards
+              below don't shift when it fills in. */}
           <div {...sx(s.listHead)}>
-            <h2 {...sx(a.display, s.listTitle)}>Your trips</h2>
+            <div {...sx(s.listLead)}>
+              <h2 {...sx(a.display, s.listTitle)}>Your trips</h2>
+              <span {...sx(a.skeleton, s.figuresSkeleton)} aria-hidden />
+            </div>
+            <span {...sx(a.skeleton, s.search, s.searchSkeleton)} aria-hidden />
           </div>
           <div {...sx(s.bucket, s.grid)}>
             {[0, 1, 2].map((i) => (
@@ -576,85 +729,19 @@ export function TripsIndex() {
                   </div>
                 )}
                 <ul {...sx(s.grid, filtered.length <= 2 && s.gridFew)}>
-                  {rows.map(({ trip, timing, chip }, order) => {
-                    const tags = visibleTags(trip.tags)
-                    const points = (trip.points ?? []).map(([lng, lat]) => ({ lat, lng }))
-                    const shared = trip.sharedWithAllUsers || trip.collaborators.length > 0
-                    return (
-                      <li key={trip.id}>
-                        <article
-                          {...sx(s.card)}
-                          style={{ animationDelay: `${Math.min(order, 8) * 60}ms` }}
-                          data-trip-accent={resolveAccent(trip.accent)}
-                          onMouseEnter={() => setHot(trip.id)}
-                          onMouseLeave={() => setHot((current) => (current === trip.id ? null : current))}
-                        >
-                          <Link
-                            to={tripHref(trip)}
-                            {...sx(s.cardLink)}
-                            aria-label={`${trip.name}, ${formatRange(trip.startDate, trip.endDate)}`}
-                            onFocus={() => setHot(trip.id)}
-                            onBlur={() => setHot((current) => (current === trip.id ? null : current))}
-                          />
-                          <div {...sx(s.cardCover)}>
-                            <TripCover
-                              seed={trip.id}
-                              points={points.length > 0 ? points : trip.center ? [trip.center] : []}
-                              still={stills[stillKey(trip)]}
-                            />
-                            <div {...sx(s.cardBadges)}>
-                              <span {...sx(s.badge)}>
-                                {timing.phase === "now" && <span {...sx(s.liveDot)} aria-hidden />}
-                                {chip ?? timing.label}
-                              </span>
-                              {trip.status === "draft" && <span {...sx(s.badge)}>Draft</span>}
-                            </div>
-                          </div>
-                          <div {...sx(s.cardBody)}>
-                            <h4 {...sx(a.display, s.cardTitle, a.wrap)}>{trip.name}</h4>
-                            <p {...sx(a.small)}>
-                              {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
-                            </p>
-                            {(() => {
-                              const places = trip.destinations.join(" · ")
-                              const line = [places.toLowerCase() === trip.name.trim().toLowerCase() ? "" : places, ...tags.slice(0, 2)]
-                                .filter(Boolean)
-                                .join(" · ")
-                              return line ? <p {...sx(a.small, a.wrap)}>{line}</p> : null
-                            })()}
-                          </div>
-                          <div {...sx(s.cardFoot)}>
-                            <span {...sx(a.row, a.small)}>
-                              {plural(trip.placeCount ?? 0, "place")}
-                              <span aria-hidden>·</span>
-                              {shared ? (
-                                <span {...sx(a.chip)} title={trip.sharedWithAllUsers ? "Shared with everyone" : plural(trip.collaborators.length, "guest")}>
-                                  <Users size={12} strokeWidth={2} aria-hidden />
-                                  {trip.sharedWithAllUsers ? "Everyone" : `${trip.collaborators.length + 1} people`}
-                                </span>
-                              ) : (
-                                "Only you"
-                              )}
-                            </span>
-                            <span {...sx(s.cardMenu)}>
-                              {onDevice ? null : action?.id === trip.id ? (
-                                <span {...sx(a.iconBtn)} role="status" aria-label="Working">
-                                  <Spinner />
-                                </span>
-                              ) : (
-                                <Menu
-                                  label={`Options for ${trip.name}`}
-                                  side="up"
-                                  trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
-                                  items={menuFor(trip)}
-                                />
-                              )}
-                            </span>
-                          </div>
-                        </article>
-                      </li>
-                    )
-                  })}
+                  {rows.map(({ trip, timing, chip }, order) => (
+                    <li key={trip.id}>
+                      <TripCard
+                        trip={trip}
+                        live={timing.phase === "now"}
+                        when={chip ?? timing.label}
+                        order={order}
+                        still={stills[stillKey(trip)]}
+                        actions={onDevice ? null : action?.id === trip.id ? "working" : cardActions}
+                        onHot={setHot}
+                      />
+                    </li>
+                  ))}
                   {index === groups.length - 1 && !searching && !onDevice && (
                     <li>
                       <Link to="/trips/new" {...sx(s.newCard)}>

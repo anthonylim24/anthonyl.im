@@ -478,6 +478,123 @@ const SCENARIOS = {
       await page.waitForTimeout(2000)
     },
   },
+  // Overlays and the create flow. Each only opens and closes: nothing here
+  // saves, so it is safe to point at a shared base.
+  "details-dialog": {
+    device: DESKTOP,
+    async run(page, url, ids) {
+      await page.goto(`${url}/trips/${ids.japan}`)
+      await ready(page)
+      await page.waitForTimeout(2500)
+      await rec(page, true)
+      await page.getByRole("button", { name: "More trip options" }).first().click()
+      await page.waitForTimeout(300)
+      await page.getByRole("menuitem", { name: "Trip details" }).click()
+      await page.waitForTimeout(700)
+      await page.getByRole("button", { name: /^Dates:/ }).click()
+      await page.waitForTimeout(500)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(300)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(600)
+    },
+  },
+  "share-dialog": {
+    device: DESKTOP,
+    async run(page, url, ids) {
+      await page.goto(`${url}/trips/${ids.japan}`)
+      await ready(page)
+      await page.waitForTimeout(2500)
+      await rec(page, true)
+      await page.getByRole("button", { name: "Share", exact: true }).first().click()
+      await page.waitForTimeout(900)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(600)
+    },
+  },
+  "instagram-sheet": {
+    device: DESKTOP,
+    async run(page, url, ids) {
+      await page.goto(`${url}/trips/${ids.japan}`)
+      await ready(page)
+      await page.waitForTimeout(2500)
+      await rec(page, true)
+      await page.getByRole("button", { name: "More trip options" }).first().click()
+      await page.waitForTimeout(300)
+      await page.getByRole("menuitem", { name: "Add places from Instagram" }).click()
+      await page.waitForTimeout(1500)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(800)
+    },
+  },
+  "create-flow": {
+    device: DESKTOP,
+    async run(page, url) {
+      await page.goto(`${url}/trips/new`)
+      await page.getByRole("button", { name: /^Dates:/ }).waitFor({ timeout: 30_000 })
+      await page.waitForTimeout(2500)
+      await rec(page, true)
+      await page.getByRole("button", { name: "1 week" }).click()
+      await page.waitForTimeout(300)
+      await page.getByRole("button", { name: /^Dates:/ }).click()
+      await page.waitForTimeout(500)
+      await page.keyboard.press("ArrowRight")
+      await page.keyboard.press("Enter")
+      await page.waitForTimeout(150)
+      await page.keyboard.press("ArrowDown")
+      await page.keyboard.press("Enter")
+      await page.waitForTimeout(400)
+      await page.getByRole("switch", { name: /Draft the itinerary with AI/ }).click()
+      await page.waitForTimeout(600)
+      await page.getByRole("switch", { name: /Draft the itinerary with AI/ }).click()
+      await page.waitForTimeout(400)
+    },
+  },
+  "index-return": {
+    device: DESKTOP,
+    async run(page, url) {
+      await page.goto(`${url}/trips`)
+      await page.getByText("Lisbon long weekend").first().waitFor({ timeout: 30_000 })
+      await page.waitForTimeout(4000)
+      await page.getByRole("link", { name: /^Lisbon long weekend,/ }).click()
+      await ready(page)
+      await page.waitForTimeout(2000)
+      await rec(page, true)
+      await page.goBack()
+      await page.getByText("Lisbon long weekend").first().waitFor({ timeout: 30_000 })
+      await page.waitForTimeout(2500)
+    },
+  },
+  "phone-details": {
+    device: PHONE,
+    async run(page, url, ids) {
+      await page.goto(`${url}/trips/${ids.lisbon}`)
+      await ready(page)
+      await page.waitForTimeout(2500)
+      await rec(page, true)
+      await page.getByRole("button", { name: "More trip options" }).first().click()
+      await page.waitForTimeout(300)
+      await page.getByRole("menuitem", { name: "Trip details" }).click()
+      await page.waitForTimeout(800)
+      await page.getByRole("button", { name: /^Dates:/ }).click()
+      await page.waitForTimeout(500)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(300)
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(700)
+    },
+  },
+  // The index on a phone: the globe, the next-trip link and the list settle
+  // in one column, so anything that arrives late pushes the rest down (cls).
+  "phone-index-load": {
+    device: PHONE,
+    fromStart: true,
+    async run(page, url) {
+      await page.goto(`${url}/trips`)
+      await page.getByText("Lisbon long weekend").first().waitFor({ timeout: 30_000 })
+      await page.waitForTimeout(3000)
+    },
+  },
 }
 
 function measure(j) {
