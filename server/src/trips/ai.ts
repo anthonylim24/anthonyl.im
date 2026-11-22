@@ -49,6 +49,9 @@ export type LlmCall = (args: {
   /** How hard the model should think. Drafting and reviewing a plan is
    *  routing + scheduling, so those ask for "medium"; default is "low". */
   effort?: "low" | "medium" | "high"
+  /** The caller's whole budget for this call, across every model and tool
+   *  mode it tries. Aborting it rejects the call. */
+  signal?: AbortSignal
 }) => Promise<string>
 
 export type Geocoder = (query: string) => Promise<{ lat: number; lng: number; address?: string; placeId?: string } | null>
@@ -956,6 +959,8 @@ export async function enhanceTrip(args: {
   llm: LlmCall
   fetchWeather?: WeatherFetcher
   geocode?: Geocoder | null
+  /** The attempt's deadline. Aborting it stops the review. */
+  signal?: AbortSignal
 }): Promise<CompleteEnhancementRun | FailedEnhancementRun> {
   const { trip, scope, dayId, llm } = args
   const days = scope === "day" ? trip.days.filter((d) => d.id === dayId) : trip.days

@@ -1,6 +1,14 @@
 import { config } from "../config"
 import { createSupabaseClient, type SupabaseClient } from "../igPlaces/supabase"
-import type { EnhancementRun, Trip } from "./types"
+import type {
+  CompleteEnhancementRun,
+  EnhancementRun,
+  FailedEnhancementRun,
+  ReviewRequest,
+  RunningEnhancementRun,
+  RunQueueInfo,
+  Trip,
+} from "./types"
 
 // ── TripStore ────────────────────────────────────────────────────────────
 //
@@ -23,11 +31,77 @@ export interface TripStore {
   listRuns(tripId: string): Promise<EnhancementRun[]>
   getRun(tripId: string, runId: string): Promise<EnhancementRun | null>
   saveRun(run: EnhancementRun): Promise<void>
+
+  // ── Durable review queue (see "Durable review queue" in types.ts) ──────
+  //
+  // Every transition below keeps `run.queue` in the stored doc in step with
+  // the queue, so `getRun` / `listRuns` show progress with no extra read.
+
+  /** Queue a review. At most one live (queued or working) review per trip:
+   *  when one exists, nothing is inserted and that run comes back. */
+  enqueueReview(run: RunningEnhancementRun, request: ReviewRequest, maxAttempts: number): Promise<EnqueueReviewResult>
+  /** Claim one due review: a queued run whose `nextAttemptAt` has passed, or
+   *  a working run whose lease lapsed (its worker died). Starts the next
+   *  attempt and leases it to `workerId` for `leaseMs`. A run out of
+   *  attempts is failed instead of claimed. `runId` claims only that run. */
+  claimReview(workerId: string, leaseMs: number, runId?: string): Promise<ReviewClaim | null>
+  /** Renew the lease. False when the claim was lost (lapsed and re-claimed). */
+  heartbeatReview(claim: ReviewClaim, leaseMs: number): Promise<boolean>
+  /** Hand a claimed run back without spending its attempt (shutdown). */
+  releaseReview(claim: ReviewClaim): Promise<void>
+  /** End an attempt that failed. With `retryInMs` and attempts left, the run
+   *  is queued again; otherwise it is saved as `failed`. "lost" when the
+   *  claim no longer holds the run (nothing written). */
+  failReview(
+    claim: ReviewClaim,
+    error: string,
+    retryInMs: number | null,
+    failed: FailedEnhancementRun,
+  ): Promise<"requeued" | "failed" | "lost">
+  /** Finish a claimed run. With `tripWrite`, the trip is written only if its
+   *  `updatedAt` is still `expectedUpdatedAt`, and the run and trip are saved
+   *  together or not at all. "trip_changed": the trip moved on (nothing
+   *  written; recompute on the fresh trip). "lost": the claim no longer
+   *  holds the run (nothing written). */
+  completeReview(
+    claim: ReviewClaim,
+    run: CompleteEnhancementRun,
+    tripWrite: { trip: Trip; expectedUpdatedAt: string } | null,
+  ): Promise<"ok" | "trip_changed" | "lost">
+}
+
+/** A review a worker holds. `attempt` fences the claim: a worker whose
+ *  lease lapsed and was re-claimed cannot write the run any more. */
+export interface ReviewClaim {
+  run: RunningEnhancementRun
+  request: ReviewRequest
+  workerId: string
+  attempt: number
+  maxAttempts: number
+}
+
+export type EnqueueReviewResult =
+  | { inserted: true; run: RunningEnhancementRun }
+  | { inserted: false; live: EnhancementRun }
+
+interface MemoryQueueRow {
+  request: ReviewRequest
+  state: RunQueueInfo["state"]
+  attempts: number
+  maxAttempts: number
+  runAfter: number
+  lockedBy: string | null
+  lockedUntil: number
+  lastError?: string
 }
 
 export class MemoryTripStore implements TripStore {
   private trips = new Map<string, Trip>()
   private runs = new Map<string, EnhancementRun>()
+  private queue = new Map<string, MemoryQueueRow>()
+
+  /** Clock seam for tests. */
+  constructor(private now: () => number = Date.now) {}
 
   async list() {
     return [...this.trips.values()]
@@ -57,7 +131,11 @@ export class MemoryTripStore implements TripStore {
   }
   async delete(id: string) {
     this.trips.delete(id)
-    for (const [k, run] of this.runs) if (run.tripId === id) this.runs.delete(k)
+    for (const [k, run] of this.runs) {
+      if (run.tripId !== id) continue
+      this.runs.delete(k)
+      this.queue.delete(k)
+    }
   }
   async listRuns(tripId: string) {
     return [...this.runs.values()]
@@ -70,6 +148,140 @@ export class MemoryTripStore implements TripStore {
   }
   async saveRun(run: EnhancementRun) {
     this.runs.set(run.id, structuredClone(run))
+  }
+
+  private info(row: MemoryQueueRow): RunQueueInfo {
+    return {
+      state: row.state,
+      attempt: row.attempts,
+      maxAttempts: row.maxAttempts,
+      ...(row.state === "queued" ? { nextAttemptAt: new Date(row.runAfter).toISOString() } : {}),
+      ...(row.lastError !== undefined ? { lastError: row.lastError } : {}),
+    }
+  }
+
+  /** Mirror the queue row onto the stored doc, as the SQL functions do. */
+  private sync(runId: string, doc?: EnhancementRun) {
+    const row = this.queue.get(runId)
+    const run = doc ?? this.runs.get(runId)
+    if (!row || !run) return
+    this.runs.set(runId, structuredClone({ ...run, queue: this.info(row) }))
+  }
+
+  private holds(claim: ReviewClaim): MemoryQueueRow | null {
+    const row = this.queue.get(claim.run.id)
+    return row && row.state === "working" && row.lockedBy === claim.workerId && row.attempts === claim.attempt ? row : null
+  }
+
+  async enqueueReview(run: RunningEnhancementRun, request: ReviewRequest, maxAttempts: number): Promise<EnqueueReviewResult> {
+    for (const [id, row] of this.queue) {
+      const live = this.runs.get(id)
+      if (live?.tripId === run.tripId && (row.state === "queued" || row.state === "working")) {
+        return { inserted: false, live: structuredClone(live) }
+      }
+    }
+    const now = this.now()
+    this.queue.set(run.id, {
+      request: structuredClone(request),
+      state: "queued",
+      attempts: 0,
+      maxAttempts,
+      runAfter: now,
+      lockedBy: null,
+      lockedUntil: 0,
+    })
+    this.sync(run.id, run)
+    return { inserted: true, run: structuredClone(this.runs.get(run.id) as RunningEnhancementRun) }
+  }
+
+  async claimReview(workerId: string, leaseMs: number, runId?: string): Promise<ReviewClaim | null> {
+    const now = this.now()
+    const due = [...this.queue.entries()]
+      .filter(([id]) => runId === undefined || id === runId)
+      .filter(([, row]) => (row.state === "queued" && row.runAfter <= now) || (row.state === "working" && row.lockedUntil < now))
+      .sort(([, a], [, b]) => a.runAfter - b.runAfter)
+    for (const [id, row] of due) {
+      const run = this.runs.get(id)
+      if (!run || run.status !== "running") continue
+      if (row.attempts >= row.maxAttempts) {
+        // Out of attempts: the last one died with its lease. Fail it for good.
+        row.state = "done"
+        row.lockedBy = null
+        const lastError = row.lastError ?? "The AI review stopped before it finished."
+        this.sync(id, {
+          ...run,
+          status: "error",
+          error: lastError,
+          outcome: "no_adds_possible",
+          outcomeReason: "The AI review failed before it could add places.",
+        })
+        continue
+      }
+      row.state = "working"
+      row.attempts += 1
+      row.lockedBy = workerId
+      row.lockedUntil = now + leaseMs
+      this.sync(id)
+      return {
+        run: structuredClone(this.runs.get(id) as RunningEnhancementRun),
+        request: structuredClone(row.request),
+        workerId,
+        attempt: row.attempts,
+        maxAttempts: row.maxAttempts,
+      }
+    }
+    return null
+  }
+
+  async heartbeatReview(claim: ReviewClaim, leaseMs: number) {
+    const row = this.holds(claim)
+    if (!row) return false
+    row.lockedUntil = this.now() + leaseMs
+    return true
+  }
+
+  async releaseReview(claim: ReviewClaim) {
+    const row = this.holds(claim)
+    if (!row) return
+    row.state = "queued"
+    row.attempts -= 1
+    row.runAfter = this.now()
+    row.lockedBy = null
+    this.sync(claim.run.id)
+  }
+
+  async failReview(claim: ReviewClaim, error: string, retryInMs: number | null, failed: FailedEnhancementRun) {
+    const row = this.holds(claim)
+    if (!row) return "lost" as const
+    row.lockedBy = null
+    row.lastError = error
+    if (retryInMs !== null && row.attempts < row.maxAttempts) {
+      row.state = "queued"
+      row.runAfter = this.now() + retryInMs
+      this.sync(claim.run.id)
+      return "requeued" as const
+    }
+    row.state = "done"
+    this.sync(claim.run.id, failed)
+    return "failed" as const
+  }
+
+  async completeReview(
+    claim: ReviewClaim,
+    run: CompleteEnhancementRun,
+    tripWrite: { trip: Trip; expectedUpdatedAt: string } | null,
+  ) {
+    const row = this.holds(claim)
+    if (!row) return "lost" as const
+    if (tripWrite) {
+      const current = this.trips.get(tripWrite.trip.id)
+      if (!current || current.updatedAt !== tripWrite.expectedUpdatedAt) return "trip_changed" as const
+      this.trips.set(tripWrite.trip.id, structuredClone(tripWrite.trip))
+    }
+    row.state = "done"
+    row.lockedBy = null
+    this.sync(claim.run.id, run)
+    return "ok" as const
   }
 }
 
@@ -156,6 +368,36 @@ export class SupabaseTripStore implements TripStore {
       { id: run.id, trip_id: run.tripId, created_at: run.createdAt, doc: run },
       { onConflict: "id" },
     )
+  }
+
+  // Queue methods: implemented over the trip_review_* SQL functions in
+  // supabase/migrations/20261121_trip_review_queue.sql.
+  async enqueueReview(_run: RunningEnhancementRun, _request: ReviewRequest, _maxAttempts: number): Promise<EnqueueReviewResult> {
+    throw new Error("not implemented")
+  }
+  async claimReview(_workerId: string, _leaseMs: number, _runId?: string): Promise<ReviewClaim | null> {
+    throw new Error("not implemented")
+  }
+  async heartbeatReview(_claim: ReviewClaim, _leaseMs: number): Promise<boolean> {
+    throw new Error("not implemented")
+  }
+  async releaseReview(_claim: ReviewClaim): Promise<void> {
+    throw new Error("not implemented")
+  }
+  async failReview(
+    _claim: ReviewClaim,
+    _error: string,
+    _retryInMs: number | null,
+    _failed: FailedEnhancementRun,
+  ): Promise<"requeued" | "failed" | "lost"> {
+    throw new Error("not implemented")
+  }
+  async completeReview(
+    _claim: ReviewClaim,
+    _run: CompleteEnhancementRun,
+    _tripWrite: { trip: Trip; expectedUpdatedAt: string } | null,
+  ): Promise<"ok" | "trip_changed" | "lost"> {
+    throw new Error("not implemented")
   }
 }
 
