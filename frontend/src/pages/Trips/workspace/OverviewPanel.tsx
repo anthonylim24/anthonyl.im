@@ -22,7 +22,7 @@ import type { DayForecast } from "../forecast"
 import type { TypicalDay } from "../climate"
 import { ForecastChip } from "./ForecastChip"
 import { NowCard, type UpdateDay } from "../live/NowCard"
-import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief } from "./AiPanels"
+import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief, type ReviewProgress } from "./AiPanels"
 
 /** The longest leg counted as walked. */
 const WALKABLE_M = 1_600
@@ -34,6 +34,7 @@ export function OverviewPanel({
   locked,
   drafting,
   enhancing,
+  progress,
   applying,
   run,
   dayOptions,
@@ -58,7 +59,10 @@ export function OverviewPanel({
   editable: boolean
   locked: boolean
   drafting: boolean
+  /** A review is running, whichever part of the trip it covers. */
   enhancing: boolean
+  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line steps through its copy. */
+  progress?: ReviewProgress
   applying: boolean
   run: EnhancementRun | null
   dayOptions: DayOption[]
@@ -147,7 +151,11 @@ export function OverviewPanel({
         <AiBusy steps={["Reading up on the area…", "Choosing places worth the detour…", "Arranging each day so the route flows…", "Pinning everything to the map…"]} onStop={onStopAi} />
       )}
       {enhancing && (
-        <AiBusy steps={["Reading the whole itinerary…", "Checking pacing and routes…", "Scouting what’s missing…", "Writing up suggestions…"]} onStop={onStopAi} />
+        <AiBusy
+          steps={["Reading the whole itinerary…", "Checking pacing and routes…", "Scouting what’s missing…", "Writing up suggestions…"]}
+          progress={progress}
+          onStop={onStopAi}
+        />
       )}
       {run && !enhancing && (
         <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />

@@ -3,7 +3,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom"
 import type { PlaceResult } from "../geocode"
 import type { AtlasMapProps } from "../map/AtlasMap"
-import type { Trip, TripAccess, TripDay } from "../types"
+import type { EnhanceTripResult } from "../tripsApi"
+import type { EnhancementRun, RunQueueInfo, Trip, TripAccess, TripDay } from "../types"
+import { HttpStatusError, PollTimeoutError } from "@/effect/errors"
 import { makeItem, makeTrip, stubMatchMedia } from "./tripFixtures"
 import { TripConflictError } from "../tripConflict"
 import { emitTripChanged } from "../tripsEvents"
@@ -22,6 +24,8 @@ vi.mock("@/lib/safeAuth", () => ({
 const mockGetTrip = vi.fn()
 const mockUpdateTrip = vi.fn()
 const mockEnhanceTrip = vi.fn()
+const mockListEnhancements = vi.fn()
+const mockFollowEnhancement = vi.fn()
 const mockGenerateItinerary = vi.fn()
 const mockDeleteTrip = vi.fn()
 const mockDuplicateTrip = vi.fn()
@@ -30,6 +34,8 @@ vi.mock("../tripsApi", () => ({
   getTrip: (...args: unknown[]) => mockGetTrip(...args),
   updateTrip: (...args: unknown[]) => mockUpdateTrip(...args),
   enhanceTrip: (...args: unknown[]) => mockEnhanceTrip(...args),
+  listEnhancements: (...args: unknown[]) => mockListEnhancements(...args),
+  followEnhancement: (...args: unknown[]) => mockFollowEnhancement(...args),
   generateItinerary: (...args: unknown[]) => mockGenerateItinerary(...args),
   deleteTrip: (...args: unknown[]) => mockDeleteTrip(...args),
   duplicateTrip: (...args: unknown[]) => mockDuplicateTrip(...args),
@@ -172,6 +178,7 @@ describe("TripWorkspace", () => {
     stubMatchMedia(true)
     mockUpdateTrip.mockImplementation(async (_getToken: unknown, _id: string, patch: Partial<Trip>) => ({ ...planned(), ...patch }))
     mockSearchPlaces.mockResolvedValue([belem])
+    mockListEnhancements.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -1421,6 +1428,140 @@ describe("TripWorkspace", () => {
       })
       expect(screen.queryByText("Added two stops.")).toBeNull()
       expect(screen.getByRole("link", { name: "Lisbon Long Weekend" })).toBeInTheDocument()
+    })
+  })
+
+  describe("following an AI review", () => {
+    const live = (queue: RunQueueInfo, more: Partial<EnhancementRun> = {}): EnhancementRun =>
+      ({ ...reviewRun, status: "running", queue, ...more }) as EnhancementRun
+    const working = live({ state: "working", attempt: 1, maxAttempts: 3 })
+    const notice = (text: string) => screen.getAllByText(text)[0]
+
+    /** "Improve with AI" → "Review trip"; returns the progress callback the page handed to the API. */
+    async function startTripReview() {
+      fireEvent.click(await screen.findByRole("button", { name: "Improve with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+      await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalledTimes(1))
+      return mockEnhanceTrip.mock.calls[0]![6] as (run: EnhancementRun) => void
+    }
+
+    it("says where the review is in the server's queue, in a live region", async () => {
+      const review = deferred<EnhanceTripResult>()
+      mockEnhanceTrip.mockReturnValue(review.promise)
+      renderWorkspace("/trips/lisbon")
+      const onProgress = await startTripReview()
+
+      expect(screen.getByText("Starting the review…")).toHaveAttribute("role", "status")
+      act(() => onProgress(live({ state: "queued", attempt: 0, maxAttempts: 3 })))
+      expect(screen.getByText("Starting the review…")).toBeInTheDocument()
+      act(() => onProgress(working))
+      expect(screen.getByText("Reviewing your trip…")).toHaveAttribute("role", "status")
+      act(() => onProgress(live({ state: "queued", attempt: 1, maxAttempts: 3, lastError: "The attempt ran out of time." })))
+      expect(screen.getByText("The AI was slow, so it’s trying again (attempt 2 of 3)…")).toBeInTheDocument()
+      expect(screen.getByText("It keeps going if you leave this page.")).toBeInTheDocument()
+      expect(screen.queryByText(/This usually takes/)).toBeNull()
+
+      await act(async () => review.resolve({ run: { ...reviewRun, outcomeReason: "Added lunch." } as EnhancementRun, applied: [] }))
+      expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+      expect(notice("Added lunch.")).toBeInTheDocument()
+    })
+
+    it("takes up a review already running on the server when the trip opens, and follows it once", async () => {
+      mockListEnhancements.mockResolvedValue([working, { ...reviewRun, id: "run-0" }])
+      const review = deferred<EnhanceTripResult>()
+      mockFollowEnhancement.mockReturnValue(review.promise)
+      renderWorkspace("/trips/lisbon/day/day-1")
+
+      // A whole-trip review shows on the day that is open, with Stop.
+      expect(await screen.findByText("Reviewing your trip…")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument()
+      expect(screen.getByRole("textbox", { name: "Day title" })).toBeDisabled()
+      expect(mockFollowEnhancement).toHaveBeenCalledTimes(1)
+      expect(mockFollowEnhancement.mock.calls[0]!.slice(1, 3)).toEqual(["lisbon", working])
+
+      // Back to the tab while following: no second look, no second follow.
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"))
+      })
+      expect(mockListEnhancements).toHaveBeenCalledTimes(1)
+      expect(mockFollowEnhancement).toHaveBeenCalledTimes(1)
+
+      await act(async () =>
+        review.resolve({
+          run: { ...reviewRun, outcomeReason: "Added two stops." } as EnhancementRun,
+          trip: planned({ name: "Reviewed", updatedAt: "2026-01-02T00:00:00Z" }),
+          applied: [],
+        }),
+      )
+      expect(notice("Added two stops.")).toBeInTheDocument()
+      expect(screen.getByRole("textbox", { name: "Day title" })).toBeEnabled()
+    })
+
+    it("leaves a finished review, and a viewer's page, alone", async () => {
+      mockListEnhancements.mockResolvedValue([{ ...reviewRun, status: "error" }])
+      renderWorkspace("/trips/lisbon")
+      await waitFor(() => expect(mockListEnhancements).toHaveBeenCalledTimes(1))
+      expect(mockFollowEnhancement).not.toHaveBeenCalled()
+      expect(screen.getByRole("button", { name: "Improve with AI" })).toBeEnabled()
+    })
+
+    it("doesn't look for a review for someone who can only view", async () => {
+      mockListEnhancements.mockResolvedValue([working])
+      renderWorkspace("/trips/lisbon", planned(), "view")
+      expect(await screen.findByText("Trams, tiles and pastries.")).toBeInTheDocument()
+      expect(mockListEnhancements).not.toHaveBeenCalled()
+    })
+
+    it("stops following on Stop, says the review may still finish, and doesn't take it up again", async () => {
+      mockListEnhancements.mockResolvedValue([working])
+      mockFollowEnhancement.mockReturnValue(new Promise(() => undefined))
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
+      expect((mockFollowEnhancement.mock.calls[0]![3] as AbortSignal).aborted).toBe(true)
+      expect(notice("Stopped following the AI review. It may still finish on the server and add places to your trip.")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Improve with AI" })).toBeEnabled()
+
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"))
+      })
+      await waitFor(() => expect(mockListEnhancements).toHaveBeenCalledTimes(2))
+      expect(mockFollowEnhancement).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+    })
+
+    it("says the review is still running when the page stops waiting, without claiming nothing changed", async () => {
+      const still = "The AI review is still running on the server. Its changes will show up here when it finishes."
+      mockEnhanceTrip.mockImplementation(async (...args: unknown[]) => {
+        ;(args[6] as (run: EnhancementRun) => void)(working)
+        throw new PollTimeoutError({ message: still })
+      })
+      renderWorkspace("/trips/lisbon")
+      await startTripReview()
+      expect(await screen.findByText(still, { selector: "span" })).toBeInTheDocument()
+      expect(screen.queryByText(/Nothing in your itinerary changed/)).toBeNull()
+      expect(screen.getByRole("button", { name: "Improve with AI" })).toBeEnabled()
+    })
+
+    it("promises nothing changed only for a start the server refused, or a run it settled as failed", async () => {
+      mockEnhanceTrip.mockRejectedValueOnce(new HttpStatusError({ status: 400, message: "dayId required for day scope" }))
+      renderWorkspace("/trips/lisbon")
+      await startTripReview()
+      expect(await screen.findByText("The AI review couldn’t start, so nothing in your itinerary changed. (dayId required for day scope)")).toBeInTheDocument()
+
+      mockEnhanceTrip.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      fireEvent.click(screen.getByRole("button", { name: "Improve with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+      expect(await screen.findByText("Couldn’t reach the server to start the AI review. Check your connection and try again.")).toBeInTheDocument()
+
+      mockEnhanceTrip.mockResolvedValueOnce({
+        run: { ...reviewRun, status: "error", outcomeReason: "The AI review failed before it could add places.", error: "deadline" } as EnhancementRun,
+        applied: [],
+      })
+      fireEvent.click(screen.getByRole("button", { name: "Improve with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+      const failed = "The AI review failed before it could add places. Nothing in your itinerary changed, so you can run it again."
+      expect((await screen.findAllByText(failed)).length).toBeGreaterThan(0)
     })
   })
 

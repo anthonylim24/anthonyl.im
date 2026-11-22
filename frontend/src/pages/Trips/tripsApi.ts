@@ -1,9 +1,20 @@
 import { Effect } from "effect"
-import { AuthError, HttpStatusError, PollTimeoutError } from "../../effect/errors"
-import { bearerHeaders, fetchApi, parseJson, readAuthToken, requestJson, requireOk, sleep, type RequestOptions } from "../../effect/http"
+import { AuthError, DecodeError, HttpStatusError, PollTimeoutError } from "../../effect/errors"
+import {
+  bearerHeaders,
+  fetchApi,
+  parseJson,
+  readAuthToken,
+  readErrorMessage,
+  requestJson,
+  requireOk,
+  sleep,
+  type RequestOptions,
+} from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
 import { TripConflictError, TripRefusedError } from "./tripConflict"
 import { describeRefusal } from "./offline/saveIssues"
+import { READ_TIMEOUT_MS, isOffline } from "./offline/network"
 import type {
   ChecklistItem,
   EnhancementRun,
@@ -260,60 +271,169 @@ export interface EnhanceTripResult {
   message?: string
 }
 
-const ENHANCE_POLL_MS = 180_000
+/** Hears the run each time the server's copy of it moves: queued, working, a retry waiting. */
+export type OnRunProgress = (run: EnhancementRun) => void
+
+/** The first wait between looks at a run; it grows by about a third each time, to `POLL_MAX_MS`. */
+const POLL_FIRST_MS = 400
+const POLL_MAX_MS = 3_000
+/**
+ * How long a page follows one run before it stops asking. The server settles
+ * a run still going after 30 minutes (`QUEUED_RUN_MAX_MS`) as failed, so one
+ * still `running` past this is a run the server lost track of, not a slow one.
+ * Counted from when this page began following, not from `run.createdAt`: the
+ * device's clock and the server's need not agree.
+ */
+export const FOLLOW_CAP_MS = 32 * 60_000
+
+/** What the page says when it stops following a run the server still calls running. */
+export const STILL_RUNNING = "The AI review is still running on the server. Its changes will show up here when it finishes."
 
 /** What `fetch` rejects with on abort, so callers test one shape. */
 const abortError = () => Object.assign(new Error("The AI run was stopped."), { name: "AbortError" })
 
-const readEnhanceBody = (res: Response): Effect.Effect<EnhanceTripResult, Error> =>
-  parseJson<EnhanceTripResult>(res).pipe(
-    Effect.flatMap((body) => {
-      if (typeof body !== "object" || body === null) {
-        return Effect.fail(new Error(`HTTP ${res.status}`))
-      }
-      return Effect.succeed(body)
-    }),
-    Effect.mapError(() => new Error(`HTTP ${res.status}`)),
+/** Statuses worth asking again after: the server, or a proxy in front of it, was busy or restarting. */
+const passing = (status: number) => status >= 500 || status === 408 || status === 429
+
+/** Wait while the browser says it is offline. An abort ends the wait (the caller checks `signal.aborted` next). */
+const untilOnline = (signal?: AbortSignal): Effect.Effect<void> =>
+  Effect.async<void>((resume) => {
+    if (signal?.aborted || !isOffline()) return resume(Effect.void)
+    const done = () => {
+      window.removeEventListener("online", done)
+      signal?.removeEventListener("abort", done)
+      resume(Effect.void)
+    }
+    window.addEventListener("online", done)
+    signal?.addEventListener("abort", done)
+    return Effect.sync(() => {
+      window.removeEventListener("online", done)
+      signal?.removeEventListener("abort", done)
+    })
+  })
+
+/** A response body as an enhance answer, or null when it isn't one (a proxy's error page). */
+const readEnhanceBody = (res: Response): Effect.Effect<EnhanceTripResult | null> =>
+  parseJson<EnhanceTripResult | null>(res).pipe(
+    Effect.map((body) => (typeof body === "object" && body !== null ? body : null)),
+    Effect.orElseSucceed(() => null),
   )
 
-const pollEnhancement = Effect.fn("TripsService.pollEnhancement")(function* (
+/** Calls `onProgress` with each run that differs from the last one it heard (its queue moved, or a 409 handed over another run). */
+function progressReporter(onProgress?: OnRunProgress): (run: EnhancementRun) => void {
+  let last = ""
+  return (run) => {
+    const key = JSON.stringify([run.id, run.scope, run.dayId ?? null, run.queue ?? null])
+    if (key === last) return
+    last = key
+    onProgress?.(run)
+  }
+}
+
+/** What one look at a run found. `noAnswer`: nothing usable came back, so look again later. */
+type Look = { k: "settled"; result: EnhanceTripResult } | { k: "going"; run: EnhancementRun } | { k: "noAnswer" }
+
+const NO_ANSWER: Look = { k: "noAnswer" }
+
+/** A signal for one look: it aborts with `outer`, or by itself after `ms` (a connection that hangs). */
+function lookSignal(outer: AbortSignal | undefined, ms: number) {
+  const look = new AbortController()
+  const stop = () => look.abort()
+  const timer = setTimeout(stop, ms)
+  if (outer?.aborted) look.abort()
+  outer?.addEventListener("abort", stop)
+  return {
+    signal: look.signal,
+    release: () => {
+      clearTimeout(timer)
+      outer?.removeEventListener("abort", stop)
+    },
+  }
+}
+
+/** One GET of the run. Fails only when the server says no (sign-in, a run it doesn't have). */
+const askAboutRun = (getToken: GetToken, id: string, runId: string, signal: AbortSignal) =>
+  Effect.gen(function* () {
+    const token = yield* readAuthToken(getToken)
+    const res = yield* fetchApi(`/api/trips/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}`, {
+      headers: bearerHeaders(token),
+      cache: "no-store",
+      signal,
+    })
+    if (res.status === 401 || res.status === 403) {
+      return yield* Effect.fail(new AuthError({ message: "Please sign in again to follow the AI review. It may still finish on the server." }))
+    }
+    if (res.status === 404) {
+      return yield* Effect.fail(
+        new HttpStatusError({ status: 404, message: "This AI review isn’t on the server any more. Reload to see where your trip stands." }),
+      )
+    }
+    if (passing(res.status)) return NO_ANSWER
+    if (!res.ok) {
+      const reason = yield* readErrorMessage(res)
+      return yield* Effect.fail(
+        new HttpStatusError({ status: res.status, message: `Couldn’t follow the AI review (${reason}). Reload to see where your trip stands.` }),
+      )
+    }
+    const body = yield* readEnhanceBody(res)
+    if (!body?.run) return NO_ANSWER
+    if (body.run.status === "running") return { k: "going", run: body.run } satisfies Look
+    return { k: "settled", result: { ...body, applied: body.applied ?? body.run.appliedSuggestionIds } } satisfies Look
+  })
+
+/** One look, given at most `READ_TIMEOUT_MS`; anything short of the server saying no is no answer. */
+const lookAtRun = (
   getToken: GetToken,
   id: string,
   runId: string,
   signal?: AbortSignal,
-) {
-  const deadline = Date.now() + ENHANCE_POLL_MS
-  let wait = 400
-  while (Date.now() < deadline) {
-    yield* sleep(wait, signal)
-    if (signal?.aborted) return yield* Effect.fail(abortError())
-    wait = Math.min(Math.round(wait * 1.35), 2000)
-    const token = yield* readAuthToken(getToken)
-    const res = yield* fetchApi(
-      `/api/trips/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}`,
-      {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        cache: "no-store",
-        signal,
-      },
-    )
-    if (res.status === 401 || res.status === 403) {
-      return yield* Effect.fail(new AuthError({ message: "Please sign in again to finish the AI review." }))
-    }
-    if (!res.ok) continue
-    const body = yield* readEnhanceBody(res)
-    if (body.run && body.run.status !== "running") {
-      return {
-        ...body,
-        applied: body.applied ?? body.run.appliedSuggestionIds,
-      } satisfies EnhanceTripResult
-    }
-  }
-  return yield* Effect.fail(
-    new PollTimeoutError({
-      message: "The AI review is taking too long. Nothing in your itinerary changed, so you can run it again.",
-    }),
+): Effect.Effect<Look, AuthError | HttpStatusError | Error> =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => lookSignal(signal, READ_TIMEOUT_MS)),
+    (look) => askAboutRun(getToken, id, runId, look.signal),
+    (look) => Effect.sync(look.release),
+  ).pipe(
+    // No answer (a dropped connection, a look that hung, a token read that
+    // failed): look again, unless the wait was stopped. Only the server
+    // saying no ends the follow.
+    Effect.catchAll((err) =>
+      err instanceof AuthError || err instanceof HttpStatusError
+        ? Effect.fail(err)
+        : signal?.aborted
+          ? Effect.fail(abortError())
+          : Effect.succeed(NO_ANSWER),
+    ),
   )
+
+/**
+ * Follow a run until it leaves `running`. There is no deadline but the
+ * safety cap: the server retries a slow attempt and settles a run it can't
+ * finish, so its word is the one that ends the wait. A dropped connection or
+ * a busy server (5xx, 429) only means look again later; offline, it waits
+ * for the connection to come back.
+ */
+const followRun = Effect.fn("TripsService.followEnhancement")(function* (
+  getToken: GetToken,
+  id: string,
+  run: EnhancementRun,
+  signal?: AbortSignal,
+  onProgress?: OnRunProgress,
+) {
+  const report = progressReporter(onProgress)
+  report(run)
+  const since = Date.now()
+  let wait = POLL_FIRST_MS
+  for (;;) {
+    yield* sleep(wait, signal)
+    yield* untilOnline(signal)
+    if (signal?.aborted) return yield* Effect.fail(abortError())
+    wait = Math.min(Math.round(wait * 1.35), POLL_MAX_MS)
+    const look = yield* lookAtRun(getToken, id, run.id, signal)
+    if (look.k === "settled") return look.result
+    if (look.k === "going") report(look.run)
+    // Checked after a look, so a page that slept past the cap still asks once more.
+    if (Date.now() - since >= FOLLOW_CAP_MS) return yield* Effect.fail(new PollTimeoutError({ message: STILL_RUNNING }))
+  }
 })
 
 const enhanceTripEffect = Effect.fn("TripsService.enhanceTrip")(function* (
@@ -323,35 +443,43 @@ const enhanceTripEffect = Effect.fn("TripsService.enhanceTrip")(function* (
   dayId?: string,
   prompt?: string,
   signal?: AbortSignal,
+  onProgress?: OnRunProgress,
 ) {
   const token = yield* readAuthToken(getToken)
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
   const res = yield* fetchApi(`/api/trips/${encodeURIComponent(id)}/enhance`, {
     method: "POST",
-    headers,
+    headers: bearerHeaders(token, { "Content-Type": "application/json" }),
     cache: "no-store",
     body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
     signal,
   })
   const body = yield* readEnhanceBody(res)
-  if (body.run?.status === "running") return yield* pollEnhancement(getToken, id, body.run.id, signal)
-  if (res.ok) return body
-  if (res.status === 502 && body.run) return body
+  // 202 with the new run, or 409 `enhancement_running` with the one already
+  // going: either way there is a run in flight to follow.
+  if (body?.run?.status === "running") return yield* followRun(getToken, id, body.run, signal, onProgress)
+  // Older servers finished inline (200), or answered a failed run with a 502.
+  if (body?.run && (res.ok || res.status === 502)) return body
+  if (res.ok) {
+    return yield* Effect.fail(
+      new DecodeError({ message: "The server’s answer about the AI review couldn’t be read. Reload to see where your trip stands." }),
+    )
+  }
   return yield* Effect.fail(
     new HttpStatusError({
       status: res.status,
-      message: body.message || body.error || `HTTP ${res.status}`,
+      message: body?.message || body?.error || `HTTP ${res.status}`,
     }),
   )
 })
 
-/** Starts a run (202) and polls until it leaves `running`. A legacy 502
- *  with a `{ run }` body is still accepted so older servers keep working.
- *  Aborting `signal` stops the wait (it rejects with an `AbortError`); the
- *  server may still finish the run, and its changes arrive like any other. */
+/**
+ * Start a review (202) and follow it until it leaves `running`; a 409 with a
+ * review already going follows that one. `onProgress` hears the run each time
+ * its place in the server's queue moves. A legacy 502 with a `{ run }` body is
+ * still accepted so older servers keep working. Aborting `signal` stops the
+ * wait only (it rejects with an `AbortError`): the server goes on with the
+ * run, and its changes arrive like any other.
+ */
 export function enhanceTrip(
   getToken: GetToken,
   id: string,
@@ -359,9 +487,27 @@ export function enhanceTrip(
   dayId?: string,
   prompt?: string,
   signal?: AbortSignal,
+  onProgress?: OnRunProgress,
 ): Promise<EnhanceTripResult> {
-  return runPromise(enhanceTripEffect(getToken, id, scope, dayId, prompt, signal))
+  return runPromise(enhanceTripEffect(getToken, id, scope, dayId, prompt, signal, onProgress))
 }
+
+/** Follow a run already under way (found after a reload, or started on another device), as `enhanceTrip` follows its own. */
+export function followEnhancement(
+  getToken: GetToken,
+  id: string,
+  run: EnhancementRun,
+  signal?: AbortSignal,
+  onProgress?: OnRunProgress,
+): Promise<EnhanceTripResult> {
+  return runPromise(followRun(getToken, id, run, signal, onProgress))
+}
+
+/** A trip's reviews, newest first. A run the server lost track of is already settled as failed. */
+export const listEnhancements = (getToken: GetToken, id: string, options?: ReadOptions) =>
+  request<{ runs?: EnhancementRun[] }>(getToken, `/${encodeURIComponent(id)}/enhancements`, {}, readOptions(options)).then(
+    (r) => r.runs ?? [],
+  )
 
 export const applySuggestions = (getToken: GetToken, id: string, runId: string, suggestionIds: string[]) =>
   request<{ trip: Trip; applied: string[]; skipped: string[] }>(

@@ -4,7 +4,17 @@ import { useReducedMotion } from "motion/react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useReloadBlock } from "@/hooks/useReloadBlock"
 import { useGetToken } from "@/lib/safeAuth"
-import { applySuggestions, enhanceTrip, generateItinerary, getTrip, updateTrip } from "./tripsApi"
+import { HttpStatusError, PollTimeoutError } from "@/effect/errors"
+import {
+  applySuggestions,
+  enhanceTrip,
+  followEnhancement,
+  generateItinerary,
+  getTrip,
+  listEnhancements,
+  updateTrip,
+  type EnhanceTripResult,
+} from "./tripsApi"
 import { isTripConflict } from "./tripConflict"
 import { READ_TIMEOUT_MS, isNetworkError, isOffline, saveFailure, useOnline } from "./offline/network"
 import { dropDraft, keepDraft, keepDraftNow, keepTrip, readDraft, readTrip, type TripDraft } from "./offline/tripCopies"
@@ -15,6 +25,7 @@ import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { formatTripDate, plural } from "./meta"
 import {
   canEdit,
+  canResume,
   canWrite,
   draftOutcome,
   editorReducer,
@@ -93,6 +104,12 @@ export function useTripEditor() {
   /** The PATCH on its way (one per `saving` state), resolving to the saved trip (null on failure). */
   const inflightRef = useRef<{ for: Sync; work: Promise<Trip | null> } | null>(null)
   const aiAbortRef = useRef<AbortController | null>(null)
+  /** The review this page follows, once the server has named it. */
+  const followingRef = useRef<string | null>(null)
+  /** Reviews this page stopped following (Stop, or the cap): a resume leaves them be. */
+  const setAsideRef = useRef(new Set<string>())
+  /** Each look for a review under way; only the newest one may act on its answer. */
+  const lookRef = useRef(0)
   /** Set once the trip is deleted: nothing left to save. */
   const discardedRef = useRef(false)
   /** The document an AI run last put in place, so its changes aren't read as the traveller's. */
@@ -476,50 +493,121 @@ export function useTripEditor() {
     [runAi],
   )
 
-  const reviewFailed = useCallback((err: unknown) => {
+  /**
+   * A review that ended here without a result. Only a start the server
+   * refused can promise nothing changed; once the server has named the run
+   * (`started`) it may still finish, and the error carries words that say so.
+   */
+  const reviewFailed = useCallback((err: unknown, started: boolean) => {
     const message = errorText(err)
-    setNotice(
-      message.startsWith("Couldn’t save your latest edits")
-        ? message
-        : `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${message})`,
-    )
+    if (err instanceof PollTimeoutError && followingRef.current) setAsideRef.current.add(followingRef.current)
+    if (started || message.startsWith("Couldn’t save your latest edits")) setNotice(message)
+    else if (err instanceof HttpStatusError) {
+      setNotice(
+        err.status >= 500
+          ? `The AI review couldn’t start: the server had a problem. Try again in a moment. (${message})`
+          : `The AI review couldn’t start, so nothing in your itinerary changed. (${message})`,
+      )
+    } else if (isNetworkError(err)) setNotice("Couldn’t reach the server to start the AI review. Check your connection and try again.")
+    else setNotice(message)
   }, [])
+
+  /** The server's word on the run being followed, until the wait is stopped. */
+  const follow = useCallback(
+    (signal: AbortSignal) => (live: EnhancementRun) => {
+      if (signal.aborted) return
+      followingRef.current = live.id
+      dispatch({ type: "AI_PROGRESS", live })
+    },
+    [],
+  )
+
+  /** How a finished review lands, whether it started here or was taken up: its trip, the stops it added flashed, its words. */
+  const landReview = useCallback(
+    ({ run, trip: refreshed, applied, error }: EnhanceTripResult): AiOutcome => ({
+      trip: refreshed,
+      run,
+      onLand: () => {
+        holdScroll()
+        const addedIds = new Set<string>()
+        for (const id of applied ?? run.appliedSuggestionIds) {
+          const s = run.suggestions.find((x) => x.id === id)
+          if (s?.kind === "add" && s.proposedItem?.id) addedIds.add(s.proposedItem.id)
+        }
+        if (addedIds.size > 0) flashTouched(addedIds)
+        if (run.status === "error" || error) {
+          // A run the server settled as failed wrote nothing: the one time this can be promised.
+          const why = run.outcomeReason ?? `The AI review didn’t finish (${run.error ?? error ?? "unknown error"}).`
+          setNotice(`${why} Nothing in your itinerary changed, so you can run it again.`)
+        } else if (run.outcomeReason) {
+          setNotice(run.outcomeReason)
+        }
+      },
+    }),
+    [holdScroll, flashTouched],
+  )
 
   const runEnhance = useCallback(
     (scope: "day" | "trip", dayId?: string, prompt?: string) => {
       if (!tripDocId) return Promise.resolve()
       setNotice(null)
+      followingRef.current = null
+      let started = false
       return startAi(
         scope === "day" ? { day: dayId ?? "" } : "trip",
         async (signal) => {
-          const { run, trip: refreshed, applied, error } = await enhanceTrip(readToken, tripDocId, scope, dayId, prompt, signal)
-          return {
-            trip: refreshed,
-            run,
-            onLand: () => {
-              holdScroll()
-              const addedIds = new Set<string>()
-              for (const id of applied ?? run.appliedSuggestionIds) {
-                const s = run.suggestions.find((x) => x.id === id)
-                if (s?.kind === "add" && s.proposedItem?.id) addedIds.add(s.proposedItem.id)
-              }
-              if (addedIds.size > 0) flashTouched(addedIds)
-              if (run.status === "error" || error) {
-                setNotice(
-                  run.outcomeReason ??
-                    `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${run.error ?? error ?? "unknown error"})`,
-                )
-              } else if (run.outcomeReason) {
-                setNotice(run.outcomeReason)
-              }
-            },
-          }
+          const heard = follow(signal)
+          const result = await enhanceTrip(readToken, tripDocId, scope, dayId, prompt, signal, (live) => {
+            started = true
+            heard(live)
+          })
+          return landReview(result)
         },
-        reviewFailed,
+        (err) => reviewFailed(err, started),
       )
     },
-    [tripDocId, startAi, readToken, holdScroll, flashTouched, reviewFailed],
+    [tripDocId, startAi, readToken, follow, landReview, reviewFailed],
   )
+
+  /**
+   * Take up a review already under way on the server (this page was
+   * reloaded, or it was started on another device): the same busy line,
+   * Stop and landing as one started here. Never a second follow of a run,
+   * and never one this page set aside.
+   */
+  const resumeReview = useCallback(async () => {
+    if (!tripDocId || aiAbortRef.current || !canResume(stateRef.current)) return
+    const look = ++lookRef.current
+    const runs = await listEnhancements(readToken, tripDocId, { timeoutMs: READ_TIMEOUT_MS }).catch(
+      (): EnhancementRun[] => [], // a missed look changes nothing; the next one sees the run
+    )
+    // A newer look, or the page left, while this one was out.
+    if (look !== lookRef.current) return
+    const live = runs[0]
+    if (!live || live.status !== "running" || setAsideRef.current.has(live.id)) return
+    // Asked again: a run may have started here, or an edit begun, meanwhile.
+    if (aiAbortRef.current || !canResume(stateRef.current)) return
+    followingRef.current = live.id
+    await runAi(
+      { type: "AI_RESUME", live },
+      async (signal) => landReview(await followEnhancement(readToken, tripDocId, live, signal, follow(signal))),
+      (err) => reviewFailed(err, true),
+    )
+  }, [tripDocId, readToken, runAi, landReview, follow, reviewFailed])
+
+  // Look for a review under way when the trip opens and when the tab comes back.
+  useEffect(() => {
+    if (!tripDocId || !editable) return
+    void resumeReview()
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void resumeReview()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible)
+      lookRef.current += 1
+    }
+  }, [tripDocId, editable, resumeReview])
 
   /** Draft the itinerary with AI. Resolves to the ids of every stop it placed (empty if it didn't land). */
   const draft = useCallback(
@@ -611,9 +699,15 @@ export function useTripEditor() {
 
   /** Stop waiting for the AI and unlock editing. The server may still finish; its result arrives like any other change. */
   const stopAi = useCallback(() => {
+    const now = stateRef.current
+    const reviewing = now.s === "ready" && now.ai.k === "running" && now.ai.run !== "draft"
     aiAbortRef.current?.abort()
     aiAbortRef.current = null
     dispatch({ type: "AI_FAILED" })
+    if (!reviewing) return
+    // Coming back to the tab must not take up the run this page just let go of.
+    if (followingRef.current) setAsideRef.current.add(followingRef.current)
+    setNotice("Stopped following the AI review. It may still finish on the server and add places to your trip.")
   }, [])
 
   const dismissRun = useCallback(() => dispatch({ type: "DISMISS_RUN" }), [])

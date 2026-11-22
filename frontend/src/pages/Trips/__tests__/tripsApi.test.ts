@@ -1,14 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { TimeoutError } from "../../../effect/errors"
-import { enhanceTrip, generateItinerary, getTrip, updateTrip } from "../tripsApi"
+import { PollTimeoutError, TimeoutError } from "../../../effect/errors"
+import {
+  FOLLOW_CAP_MS,
+  STILL_RUNNING,
+  enhanceTrip,
+  followEnhancement,
+  generateItinerary,
+  getTrip,
+  listEnhancements,
+  updateTrip,
+} from "../tripsApi"
 import { isTripConflict, isTripRefused } from "../tripConflict"
-import type { EnhancementRun } from "../types"
+import { READ_TIMEOUT_MS } from "../offline/network"
+import type { EnhancementRun, RunQueueInfo } from "../types"
 import { makeTrip } from "./tripFixtures"
 
 const getToken = async () => "test-token"
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 function makeRun(overrides: Partial<EnhancementRun> = {}): EnhancementRun {
@@ -133,6 +144,224 @@ describe("enhanceTrip", () => {
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
+
+const running = (queue?: RunQueueInfo): EnhancementRun =>
+  makeRun({ status: "running", outcome: undefined, outcomeReason: undefined, error: undefined, ...(queue ? { queue } : {}) })
+const finished = makeRun({
+  status: "complete",
+  outcome: "added_places",
+  outcomeReason: "Added lunch.",
+  error: undefined,
+  appliedSuggestionIds: ["sug-1"],
+  queue: { state: "done", attempt: 1, maxAttempts: 3 },
+})
+const queued = (attempt: number, more: Partial<RunQueueInfo> = {}): RunQueueInfo => ({ state: "queued", attempt, maxAttempts: 3, ...more })
+const working = (attempt: number): RunQueueInfo => ({ state: "working", attempt, maxAttempts: 3 })
+
+/**
+ * The review endpoints: `start` answers the POST, and `look(n)` the n-th GET
+ * of the run (a fresh Response each time: a body reads once).
+ */
+function reviewServer(start: () => Response, look: (n: number, init?: RequestInit) => Response | Promise<Response>) {
+  let n = 0
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => (init?.method === "POST" ? start() : look(n++, init)))
+}
+
+/** A GET that never answers, until its own signal gives up on it. */
+const hang = (init?: RequestInit) =>
+  new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))))
+
+/** Whether a promise has settled yet, without waiting for it. */
+function watch<T>(promise: Promise<T>) {
+  const state: { settled: boolean; value?: T; error?: unknown } = { settled: false }
+  promise.then(
+    (value) => Object.assign(state, { settled: true, value }),
+    (error: unknown) => Object.assign(state, { settled: true, error }),
+  )
+  return state
+}
+
+describe("following a review", () => {
+  it("keeps following well past three minutes, until the server settles the run", async () => {
+    vi.useFakeTimers()
+    let settled = false
+    const spy = reviewServer(
+      () => json({ run: running(queued(0)) }, 202),
+      () => json(settled ? { run: finished, trip: { id: "trip-1" } } : { run: running(working(1)) }),
+    )
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip"))
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(result.settled).toBe(false)
+    // Every 3 s or so once it has backed off: still asking, without hammering.
+    expect(spy.mock.calls.length).toBeGreaterThan(150)
+    expect(spy.mock.calls.length).toBeLessThan(250)
+
+    settled = true
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(result.value?.run.status).toBe("complete")
+    expect(result.value?.applied).toEqual(["sug-1"])
+  })
+
+  it("looks again after a 502, a 503, a dropped connection and a proxy's page", async () => {
+    vi.useFakeTimers()
+    const answers: Array<() => Response | Promise<Response>> = [
+      () => json({ error: "bad gateway" }, 502),
+      () => new Response("<html>Service unavailable</html>", { status: 503 }),
+      () => Promise.reject(new TypeError("Failed to fetch")),
+      () => new Response("<html>Gateway</html>", { status: 504 }),
+      () => new Response("<html>Signing you in</html>", { status: 200 }),
+      () => json({ run: finished, trip: { id: "trip-1" }, applied: ["sug-1"] }),
+    ]
+    const spy = reviewServer(() => json({ run: running() }, 202), (n) => answers[Math.min(n, answers.length - 1)]!())
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip"))
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(result.error).toBeUndefined()
+    expect(result.value).toMatchObject({ run: { status: "complete" }, applied: ["sug-1"] })
+    expect(spy).toHaveBeenCalledTimes(1 + answers.length)
+  })
+
+  it("gives up on a look that never answers and asks again, without ending the follow", async () => {
+    vi.useFakeTimers()
+    const spy = reviewServer(
+      () => json({ run: running() }, 202),
+      (n, init) => (n === 0 ? hang(init) : json({ run: finished, trip: { id: "trip-1" } })),
+    )
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip"))
+    await vi.advanceTimersByTimeAsync(READ_TIMEOUT_MS - 1_000)
+    expect(result.settled).toBe(false)
+    expect(spy).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(result.error).toBeUndefined()
+    expect(result.value?.run.status).toBe("complete")
+    expect(spy).toHaveBeenCalledTimes(3)
+  })
+
+  it("ends on a run the server settled as failed, with the server's words", async () => {
+    vi.useFakeTimers()
+    const failed = makeRun({ queue: { state: "done", attempt: 3, maxAttempts: 3, lastError: "deadline" } })
+    const spy = reviewServer(
+      () => json({ run: running(queued(0)) }, 202),
+      (n) => (n < 2 ? json({ run: running(working(1)) }) : json({ run: failed, trip: { id: "trip-1" }, error: "enhancement_failed", message: failed.error })),
+    )
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip"))
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(result.value?.run).toMatchObject({ status: "error", outcomeReason: "The AI review failed before it could add places." })
+    expect(result.value?.applied).toEqual([])
+    expect(spy).toHaveBeenCalledTimes(4)
+  })
+
+  it("tells the page each time the run's place in the queue moves, once per change", async () => {
+    vi.useFakeTimers()
+    const looks = [
+      running(queued(0)),
+      running(working(1)),
+      running(working(1)),
+      running(queued(1, { nextAttemptAt: "2026-06-01T00:00:35.000Z", lastError: "The attempt ran out of time." })),
+      running(working(2)),
+      finished,
+    ]
+    reviewServer(
+      () => json({ run: running(queued(0)) }, 202),
+      (n) => json({ run: looks[Math.min(n, looks.length - 1)] }),
+    )
+    const heard: string[] = []
+    const result = watch(
+      enhanceTrip(getToken, "trip-1", "trip", undefined, undefined, undefined, (run) => heard.push(`${run.queue?.state} ${run.queue?.attempt}`)),
+    )
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(result.value?.run.status).toBe("complete")
+    expect(heard).toEqual(["queued 0", "working 1", "queued 1", "working 2"])
+  })
+
+  it("follows the review already running when the server answers 409", async () => {
+    vi.useFakeTimers()
+    const live = { ...running(working(1)), id: "run-live", scope: "day" as const, dayId: "day-2" }
+    const spy = reviewServer(
+      () => json({ error: "enhancement_running", message: "An AI review of this trip is already running.", run: live }, 409),
+      () => json({ run: { ...finished, id: "run-live" }, trip: { id: "trip-1" } }),
+    )
+    const heard: EnhancementRun[] = []
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip", undefined, undefined, undefined, (run) => heard.push(run)))
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(result.value?.run).toMatchObject({ id: "run-live", status: "complete" })
+    expect(heard).toEqual([live])
+    expect(String(spy.mock.calls[1]![0])).toContain("/enhancements/run-live")
+  })
+
+  it("waits for the connection to come back before looking again", async () => {
+    vi.useFakeTimers()
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+    const spy = reviewServer(() => json({ run: running() }, 202), () => json({ run: finished, trip: { id: "trip-1" } }))
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip"))
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(result.settled).toBe(false)
+
+    onLine.mockReturnValue(true)
+    window.dispatchEvent(new Event("online"))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(result.value?.run.status).toBe("complete")
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it("stops waiting offline as soon as it is stopped", async () => {
+    vi.useFakeTimers()
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+    const spy = reviewServer(() => json({ run: running() }, 202), () => json({ run: finished }))
+    const ac = new AbortController()
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip", undefined, undefined, ac.signal))
+    await vi.advanceTimersByTimeAsync(10_000)
+    ac.abort()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(result.error).toMatchObject({ name: "AbortError" })
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops following after 32 minutes with words that say the review may still finish", async () => {
+    vi.useFakeTimers()
+    reviewServer(() => json({ run: running(queued(0)) }, 202), () => json({ run: running(working(1)) }))
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip"))
+    await vi.advanceTimersByTimeAsync(FOLLOW_CAP_MS - 60_000)
+    expect(result.settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(2 * 60_000)
+    expect(result.error).toBeInstanceOf(PollTimeoutError)
+    expect((result.error as Error).message).toBe(STILL_RUNNING)
+    expect(STILL_RUNNING).toBe("The AI review is still running on the server. Its changes will show up here when it finishes.")
+    expect(FOLLOW_CAP_MS).toBe(32 * 60_000)
+  })
+
+  it("ends with a clear message when the run is no longer on the server", async () => {
+    vi.useFakeTimers()
+    reviewServer(() => json({ run: running() }, 202), () => json({ error: "run not found" }, 404))
+    const result = watch(enhanceTrip(getToken, "trip-1", "trip"))
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect((result.error as Error).message).toBe("This AI review isn’t on the server any more. Reload to see where your trip stands.")
+  })
+
+  it("follows a run found already going (a reload, another device) the same way", async () => {
+    vi.useFakeTimers()
+    const live = running(working(2))
+    const spy = reviewServer(
+      () => json({}, 500),
+      (n) => (n === 0 ? json({ error: "busy" }, 503) : json({ run: finished, trip: { id: "trip-1" } })),
+    )
+    const heard: EnhancementRun[] = []
+    const result = watch(followEnhancement(getToken, "trip-1", live, undefined, (run) => heard.push(run)))
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(result.value?.run.status).toBe("complete")
+    expect(heard).toEqual([live])
+    expect(spy.mock.calls.every(([, init]) => (init as RequestInit).method !== "POST")).toBe(true)
+  })
+
+  it("lists a trip's reviews, newest first as the server sends them", async () => {
+    const newest = running(working(1))
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => json({ runs: [newest, finished] }))
+    await expect(listEnhancements(getToken, "trip-1")).resolves.toEqual([newest, finished])
+    expect(String(spy.mock.calls[0]![0])).toContain("/api/trips/trip-1/enhancements")
+  })
+})
 
 describe("updateTrip", () => {
   it("sends the base it was made against and returns the saved trip", async () => {
