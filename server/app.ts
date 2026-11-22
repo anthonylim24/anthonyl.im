@@ -6,6 +6,8 @@ import { config } from "./src/config";
 import invokeRouter from "./src/routes/invoke";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
+import { createPlaceSearchRouter } from "./src/routes/placeSearch";
+import { createGooglePlaceTypeahead } from "./src/trips/placeSearch";
 import { getTripStore } from "./src/trips/store";
 import { createGoogleGeocoder, createPhotonGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
@@ -106,6 +108,23 @@ app.route(
     }),
     // No Maps key → keyless Photon (OpenStreetMap) so AI places still get coordinates.
     geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : createPhotonGeocoder(),
+  }),
+);
+
+// Type-ahead place search for the planner's place fields (Google Places,
+// biased to the trip). Its own bucket: a search per pause in typing must
+// never starve trip saves.
+app.route(
+  "/api/places",
+  createPlaceSearchRouter({
+    search: config.googleMapsApiKey ? createGooglePlaceTypeahead(config.googleMapsApiKey) : null,
+    rateLimit: createRateLimit({ windowMs: 60_000, max: 120, keyPrefix: "places", key: userOrClientKey }),
+    verifyAuth: (authHeader) =>
+      verifyClerkOptional(authHeader, {
+        secretKey: config.clerkSecretKey,
+        devBearer: config.igDevBearer,
+        devUserId: config.igDevUserId,
+      }),
   }),
 );
 
