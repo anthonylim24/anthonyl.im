@@ -497,7 +497,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   )
 
   return createPortal(
-    <div className="trips trips-portal" data-trip-accent={accent}>
+    <div className="trips trips-portal trips-glass-off" data-trip-accent={accent}>
       <div
         ref={rootRef}
         role="dialog"

@@ -1,6 +1,114 @@
-// What the Liquid Glass look draws behind the page: the wallpaper the glass
-// sits on. Loaded only while the look is on (a lazy chunk), never in the atlas.
+import { useEffect, useRef, useState } from "react"
+import { ACCENT_FILL, resolveAccent } from "../meta"
+import { startLight } from "./light"
+import { wallPalette } from "./palette"
+import { startRefraction } from "./refraction"
+import { paintWallpaper } from "./wallpaper"
+
+// Everything the Liquid Glass look runs: the wallpaper the glass sits on, the
+// refraction engine (Chromium) and the light. A lazy chunk, mounted only while
+// the look is on, so the atlas never downloads or runs any of it.
+
+/** The brand orange when no trip is on screen; `--ta-fill`'s default. */
+const BRAND_FILL = "#f0582b"
+/** The wallpaper is soft, so it is painted small and stretched. */
+const WALL_SCALE = 0.5
+const WALL_MAX = 1280
+
+interface Wall {
+  accent: string
+  dark: boolean
+  /** Size class: the painted size, so small resizes keep the still. */
+  width: number
+  height: number
+}
+
+const sameWall = (a: Wall, b: Wall) => a.accent === b.accent && a.dark === b.dark && a.width === b.width && a.height === b.height
+
+/** The painted size for a viewport, in 64 px steps of the painted image. */
+function wallSize(): { width: number; height: number } {
+  const scale = Math.min(WALL_SCALE, WALL_MAX / Math.max(window.innerWidth, 1))
+  const step = (v: number) => Math.max(64, Math.round((v * scale) / 64) * 64)
+  return { width: step(window.innerWidth), height: step(window.innerHeight) }
+}
+
+/** The accent the page is showing: the trip open in the workspace, or the next trip on the index. */
+function readAccent(): string {
+  const host = document.querySelector<HTMLElement>("#trips-main [data-trip-accent]")
+  return host ? ACCENT_FILL[resolveAccent(host.dataset.tripAccent)] : BRAND_FILL
+}
+
+const readWall = (): Wall => ({ accent: readAccent(), dark: document.documentElement.classList.contains("dark"), ...wallSize() })
+
+/** Follows the accent, theme and size class; re-reads at most once a frame. */
+function useWall(): Wall {
+  const [wall, setWall] = useState<Wall>(readWall)
+  useEffect(() => {
+    let frame = 0
+    const read = () => {
+      frame = 0
+      const next = readWall()
+      setWall((prev) => (sameWall(prev, next) ? prev : next))
+    }
+    const queue = () => {
+      if (!frame) frame = requestAnimationFrame(read)
+    }
+    const root = document.querySelector(".trips:not(.trips-portal)") ?? document.body
+    const page = new MutationObserver(queue)
+    page.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-trip-accent"] })
+    const theme = new MutationObserver(queue)
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    window.addEventListener("resize", queue)
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      page.disconnect()
+      theme.disconnect()
+      window.removeEventListener("resize", queue)
+    }
+  }, [])
+  return wall
+}
+
+/** A still of the wallpaper for `wall`, or null until painted (the CSS gradient shows meanwhile). */
+function useWallpaper(wall: Wall): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  const current = useRef<string | null>(null)
+  useEffect(() => {
+    let live = true
+    const seed = parseInt(wall.accent.slice(1, 4), 16) / 97
+    paintWallpaper({ width: wall.width, height: wall.height, palette: wallPalette(wall.accent, wall.dark), seed }).then(
+      (next) => {
+        if (!live) {
+          if (next) URL.revokeObjectURL(next)
+          return
+        }
+        if (current.current) URL.revokeObjectURL(current.current)
+        current.current = next
+        setUrl(next)
+      },
+      // No WebGL2, or the context was refused: the gradient stays.
+      () => {},
+    )
+    return () => {
+      live = false
+    }
+  }, [wall])
+  useEffect(
+    () => () => {
+      if (current.current) URL.revokeObjectURL(current.current)
+    },
+    [],
+  )
+  return url
+}
 
 export default function GlassLayer() {
-  return <div className="trips-glass-wallpaper" aria-hidden />
+  useEffect(() => startRefraction(), [])
+  useEffect(() => startLight(), [])
+  const url = useWallpaper(useWall())
+  return (
+    <div className="trips-glass-wallpaper" aria-hidden>
+      {url && <img className="trips-glass-wallpaper-still" src={url} alt="" decoding="async" />}
+    </div>
+  )
 }

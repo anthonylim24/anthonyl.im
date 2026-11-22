@@ -357,7 +357,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
         <div className="trips trips-portal" data-trip-accent={accent}>
           <DialogPrimitive.Overlay {...sx(a.scrim)} />
           <DialogPrimitive.Content
-            {...sx(a.dialog, s.sheet)}
+            {...sx(a.dialog, s.sheet, "trips-glass-sheet")}
             onOpenAutoFocus={(event) => {
               // Typing position on desktop; on phones, and when a link was
               // handed over, don't raise the keyboard over the results.

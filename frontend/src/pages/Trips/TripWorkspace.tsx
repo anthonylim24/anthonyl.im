@@ -1042,7 +1042,7 @@ function Workspace() {
       )}
 
       {(wide || mapOpened) && (
-        <div {...sx(s.mapPane)} hidden={!showMap}>
+        <div {...sx(s.mapPane, "trips-glass-map")} hidden={!showMap}>
           <AtlasMap
             pins={pins}
             routes={routes}
@@ -1070,7 +1070,7 @@ function Workspace() {
                 : `Map of the whole trip with ${plural(pins.length, "pinned place")}`
             }
           >
-            <p {...sx(s.mapChip)}>
+            <p {...sx(s.mapChip, "trips-glass-pill")}>
               <span {...sx(a.truncate)}>
                 {[
                   day ? `Day ${dayIndex + 1}` : "All days",
@@ -1159,9 +1159,9 @@ function Workspace() {
         </div>
       )}
 
-      <div {...sx(s.bar, "trips-glass-bar")}>
+      <div {...sx(s.bar, "trips-glass-bar trips-glass-dock")}>
         {!wide && saveLine("bar")}
-        <div {...sx(share.segment, s.barSegment)} role="radiogroup" aria-label="View" onKeyDown={onViewKey}>
+        <div {...sx(share.segment, s.barSegment, "trips-glass-segment")} role="radiogroup" aria-label="View" onKeyDown={onViewKey}>
           <button
             type="button"
             role="radio"
