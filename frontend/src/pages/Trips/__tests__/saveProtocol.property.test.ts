@@ -19,6 +19,7 @@ import { makeItem, makeTrip } from "./tripFixtures"
 // More runs: SAVE_PROTOCOL_RUNS=20000 (same command).
 
 const RUNS = Number(process.env.SAVE_PROTOCOL_RUNS ?? 5000)
+const TIMEOUT_MS = Math.max(30_000, RUNS * 6)
 const DAYS = 2
 const STOPS = 2
 
@@ -389,6 +390,14 @@ const undoAcrossTheirCopy: Step[] = [
   { k: "mineDayTitle", day: 0 },
   { k: "undo" },
 ]
+const redoOverTheirRename: Step[] = [
+  { k: "theirsDayTitle", day: 0 },
+  { k: "theirsTitle", day: 0, stop: 0 },
+  { k: "mineDayTitle", day: 0 },
+  { k: "undo" },
+  { k: "hear", how: "trip-changed" },
+  { k: "redo" },
+]
 
 describe("save protocol (property)", () => {
   const params = (...examples: Step[][]) => ({ numRuns: RUNS, examples: examples.map((steps): [Step[]] => [steps]) })
@@ -402,7 +411,7 @@ describe("save protocol (property)", () => {
       }),
       params(typedTwiceWhileSaving),
     )
-  })
+  }, TIMEOUT_MS)
 
   // DEFECT: a save that landed but whose answer was lost comes back as a 409
   // on the retry, and the traveller's newer typing clashes with it.
@@ -415,7 +424,7 @@ describe("save protocol (property)", () => {
       }),
       params(answerLostThenTyped),
     )
-  })
+  }, TIMEOUT_MS)
 
   it("every edit saves and no one else's change is lost", () => {
     fc.assert(
@@ -427,18 +436,16 @@ describe("save protocol (property)", () => {
       }),
       params(typedTwiceWhileSaving, answerLostThenTyped, undoAcrossTheirCopy.filter((s) => s.k !== "undo")),
     )
-  })
+  }, TIMEOUT_MS)
 
-  // DEFECT: typing coalesces into one undo step across a merge of someone
-  // else's copy, so undoing it also reverts their change.
-  it.fails("undo and redo never take back someone else's change", () => {
+  it("undo and redo never take back someone else's change", () => {
     fc.assert(
       fc.property(stepsArb({ undo: true, theirs: true, lossy: true }), (steps) => {
         const world = play(steps)
         settles(world)
         keepsTheirs(world)
       }),
-      params(undoAcrossTheirCopy),
+      params(undoAcrossTheirCopy, redoOverTheirRename),
     )
-  })
+  }, TIMEOUT_MS)
 })
