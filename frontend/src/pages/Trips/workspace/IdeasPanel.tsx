@@ -11,6 +11,7 @@ import { formatTripDate, plural } from "../meta"
 import { addIdea, dayFull, ideaToDay, ideasFull, removeIdea } from "../tripEdits"
 import type { ItineraryItem, Trip } from "../types"
 import { AddStop } from "./AddStop"
+import { Presence } from "../components/presence"
 import { DayPicker, type DayChoice } from "./DayPicker"
 import { LinkChip } from "./LinkChip"
 import { stopLink } from "./stopLinks"
@@ -113,7 +114,7 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
         </ul>
       )}
 
-      {placing && (
+      <Presence when={placing}>{(placing) => (
         <DayPicker
           title={`Add “${placing.title}” to a day`}
           description="It joins that day’s route, above anything still to schedule."
@@ -121,7 +122,7 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
           onPick={(dayId) => toDay(placing, dayId)}
           onClose={() => setPlacing(null)}
         />
-      )}
+      )}</Presence>
     </section>
   )
 }

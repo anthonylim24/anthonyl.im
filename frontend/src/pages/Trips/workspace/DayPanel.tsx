@@ -31,6 +31,7 @@ import { LIMITS } from "../limits"
 import { formatDistance } from "../reservationView"
 import { addItem, ideasFull, saveForLater } from "../tripEdits"
 import { Modal } from "../components/kit"
+import { Presence } from "../components/presence"
 import { canAddDay, dayAfterDelete, deleteDay, duplicateDay, insertDayAfter, moveDay, outOfOrder, sortByTime, type DayPlan } from "./dayOps"
 import { composing } from "../ime"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
@@ -672,7 +673,7 @@ export function DayPanel({
         />
       )}
 
-      {confirmDelete && (
+      <Presence when={confirmDelete}>{() => (
         <Modal
           open
           onClose={() => setConfirmDelete(false)}
@@ -693,7 +694,7 @@ export function DayPanel({
             The days after it move a date earlier, so the trip ends a day sooner. You can undo this straight after.
           </p>
         </Modal>
-      )}
+      )}</Presence>
 
       <nav {...sx(s.pager)} aria-label="Other days">
         {prev && (

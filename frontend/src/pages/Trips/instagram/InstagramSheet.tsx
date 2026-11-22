@@ -6,7 +6,8 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { errorMessage } from "../../../effect/errors"
 import { a } from "../atlas.stylex"
-import { Spinner } from "../components/kit"
+import { DialogFrame, Spinner } from "../components/kit"
+import { useClosing } from "../components/presence"
 import { AtlasMap } from "../map/AtlasMap"
 import { centroid, corePoints, distanceMeters, isLocated, type AtlasPin, type LngLat } from "../map/geo"
 import { plural, resolveAccent } from "../meta"
@@ -71,7 +72,11 @@ type SavedList =
   | { status: "error" }
   | { status: "ready"; places: SavedPlace[]; total: number; hasMore: boolean }
 
-export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getToken, onAdd }: InstagramSheetProps) {
+export function InstagramSheet({ open: requested, onClose, trip, dayId, initialUrls, getToken, onAdd }: InstagramSheetProps) {
+  // A caller that unmounts the sheet to close it wraps it in `Presence`,
+  // which closes it here first so it can animate out.
+  const closing = useClosing()
+  const open = requested && !closing
   const imp = useInstagramImport(getToken, open)
   const wide = useMedia(WIDE_QUERY)
   const reduceMotion = useReducedMotion()
@@ -352,20 +357,19 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
   const savedTotal = saved.status === "ready" ? Math.max(0, saved.total - (removing ? 1 : 0)) : 0
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogPrimitive.Portal>
-        <div className="trips trips-portal" data-trip-accent={accent}>
-          <DialogPrimitive.Overlay {...sx(a.scrim)} />
-          <DialogPrimitive.Content
-            {...sx(a.dialog, s.sheet)}
-            onOpenAutoFocus={(event) => {
-              // Typing position on desktop; on phones, and when a link was
-              // handed over, don't raise the keyboard over the results.
-              event.preventDefault()
-              if (wide && !handoff) inputRef.current?.focus()
-              else (event.currentTarget as HTMLElement).focus()
-            }}
-          >
+    <DialogFrame
+      open={open}
+      onClose={onClose}
+      accent={accent}
+      content={[a.dialog, s.sheet]}
+      onOpenAutoFocus={(event) => {
+        // Typing position on desktop; on phones, and when a link was
+        // handed over, don't raise the keyboard over the results.
+        event.preventDefault()
+        if (wide && !handoff) inputRef.current?.focus()
+        else (event.currentTarget as HTMLElement).focus()
+      }}
+    >
             <div {...sx(s.body)}>
               <div {...sx(s.column)}>
                 <div {...sx(s.head)}>
@@ -678,10 +682,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                 </div>
               )}
             </div>
-          </DialogPrimitive.Content>
-        </div>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    </DialogFrame>
   )
 }
 

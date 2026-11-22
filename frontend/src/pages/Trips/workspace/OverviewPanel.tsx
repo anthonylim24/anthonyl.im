@@ -7,6 +7,7 @@ import { dayRoute, distanceMeters, isLocated } from "../map/geo"
 import { formatDistance } from "../reservationView"
 import type { EnhancementRun, ItineraryItem, Trip } from "../types"
 import { Menu, type MenuItem } from "../components/kit"
+import { Presence } from "../components/presence"
 import { ItemIcon } from "../ItemIcon"
 import { AddBookingDialog } from "../bookings/AddBookingDialog"
 import { bookingsInOrder } from "../bookings/addBookings"
@@ -286,7 +287,7 @@ export function OverviewPanel({
           )}
         </section>
       )}
-      {handOpen && onAddBooking && <AddBookingDialog trip={trip} onClose={() => setHandOpen(false)} onAdd={onAddBooking} />}
+      <Presence when={handOpen}>{() => onAddBooking && <AddBookingDialog trip={trip} onClose={() => setHandOpen(false)} onAdd={onAddBooking} />}</Presence>
     </div>
   )
 }

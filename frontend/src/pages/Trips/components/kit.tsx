@@ -15,6 +15,7 @@ import { X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import type { TripAccent } from "../types"
+import { ExitSignal, useClosing, useLeaving } from "./presence"
 
 // Small shared pieces: a popover menu and a modal that becomes a bottom
 // sheet on phones. Both portal-safe: the modal re-declares the `.trips`
@@ -55,6 +56,7 @@ export function Menu({
   triggerStyle?: Parameters<typeof sx>[0]
 }) {
   const [open, setOpen] = useState(false)
+  const leave = useLeaving(open)
   const wrapRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuId = useId()
@@ -118,8 +120,15 @@ export function Menu({
       >
         {trigger}
       </button>
-      {open && (
-        <div id={menuId} role="menu" aria-label={label} {...sx(a.menu, align === "start" && a.menuLeft, side === "up" && a.menuUp, "trips-glass-sheet")}>
+      {leave.present && (
+        <div
+          id={menuId}
+          role="menu"
+          aria-label={label}
+          // `trips-pop`: the closing animation in index.css.
+          {...sx(a.menu, align === "start" && a.menuLeft, side === "up" && a.menuUp, "trips-glass-sheet", "trips-pop")}
+          {...leave.bind}
+        >
           {items.map((item) => (
             <div key={item.label} role="none">
               {item.separated && <div {...sx(a.menuRule)} role="separator" />}
@@ -193,21 +202,67 @@ export function Modal({
   footer?: ReactNode
   children: ReactNode
 }) {
-  const opener = useOpener(open)
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
+    <DialogFrame open={open} onClose={onClose} accent={accent} content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}>
+      <div {...sx(a.dialogHead)}>
+        <div {...sx(a.stack)}>
+          <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
+          {description ? (
+            <DialogPrimitive.Description {...sx(a.body)}>{description}</DialogPrimitive.Description>
+          ) : (
+            <DialogPrimitive.Description {...sx(a.srOnly)}>{title}</DialogPrimitive.Description>
+          )}
+        </div>
+        <DialogPrimitive.Close {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Close">
+          <X size={18} strokeWidth={1.75} aria-hidden />
+        </DialogPrimitive.Close>
+      </div>
+      <div {...sx(a.dialogBody)}>{children}</div>
+      {footer && <div {...sx(a.dialogFoot, "trips-dialog-foot")}>{footer}</div>}
+    </DialogFrame>
+  )
+}
+
+/**
+ * What every Trips dialog stands on: Radix's dialog in a plain portal that
+ * re-declares the `.trips` tokens, a scrim, and a Content that animates out
+ * (`trips-scrim` / `trips-dialog` in index.css), is inert while it does, and
+ * keeps showing what it showed while open. Focus goes back to whatever
+ * opened it. Inside a `Presence`, it closes when the caller lets go.
+ */
+export function DialogFrame({
+  open,
+  onClose,
+  accent,
+  content,
+  onOpenAutoFocus,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  accent?: TripAccent
+  /** The Content's styles and classes, as `sx` takes them. */
+  content: Parameters<typeof sx>
+  onOpenAutoFocus?: (event: Event) => void
+  children: ReactNode
+}) {
+  const closing = useClosing()
+  const shown = open && !closing
+  const opener = useOpener(shown)
+  return (
+    <DialogPrimitive.Root open={shown} onOpenChange={(next) => !next && onClose()}>
       {/* A plain portal, not Radix's: its presence would watch this token
           wrapper, which never animates, and drop the dialog the instant `open`
           turns false. The scrim and the dialog keep their own presence and
           leave when their closing animations end; closed, the wrapper is empty. */}
       {createPortal(
         <div className="trips trips-portal" data-trip-accent={accent}>
-          {/* `trips-scrim` / `trips-dialog`: the closing animations in index.css. */}
           <DialogPrimitive.Overlay {...sx(a.scrim, "trips-scrim")} />
           <DialogPrimitive.Content
-            {...sx(a.dialog, wide && a.dialogWide, "trips-dialog", "trips-glass-sheet")}
+            {...sx(...content, "trips-dialog")}
             // While it animates out, nothing in it can be pressed again.
-            inert={!open}
+            inert={!shown}
+            onOpenAutoFocus={onOpenAutoFocus}
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
@@ -217,23 +272,8 @@ export function Modal({
               target.focus({ preventScroll: true })
             }}
           >
-            <Frozen open={open}>
-              <div {...sx(a.dialogHead)}>
-                <div {...sx(a.stack)}>
-                  <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
-                  {description ? (
-                    <DialogPrimitive.Description {...sx(a.body)}>{description}</DialogPrimitive.Description>
-                  ) : (
-                    <DialogPrimitive.Description {...sx(a.srOnly)}>{title}</DialogPrimitive.Description>
-                  )}
-                </div>
-                <DialogPrimitive.Close {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Close">
-                  <X size={18} strokeWidth={1.75} aria-hidden />
-                </DialogPrimitive.Close>
-              </div>
-              <div {...sx(a.dialogBody)}>{children}</div>
-              {footer && <div {...sx(a.dialogFoot, "trips-dialog-foot")}>{footer}</div>}
-            </Frozen>
+            <ExitSignal />
+            <Frozen open={shown}>{children}</Frozen>
           </DialogPrimitive.Content>
         </div>,
         document.body,
