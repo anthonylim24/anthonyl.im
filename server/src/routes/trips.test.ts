@@ -792,7 +792,7 @@ describe("concierge chat", () => {
     expect(sys).toContain("FOCUSED DAY")
     expect(sys).toContain("propose_changes")
     expect(capturedBody?.generationConfig?.thinkingConfig).toEqual({ thinkingLevel: "low" })
-    // Built-in Search plus our own functions, which Hydrogen only accepts
+    // Built-in Search plus our own functions, which the model only accepts
     // with server-side tool invocations switched on.
     expect(capturedBody?.tools?.[0]).toEqual({ googleSearch: {} })
     const declared = (capturedBody?.tools?.[1] as { functionDeclarations: Array<{ name: string }> }).functionDeclarations
@@ -804,7 +804,7 @@ describe("concierge chat", () => {
     process.env.GEMINI_API_KEY = "test-key"
     globalThis.fetch = (async (url: string) => {
       if (!String(url).includes(":streamGenerateContent")) return new Response("{}", { status: 500 })
-      return geminiRawSse([{ modelVersion: "gemini-4-hydrogen", candidates: [{ content: { parts: [{ text: "Hi." }] } }] }])
+      return geminiRawSse([{ modelVersion: "gemini-4-neon", candidates: [{ content: { parts: [{ text: "Hi." }] } }] }])
     }) as unknown as typeof fetch
 
     const { app } = makeApp()
@@ -815,7 +815,7 @@ describe("concierge chat", () => {
       body: JSON.stringify({ prompt: "hello" }),
     })
     const text = await res.text()
-    expect(text).toContain('"meta":{"model":"gemini-4-hydrogen"')
+    expect(text).toContain('"meta":{"model":"gemini-4-neon"')
     expect(text.indexOf('"meta"')).toBeLessThan(text.indexOf('"Hi."'))
   })
 

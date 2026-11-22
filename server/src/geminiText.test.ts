@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import { geminiText, geminiTextStream } from "./geminiText"
+import { afterEach, describe, expect, test } from "bun:test"
+import { geminiText, geminiTextStream, resetUnavailableModels } from "./geminiText"
 import { GEMINI_FALLBACK_MODEL, GEMINI_MODEL, resetGeminiModelFallback } from "./igPlaces/gemini"
 
 const sse = (chunks: unknown[]) =>
@@ -59,5 +59,47 @@ describe("geminiText", () => {
     } finally {
       resetGeminiModelFallback()
     }
+  })
+
+  test("a JSON answer cut off at the token limit is an error, not half an object", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: '{"ops":[{"op":"item","spec":{"parts":[' }] } }] }))) as unknown as typeof fetch
+    await expect(geminiText({ apiKey: "K", json: true, system: "s", messages: [{ role: "user", content: "x" }], fetchImpl })).rejects.toThrow(/cut off/)
+  })
+})
+
+describe("geminiText with a per-call model", () => {
+  const OTHER = "gemini-other-model"
+  const answer = (text: string) => new Response(JSON.stringify(part(text)))
+
+  afterEach(() => {
+    resetGeminiModelFallback()
+    resetUnavailableModels()
+  })
+
+  test("asks the requested model", async () => {
+    const urls: string[] = []
+    const fetchImpl = (async (url: string) => (urls.push(url), answer("ok"))) as unknown as typeof fetch
+    await geminiText({ apiKey: "K", model: OTHER, system: "s", messages: [{ role: "user", content: "x" }], fetchImpl })
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toContain(`/models/${OTHER}:generateContent`)
+  })
+
+  test("steps down to the app model when the key cannot use the requested one, and remembers", async () => {
+    const urls: string[] = []
+    const fetchImpl = (async (url: string) => {
+      urls.push(url)
+      return url.includes(OTHER) ? new Response(`models/${OTHER} is not found`, { status: 404 }) : answer("ok")
+    }) as unknown as typeof fetch
+    expect(await geminiText({ apiKey: "K", model: OTHER, system: "s", messages: [{ role: "user", content: "x" }], fetchImpl })).toBe("ok")
+    expect(urls[1]).toContain(`/models/${GEMINI_MODEL}:generateContent`)
+    await geminiText({ apiKey: "K", model: OTHER, system: "s", messages: [{ role: "user", content: "x" }], fetchImpl })
+    expect(urls).toHaveLength(3)
+    expect(urls[2]).toContain(`/models/${GEMINI_MODEL}:generateContent`)
+  })
+
+  test("a quota error on the requested model is an error (the caller's backup takes over)", async () => {
+    const fetchImpl = (async () => new Response("quota", { status: 429 })) as unknown as typeof fetch
+    await expect(geminiText({ apiKey: "K", model: OTHER, system: "s", messages: [{ role: "user", content: "x" }], fetchImpl })).rejects.toThrow(/429/)
   })
 })
