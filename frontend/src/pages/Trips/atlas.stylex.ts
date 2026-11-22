@@ -368,8 +368,6 @@ export const a = stylex.create({
     transformOrigin: "top right",
     [REDUCE]: { animationName: "none" },
   },
-  menuUp: { top: "auto", bottom: "calc(100% + 0.375rem)", transformOrigin: "bottom right" },
-  menuLeft: { right: "auto", left: 0, transformOrigin: "top left" },
   menuItem: {
     display: "flex",
     alignItems: "center",

@@ -455,7 +455,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
 
   const controls = !failed && (
     <div {...sx(p.controls)} role="group" aria-label="Map controls">
-      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Point north up" title="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
+      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
         <svg {...sx(p.compass)} width="24" height="24" viewBox="0 0 24 24" aria-hidden>
           <circle cx="12" cy="12" r="10.5" {...sx(p.compassRing)} />
           <g ref={needleRef}>
@@ -473,7 +473,6 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         {...sx(p.control, !tilted && p.controlOn, stylex.defaultMarker())}
         aria-label="Top-down view"
         aria-pressed={!tilted}
-        title={tilted ? "Look straight down" : "Tilt the view"}
         onClick={() => setTilted(sceneRef.current?.toggleTilt() ?? tilted)}
       >
         {tilted ? <Box size={18} strokeWidth={1.75} aria-hidden /> : <Square size={17} strokeWidth={1.75} aria-hidden />}
@@ -486,7 +485,6 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         type="button"
         {...sx(p.control, hasUser && p.controlOn, stylex.defaultMarker())}
         aria-label={hasUser ? "Go to my location" : "Show my location"}
-        title={hasUser ? "Go to my location" : "Show my location"}
         disabled={locating}
         onClick={onLocate}
       >
@@ -495,10 +493,10 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
           My location
         </span>
       </button>
-      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Fit all stops" title="Fit all stops (F)" onClick={fitAll}>
+      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Fit all stops" aria-keyshortcuts="F" onClick={fitAll}>
         <Scan size={18} strokeWidth={1.75} aria-hidden />
         <span {...sx(p.tip)} aria-hidden>
-          Fit all
+          Fit all (F)
         </span>
       </button>
     </div>

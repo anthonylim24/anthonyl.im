@@ -96,6 +96,8 @@ export const shell = stylex.create({
     backgroundColor: { default: "transparent", ":hover": "var(--trips-sunken)" },
     color: "var(--trips-ink-secondary)",
     boxShadow: "none",
+    // The shared toggle's own hover is Korea's rose; the same key replaces it.
+    ":hover": { borderColor: "transparent", color: "var(--trips-ink)" },
   },
   main: { flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", outline: "none" },
   gate: {
