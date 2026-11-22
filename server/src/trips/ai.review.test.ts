@@ -196,6 +196,23 @@ describe("review prompt: the whole trip's context", () => {
     expect(user).not.toMatch(/id=it-castle kind=place FIXED/)
   })
 
+  test("booking codes and contact details in what the traveller wrote never reach the model", async () => {
+    const trip = makeTrip({
+      description: "Flights: TP 1350 out, TP 1351 back (QXRT7B). Host: ana@example.pt",
+      checklist: [{ id: "c1", text: "Call the hotel on +351 21 123 4567", done: false, group: "todo", createdAt: "x" }],
+    })
+    trip.days[0]!.items[0]!.notes = "Tickets booked, confirmation 88123456"
+    trip.days[0]!.journal = "Booking ref ZK4P2M moved to 11:00"
+    const { llm, calls } = recordingLlm()
+    await enhanceTrip({ trip, scope: "trip", llm })
+    const user = calls[0]!.user
+    for (const secret of ["QXRT7B", "ana@example.pt", "123 4567", "88123456", "ZK4P2M"]) expect(user).not.toContain(secret)
+    // The parts that help plan the day are still there.
+    expect(user).toContain("TP 1350 out, TP 1351 back ([code])")
+    expect(user).toContain("Tickets booked, confirmation [code]")
+    expect(user).toContain("moved to 11:00")
+  })
+
   test("a day in the trip's own zone does not repeat it; a live forecast replaces the saved weather", async () => {
     const trip = makeTrip()
     trip.days[0]!.timezone = "Europe/Lisbon"
@@ -349,6 +366,57 @@ describe("review: wishlist adds", () => {
     expect(run.suggestions.filter((s) => s.kind === "add")).toEqual([])
   })
 
+  test("a near name for a venue already on the trip is not added again", async () => {
+    const run = await review(makeTrip(), [
+      // "Castelo de São Jorge" is on day 1: the same castle, its kind word dropped.
+      addSuggestion({ proposedItem: { title: "São Jorge Castle", location: { name: "Castelo São Jorge", lat: 38.7139, lng: -9.1335 } } }),
+      addSuggestion({ proposedItem: { title: "Castelo de Sao Jorge" } }),
+      // A different venue next door stays.
+      addSuggestion({ proposedItem: { title: "Miradouro de Santa Luzia", location: { name: "Miradouro de Santa Luzia", lat: 38.7118, lng: -9.1302 } } }),
+    ])
+    expect(run.suggestions.filter((s) => s.kind === "add").map((s) => s.proposedItem!.title)).toEqual(["Miradouro de Santa Luzia"])
+  })
+
+  test("a near name of a saved place schedules that idea", async () => {
+    const run = await review(makeTrip({ ideas: [place("idea-leeum", "Leeum Museum of Art", { lat: 37.5381, lng: 126.9993 })] }), [
+      addSuggestion({ proposedItem: { title: "Leeum Museum", time: "14:00", location: { name: "Leeum Museum", lat: 37.5382, lng: 126.9994 } } }),
+    ])
+    const adds = run.suggestions.filter((s) => s.kind === "add")
+    expect(adds).toHaveLength(1)
+    expect(adds[0]!.fromIdeaId).toBe("idea-leeum")
+    expect(adds[0]!.proposedItem!.title).toBe("Leeum Museum of Art")
+  })
+
+  test("the same name far away is another branch, not a duplicate", async () => {
+    const trip = makeTrip()
+    trip.days[0]!.items.push(place("it-cafe", "Fábrica Coffee Roasters", { lat: 38.7167, lng: -9.1446 }))
+    const run = await review(trip, [
+      addSuggestion({ proposedItem: { title: "Fábrica Coffee Roasters", location: { name: "Fábrica Coffee Roasters", lat: 38.6925, lng: -9.2155 } } }),
+    ])
+    expect(run.suggestions.filter((s) => s.kind === "add")).toHaveLength(1)
+  })
+
+  test("a note the model wrote from a placeholder never replaces the traveller's own", async () => {
+    const trip = makeTrip({ ideas: [place("idea-lx", "LX Factory", { notes: "Tickets: confirmation 88123456" })] })
+    trip.days[0]!.items[1]!.notes = "Booked, call +351 21 123 4567 if late"
+    const run = await review(trip, [
+      addSuggestion({ fromIdeaId: "idea-lx", proposedItem: { time: "15:00", notes: "Tickets: confirmation [code]" } }),
+      {
+        kind: "edit",
+        dayId: "day-1",
+        itemId: "it-lunch",
+        title: "Earlier lunch",
+        detail: "",
+        confidence: "high",
+        proposedChanges: { time: "12:30", notes: "Booked, call [number] if late" },
+      },
+    ])
+    const add = run.suggestions.find((s) => s.kind === "add")!
+    expect(add.proposedItem!.notes).toBe("Tickets: confirmation 88123456")
+    const update = run.suggestions.find((s) => s.kind === "edit")!
+    expect(update.proposedChanges).toEqual({ time: "12:30" })
+  })
+
   test("a stray null, an empty string or a link inside the stop never costs the suggestion", () => {
     const parsed = salvageSuggestions(
       JSON.stringify({
@@ -475,6 +543,35 @@ describe("applying wishlist adds", () => {
     const out = applySuggestions(again, run, ["sug-idea"])
     expect(out.skipped).toEqual(["sug-idea"])
     expect(out.trip.ideas).toHaveLength(2)
+  })
+
+  test("an add whose venue the traveller put on a day meanwhile, under a near name, is skipped", () => {
+    const trip = makeTrip()
+    const run: EnhancementRun = {
+      id: "run-2",
+      tripId: trip.id,
+      scope: "trip",
+      status: "complete",
+      outcome: "added_places",
+      outcomeReason: "Filled day 2.",
+      appliedSuggestionIds: [],
+      createdAt: "2026-03-01T00:00:00.000Z",
+      suggestions: [
+        {
+          id: "sug-lx",
+          kind: "add",
+          dayId: "day-2",
+          title: "Add LX Factory",
+          detail: "",
+          confidence: "high",
+          proposedItem: { ...place("it-ai-lx", "LX Factory"), status: "needs_review", createdBy: "ai" },
+        },
+      ],
+    }
+    const mine: Trip = { ...trip, days: [trip.days[0]!, { ...trip.days[1]!, items: [place("it-mine", "LX Factory Market")] }] }
+    const out = applySuggestions(mine, run, ["sug-lx"])
+    expect(out.skipped).toEqual(["sug-lx"])
+    expect(out.trip.days[1]!.items.map((i) => i.id)).toEqual(["it-mine"])
   })
 
   test("a trip without a wishlist does not grow an empty one", () => {

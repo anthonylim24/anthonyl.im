@@ -13,6 +13,8 @@ import { memoLRU } from "../igPlaces/lru"
 import { tripLatLngHint } from "./latLngHint"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
+import { sameVenue, venueSet } from "./sameVenue"
+import { fromModel, redactPrivate } from "./privateText"
 import { ENHANCEMENT_SYSTEM, GENERATION_SYSTEM, OUTLINE_SYSTEM } from "./prompts"
 import { repairTruncatedJson } from "./jsonRepair"
 import { baseByDay, describeBases, isFixed, isLodging } from "./lodging"
@@ -797,7 +799,7 @@ function toTripItems(items: AiDay["items"]): ItineraryItem[] {
     title: item.title,
     time: item.time,
     endTime: item.endTime,
-    notes: item.notes,
+    notes: fromModel(item.notes),
     status: item.status ?? "none",
     location: item.location
       ? {
@@ -869,7 +871,7 @@ export async function generateItinerary(args: {
     `Dates: ${trip.startDate} to ${trip.endDate} (${dates.length} days)`,
     `Days, in order (plan around each weekday's closures): ${dates.map((date, i) => `${i + 1}. ${weekday(date)} ${date}`).join("; ")}`,
     `Timezone: ${trip.timezone}`,
-    trip.description ? `Context: ${trip.description}` : undefined,
+    trip.description ? `Context: ${redactPrivate(trip.description)}` : undefined,
     prefLines ? `Traveler preferences:\n${prefLines}` : undefined,
     baseLines.length
       ? `Where they sleep (start mornings near it, end evenings within an easy ride of it, and say how to get back when the last stop is far):\n${baseLines.join("\n")}`
@@ -955,16 +957,14 @@ export async function generateItinerary(args: {
   }
 
   // Parts drafted apart can pick the same venue: the earlier day keeps it.
-  const seen = new Set<string>()
-  for (const fixed of fixedByDate.values()) for (const item of fixed) seen.add(placeKey(item.location?.name || item.title))
+  const seen = venueSet([...fixedByDate.values()].flat())
   const incompleteDays: number[] = []
   const days: TripDay[] = dates.map((date, i) => {
     const aiDay = aiDays[i]
     const fresh = toTripItems(aiDay?.items ?? []).filter((item) => {
       if (item.kind !== "place") return true
-      const key = placeKey(item.location?.name || item.title)
-      if (!key || seen.has(key)) return false
-      seen.add(key)
+      if (seen.has(item)) return false
+      seen.add(item)
       return true
     })
     if (!dayLooksDrafted(aiDay)) incompleteDays.push(i + 1)
@@ -975,7 +975,7 @@ export async function generateItinerary(args: {
       title: aiDay?.title,
       emoji: aiDay?.emoji,
       city: aiDay?.city,
-      notes: aiDay?.notes,
+      notes: fromModel(aiDay?.notes),
       neighborhoods: aiDay?.neighborhoods,
       items,
     }
@@ -1117,7 +1117,8 @@ export function computeTravelLegs(days: TripDay[]): TravelLeg[] {
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text)
 /** The traveller's own words on one line, clipped and quoted. */
-const quote = (text: string, max: number) => JSON.stringify(clip(text.trim().replace(/\s+/g, " "), max))
+/** What the traveller wrote, on one line, without booking codes or contact details. */
+const quote = (text: string, max: number) => JSON.stringify(clip(redactPrivate(text).trim().replace(/\s+/g, " "), max))
 const hasPoint = (loc: TripLocation | undefined): loc is TripLocation & { lat: number; lng: number } =>
   loc?.lat != null && loc.lng != null
 const fmtPoint = (loc: TripLocation) => (hasPoint(loc) ? `(${loc.lat.toFixed(5)},${loc.lng.toFixed(5)})` : "(no coordinates)")
@@ -1242,23 +1243,11 @@ function describeTripContext(trip: Trip): string[] {
   // To-dos only: packing and documents change nothing in a day's plan.
   const todos = (trip.checklist ?? []).filter((c) => c.group === "todo" && !c.done && c.text.trim())
   if (todos.length) {
-    const shown = todos.slice(0, MAX_OPEN_TODOS).map((c) => clip(c.text.trim(), 80))
+    const shown = todos.slice(0, MAX_OPEN_TODOS).map((c) => clip(redactPrivate(c.text).trim(), 80))
     const more = todos.length - shown.length
     lines.push(`  Open to-dos: ${shown.join("; ")}${more > 0 ? ` (+${more} more)` : ""}`)
   }
   return lines.length ? ["About this trip (the traveller's preferences):", ...lines] : []
-}
-
-function placeKey(name: string): string {
-  return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
-}
-
-/** The venue an item stands for, comparable across days and the wishlist:
- *  its place's name, or its title when it has none. Empty for notes and
- *  headings, which are not venues. */
-function venueKey(item: { kind?: ItineraryItem["kind"]; title?: string; location?: { name?: string } }): string {
-  if (item.kind === "note" || item.kind === "section") return ""
-  return placeKey(item.location?.name || item.title || "")
 }
 
 const MAX_WISHLIST = 40
@@ -1269,8 +1258,8 @@ const MAX_WISHLIST = 40
 function describeWishlist(trip: Trip, near?: { lat: number; lng: number }): string | undefined {
   const ideas = trip.ideas ?? []
   if (ideas.length === 0) return undefined
-  const onDays = new Set(trip.days.flatMap((d) => d.items.map(venueKey)).filter(Boolean))
-  const open = ideas.filter((idea) => !onDays.has(venueKey(idea)))
+  const onDays = venueSet(trip.days.flatMap((d) => d.items))
+  const open = ideas.filter((idea) => !onDays.has(idea))
   const scheduled = ideas.length - open.length
   if (open.length === 0) return `Wishlist: all ${ideas.length} saved place${ideas.length === 1 ? " is" : "s are"} already on a day.`
   const km = (idea: ItineraryItem) =>
@@ -1409,7 +1398,7 @@ function proposedStop(p: AiProposedItem & { title: string }, confidence: Confide
     title: p.title,
     time: p.time,
     endTime: p.endTime,
-    notes: p.notes,
+    notes: fromModel(p.notes),
     status: p.status ?? "needs_review",
     location: p.location ? { ...p.location, source: "ai", confidence } : undefined,
     createdBy: "ai",
@@ -1450,7 +1439,7 @@ function scheduledIdea(
     title: idea.title.trim() || proposed?.title || "Saved place",
     time: proposed?.time,
     endTime: proposed?.endTime,
-    notes: proposed?.notes?.trim() ? proposed.notes : idea.notes,
+    notes: fromModel(proposed?.notes)?.trim() ? proposed!.notes : idea.notes,
     links: idea.links ? [...idea.links] : undefined,
     // A booked idea stays booked; otherwise it is an AI-placed stop like any other.
     status: idea.status !== "none" ? idea.status : (proposed?.status ?? "needs_review"),
@@ -1481,11 +1470,11 @@ function acceptedSuggestions(args: {
   const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
   const tripDayIds = new Set(trip.days.map((d) => d.id))
   const tripItemIds = new Set(trip.days.flatMap((d) => d.items.map((i) => i.id)))
-  const taken = new Set(trip.days.flatMap((d) => d.items.map(venueKey)).filter(Boolean))
+  const taken = venueSet(trip.days.flatMap((d) => d.items))
   const ideas = trip.ideas ?? []
   const used = new Set<string>()
   const freeIdea = (id: string | undefined) => (id && !used.has(id) ? ideas.find((idea) => idea.id === id) : undefined)
-  const ideaNamed = (key: string) => (key ? ideas.find((idea) => !used.has(idea.id) && venueKey(idea) === key) : undefined)
+  const ideaNamed = (p: AiProposedItem) => ideas.find((idea) => !used.has(idea.id) && sameVenue(idea, p))
 
   const base = (s: AiSuggestion): EnhancementSuggestion => ({
     id: newId("sug"),
@@ -1501,7 +1490,9 @@ function acceptedSuggestions(args: {
           ...(s.proposedChanges.title != null ? { title: s.proposedChanges.title } : {}),
           ...(s.proposedChanges.time != null ? { time: s.proposedChanges.time } : {}),
           ...(s.proposedChanges.endTime != null ? { endTime: s.proposedChanges.endTime } : {}),
-          ...(s.proposedChanges.notes != null ? { notes: s.proposedChanges.notes } : {}),
+          ...(s.proposedChanges.notes != null && fromModel(s.proposedChanges.notes) !== undefined
+            ? { notes: s.proposedChanges.notes }
+            : {}),
           ...(s.proposedChanges.status != null ? { status: s.proposedChanges.status } : {}),
           ...(s.proposedChanges.location != null
             ? { location: { ...s.proposedChanges.location, source: "ai" as const, confidence: s.confidence } }
@@ -1514,16 +1505,15 @@ function acceptedSuggestions(args: {
   const add = (s: AiSuggestion): EnhancementSuggestion | null => {
     if (!s.dayId || !validDayIds.has(s.dayId)) return null
     const p = s.proposedItem
-    const idea = freeIdea(s.fromIdeaId) ?? (p ? ideaNamed(venueKey(p)) : undefined)
+    const idea = freeIdea(s.fromIdeaId) ?? (p ? ideaNamed(p) : undefined)
     const item = idea
       ? scheduledIdea(idea, p, s.confidence, tripItemIds.has(idea.id))
       : p?.title
         ? proposedStop({ ...p, title: p.title }, s.confidence)
         : null
     if (!item) return null
-    const key = venueKey(item)
-    if (key && taken.has(key)) return null
-    if (key) taken.add(key)
+    if (taken.has(item)) return null
+    taken.add(item)
     if (idea) used.add(idea.id)
     return { ...base(s), proposedItem: item, ...(idea ? { fromIdeaId: idea.id } : {}) }
   }
@@ -1655,7 +1645,10 @@ export async function enhanceTrip(args: {
     return finishRun(run, { status: "complete", ...resolved })
   } catch (err) {
     const failure = toReviewAttemptError(err, signal)
-    console.warn(`[trips/ai] review attempt failed (${failure.retryable ? "retryable" : "final"}): ${rawMessage(failure.cause ?? err)}`)
+    // A stopped attempt says why (the worker's deadline, a lost lease, a
+    // shutdown handing it back), not what the cut-off request looked like.
+    const why = rawMessage(signal?.aborted ? signal.reason : (failure.cause ?? err))
+    console.warn(`[trips/ai] review attempt failed (${failure.retryable ? "retryable" : "final"}): ${why}`)
     if (failure.retryable) throw failure
     return finishRun(run, { status: "error", error: failure.message })
   }
@@ -1778,10 +1771,10 @@ export function applySuggestions(
         // or, for a saved place, the traveller scheduling it meanwhile).
         if (!s.proposedItem || !day || days.some((d) => d.items.some((i) => i.id === s.proposedItem!.id))) break
         let item = structuredClone(s.proposedItem)
+        // A venue lands once: not when it is on a day already, under this
+        // name or a near one (the traveller may have added it since).
+        if (days.some((d) => d.items.some((i) => sameVenue(i, item)))) break
         if (s.fromIdeaId) {
-          // A saved place lands once: not when its venue is on a day already.
-          const key = venueKey(item)
-          if (key && days.some((d) => d.items.some((i) => venueKey(i) === key))) break
           // It leaves the wishlist in the same change, bringing what the stop
           // lacks (the idea may have been edited since the review). If it is
           // already gone, the stop still lands as proposed.

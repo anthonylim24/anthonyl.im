@@ -158,6 +158,57 @@ describe("rebaseTrip: budget and the trip's lists", () => {
   })
 })
 
+describe("a wishlist idea someone else scheduled", () => {
+  // An AI review the traveller stopped following still finishes on the
+  // server: it puts the idea on day 2 (same id) and takes it off the wishlist.
+  const idea = item("idea-1", "Pasteis de Belem", { notes: "Eat them warm" })
+  const base = makeTrip({ ideas: [idea, item("idea-2")] })
+  const scheduled = { ...idea, time: "09:30", status: "needs_review" as const, createdBy: "ai" as const }
+  const theirs = {
+    ...base,
+    updatedAt: "2026-01-02T00:00:00Z",
+    ideas: [item("idea-2")],
+    days: [base.days[0]!, { ...base.days[1]!, items: [scheduled] }],
+  }
+
+  it("stays off the wishlist when the traveller edited it meanwhile, and the edit moves to the stop", () => {
+    const mine = { ...base, ideas: [{ ...idea, title: "Pastéis de Belém", notes: "Take a box home" }, item("idea-2")] }
+    for (const out of [rebaseTrip(base, mine, theirs)!, resolveTrip(base, mine, theirs, "mine"), resolveTrip(base, mine, theirs, "theirs")]) {
+      expect(ids(out.ideas!)).toEqual(["idea-2"])
+      const stop = out.days[1]!.items[0]!
+      expect(stop.id).toBe("idea-1")
+      expect(stop.time).toBe("09:30")
+    }
+    const out = rebaseTrip(base, mine, theirs)!
+    expect(out.days[1]!.items[0]).toMatchObject({ title: "Pastéis de Belém", notes: "Take a box home", time: "09:30", status: "needs_review" })
+  })
+
+  it("a field the traveller cleared on the idea is cleared on the stop", () => {
+    const mine = { ...base, ideas: [{ ...idea, notes: undefined }, item("idea-2")] }
+    const out = rebaseTrip(base, mine, theirs)!
+    expect(out.days[1]!.items[0]!.notes).toBeUndefined()
+  })
+
+  it("an idea the traveller left alone goes as before", () => {
+    const mine = { ...base, name: "Renamed" }
+    const out = rebaseTrip(base, mine, theirs)!
+    expect(ids(out.ideas!)).toEqual(["idea-2"])
+    expect(out.days[1]!.items[0]).toEqual(scheduled)
+  })
+
+  it("saving a stop for later that someone else edited keeps it in one place only", () => {
+    const stop = item("s1", "Time Out Market")
+    const start = makeTrip({ days: [{ ...makeTrip().days[0]!, items: [stop] }, makeTrip().days[1]!] })
+    const mine = { ...start, days: [{ ...start.days[0]!, items: [] }, start.days[1]!], ideas: [stop] }
+    const edited = { ...start, updatedAt: "2026-01-02T00:00:00Z", days: [{ ...start.days[0]!, items: [{ ...stop, notes: "Go at 11" }] }, start.days[1]!] }
+    for (const out of [rebaseTrip(start, mine, edited)!, resolveTrip(start, mine, edited, "theirs")]) {
+      const onDays = out.days.flatMap((d) => d.items).filter((i) => i.id === "s1").length
+      const onWishlist = (out.ideas ?? []).filter((i) => i.id === "s1").length
+      expect(onDays + onWishlist).toBe(1)
+    }
+  })
+})
+
 describe("mergeItems with a side", () => {
   const a = item("a")
   const b = item("b")

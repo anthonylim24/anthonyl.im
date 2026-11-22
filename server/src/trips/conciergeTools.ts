@@ -10,6 +10,7 @@ import { haversineMeters } from "../data/koreaPlaces"
 import type { PlaceGeocoder } from "../geminiGrounding"
 import { weekday } from "./signals"
 import type { ItineraryItem, Trip, TripDay } from "./types"
+import { fromModel } from "./privateText"
 
 // ── Shared shapes ────────────────────────────────────────────────────────
 
@@ -831,7 +832,7 @@ export async function runProposeChanges(
         continue
       }
       if (changes.some((c) => c.op === "add" && c.dayId === day.id && c.place.ref === place!.ref)) continue
-      const notes = str(change.notes)?.slice(0, 400)
+      const notes = fromModel(str(change.notes)?.slice(0, 400))
       // No time given: fall back to the slot the card suggested for this day.
       const slot = time ?? (place.dayId === day.id ? place.time : undefined)
       changes.push({ id, op: "add", dayId: day.id, ...(slot ? { time: slot } : {}), ...(endTime ? { endTime } : {}), ...(notes ? { notes } : {}), place: { ...place, dayId: day.id, ...(slot ? { time: slot } : {}) } })
