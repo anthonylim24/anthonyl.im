@@ -88,11 +88,18 @@ afterEach(() => vi.restoreAllMocks())
 describe("detailsTarget", () => {
   it("prefers the place id", () => {
     const target = detailsTarget(place({ location: { name: "Gyeongbokgung", ...at, placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", source: "user" } }))
-    expect(target).toMatchObject({ key: "id:ChIJod7tSseifDUR9hXHLFNGMIs", placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", business: false })
+    expect(target).toMatchObject({ place: "id:ChIJod7tSseifDUR9hXHLFNGMIs", key: "id:ChIJod7tSseifDUR9hXHLFNGMIs", placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", business: false })
   })
 
   it("keys a pinned idea by its name and rounded point", () => {
     expect(detailsTarget(place())?.key).toBe("at:gyeongbokgung|37.5796,126.9770")
+  })
+
+  it("is another lookup once the idea is filed as a business, for the same place", () => {
+    const sight = detailsTarget(place())!
+    const food = detailsTarget(place({ theme: "food" }))!
+    expect(food.place).toBe(sight.place)
+    expect(food.key).not.toBe(sight.key)
   })
 
   it("has nothing to look up without a place id or a point", () => {
@@ -157,10 +164,30 @@ describe("cleanDetails", () => {
     expect(cleanDetails(null)).toBeNull()
     expect(cleanDetails({ photos: [] })).toBeNull()
   })
+
+  it("keeps only well-formed facts, and nothing it does not know", () => {
+    const clean = cleanDetails({
+      name: " X ",
+      rating: "4.5",
+      ratingCount: -3,
+      priceLevel: 2.5,
+      hours: ["Monday: 9–5", 7, "  "],
+      phone: 12345,
+      typeLabel: " Museum ",
+      summarySource: "blog",
+      address: "",
+      surprise: { nested: true },
+      photos: [],
+    })
+    expect(clean).toEqual({ name: "X", typeLabel: "Museum", hours: ["Monday: 9–5"], photos: [] })
+    expect(cleanDetails({ name: "Y", rating: Number.NaN, photos: [] })?.rating).toBeUndefined()
+    expect(cleanDetails({ name: "Y", rating: 6, photos: [] })?.rating).toBeUndefined()
+    expect(cleanDetails({ name: "Y", rating: 4.4, ratingCount: 120, priceLevel: 0, photos: [] })).toMatchObject({ rating: 4.4, ratingCount: 120, priceLevel: 0 })
+  })
 })
 
 describe("loadPlaceDetails", () => {
-  const byId: DetailsTarget = { key: "id:ChIJod7tSseifDUR9hXHLFNGMIs", name: "Gyeongbokgung", placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", point: at, business: false }
+  const byId: DetailsTarget = { place: "id:ChIJod7tSseifDUR9hXHLFNGMIs", key: "id:ChIJod7tSseifDUR9hXHLFNGMIs", name: "Gyeongbokgung", placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", point: at, business: false }
 
   it("asks the server by place id, with the token", async () => {
     const spy = stubFetch(() => json({ place: palace }))
@@ -206,9 +233,10 @@ describe("loadPlaceDetails", () => {
   })
 
   it("lets the answer lapse after a while, then asks again", async () => {
-    const spy = stubFetch(() => json({ place: palace }))
+    const full = { ...palace, photos: Array.from({ length: 6 }, (_, i) => ({ url: `https://lh3.googleusercontent.com/p/${i}=s1200` })) }
+    const spy = stubFetch(() => json({ place: full }))
     await loadPlaceDetails(getToken, byId)
-    expect(cachedPlaceDetails(byId, Date.now() + 24 * 60_000)).toEqual(palace)
+    expect(cachedPlaceDetails(byId, Date.now() + 24 * 60_000)).toEqual(full)
     expect(cachedPlaceDetails(byId, Date.now() + 26 * 60_000)).toBeUndefined()
     await loadPlaceDetails(getToken, byId)
     expect(spy).toHaveBeenCalledTimes(2)
@@ -271,5 +299,69 @@ describe("loadPlaceDetails", () => {
     })
     await loadPlaceDetails(getToken, byId, controller.signal).catch(() => null)
     expect(cachedPlaceDetails(byId)).toBeUndefined()
+  })
+
+  it("keeps a full answer the while, and one with few photos (maybe cut short) only briefly", async () => {
+    const six = Array.from({ length: 6 }, (_, i) => ({ url: `https://lh3.googleusercontent.com/p/${i}=s1200` }))
+    stubFetch(() => json({ place: { ...palace, photos: six } }))
+    await loadPlaceDetails(getToken, byId)
+    expect(cachedPlaceDetails(byId, Date.now() + 24 * 60_000)?.photos).toHaveLength(6)
+
+    clearPlaceDetailsCache()
+    vi.restoreAllMocks()
+    stubFetch(() => json({ place: palace }))
+    await loadPlaceDetails(getToken, byId)
+    expect(cachedPlaceDetails(byId, Date.now() + 60_000)).toEqual(palace)
+    expect(cachedPlaceDetails(byId, Date.now() + 3 * 60_000)).toBeUndefined()
+  })
+
+  it("asks Wikipedia again after it failed, not Google", async () => {
+    let wikiDown = true
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/api/places/details")) return json({ place: null })
+      if (wikiDown) throw new TypeError("Failed to fetch")
+      return wikipedia(url)
+    })
+    const target = detailsTarget(place())!
+    expect(await loadPlaceDetails(getToken, target)).toBeNull()
+    // The failure is not an answer: nothing kept.
+    expect(cachedPlaceDetails(target)).toBeUndefined()
+    wikiDown = false
+    expect((await loadPlaceDetails(getToken, target))?.summarySource).toBe("wikipedia")
+    expect(urls(spy).filter((url) => url.includes("/api/places/details"))).toHaveLength(1)
+    // A real answer is kept.
+    expect(cachedPlaceDetails(target)?.summarySource).toBe("wikipedia")
+  })
+
+  it("brings Wikipedia in when an idea is filed from Food to Sights", async () => {
+    const spy = stubFetch(() => json({ place: null }))
+    const asFood = detailsTarget(place({ theme: "food" }))!
+    expect(await loadPlaceDetails(getToken, asFood)).toBeNull()
+    expect(urls(spy).some((url) => url.includes("wikipedia"))).toBe(false)
+    const asSight = detailsTarget(place({ theme: "sights" }))!
+    expect(cachedPlaceDetails(asSight)).toBeUndefined()
+    expect((await loadPlaceDetails(getToken, asSight))?.summarySource).toBe("wikipedia")
+    // Google's "nothing" was kept for the place: only Wikipedia was asked.
+    expect(urls(spy).filter((url) => url.includes("/api/places/details"))).toHaveLength(1)
+  })
+
+  it("says a slow server is slow, not that the connection is down", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      vi.spyOn(globalThis, "fetch").mockImplementation(
+        (_input, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")))
+          }),
+      )
+      const pending = loadPlaceDetails(getToken, byId).catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(15_000)
+      const err = await pending
+      expect(err).toBeInstanceOf(PlaceDetailsError)
+      expect((err as PlaceDetailsError).message).toContain("taking too long")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

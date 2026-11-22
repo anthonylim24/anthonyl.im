@@ -26,7 +26,8 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap, canRenderMap, loadMapEngine, type AtlasMapProps } from "./map/AtlasMap"
-import { IDEA_PARAM, withIdea } from "./ideas/contract"
+import { IDEA_PARAM } from "./ideas/contract"
+import { useIdeaNav } from "./ideas/ideaNav"
 import { liveValue, useLiveValue, type LiveValue } from "./workspace/liveValue"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
@@ -241,6 +242,7 @@ function Workspace() {
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
+  const ideaNav = useIdeaNav()
   const tab = readOverviewTab(searchParams.get("tab"))
   const setTab = useCallback(
     (next: OverviewTab) =>
@@ -1111,8 +1113,8 @@ function Workspace() {
               setFocusId(null)
             }}
             ideaPins={wishPins}
-            // Pushed, not replaced: Back closes the wishlist place again.
-            onSelectIdea={(ideaId) => setSearchParams((prev) => withIdea(prev, ideaId))}
+            // One history entry per opening: Back closes the wishlist place again.
+            onSelectIdea={(ideaId) => ideaNav.open(ideaId, "map")}
             label={
               day
                 ? `Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`
@@ -1294,7 +1296,7 @@ function Workspace() {
         </OverlayBoundary>
       )}</Presence>
       <Presence when={searchParams.has(IDEA_PARAM)}>{() => (
-        <OverlayBoundary onError={overlayFailed("The wishlist place", () => setSearchParams((prev) => withIdea(prev, null), { replace: true }))}>
+        <OverlayBoundary onError={overlayFailed("The wishlist place", ideaNav.close)}>
           <Suspense fallback={null}>
             <IdeaOverlay trip={trip} editable={editable} locked={locked} getToken={editor.readToken} onEdit={editor.edit} />
           </Suspense>

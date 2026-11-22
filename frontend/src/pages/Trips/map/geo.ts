@@ -1,3 +1,4 @@
+import { ideaName } from "../ideas/contract"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 
 // Pure geometry + pin derivation for the Trips map. No MapLibre imports, so
@@ -197,7 +198,7 @@ export function ideaPins(trip: Pick<Trip, "ideas">): AtlasPin[] {
     const lat = idea.location?.lat
     const lng = idea.location?.lng
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
-    return [{ id: idea.id, lat: lat!, lng: lng!, title: idea.title || idea.location!.name, variant: "idea" }]
+    return [{ id: idea.id, lat: lat!, lng: lng!, title: ideaName(idea), variant: "idea" }]
   })
 }
 

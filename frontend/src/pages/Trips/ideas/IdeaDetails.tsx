@@ -6,19 +6,23 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react"
 import { createPortal } from "react-dom"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, Globe, Link2, MapPin, Map as MapIcon, Phone, Star, X } from "lucide-react"
 import { stylex, sx } from "@/styles/merge"
+import { useLatestCallback } from "../../../hooks/useLatestCallback"
 import { useReducedMotion } from "../../../hooks/useReducedMotion"
 import { externalMapsLink } from "../../../lib/externalMaps"
 import { a } from "../atlas.stylex"
 import { DialogFrame } from "../components/kit"
+import { ExitSignal, useClosing, useLeaving } from "../components/presence"
 import type { ItineraryItem } from "../types"
-import type { IdeaDetailsProps, PlaceDetails, PlacePhoto } from "./contract"
+import { IDEA_ANCHOR_ATTR, ideaName, type IdeaDetailsProps, type PlaceDetails, type PlacePhoto } from "./contract"
 import { d } from "./details.stylex"
 import { placeBeside } from "./popoverPlacement"
 import {
@@ -93,13 +97,27 @@ function usePlaceDetails(target: DetailsTarget | null, getToken: IdeaDetailsProp
   return { load, retry: () => setAttempt((n) => n + 1) }
 }
 
-export function IdeaDetails({ trip, idea, anchor, editable, locked, getToken, themeControl, onAddToDay, onRemove, onClose }: IdeaDetailsProps) {
+export function IdeaDetails({ trip, idea, from, editable, locked, getToken, themeControl, onAddToDay, onRemove, onClose }: IdeaDetailsProps) {
   const wide = useWide()
   const target = useMemo(() => detailsTarget(idea), [idea])
   const { load, retry } = usePlaceDetails(target, getToken)
   const titleId = useId()
   const accent = trip.appearance?.accent
-  const asPopover = Boolean(anchor && anchor.isConnected && wide)
+  const name = ideaName(idea)
+  /**
+   * The row to stand beside, or null for a sheet; undefined until decided.
+   * Decided once, as they open, from who opened them: re-grouping the list,
+   * a new category or a scroll never moves or turns an open card.
+   */
+  const [anchor, setAnchor] = useState<HTMLElement | null | undefined>(undefined)
+  const [opener] = useState(from)
+  useLayoutEffect(() => {
+    // Before the first paint, so the card never shows as one thing and then the other.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- measured once from the DOM, which render may not read
+    setAnchor(opener === "row" ? rowInView(idea.id) : null)
+    // Once per opening: the details are keyed by idea, and the decision must not follow later renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const content = (title: ReactNode) => (
     <DetailsContent
@@ -120,63 +138,104 @@ export function IdeaDetails({ trip, idea, anchor, editable, locked, getToken, th
   // with it; an `id` prop here, even undefined, would override that one.
   const heading = (id?: string) => (
     <h2 {...(id ? { id } : {})} {...sx(d.title)}>
-      {idea.title}
+      {name}
     </h2>
   )
 
-  if (asPopover && anchor) {
+  if (anchor === undefined) return null
+  if (anchor && wide) {
     return (
-      <Popover anchor={anchor} accent={accent} labelledBy={titleId} onClose={onClose}>
+      <Popover anchor={anchor} anchorId={idea.id} accent={accent} labelledBy={titleId} onClose={onClose}>
         {content(heading(titleId))}
       </Popover>
     )
   }
   return (
     <DialogFrame open onClose={onClose} accent={accent} content={[a.dialog, d.sheet, "trips-glass-sheet"]}>
-      <DialogPrimitive.Description {...sx(a.srOnly)}>Details, photos and links for {idea.title}</DialogPrimitive.Description>
+      <DialogPrimitive.Description {...sx(a.srOnly)}>Details, photos and links for {name}</DialogPrimitive.Description>
       {content(<DialogPrimitive.Title asChild>{heading()}</DialogPrimitive.Title>)}
     </DialogFrame>
   )
 }
 
+/** The list row named `ideaId`, when it is on the page. The id is compared, never put into a selector. */
+function findRow(ideaId: string): HTMLElement | null {
+  for (const node of document.querySelectorAll<HTMLElement>(`[${IDEA_ANCHOR_ATTR}]`)) {
+    if (node.getAttribute(IDEA_ANCHOR_ATTR) === ideaId) return node
+  }
+  return null
+}
+
+/**
+ * The row to anchor on as the details open: its name, when it is on the page
+ * and in view. A row in a hidden pane (the phone's map view) or scrolled away
+ * is no anchor: the details open as a sheet.
+ */
+function rowInView(ideaId: string): HTMLElement | null {
+  const node = findRow(ideaId)
+  if (!node) return null
+  const box = node.getBoundingClientRect()
+  return box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < window.innerHeight ? node : null
+}
+
+/** The row the popover stands beside, found again when the list re-rendered it (a new category under Type grouping). */
+function liveRow(row: RefObject<HTMLElement>, ideaId: string): HTMLElement | null {
+  if (row.current.isConnected) return row.current
+  const found = findRow(ideaId)
+  if (found) row.current = found
+  return found
+}
+
 /** Over the sticky header and the map, like a kit menu. */
 const FLOATING = { position: "fixed", right: "auto", bottom: "auto" } as const
 
-const FOCUSABLE = 'a[href], button:not(:disabled), summary, [tabindex]:not([tabindex="-1"])'
+/** What Tab can reach inside the card. The carousel's hidden credit links are -1, so out. */
+const FOCUSABLE = ["a[href]", "button:not(:disabled)", "select:not(:disabled)", "input:not(:disabled)", "textarea:not(:disabled)", "summary", "[tabindex]"]
+  .map((selector) => `${selector}:not([tabindex="-1"])`)
+  .join(", ")
 
 /**
- * A non-modal dialog floating beside `anchor`. Focus moves in on open and
- * back to the row on close; Escape and a press outside close it (a press on
- * the row, or in another Trips portal such as the category menu, does not).
+ * A non-modal dialog floating beside a list row: the list and the map stay
+ * usable. Focus moves in as it opens; Tab past either end, Escape, focus
+ * moving elsewhere or a press outside close it and hand focus back to the
+ * row (a press on the row, or in another Trips portal, does not). It leaves
+ * the way menus do (`trips-pop`), inert from the moment it starts to.
  */
 function Popover({
   anchor,
+  anchorId,
   accent,
   labelledBy,
   onClose,
   children,
 }: {
   anchor: HTMLElement
+  anchorId: string
   accent?: string
   labelledBy: string
   onClose: () => void
   children: ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const close = useRef(onClose)
-  useLayoutEffect(() => {
-    close.current = onClose
-  })
+  const row = useRef(anchor)
+  const closing = useClosing()
+  const leave = useLeaving(!closing, ref)
+  const close = useLatestCallback(onClose)
+  /** A press outside is under way: its click decides, not the focus it moves. */
+  const pressing = useRef(false)
 
   // Placed before it paints, and again when the page scrolls or resizes, or
   // the card's own height changes as its details arrive. Written to the node:
-  // nothing in React depends on it.
+  // nothing in React depends on it. With its row gone from the page (or not
+  // laid out), the card stays where it last was rather than jump to a corner.
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
     const place = () => {
+      const box = liveRow(row, anchorId)?.getBoundingClientRect()
+      if (!box || (box.width === 0 && box.height === 0)) return
       const at = placeBeside({
-        anchor: anchor.getBoundingClientRect(),
+        anchor: box,
         size: { width: node.offsetWidth, height: node.scrollHeight },
         viewport: { width: window.innerWidth, height: window.innerHeight },
       })
@@ -195,62 +254,114 @@ function Popover({
       window.removeEventListener("resize", place)
       resize?.disconnect()
     }
-  }, [anchor])
+  }, [anchorId])
 
+  // Focus in as it opens (or opens again while still on its way out), and
+  // never on a later render; back to the row if it leaves with focus in it.
   useEffect(() => {
+    if (closing) return
     const node = ref.current
     node?.focus({ preventScroll: true })
-    const onPointer = (event: PointerEvent) => {
-      const target = event.target as Element | null
-      if (!target || anchor.contains(target) || node?.contains(target) || target.closest?.(".trips-portal")) return
-      close.current()
-    }
-    document.addEventListener("pointerdown", onPointer)
     return () => {
-      document.removeEventListener("pointerdown", onPointer)
-      // Back to the row, unless the traveller has since put focus somewhere else.
       const active = document.activeElement
-      if ((!active || active === document.body || node?.contains(active)) && anchor.isConnected) anchor.focus({ preventScroll: true })
+      if (!active || active === document.body || node?.contains(active)) liveRow(row, anchorId)?.focus({ preventScroll: true })
     }
-  }, [anchor])
+  }, [closing, anchorId])
+
+  // Closing makes the card inert, which would drop focus to <body>: hand it to the row first.
+  useLayoutEffect(() => {
+    if (!closing) return
+    const active = document.activeElement
+    if (active && ref.current?.contains(active)) liveRow(row, anchorId)?.focus({ preventScroll: true })
+  }, [closing, anchorId])
+
+  // A press outside closes it once its click has landed, and only if that
+  // click left this card open: a press on another idea, a pin or Add to day
+  // opens that instead, and this card is then already on its way out.
+  useEffect(() => {
+    if (closing) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      pressing.current = Boolean(
+        target && !ref.current?.contains(target) && !liveRow(row, anchorId)?.contains(target) && !target.closest?.(".trips-portal"),
+      )
+    }
+    const onUp = () => {
+      if (!pressing.current) return
+      pressing.current = false
+      timer = setTimeout(close, 0)
+    }
+    const onCancel = () => {
+      pressing.current = false
+    }
+    document.addEventListener("pointerdown", onDown)
+    document.addEventListener("pointerup", onUp)
+    document.addEventListener("pointercancel", onCancel)
+    return () => {
+      document.removeEventListener("pointerdown", onDown)
+      document.removeEventListener("pointerup", onUp)
+      document.removeEventListener("pointercancel", onCancel)
+      clearTimeout(timer)
+      pressing.current = false
+    }
+  }, [closing, anchorId, close])
+
+  /** Leave for the row: Escape, or Tab past either end of the card. */
+  const leaveToRow = () => {
+    liveRow(row, anchorId)?.focus({ preventScroll: true })
+    close()
+  }
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
       event.stopPropagation()
-      anchor.focus({ preventScroll: true })
-      close.current()
+      leaveToRow()
       return
     }
-    // Tab stays inside the card, as in any dialog; Escape is the way out.
     if (event.key !== "Tab") return
     const nodes = [...(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((node) => !node.closest("[inert]"))
-    if (nodes.length === 0) return
-    const first = nodes[0]!
-    const last = nodes[nodes.length - 1]!
     const active = document.activeElement
-    if (event.shiftKey && (active === first || active === ref.current)) {
+    const first = nodes[0]
+    const last = nodes[nodes.length - 1]
+    if (event.shiftKey && (!first || active === first || active === ref.current)) {
+      // Back to the row itself, as if the card sat right after it in the page.
       event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault()
-      first.focus()
+      leaveToRow()
+    } else if (!event.shiftKey && (!last || active === last)) {
+      // Focus goes to the row and the Tab carries on from there, to what follows it.
+      leaveToRow()
     }
+  }
+
+  // Focus moved somewhere else on the page (not by a press, which its click
+  // settles; not into another Trips portal such as a toast): it is done.
+  const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget as Element | null
+    if (!next || pressing.current || ref.current?.contains(next) || next.closest?.(".trips-portal")) return
+    close()
   }
 
   return createPortal(
     <div className="trips trips-portal" data-trip-accent={accent}>
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="false"
-        aria-labelledby={labelledBy}
-        tabIndex={-1}
-        style={FLOATING}
-        onKeyDown={onKeyDown}
-        {...sx(d.popover, "trips-glass-sheet")}
-      >
-        {children}
-      </div>
+      {leave.present ? (
+        <div
+          ref={ref}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby={labelledBy}
+          tabIndex={-1}
+          style={FLOATING}
+          onKeyDown={onKeyDown}
+          onBlur={onBlur}
+          // `trips-pop`: the closing animation in index.css (cut short under reduced motion).
+          {...sx(d.popover, "trips-glass-sheet", "trips-pop")}
+          {...leave.bind}
+        >
+          <ExitSignal />
+          {children}
+        </div>
+      ) : null}
     </div>,
     document.body,
   )
@@ -315,7 +426,7 @@ function DetailsContent({
   // Only for a place: a note's sentence is not something to search a map for.
   const maps =
     location || details
-      ? externalMapsLink({ name: location?.name || idea.title, address, lat: location?.lat, lng: location?.lng, mapsUrl: details?.mapsUrl })
+      ? externalMapsLink({ name: location?.name || ideaName(idea), address, lat: location?.lat, lng: location?.lng, mapsUrl: details?.mapsUrl })
       : undefined
   const notes = idea.notes?.trim()
   const links = [...new Set((idea.links ?? []).map((link) => webUrl(link)).filter((link): link is string => Boolean(link)))]
@@ -326,7 +437,7 @@ function DetailsContent({
         {photos.length > 0 ? (
           <Carousel
             key={photos.map((photo) => photo.url).join(" ")}
-            name={idea.title}
+            name={ideaName(idea)}
             photos={photos}
             close={closeButton(true)}
             onBroken={(url) => setBroken((was) => new Set(was).add(url))}

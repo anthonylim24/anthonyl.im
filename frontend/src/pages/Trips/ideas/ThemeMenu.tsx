@@ -6,6 +6,7 @@ import { Menu, type MenuItem } from "../components/kit"
 import { setIdeaTheme } from "../tripEdits"
 import { ITEM_THEMES, type ItemTheme, type ItineraryItem, type Trip } from "../types"
 import { ws as s } from "../workspace.stylex"
+import { ideaName } from "./contract"
 import { THEME_ORDER, THEMES, inferredTheme, themeLabel, themeOf } from "./themes"
 
 // An idea's wishlist category: what the list filters and groups by. Shown
@@ -24,7 +25,6 @@ interface ThemeControlProps {
 
 const ICON = { size: 14, strokeWidth: 1.75, "aria-hidden": true } as const
 
-const ideaName = (idea: ItineraryItem) => idea.title || idea.location?.name || "Untitled place"
 
 /** File `idea` under `next` (null: automatic). Picking what it already is writes nothing. */
 function fileUnder(idea: ItineraryItem, next: ItemTheme | null, onEdit: Edit) {

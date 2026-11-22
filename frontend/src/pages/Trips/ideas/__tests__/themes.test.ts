@@ -147,6 +147,12 @@ describe("themeFromName", () => {
     ["Kyobo bookstore", "shopping"],
     ["Park Hyatt", "other"],
     ["Seoul Station", "other"],
+    // Accented words: JS's \b is ASCII-only, so these once matched nothing.
+    ["Café de Flore", "food"],
+    ["Blue Bottle Café", "food"],
+    ["Café Kitsuné", "food"],
+    ["Jinbō-chō", "neighborhood"],
+    ["Ōmotesandō Hills Café", "food"],
   ] as const)("%s is %s", (name, theme) => {
     expect(themeFromName(name)).toBe(theme)
   })
@@ -160,6 +166,11 @@ describe("themeFromName", () => {
     "Parkview",
     "Hello Kitty",
     "Olive",
+    "Barça", // not a bar
+    "Parkér",
+    "Spaß",
+    "Cafébar",
+    "Grillé",
     "",
   ])("finds nothing in %j", (name) => {
     expect(themeFromName(name)).toBeNull()
