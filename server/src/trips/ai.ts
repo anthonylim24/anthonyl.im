@@ -1311,10 +1311,11 @@ export function applySuggestions(
         break
       }
       case "swap_days": {
-        // The dates (and their weather) stay put; the plans trade places.
+        // The dates (their weather and journal) stay put; the plans, and the
+        // zone that goes with each city, trade places.
         const other = days.find((d) => d.id === s.toDayId)
         if (day && other && day.id !== other.id) {
-          const keep = (d: TripDay) => ({ items: d.items, title: d.title, emoji: d.emoji, city: d.city, notes: d.notes, neighborhoods: d.neighborhoods })
+          const keep = (d: TripDay) => ({ items: d.items, title: d.title, emoji: d.emoji, city: d.city, notes: d.notes, neighborhoods: d.neighborhoods, timezone: d.timezone })
           const a = keep(day)
           const b = keep(other)
           Object.assign(day, b)

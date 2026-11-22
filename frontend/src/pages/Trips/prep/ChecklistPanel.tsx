@@ -4,6 +4,8 @@ import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { Menu, type MenuItem } from "../components/kit"
 import type { UndoMark } from "../editorMachine"
+import { composing, holdEnterWhileComposing } from "../ime"
+import { LIMITS } from "../limits"
 import { plural } from "../meta"
 import type { ChecklistGroup, ChecklistItem, Trip, TripPerson } from "../types"
 import {
@@ -415,11 +417,14 @@ function ChecklistRow({
           // The editor replaces the text that was just pressed, so focus moves into it.
           autoFocus
           rows={1}
+          maxLength={LIMITS.checklistText}
           value={draft}
           aria-label={`Edit “${item.text}”`}
           onChange={(event) => setDraft(event.target.value.replace(/\n/g, " "))}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
+              // The Enter that confirms a Korean or Japanese word is the input method's, not ours.
+              if (composing(event)) return
               event.preventDefault()
               commit(draft)
               refocus()
@@ -531,7 +536,7 @@ function AddRow({
     inputRef.current?.focus()
   }
   return (
-    <form {...sx(p.addRow)} onSubmit={submit}>
+    <form {...sx(p.addRow)} onSubmit={submit} onKeyDown={holdEnterWhileComposing}>
       <label htmlFor={id} {...sx(a.srOnly)}>
         {label}
       </label>
@@ -539,6 +544,7 @@ function AddRow({
         ref={inputRef}
         id={id}
         value={text}
+        maxLength={LIMITS.checklistText}
         disabled={disabled}
         placeholder={placeholder}
         autoComplete="off"

@@ -1,3 +1,4 @@
+import { LIMITS } from "../limits"
 import { daysBetween } from "../meta"
 import type { ChecklistGroup, ChecklistItem, ItineraryItem, Trip } from "../types"
 import { COUNTRIES, isCountryCode, type Country } from "./countries"
@@ -29,7 +30,7 @@ function randomHex(bytes: number): string {
 
 /** A fresh entry. Call it in an event handler, never inside an `onEdit` updater (it may run twice). */
 export function newChecklistItem(text: string, group: ChecklistGroup): ChecklistItem {
-  return { id: `ck-${randomHex(4)}`, text: text.trim(), done: false, group, createdAt: new Date().toISOString() }
+  return { id: `ck-${randomHex(4)}`, text: text.trim().slice(0, LIMITS.checklistText), done: false, group, createdAt: new Date().toISOString() }
 }
 
 /** "Anthony Lim" → "AL", "Ana" → "A", "김민수" → "김". */
@@ -59,7 +60,7 @@ export function setDone(list: readonly ChecklistItem[], id: string, done: boolea
 }
 
 export function renameItem(list: readonly ChecklistItem[], id: string, text: string): ChecklistItem[] {
-  const clean = text.trim()
+  const clean = text.trim().slice(0, LIMITS.checklistText)
   return patch(list, id, (item) => (clean === "" || clean === item.text ? item : { ...item, text: clean }))
 }
 

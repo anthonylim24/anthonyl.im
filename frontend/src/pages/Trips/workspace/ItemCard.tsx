@@ -1,14 +1,44 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { isToSchedule, TO_SCHEDULE } from "../map/geo"
-import { ArrowDown, ArrowUp, ChevronDown, CloudRain, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2, TriangleAlert } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  Bookmark,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  CloudRain,
+  Copy,
+  ExternalLink,
+  GripVertical,
+  Heart,
+  ListPlus,
+  MapPin,
+  MapPinOff,
+  MoreHorizontal,
+  SkipForward,
+  Trash2,
+  TriangleAlert,
+  X,
+  type LucideIcon,
+} from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
-import { formatClock, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
+import { formatClock, parseClock, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
-import { duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
+import { LIMITS } from "../limits"
+import { duplicateItem, moveItem, moveItemToDay, setItemTime, toggledStatus, unparkDay, updateItem } from "../tripEdits"
+import { Menu, type MenuItem } from "../components/kit"
+import { DayPicker } from "./DayPicker"
+import { composing } from "../ime"
+import { normalizeLink, stopLink, withLink } from "./stopLinks"
+import { LinkChip } from "./LinkChip"
 import { clockMinutes, clockRange } from "../timeline/timeline"
 import { CostField } from "../budget/CostField"
-import type { ItemStatus, ItineraryItem, TripDay } from "../types"
+import type { ItemStatus, ItineraryItem, Trip, TripDay } from "../types"
+import { BookingFields } from "./BookingFields"
+import { BookingSummary } from "../bookings/BookingSummary"
+import { bookingTypeLabel } from "../bookings/kinds"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { scrollBehavior } from "./scroll"
@@ -26,6 +56,9 @@ export type CardConflict = ConflictAlert & { otherNumber: number | null; otherTi
 
 export interface ItemCardProps {
   item: ItineraryItem
+  /** The trip and day, passed for bookings only (their editor and read lines need them). */
+  trip?: Trip
+  day?: TripDay
   dayId: string
   index: number
   count: number
@@ -41,6 +74,14 @@ export interface ItemCardProps {
   rainCode: number | null
   /** Over by now (today only): set back in secondary ink. */
   past: boolean
+  /** The day is today or already over: Done, Skip and Loved it show on the card. */
+  lived: boolean
+  /** Parked under "To schedule": giving it a time puts it on the route. */
+  parked: boolean
+  /** Takes the stop off its day into the trip's ideas; absent where that can't be done. */
+  onSaveForLater?: (dayId: string, item: ItineraryItem, index: number) => void
+  /** The ideas list is at its limit. */
+  ideasFull?: boolean
   editable: boolean
   locked: boolean
   hot: boolean
@@ -63,14 +104,26 @@ export interface ItemCardProps {
   onAnnounce?: (message: string) => void
 }
 
-const STATUSES: ItemStatus[] = ["none", "booked", "optional", "needs_review", "completed"]
+const STATUSES: ItemStatus[] = ["none", "booked", "optional", "needs_review", "completed", "skipped"]
 
 function firstLine(text?: string): string {
   return (text ?? "").split("\n").find((line) => line.trim().length > 0)?.trim() ?? ""
 }
 
+/** A two-state button on the card: Done, Skip, Loved it. */
+function QuickToggle({ on, icon: Icon, label, disabled, onPress }: { on: boolean; icon: LucideIcon; label: string; disabled: boolean; onPress: () => void }) {
+  return (
+    <button type="button" aria-pressed={on} disabled={disabled} {...sx(s.quickBtn, on && s.quickOn)} onClick={onPress}>
+      <Icon size={13} strokeWidth={2} aria-hidden fill={on && Icon === Heart ? "currentColor" : "none"} />
+      {label}
+    </button>
+  )
+}
+
 export const ItemCard = memo(function ItemCard({
   item,
+  trip,
+  day,
   dayId,
   index,
   count,
@@ -80,6 +133,10 @@ export const ItemCard = memo(function ItemCard({
   rainHeavy,
   rainCode,
   past,
+  lived,
+  parked,
+  onSaveForLater,
+  ideasFull = false,
   editable,
   locked,
   hot,
@@ -107,6 +164,7 @@ export const ItemCard = memo(function ItemCard({
     if (expand) setOpen(true)
   }
   const [endOpen, setEndOpen] = useState(false)
+  const [picking, setPicking] = useState(false)
   const panelId = useId()
   const rowRef = useRef<HTMLDivElement>(null)
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
@@ -114,6 +172,39 @@ export const ItemCard = memo(function ItemCard({
   const RainIcon = rainCode === null ? CloudRain : weatherKind(rainCode).icon
   const name = `“${item.title || "Untitled"}”`
   const move = (step: -1 | 1) => onChange((days) => moveItem(days, dayId, item.id, step), { label: `Moved ${name}`, key: `move:${item.id}` })
+  const moveTo = (to: string) => {
+    const label = dayOptions.find((option) => option.id === to)?.label.split(" · ")[0] ?? "another day"
+    onChange((days) => moveItemToDay(days, dayId, item.id, to), { label: `Moved ${name} to ${label}`, toast: true })
+    onGone?.(index)
+  }
+  const setTime = (time: string | undefined) => {
+    onChange((days) => setItemTime(days, dayId, item.id, time))
+    if (parked && time) onAnnounce?.(`${item.title || "Stop"} is on the route at ${formatClock(time)}.`)
+  }
+  const isStop = item.kind === "place" || item.kind === "reservation"
+  const skipped = item.status === "skipped"
+  // How the day went is marked on its stops once the day has come (held, not hidden, during an AI run).
+  const quick = editable && lived && isStop
+  const setStatus = (status: "completed" | "skipped") => {
+    const next = toggledStatus(item, status)
+    patch({ status: next })
+    onAnnounce?.(`${item.title || "Stop"}: ${next === status ? STATUS_LABEL[status].toLowerCase() : "back on the plan"}.`)
+  }
+  const cardMenu: MenuItem[] = [
+    ...(dayOptions.length > 1
+      ? [{ label: "Move to another day…", icon: <CalendarDays size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setPicking(true) }]
+      : []),
+    ...(onSaveForLater && isStop
+      ? [
+          {
+            label: ideasFull ? "Save for later (ideas list is full)" : "Save for later",
+            icon: <Bookmark size={16} strokeWidth={1.75} aria-hidden />,
+            disabled: ideasFull,
+            onSelect: () => onSaveForLater(dayId, item, index),
+          },
+        ]
+      : []),
+  ]
 
   useEffect(() => {
     if (active) rowRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
@@ -128,7 +219,22 @@ export const ItemCard = memo(function ItemCard({
     return (
       <div {...sx(s.sectionRow, s.parkHead)} id={`item-${item.id}`}>
         <h3 {...sx(a.eyebrow, s.parkTitle)}>{TO_SCHEDULE}</h3>
-        <span {...sx(a.small, s.parkHint)}>Give one a time, or drag it up, to add it to the route</span>
+        {canEdit && (
+          <button
+            type="button"
+            data-card-row=""
+            {...sx(a.btn, a.btnGhost, a.btnSm)}
+            onClick={() => {
+              onChange((days) => unparkDay(days, dayId), { label: "Added the places to schedule to the route", toast: true })
+              onGone?.(index)
+              onAnnounce?.("The places to schedule are on the route now.")
+            }}
+          >
+            <ListPlus size={14} strokeWidth={1.75} aria-hidden />
+            Add all to route
+          </button>
+        )}
+        {editable && <span {...sx(a.small, s.parkHint)}>Give one a time, or drag it up, to add it to the route</span>}
       </div>
     )
   }
@@ -146,6 +252,7 @@ export const ItemCard = memo(function ItemCard({
             data-card-row=""
             value={item.title}
             placeholder="Heading"
+            maxLength={LIMITS.itemTitle}
             disabled={locked}
             {...sx(s.sectionInput)}
             onChange={(event) => patch({ title: event.target.value })}
@@ -171,8 +278,12 @@ export const ItemCard = memo(function ItemCard({
   const pinned = pinLabel !== null
   const [start, end] = [clockMinutes(item.time), clockMinutes(item.endTime)]
   const sub = item.location?.address || firstLine(item.notes)
-  const category = item.kind === "reservation" ? titleCase(item.reservation?.type ?? "Booking") : item.location?.category ? titleCase(item.location.category) : null
+  const category = item.kind === "reservation" ? bookingTypeLabel(item.reservation?.type) : item.location?.category ? titleCase(item.location.category) : null
   const maps = pinned || item.location?.address ? externalMapsLink({ name: item.location?.name ?? item.title, address: item.location?.address, lat: item.location?.lat, lng: item.location?.lng }) : null
+  const links = (item.links ?? []).map(stopLink).filter((link): link is NonNullable<typeof link> => link !== null)
+  // Where Done / Skip / Loved it are on the card, the chip and the heart would only say it twice.
+  const shownStatus = item.status === "none" || (quick && (item.status === "completed" || item.status === "skipped")) ? null : item.status
+  const lovedMark = !!item.highlight && !quick
 
   return (
     <div {...sx(s.item)} id={`item-${item.id}`} ref={rowRef}>
@@ -198,94 +309,134 @@ export const ItemCard = memo(function ItemCard({
         onMouseEnter={() => pinned && onHover(item.id)}
         onMouseLeave={() => pinned && onHover(null)}
       >
-        <button
-          type="button"
-          {...sx(s.cardRow)}
-          data-card-row=""
-          aria-expanded={open}
-          aria-controls={panelId}
-          aria-keyshortcuts={editable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
-          onClick={() => setOpen((v) => !v)}
-          onKeyDown={(event) => {
-            if (!editable || locked || !event.altKey) return
-            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
-            event.preventDefault()
-            const step = event.key === "ArrowUp" ? -1 : 1
-            if (index + step < 0 || index + step >= count) return
-            move(step)
-            onAnnounce?.(`${item.title || "Stop"} moved ${step < 0 ? "up" : "down"}, now ${index + step + 1} of ${count}.`)
-          }}
-        >
-          {/* Empty for an Anytime stop, so every title keeps one indent. */}
-          <span {...sx(s.cardTimeCol)}>
-            {item.time && (
-              <>
-                <span {...sx(s.cardTime, past && s.cardTimePast)}>{formatClock(item.time)}</span>
-                {item.endTime && <span {...sx(s.cardTimeEnd)}>{formatClock(item.endTime)}</span>}
-              </>
-            )}
-          </span>
-          <span {...sx(s.cardText)}>
-            {item.time && (
-              <span {...sx(s.cardTimeTop)}>
-                {start !== null && end !== null && end !== start ? clockRange(start, end) : formatClock(item.time)}
-              </span>
-            )}
-            <span {...sx(s.cardTitle, a.wrap, past && s.cardTitlePast, !item.title && s.cardTitleEmpty)}>
-              {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
+        <div {...sx(s.cardHead)}>
+          <button
+            type="button"
+            {...sx(s.cardRow, s.cardHeadRow)}
+            data-card-row=""
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-keyshortcuts={editable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
+            onClick={() => setOpen((v) => !v)}
+            onKeyDown={(event) => {
+              if (!editable || locked || !event.altKey) return
+              if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+              event.preventDefault()
+              const step = event.key === "ArrowUp" ? -1 : 1
+              if (index + step < 0 || index + step >= count) return
+              move(step)
+              onAnnounce?.(`${item.title || "Stop"} moved ${step < 0 ? "up" : "down"}, now ${index + step + 1} of ${count}.`)
+            }}
+          >
+            {/* Empty for an Anytime stop, so every title keeps one indent. */}
+            <span {...sx(s.cardTimeCol)}>
+              {item.time && (
+                <>
+                  <span {...sx(s.cardTime, past && s.cardTimePast, skipped && s.cardTimeSkipped)}>{formatClock(item.time)}</span>
+                  {item.endTime && <span {...sx(s.cardTimeEnd)}>{formatClock(item.endTime)}</span>}
+                </>
+              )}
             </span>
-            {(category || sub || item.status !== "none") && (
-              <span {...sx(s.cardSub)}>
-                {category && <span>{category}</span>}
-                {item.status !== "none" && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{STATUS_LABEL[item.status]}</span>}
-                {sub && (
-                  <span {...sx(a.truncate)} style={{ flexBasis: "100%" }}>
-                    {sub}
+            <span {...sx(s.cardText)}>
+              {item.time && (
+                <span {...sx(s.cardTimeTop, skipped && s.cardTimeSkipped)}>
+                  {start !== null && end !== null && end !== start ? clockRange(start, end) : formatClock(item.time)}
+                </span>
+              )}
+              <span {...sx(s.cardTitle, a.wrap, past && s.cardTitlePast, !item.title && s.cardTitleEmpty, skipped && s.cardTitleSkipped)}>
+                {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
+              </span>
+              {(category || sub || shownStatus || lovedMark) && (
+                <span {...sx(s.cardSub)}>
+                  {category && <span>{category}</span>}
+                  {shownStatus && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{STATUS_LABEL[shownStatus]}</span>}
+                  {lovedMark && (
+                    <span {...sx(s.loved)}>
+                      <Heart size={12} strokeWidth={2} fill="currentColor" aria-hidden />
+                      Loved it
+                    </span>
+                  )}
+                  {sub && (
+                    <span {...sx(a.truncate)} style={{ flexBasis: "100%" }}>
+                      {sub}
+                    </span>
+                  )}
+                </span>
+              )}
+              {conflict && (
+                <span {...sx(s.cardAlert)}>
+                  <TriangleAlert size={12} strokeWidth={2} aria-hidden {...sx(s.cardAlertIcon)} />
+                  <span {...sx(a.wrap)}>
+                    <Parts
+                      parts={[
+                        <>
+                          {conflict.kind === "overlap" ? "Overlaps" : "Tight after"} <StopRef number={conflict.otherNumber} title={conflict.otherTitle} />
+                        </>,
+                        conflict.detail,
+                        conflict.more > 0 && `+${conflict.more}`,
+                      ]}
+                    />
                   </span>
-                )}
-              </span>
-            )}
-            {conflict && (
-              <span {...sx(s.cardAlert)}>
-                <TriangleAlert size={12} strokeWidth={2} aria-hidden {...sx(s.cardAlertIcon)} />
-                <span {...sx(a.wrap)}>
-                  <Parts
-                    parts={[
-                      <>
-                        {conflict.kind === "overlap" ? "Overlaps" : "Tight after"} <StopRef number={conflict.otherNumber} title={conflict.otherTitle} />
-                      </>,
-                      conflict.detail,
-                      conflict.more > 0 && `+${conflict.more}`,
-                    ]}
-                  />
                 </span>
-              </span>
-            )}
-            {rain && (
-              <span {...sx(s.cardAlert, s.cardRain, rainHeavy && s.cardRainHeavy)}>
-                <RainIcon size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
-                <span {...sx(a.wrap)}>
-                  <Parts parts={rain.split(" · ")} />
+              )}
+              {rain && (
+                <span {...sx(s.cardAlert, s.cardRain, rainHeavy && s.cardRainHeavy)}>
+                  <RainIcon size={12} strokeWidth={1.75} aria-hidden {...sx(s.cardAlertIcon)} />
+                  <span {...sx(a.wrap)}>
+                    <Parts parts={rain.split(" · ")} />
+                  </span>
                 </span>
-              </span>
-            )}
-          </span>
-          {editable && onGrip && (
-            <span
-              {...sx(s.grip, s.gripRow, "trips-grip")}
-              role="presentation"
-              title="Drag to reorder (or Alt + ↑ / ↓)"
-              onPointerDown={(event) => {
-                event.stopPropagation()
-                onGrip(event)
-              }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <GripVertical size={14} aria-hidden />
+              )}
             </span>
+            {editable && onGrip && (
+              <span
+                {...sx(s.grip, s.gripRow, "trips-grip")}
+                role="presentation"
+                title="Drag to reorder (or Alt + ↑ / ↓)"
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                  onGrip(event)
+                }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <GripVertical size={14} aria-hidden />
+              </span>
+            )}
+            <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
+          </button>
+          {canEdit && cardMenu.length > 0 && (
+            <Menu
+              label={`More for ${item.title.trim() || "this stop"}`}
+              trigger={<MoreHorizontal size={16} strokeWidth={1.75} aria-hidden />}
+              triggerStyle={[a.iconBtn, a.iconBtnSm, s.cardMore]}
+              items={cardMenu}
+            />
           )}
-          <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
-        </button>
+        </div>
+
+        {quick && (
+          <div {...sx(s.cardFoot, s.quick)} role="group" aria-label={`How ${item.title || "this stop"} went`}>
+            <QuickToggle on={item.status === "completed"} icon={Check} label="Done" disabled={locked} onPress={() => setStatus("completed")} />
+            <QuickToggle on={skipped} icon={SkipForward} label="Skip" disabled={locked} onPress={() => setStatus("skipped")} />
+            <QuickToggle
+              on={!!item.highlight}
+              icon={Heart}
+              label="Loved it"
+              disabled={locked}
+              onPress={() => patch({ highlight: item.highlight ? undefined : true })}
+            />
+          </div>
+        )}
+
+        {picking && (
+          <DayPicker
+            title={`Move ${name}`}
+            description="It goes last on that day’s route."
+            choices={dayOptions.map((option) => ({ id: option.id, label: option.label, off: option.id === dayId ? "This day" : undefined }))}
+            onPick={moveTo}
+            onClose={() => setPicking(false)}
+          />
+        )}
 
         {open && (
           <div id={panelId} {...sx(s.editor)}>
@@ -298,11 +449,14 @@ export const ItemCard = memo(function ItemCard({
                     disabled={locked}
                     placeholder={item.kind === "note" ? "What to remember" : "Name this stop"}
                     autoFocus={!item.title}
+                    maxLength={LIMITS.itemTitle}
                     {...sx(a.field)}
                     onChange={(event) => patch({ title: event.target.value })}
                   />
                 </label>
-                <TimeField label="Starts" value={item.time} disabled={locked} onChange={(time) => patch({ time })} />
+                {item.kind !== "reservation" && (
+                  <>
+                <TimeField label="Starts" value={item.time} disabled={locked} onChange={setTime} />
                 {item.endTime || endOpen ? (
                   <TimeField
                     label="Ends"
@@ -321,51 +475,16 @@ export const ItemCard = memo(function ItemCard({
                     </button>
                   </div>
                 )}
+                  </>
+                )}
                 {item.kind !== "note" && (
                   <div {...sx(s.span2)}>
                     <span {...sx(s.miniLabel)}>Location</span>
                     <LocationField item={item} near={near} locked={locked} onChange={patch} />
                   </div>
                 )}
-                {item.kind === "reservation" && (
-                  <>
-                    <label>
-                      <span {...sx(s.miniLabel)}>Type</span>
-                      <select
-                        value={item.reservation?.type ?? "experience"}
-                        disabled={locked}
-                        {...sx(a.field)}
-                        onChange={(event) =>
-                          patch({ reservation: { status: "confirmed", ...item.reservation, type: event.target.value } })
-                        }
-                      >
-                        {RESERVATION_TYPES.map((type) => (
-                          <option key={type} value={type}>
-                            {titleCase(type)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span {...sx(s.miniLabel)}>Confirmation</span>
-                      <input
-                        value={item.reservation?.confirmation ?? ""}
-                        disabled={locked}
-                        placeholder="Code or reference"
-                        {...sx(a.field, a.mono)}
-                        onChange={(event) =>
-                          patch({
-                            reservation: {
-                              type: "experience",
-                              status: "confirmed",
-                              ...item.reservation,
-                              confirmation: event.target.value || undefined,
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                  </>
+                {item.kind === "reservation" && trip && day && (
+                  <BookingFields item={item} trip={trip} day={day} disabled={locked} onChange={patch} />
                 )}
                 <label {...sx(s.span2)}>
                   <span {...sx(s.miniLabel)}>Notes</span>
@@ -373,11 +492,13 @@ export const ItemCard = memo(function ItemCard({
                     value={item.notes ?? ""}
                     disabled={locked}
                     rows={2}
+                    maxLength={LIMITS.notes}
                     placeholder="Opening hours, what to order, who recommended it…"
                     {...sx(a.field, a.textarea)}
                     onChange={(event) => patch({ notes: event.target.value || undefined })}
                   />
                 </label>
+                <LinksField links={item.links} disabled={locked} onChange={(links) => patch({ links: links.length > 0 ? links : undefined })} />
                 {item.kind !== "note" && (
                   <label>
                     <span {...sx(s.miniLabel)}>Status</span>
@@ -405,12 +526,7 @@ export const ItemCard = memo(function ItemCard({
                       value={dayId}
                       disabled={locked}
                       {...sx(a.field)}
-                      onChange={(event) => {
-                        const to = event.target.value
-                        const label = dayOptions.find((option) => option.id === to)?.label.split(" · ")[0] ?? "another day"
-                        onChange((days) => moveItemToDay(days, dayId, item.id, to), { label: `Moved ${name} to ${label}`, toast: true })
-                        onGone?.(index)
-                      }}
+                      onChange={(event) => moveTo(event.target.value)}
                     >
                       {dayOptions.map((option) => (
                         <option key={option.id} value={option.id}>
@@ -470,8 +586,10 @@ export const ItemCard = memo(function ItemCard({
               <div {...sx(s.span2, a.stack)}>
                 {item.location?.address && <p {...sx(a.small, a.wrap)}>{item.location.address}</p>}
                 {item.notes && <p {...sx(a.body, a.wrap)} style={{ whiteSpace: "pre-wrap" }}>{item.notes}</p>}
-                {item.reservation?.confirmation && (
-                  <p {...sx(a.mono)}>Confirmation {item.reservation.confirmation}</p>
+                {item.kind === "reservation" && trip && day ? (
+                  <BookingSummary item={item} trip={trip} day={day} />
+                ) : (
+                  item.reservation?.confirmation && <p {...sx(a.mono)}>Confirmation {item.reservation.confirmation}</p>
                 )}
                 {maps && (
                   <a href={maps.href} target="_blank" rel="noreferrer" {...sx(a.btn, a.btnSecondary, a.btnSm)} style={{ alignSelf: "flex-start" }}>
@@ -479,7 +597,16 @@ export const ItemCard = memo(function ItemCard({
                     {maps.label}
                   </a>
                 )}
-                {!item.location?.address && !item.notes && !maps && <p {...sx(a.small)}>No details yet.</p>}
+                {links.length > 0 && (
+                  <ul {...sx(s.links)} aria-label="Links">
+                    {links.map((link) => (
+                      <li key={link.href} style={{ minWidth: 0, maxWidth: "100%" }}>
+                        <LinkChip link={link} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!item.location?.address && !item.notes && !maps && links.length === 0 && <p {...sx(a.small)}>No details yet.</p>}
               </div>
             )}
           </div>
@@ -548,7 +675,7 @@ function TimeField({
         onChange={(event) => setText(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          if (event.key === "Enter" && !composing(event)) {
             event.preventDefault()
             commit()
           }
@@ -617,6 +744,7 @@ function LocationField({
         disabled={locked}
         placeholder={pinned ? "Search for a different place" : "Search to pin this on the map"}
         aria-label="Search for a place to pin"
+        maxLength={LIMITS.locationName}
         {...sx(a.field)}
         onFocus={() => {
           if (!searching) {
@@ -677,6 +805,87 @@ function LocationField({
             </li>
           )}
         </ul>
+      )}
+    </div>
+  )
+}
+
+/** The stop's links: each by its site with a remove button, then a field to paste another. */
+function LinksField({ links, disabled, onChange }: { links: string[] | undefined; disabled: boolean; onChange: (links: string[]) => void }) {
+  const id = useId()
+  const [draft, setDraft] = useState("")
+  const [bad, setBad] = useState(false)
+  const saved = links ?? []
+  const full = saved.length >= LIMITS.links
+  const add = () => {
+    if (!draft.trim()) return
+    const link = normalizeLink(draft)
+    if (!link) {
+      setBad(true)
+      return
+    }
+    setBad(false)
+    setDraft("")
+    onChange(withLink(saved, link))
+  }
+  return (
+    <div {...sx(s.span2, a.stack)} style={{ gap: "0.375rem" }}>
+      <label htmlFor={id} {...sx(s.miniLabel)} style={{ marginBottom: 0 }}>
+        Links
+      </label>
+      {saved.length > 0 && (
+        <ul {...sx(s.links)} aria-label="Links">
+          {saved.map((raw) => {
+            const link = stopLink(raw)
+            return (
+              <li key={raw} {...sx(s.linkRow)}>
+                {link ? <LinkChip link={link} /> : <span {...sx(a.small, s.linkText)} title={raw}>{raw}</span>}
+                <button
+                  type="button"
+                  {...sx(a.iconBtn, a.iconBtnSm)}
+                  aria-label={`Remove link ${link?.label ?? raw}`}
+                  disabled={disabled}
+                  onClick={() => onChange(saved.filter((other) => other !== raw))}
+                >
+                  <X size={14} strokeWidth={1.75} aria-hidden />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <div {...sx(s.linkAdd)}>
+        <input
+          id={id}
+          type="url"
+          inputMode="url"
+          autoComplete="off"
+          value={draft}
+          disabled={disabled || full}
+          maxLength={LIMITS.link}
+          placeholder={full ? `${LIMITS.links} links is the most a stop holds` : "Paste a link"}
+          aria-invalid={bad || undefined}
+          aria-describedby={bad ? `${id}-error` : undefined}
+          {...sx(a.field)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setBad(false)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !composing(event)) {
+              event.preventDefault()
+              add()
+            }
+          }}
+        />
+        <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={disabled || full || !draft.trim()} onClick={add}>
+          Add
+        </button>
+      </div>
+      {bad && (
+        <span id={`${id}-error`} {...sx(a.errorText)} role="alert" style={{ marginTop: 0 }}>
+          That isn’t a web link. Paste one that starts with https://.
+        </span>
       )}
     </div>
   )

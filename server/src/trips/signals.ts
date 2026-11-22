@@ -210,21 +210,30 @@ export function shorterRoute(day: TripDay): { order: string[]; beforeKm: number;
   return { order, beforeKm: Math.round(before / 100) / 10, afterKm: Math.round(after / 100) / 10 }
 }
 
+/** The heading the client parks unplaced stops under; everything after it is off the route. */
+const TO_SCHEDULE = "To schedule"
+const isToSchedule = (item: ItineraryItem) => item.kind === "section" && (item.title ?? "").trim() === TO_SCHEDULE
+
 /**
  * Insert a new item where its time says it belongs. Untimed items, and
- * items on a day with no times at all, go to the end.
+ * items on a day with no times at all, go to the end of the plan: above a
+ * "To schedule" heading when the day has one, so the new stop joins the
+ * route instead of being parked with the places still to fit in.
  */
 export function insertByTime(items: readonly ItineraryItem[], item: ItineraryItem): ItineraryItem[] {
-  if (!item.time || !items.some((existing) => existing.time)) return [...items, item]
-  let at = items.length
-  for (let i = 0; i < items.length; i++) {
-    const existing = items[i]!
+  const parkedAt = items.findIndex(isToSchedule)
+  const plan = parkedAt < 0 ? items : items.slice(0, parkedAt)
+  const parked = parkedAt < 0 ? [] : items.slice(parkedAt)
+  if (!item.time || !plan.some((existing) => existing.time)) return [...plan, item, ...parked]
+  let at = plan.length
+  for (let i = 0; i < plan.length; i++) {
+    const existing = plan[i]!
     if (existing.time && existing.time > item.time) {
       at = i
       break
     }
   }
   // Don't strand the new item above a heading that introduces the next block.
-  while (at > 0 && items[at - 1]!.kind === "section" && (!items[at - 1]!.time || items[at - 1]!.time! > item.time)) at -= 1
-  return [...items.slice(0, at), item, ...items.slice(at)]
+  while (at > 0 && plan[at - 1]!.kind === "section" && (!plan[at - 1]!.time || plan[at - 1]!.time! > item.time)) at -= 1
+  return [...plan.slice(0, at), item, ...plan.slice(at), ...parked]
 }

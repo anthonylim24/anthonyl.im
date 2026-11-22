@@ -11,6 +11,9 @@ import {
   type WeatherFetcher,
 } from "../trips/ai"
 import { streamTripChat } from "../trips/chat"
+import { createBookingParserFromKeys, type BookingParser } from "../trips/bookingParse"
+import { config } from "../config"
+import { registerBookingRoutes } from "./tripBookings"
 import { collectCatalogPlaces, groupCatalogPlaces } from "../trips/placeCatalog"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { isNotProvisionedError, type TripStore } from "../trips/store"
@@ -38,6 +41,7 @@ import {
   type FailedEnhancementRun,
   type RunningEnhancementRun,
   type Trip,
+  type TripDay,
   type TripAccess,
   type TripInvite,
 } from "../trips/types"
@@ -61,6 +65,8 @@ export interface TripsRouterDeps {
   generateHeartbeatMs?: number
   /** Runs after the auth gate, so it can key on the signed-in user. */
   rateLimit?: MiddlewareHandler
+  /** Reads bookings out of a pasted confirmation. Undefined: built from the server's Gemini / Groq keys; null: not available (503). */
+  parseBookings?: BookingParser | null
 }
 
 const MAX_SUMMARY_POINTS = 48
@@ -219,6 +225,20 @@ async function persistEnhancementRun(args: {
   }
 }
 
+/** `drafted` with each day's journal and zone from the day of the same date in `before`. */
+export function keepDayNotes(drafted: TripDay[], before: TripDay[]): TripDay[] {
+  const byDate = new Map(before.map((day) => [day.date, day]))
+  return drafted.map((day) => {
+    const was = byDate.get(day.date)
+    if (!was || (was.journal === undefined && was.timezone === undefined)) return day
+    return {
+      ...day,
+      ...(was.journal !== undefined ? { journal: was.journal } : {}),
+      ...(was.timezone !== undefined ? { timezone: was.timezone } : {}),
+    }
+  })
+}
+
 /** One-time display-data upgrade for a Korea trip seeded before the dossier
  *  theming existed: backfill appearance + per-day neighborhoods / weather /
  *  callouts from the canonical seed, preserving the traveller's edits. */
@@ -323,6 +343,17 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if (needEdit && !canEdit(access)) return { error: c.json({ error: "forbidden" }, 403) }
     return { trip, access }
   }
+
+  registerBookingRoutes(trips, {
+    parse:
+      deps.parseBookings !== undefined
+        ? deps.parseBookings
+        : createBookingParserFromKeys({ geminiApiKey: config.geminiApiKey, groqApiKey: config.groqApiKey, geocode: deps.geocode }),
+    load: async (c) => {
+      await ensureSeeded(deps.store)
+      return loadTrip(c, c.req.param("id") ?? "", true)
+    },
+  })
 
   // ── Sharing: join by invite link ───────────────────────────────────────
   //
@@ -553,9 +584,11 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         })
         // Only the draft's own fields land, and on the trip as it is now:
         // sharing changes or a rename made while the model worked survive.
+        // What the traveller wrote about a day, and the zone they set for it,
+        // belong to the date, not the draft: they carry over.
         const next = await mutate(tripId, (fresh) => ({
           ...fresh,
-          days: generated.days,
+          days: keepDayNotes(generated.days, fresh.days),
           // AI-proposed theming fills gaps but never overwrites user choices.
           appearance: { ...generated.appearance, ...fresh.appearance },
         }))

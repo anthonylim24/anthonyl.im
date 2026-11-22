@@ -64,7 +64,8 @@ anthonyl.im/
 │   │   ├── sw.js                # CACHE_VERSION = korea-offline-v*
 │   │   ├── robots.txt           # Allow / ; Disallow /preview/
 │   │   ├── site.webmanifest     # BreathFlow (start_url /breathwork)
-│   │   └── korea.webmanifest    # Installable PWA (start_url /trips/korea-2026)
+│   │   ├── korea.webmanifest    # Installable PWA (start_url /trips/korea-2026)
+│   │   └── trips.webmanifest    # Installable Trips (start_url /trips); shellMeta picks per path
 │   ├── vite.config.ts           # codeSplitting: three, tiles3d, effect, markdown, …
 │   └── index.html               # Per-route OG / favicon / manifest swap
 ├── server/
@@ -411,7 +412,7 @@ Design context (users, personality, look, tokens, anti-references) is in [`PRODU
 
 ## Service Worker / Caching Contract
 
-The installable PWA is Korea-scoped (`korea.webmanifest`, `CACHE_VERSION = korea-offline-v*`). `robots.txt` exists. Every deploy must keep these invariants:
+Trips installs as its own app (`trips.webmanifest` on `/trips*`, `korea.webmanifest` on the Korea trip; `manifestForPath` in `server/src/shellMeta.ts`, kept in step on client navigation by `syncManifest`). One service worker serves both (`CACHE_VERSION = korea-offline-v*`); trips read offline from IndexedDB copies, never from cached `/api/*` (see [`docs/trips.md`](docs/trips.md)).  `robots.txt` exists. Every deploy must keep these invariants:
 
 - **`/sw.js`** served with `Cache-Control: no-cache, no-store, must-revalidate` + `Service-Worker-Allowed: /`
 - **SPA HTML** served with `no-cache, no-store, must-revalidate`

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   HISTORY_LIMIT,
   canEdit,
+  draftOutcome,
   editorReducer,
   initialEditor,
   savePatch,
@@ -92,12 +93,81 @@ describe("loading", () => {
   })
 })
 
+describe("the copy kept on this device", () => {
+  const copy = (doc: Trip = trip()): EditorEvent => ({ type: "COPY_LOADED", trip: doc, savedAt: 1000, unsaved: false })
+
+  it("stands in, read-only, when the trip can't be loaded", () => {
+    const shown = run([copy()])
+    expect(shown).toMatchObject({ s: "copy", savedAt: 1000, doc: { name: "Lisbon Long Weekend" } })
+    expect(run([{ type: "LOAD_FAILED", message: "Failed to fetch" }, copy()]).s).toBe("copy")
+    // Nothing can be edited, undone or saved from it.
+    expect(run([rename("x"), { type: "UNDO" }, { type: "FLUSH" }, { type: "RETRY" }], shown)).toBe(shown)
+    expect(canEdit(shown)).toBe(false)
+  })
+
+  it("gives way to the server's copy, and stays when a retry fails", () => {
+    const shown = run([copy()])
+    expect(editorReducer(shown, { type: "LOAD_FAILED", message: "x" })).toBe(shown)
+    expect(editorReducer(shown, { type: "LOADED", trip: trip({ updatedAt: T1 }), access: "owner" })).toMatchObject({ s: "ready", sync: { k: "clean" } })
+  })
+
+  it("never replaces a live trip", () => {
+    const state = loaded()
+    expect(editorReducer(state, copy(trip({ name: "Old" })))).toBe(state)
+  })
+})
+
+describe("unsaved edits restored from this device", () => {
+  const draftOf = (base: Trip, edit: (doc: Trip) => Trip) => ({ type: "RESTORE_DRAFT" as const, base, doc: edit(base) })
+
+  it("replays them onto the server's copy and saves", () => {
+    const state = editorReducer(loaded(), draftOf(trip(), (d) => ({ ...d, name: "Typed offline" }))) as Ready
+    expect(state.sync.k).toBe("dirty")
+    expect(state.doc.name).toBe("Typed offline")
+    expect(saving(state).state.sync).toMatchObject({ against: T0 })
+  })
+
+  it("keeps what others saved since the draft was made", () => {
+    const server = trip({ updatedAt: T1, days: [{ id: "day-1", date: "2026-07-10", items: [market, makeItem({ id: "theirs" })] }, trip().days[1]!] })
+    const draft = draftOf(trip(), (d) => ({ ...d, days: [d.days[0]!, { ...d.days[1]!, items: [museum, makeItem({ id: "mine" })] }] }))
+    const state = editorReducer(loaded(server), draft) as Ready
+    expect(itemIds(state, 0)).toEqual(["market", "theirs"])
+    expect(itemIds(state, 1)).toEqual(["museum", "mine"])
+    expect(state.base.updatedAt).toBe(T1)
+  })
+
+  it("asks when the draft and the server's copy clash", () => {
+    const state = editorReducer(loaded(trip({ updatedAt: T1, name: "Theirs" })), draftOf(trip(), (d) => ({ ...d, name: "Mine" }))) as Ready
+    expect(state.sync).toMatchObject({ k: "conflict", theirs: { name: "Theirs" } })
+    expect(state.doc.name).toBe("Mine")
+    expect((editorReducer(state, { type: "RESOLVE", keep: "mine" }) as Ready).sync).toMatchObject({ k: "saving", against: T1, sent: { name: "Mine" } })
+  })
+
+  it("does nothing for a draft that was saved after all, for a viewer, or once editing started", () => {
+    const saved = trip({ updatedAt: T1, name: "Typed offline" })
+    const state = loaded(saved)
+    expect(editorReducer(state, draftOf(trip(), (d) => ({ ...d, name: "Typed offline" })))).toBe(state)
+    const viewer = loaded(trip(), "view")
+    expect(editorReducer(viewer, draftOf(trip(), (d) => ({ ...d, name: "x" })))).toBe(viewer)
+    const editing = run([rename("Now")], loaded())
+    expect(editorReducer(editing, draftOf(trip(), (d) => ({ ...d, name: "x" })))).toBe(editing)
+  })
+
+  it("tells the shell what a draft would do", () => {
+    const server = trip({ updatedAt: T1, name: "Theirs" })
+    expect(draftOutcome(server, { base: trip(), doc: trip() })).toBe("nothing")
+    expect(draftOutcome(server, { base: trip(), doc: trip({ name: "Mine" }) })).toBe("conflict")
+    expect(draftOutcome(server, { base: trip(), doc: trip({ description: "Mine" }) })).toBe("replay")
+    expect(draftOutcome(server, { base: trip(), doc: trip({ id: "porto", name: "x" }) })).toBe("nothing")
+  })
+})
+
 describe("editing and saving", () => {
   it("makes the trip dirty, then saves after the debounce against the base it was edited from", () => {
     const dirty = run([rename("Lisbon, renamed")], loaded())
     expect(dirty).toMatchObject({ sync: { k: "dirty" }, doc: { name: "Lisbon, renamed" } })
     const { state, sent } = saving(dirty)
-    expect(state.sync).toEqual({ k: "saving", sent, against: T0, queued: false })
+    expect(state.sync).toEqual({ k: "saving", sent, against: T0, queued: false, fitted: null })
     expect(sent.name).toBe("Lisbon, renamed")
   })
 
@@ -140,18 +210,69 @@ describe("editing and saving", () => {
     const { state, sent } = saving(run([rename("One")], loaded()))
     const stale = { ...sent }
     expect(editorReducer(state, { type: "SAVE_OK", sent: stale, saved: stale })).toBe(state)
-    expect(editorReducer(state, { type: "SAVE_FAILED", sent: stale, message: "x" })).toBe(state)
+    expect(editorReducer(state, { type: "SAVE_FAILED", sent: stale, message: "x", failure: "server" })).toBe(state)
     expect(editorReducer(state, { type: "SAVE_CONFLICT", sent: stale, theirs: stale })).toBe(state)
   })
 
   it("shows a failed save until Retry or the next edit, which save again", () => {
     const { state, sent } = saving(run([rename("One")], loaded()))
-    const failed = editorReducer(state, { type: "SAVE_FAILED", sent, message: "HTTP 500" }) as Ready
-    expect(failed.sync).toEqual({ k: "saveError", message: "HTTP 500" })
+    const failed = editorReducer(state, { type: "SAVE_FAILED", sent, message: "HTTP 500", failure: "server" }) as Ready
+    expect(failed.sync).toEqual({ k: "saveError", message: "HTTP 500", failure: "server" })
     // No timer is pending for a failed save: the debounce does not resend it.
     expect(editorReducer(failed, { type: "DEBOUNCE_ELAPSED" })).toBe(failed)
     expect((editorReducer(failed, { type: "RETRY" }) as Ready).sync).toMatchObject({ k: "saving", against: T0 })
     expect((editorReducer(failed, rename("Two")) as Ready).sync).toEqual({ k: "dirty" })
+  })
+
+  it("sends a save that never got an answer again as it was", () => {
+    const { state, sent } = saving(run([rename("One")], loaded()))
+    const failed = editorReducer(state, { type: "SAVE_FAILED", sent, message: "Failed to fetch", failure: "network" }) as Ready
+    expect(failed.sync).toMatchObject({ k: "saveError", failure: "network" })
+    const again = editorReducer(failed, { type: "RETRY" }) as Ready
+    expect(again.sync).toMatchObject({ k: "saving", against: T0, sent: { name: "One" } })
+  })
+
+  describe("a save the server refuses", () => {
+    const refuse = (state: Ready, sent: Trip) =>
+      editorReducer(state, { type: "SAVE_FAILED", sent, message: "The trip’s dates can’t be saved.", failure: "refused" }) as Ready
+
+    it("is not sent again until the trip changes", () => {
+      const { state, sent } = saving(run([rename("One")], loaded()))
+      const refused = refuse(state, sent)
+      expect(refused.sync).toMatchObject({ k: "saveError", failure: "refused", refused: sent })
+      expect(editorReducer(refused, { type: "RETRY" })).toBe(refused)
+      expect(editorReducer(refused, { type: "FLUSH" })).toBe(refused)
+      const edited = editorReducer(refused, rename("Two")) as Ready
+      expect(edited.sync.k).toBe("dirty")
+      expect(saving(edited).sent.name).toBe("Two")
+    })
+
+    it("tries the edits made while it was out, once", () => {
+      const { state, sent } = saving(run([rename("One")], loaded()))
+      const queued = editorReducer(state, rename("Two")) as Ready
+      expect(refuse(queued, sent).sync).toEqual({ k: "dirty" })
+    })
+  })
+
+  describe("fitting a save inside the server's limits", () => {
+    it("sends the last saved name for a blank one, and keeps the field blank on screen", () => {
+      const { state, sent } = saving(run([rename("   ")], loaded()))
+      expect(sent.name).toBe("Lisbon Long Weekend")
+      expect(state.sync.k === "saving" && state.sync.fitted).toMatch(/A trip needs a name/)
+      const saved = editorReducer(state, { type: "SAVE_OK", sent, saved: { ...sent, updatedAt: T1 } }) as Ready
+      expect(saved.sync.k).toBe("clean")
+      expect(saved.doc.name).toBe("   ")
+      expect(saved.base.name).toBe("Lisbon Long Weekend")
+    })
+
+    it("cuts text that is too long and says so", () => {
+      const long = "x".repeat(400)
+      const { state, sent } = saving(run([addTo("day-1", makeItem({ id: "long", title: long, time: "9am" }))], loaded()))
+      const item = sent.days[0]!.items.find((i) => i.id === "long")!
+      expect(item.title).toHaveLength(300)
+      expect(item.time).toBeUndefined()
+      expect(state.sync.k === "saving" && state.sync.fitted).toMatch(/the title of “x+…” \(day 1\)/)
+    })
   })
 
   it("flushes a dirty or failed save at once, and leaves a clean one alone", () => {
@@ -232,6 +353,26 @@ describe("someone else's changes", () => {
     const conflicted = run([rename("Mine"), { type: "EXTERNAL_CHANGE", trip: trip({ updatedAt: T1, name: "Theirs" }) }], loaded())
     const state = editorReducer(conflicted, { type: "RESOLVE", keep: "mine" }) as Ready
     expect(state.sync).toMatchObject({ k: "saving", against: T1, sent: { name: "Mine" } })
+  })
+
+  it("on “Keep mine” still keeps the stop they added on another day", () => {
+    const dirty = run([rename("Mine")], loaded())
+    const theirs = { ...theirsWithAdd(), name: "Theirs" }
+    const conflicted = editorReducer(dirty, { type: "EXTERNAL_CHANGE", trip: theirs }) as Ready
+    expect(conflicted.sync.k).toBe("conflict")
+    const state = editorReducer(conflicted, { type: "RESOLVE", keep: "mine" }) as Ready
+    expect(state.sync).toMatchObject({ k: "saving", against: T1, sent: { name: "Mine" } })
+    expect(itemIds(state, 0)).toEqual(["market", "concierge"])
+    expect(state.sync.k === "saving" && state.sync.sent.days[0]!.items.map((i) => i.id)).toEqual(["market", "concierge"])
+  })
+
+  it("on “Use theirs” still saves the traveller's edits that clash with nothing", () => {
+    const dirty = run([rename("Mine"), addTo("day-2", makeItem({ id: "mine" }))], loaded())
+    const conflicted = editorReducer(dirty, { type: "EXTERNAL_CHANGE", trip: trip({ updatedAt: T1, name: "Theirs" }) }) as Ready
+    const state = editorReducer(conflicted, { type: "RESOLVE", keep: "theirs" }) as Ready
+    expect(state.doc.name).toBe("Theirs")
+    expect(itemIds(state, 1)).toEqual(["museum", "mine"])
+    expect(state.sync).toMatchObject({ k: "saving", against: T1 })
   })
 
   it("ignores RESOLVE without a conflict", () => {
@@ -346,6 +487,40 @@ describe("AI runs", () => {
 })
 
 describe("undo and redo", () => {
+  it("take a wishlist place back off the day it was moved to, and redo moves it again", () => {
+    const idea = makeItem({ id: "idea", title: "Sintra" })
+    const start = loaded(trip({ ideas: [idea] }))
+    const moved = editorReducer(start, {
+      type: "EDIT",
+      fn: (doc) => ({
+        ...doc,
+        ideas: [],
+        days: doc.days.map((d) => (d.id === "day-1" ? { ...d, items: [...d.items, idea] } : d)),
+      }),
+      undo: { label: "Moved Sintra to day 1", toast: true },
+    })
+    expect(itemIds(moved, 0)).toEqual(["market", "idea"])
+    const undone = editorReducer(moved, { type: "UNDO" }) as Ready
+    expect(itemIds(undone, 0)).toEqual(["market"])
+    expect(undone.doc.ideas?.map((i) => i.id)).toEqual(["idea"])
+    const redone = editorReducer(undone, { type: "REDO" }) as Ready
+    expect(itemIds(redone, 0)).toEqual(["market", "idea"])
+    expect(redone.doc.ideas).toEqual([])
+  })
+
+  it("undo a wishlist edit as its own step", () => {
+    const later = makeItem({ id: "later", title: "Later" })
+    const state = run(
+      [addTo("day-1", makeItem({ id: "added" }), { label: "Added", toast: true }), { type: "EDIT", fn: (doc) => ({ ...doc, ideas: [later] }) }],
+      loaded(),
+    )
+    const once = editorReducer(state, { type: "UNDO" }) as Ready
+    expect(once.doc.ideas ?? []).toEqual([])
+    expect(itemIds(once, 0)).toEqual(["market", "added"])
+    const twice = editorReducer(once, { type: "UNDO" }) as Ready
+    expect(itemIds(twice, 0)).toEqual(["market"])
+  })
+
   it("steps back and forward through structural edits", () => {
     const a = makeItem({ id: "a" })
     const state = run([addTo("day-1", a, { label: "Added a" }), removeFrom("day-1", "market")], loaded())

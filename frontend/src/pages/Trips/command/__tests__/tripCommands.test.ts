@@ -118,6 +118,26 @@ describe("tripCommands", () => {
 
     expect(tripCommands({ trip: trip(), basePath: "/trips/lisbon", navigate }).some((c) => c.group === "Go to")).toBe(false)
   })
+
+  it("offers today while the trip is under way, read in the trip's zone when it runs", () => {
+    const navigate = vi.fn()
+    const lisbon = { ...trip(), timezone: "Europe/Lisbon" }
+    // 23:30 on 10 July in Lisbon: still day 1 there.
+    let clock = Date.parse("2026-07-10T22:30:00Z")
+    const now = () => clock
+    const commands = tripCommands({ trip: lisbon, basePath: "/trips/lisbon", navigate, now })
+    expect(byId(commands, "trip:today")).toMatchObject({ title: "Go to today", subtitle: "Day 1 · Fri Jul 10 · Alfama and the castle", group: "Go to" })
+
+    // The palette was built before midnight; the command runs after it.
+    clock = Date.parse("2026-07-10T23:30:00Z")
+    byId(commands, "trip:today").run()
+    expect(navigate).toHaveBeenLastCalledWith("/trips/lisbon/day/day-2")
+
+    // Not offered on today's own page, before the trip or after it.
+    expect(tripCommands({ trip: lisbon, basePath: "/trips/lisbon", navigate, now, dayId: "day-2" }).some((c) => c.id === "trip:today")).toBe(false)
+    expect(tripCommands({ trip: lisbon, basePath: "/trips/lisbon", navigate, now: () => Date.parse("2026-07-01T12:00:00Z") }).some((c) => c.id === "trip:today")).toBe(false)
+    expect(tripCommands({ trip: lisbon, basePath: "/trips/lisbon", navigate, now: () => Date.parse("2026-07-12T12:00:00Z") }).some((c) => c.id === "trip:today")).toBe(false)
+  })
 })
 
 describe("tripListCommands", () => {

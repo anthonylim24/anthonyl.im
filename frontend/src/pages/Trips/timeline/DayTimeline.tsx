@@ -18,7 +18,9 @@ import {
   doneFold,
   FREE_LABEL_MIN,
   freeAhead,
+  isOver,
   layoutDay,
+  outcomeOf,
   leaveAt,
   legWords,
   stopNumbers,
@@ -52,8 +54,13 @@ export interface DayTimelineProps {
   hotId: string | null
   onSelect: (itemId: string) => void
   onHover: (itemId: string | null) => void
-  /** "HH:mm" in the trip's time zone, when the day is today: draws the now line. */
-  now?: string
+  /**
+   * Now on this day's clock, when the day is under way: minutes from its
+   * midnight, past 1440 in the small hours after it (`dayNow` in
+   * `live/liveTrip.ts`), or "HH:mm" when the day's own date is today. Draws
+   * the now line and decides what is over.
+   */
+  now?: number | string
   /** The day's live forecast: hour temperatures, likely rain and the light on the ruler. */
   forecast?: DayForecast
   /** Today's finished stops, folded or not; shared with the list. Without it the timeline keeps its own. */
@@ -141,13 +148,10 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
   }, [full])
   const arrivals = useMemo(() => new Map(full.gaps.map((gap) => [gap.beforeId, gap])), [full])
 
-  // The time today on the ruler's clock (past midnight when the day runs on), which
-  // decides what is over and what is free; the Now line is drawn only where the ruler runs.
-  const since = useMemo(() => {
-    const minutes = clockMinutes(now)
-    if (minutes === null) return null
-    return minutes < full.start && minutes + DAY_MIN <= full.end ? minutes + DAY_MIN : minutes
-  }, [now, full])
+  // Now on the ruler's clock, which decides what is over and what is free; the
+  // Now line is drawn only where the ruler runs. A "HH:mm" is the day's own
+  // date, so a small hour is its morning; the night after it comes as a number.
+  const since = typeof now === "number" ? now : clockMinutes(now)
 
   // On today the stops already over fold into one line and the ruler starts at
   // the hour of now; a selected stop among them keeps the fold open.
@@ -195,6 +199,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
       if (minutes === null) return null
       return [minutes, minutes + DAY_MIN].find((t) => t >= layout.start && t <= layout.end) ?? null
     }
+    // The forecast's hours are the day's own date: past midnight they would be this morning's.
     const temps = new Map<number, number>()
     for (const hour of forecast?.hours ?? []) {
       const at = clockMinutes(hour.time)
@@ -248,7 +253,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
   }
 
   // The hour it is now, from the forecast: the Now label carries it, since Now takes that hour's label.
-  const nowTemp = nowAt === null ? undefined : sky.temps.get(Math.floor((nowAt % DAY_MIN) / 60) * 60)
+  const nowTemp = nowAt === null || nowAt >= DAY_MIN ? undefined : sky.temps.get(Math.floor(nowAt / 60) * 60)
   const hours: number[] = []
   for (let t = layout.start; t <= layout.end; t += 60) hours.push(t)
   const free = layout.gaps.reduce((sum, gap) => {
@@ -295,7 +300,8 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     const minutes = b.end - b.start
     const active = activeId === item.id
     const runsOn = b.end > layout.end
-    const past = since !== null && b.end <= since
+    const past = isOver(b, since)
+    const skipped = b.outcome === "skipped"
     const wet = wetDuring(sky.rain, b.start, b.end)
     const heavy = wet !== null && soaking(wet)
 
@@ -317,6 +323,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
       title,
       kind,
       number ? `stop ${number}` : null,
+      b.outcome === "done" ? "done" : skipped ? "skipped" : null,
     ]
       .filter(Boolean)
       .join(", ")
@@ -386,7 +393,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
               <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={12} strokeWidth={1.75} aria-hidden {...sx(tl.timeIcon)} />
             )}
           </span>
-          <span {...sx(tl.title, past && tl.titlePast)} style={{ WebkitLineClamp: lines }}>
+          <span {...sx(tl.title, past && tl.titlePast, skipped && tl.titleSkipped)} style={{ WebkitLineClamp: lines }}>
             {title}
           </span>
           {showMeta && (
@@ -452,7 +459,8 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     const toSchedule = parked.has(id)
     const active = activeId === id
     const when = toSchedule ? "To schedule" : "Anytime"
-    const name = [when, stopTitle(item), kind, number ? `stop ${number}` : null].filter(Boolean).join(", ")
+    const outcome = outcomeOf(item)
+    const name = [when, stopTitle(item), kind, number ? `stop ${number}` : null, outcome === "planned" ? null : outcome].filter(Boolean).join(", ")
     return (
       <li key={id}>
         <button
@@ -470,7 +478,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             </span>
           )}
           <span {...sx(tl.text)}>
-            <span {...sx(tl.anyTitle)}>{stopTitle(item)}</span>
+            <span {...sx(tl.anyTitle, outcome !== "planned" && tl.titlePast, outcome === "skipped" && tl.titleSkipped)}>{stopTitle(item)}</span>
             {(kind || toSchedule) && (
               <span {...sx(tl.meta)}>
                 {[kind ? titleCase(kind) : null, toSchedule ? "To schedule" : null].filter(Boolean).join(" · ")}
@@ -523,7 +531,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             </p>
           )}
           {folding && (
-            <DoneFold count={folding.ids.length} from={folding.from} to={folding.to} open={open} onToggle={toggle} controls={`${baseId}-stops`} />
+            <DoneFold count={folding.ids.length} skipped={folding.skipped} from={folding.from} to={folding.to} open={open} onToggle={toggle} controls={`${baseId}-stops`} />
           )}
           <div {...sx(tl.ruler)}>
             <div {...sx(tl.canvas)} style={{ height: scale.height }}>
@@ -559,7 +567,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
                 // Now takes the hour's place when they would touch.
                 const crowded = nowAt !== null && Math.abs(yAt(scale, nowAt) - y) < 26
                 // Every third hour: enough to read the day's warming and cooling.
-                const temp = (t - layout.start) % 180 === 0 ? sky.temps.get(((t % DAY_MIN) + DAY_MIN) % DAY_MIN) : undefined
+                const temp = (t - layout.start) % 180 === 0 && t < DAY_MIN ? sky.temps.get(t) : undefined
                 return (
                   <div key={t} aria-hidden>
                     <span {...sx(tl.hourRule)} style={{ top: y }} />

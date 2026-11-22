@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { externalMapsApp, externalMapsHref, externalMapsLink, prefersAppleMaps } from "../externalMaps"
+import { directionsLink, externalMapsApp, externalMapsHref, externalMapsLink, prefersAppleMaps } from "../externalMaps"
 
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
 const IPAD = "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
@@ -90,5 +90,37 @@ describe("externalMapsLink", () => {
       app: "apple",
       label: "Open this place in Apple Maps",
     })
+  })
+})
+
+describe("directionsLink", () => {
+  const mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+  const android = "Mozilla/5.0 (Linux; Android 14)"
+  const hotel = { name: "Hotel Avenida", lat: 38.72, lng: -9.14 }
+  const castle = { name: "Castelo", lat: 38.7139, lng: -9.1335 }
+
+  it("opens Apple Maps directions on Apple devices for a single leg", () => {
+    const link = directionsLink({ destination: castle, origin: hotel, mode: "walk" }, mac)
+    expect(link?.app).toBe("apple")
+    expect(link?.href).toBe("https://maps.apple.com/?daddr=38.7139%2C-9.1335&saddr=38.72%2C-9.14&dirflg=w")
+  })
+
+  it("opens Google Maps directions elsewhere, from the phone's location when no origin", () => {
+    const link = directionsLink({ destination: castle }, android)
+    expect(link?.href).toBe("https://www.google.com/maps/dir/?api=1&destination=38.7139%2C-9.1335&travelmode=transit")
+  })
+
+  it("routes a day through Google Maps with waypoints, even on Apple devices", () => {
+    const link = directionsLink({ destination: hotel, origin: hotel, waypoints: [castle], mode: "walk" }, mac)
+    expect(link?.app).toBe("google")
+    expect(link?.href).toContain("waypoints=38.7139%2C-9.1335")
+    expect(link?.href).toContain("travelmode=walking")
+  })
+
+  it("searches by name when there is no pin, and gives up with neither", () => {
+    expect(directionsLink({ destination: { name: "Time Out Market", address: "Lisbon" } }, android)?.href).toContain(
+      "destination=Time+Out+Market%2C+Lisbon",
+    )
+    expect(directionsLink({ destination: {} }, android)).toBeUndefined()
   })
 })

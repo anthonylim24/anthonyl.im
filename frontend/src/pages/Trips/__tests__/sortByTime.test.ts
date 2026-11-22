@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { sortByTime } from "../workspace/DayPanel"
+import { outOfOrder, sortByTime } from "../workspace/dayOps"
 import type { ItineraryItem } from "../types"
 
 const stop = (id: string, time?: string, overrides: Partial<ItineraryItem> = {}): ItineraryItem => ({
@@ -55,6 +55,34 @@ describe("sortByTime", () => {
     expect(out).not.toBe(items)
     expect(items).toEqual(snapshot)
     expect(out[0]).toBe(items[1])
+  })
+
+  it("reads the day's clock: a 01:00 stop after a 23:00 one stays last", () => {
+    const night = [stop("dinner", "19:00"), stop("bar", "23:00"), stop("club", "01:00")]
+    expect(ids(sortByTime(night))).toEqual(["dinner", "bar", "club"])
+    expect(outOfOrder(night)).toBe(false)
+    const shuffled = [stop("bar", "23:00"), stop("lunch", "12:00"), stop("club", "01:00")]
+    expect(ids(sortByTime(shuffled))).toEqual(["lunch", "bar", "club"])
+    expect(outOfOrder(shuffled)).toBe(true)
+  })
+
+  it("sorts the route only: places parked under “To schedule” keep their place", () => {
+    const items = [
+      stop("dinner", "19:00"),
+      stop("lunch", "12:00"),
+      stop("park", undefined, { kind: "section", title: "To schedule" }),
+      stop("ig-2", "08:00"),
+      stop("ig-1"),
+    ]
+    expect(ids(sortByTime(items))).toEqual(["lunch", "dinner", "park", "ig-2", "ig-1"])
+    expect(outOfOrder([items[1]!, items[0]!, ...items.slice(2)])).toBe(false)
+  })
+
+  it("sorting twice changes nothing", () => {
+    const items = [stop("a", "13:00"), stop("b", "02:00"), stop("note"), stop("c", "11:00"), stop("d", "09:00")]
+    const once = sortByTime(items)
+    expect(sortByTime(once)).toEqual(once)
+    expect(outOfOrder(once)).toBe(false)
   })
 
   it("is a no-op for already ordered, untimed or empty lists", () => {

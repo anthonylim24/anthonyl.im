@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { enhanceTrip, generateItinerary, updateTrip } from "../tripsApi"
-import { isTripConflict } from "../tripConflict"
+import { TimeoutError } from "../../../effect/errors"
+import { enhanceTrip, generateItinerary, getTrip, updateTrip } from "../tripsApi"
+import { isTripConflict, isTripRefused } from "../tripConflict"
 import type { EnhancementRun } from "../types"
 import { makeTrip } from "./tripFixtures"
 
@@ -152,11 +153,47 @@ describe("updateTrip", () => {
     expect(isTripConflict(err) && err.trip).toEqual(theirs)
   })
 
-  it("keeps other 409s (a taken link name) as plain errors with their message", async () => {
+  it("keeps other 409s (a taken link name) as refusals with their message", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ error: "slug_taken", message: "The permalink “x” is already in use." }, 409))
     const err = await updateTrip(getToken, "lisbon", { slug: "x" }).catch((e: unknown) => e)
     expect(isTripConflict(err)).toBe(false)
+    expect(isTripRefused(err)).toBe(true)
     expect((err as Error).message).toMatch(/already in use/)
+  })
+
+  it("turns a 400 into a refusal that says which field to fix", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      json({ error: "invalid update", issues: [{ origin: "string", code: "too_big", maximum: 120, path: ["days", 0, "items", 1, "reservation", "confirmation"] }] }, 400),
+    )
+    const err = await updateTrip(getToken, "lisbon", { name: "x" }).catch((e: unknown) => e)
+    expect(isTripRefused(err)).toBe(true)
+    expect((err as Error).message).toBe("The confirmation number of a stop on day 1 is too long (120 characters at most).")
+  })
+})
+
+describe("reading with a deadline", () => {
+  it("gives up on a trip that doesn't come, and aborts the request", async () => {
+    let signal: AbortSignal | undefined
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      signal = (init as RequestInit).signal ?? undefined
+      return new Promise<Response>(() => undefined)
+    })
+    const err = await getTrip(getToken, "lisbon", { timeoutMs: 20 }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(TimeoutError)
+    expect((err as Error).message).toBe("Couldn’t reach the server.")
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it("counts the sign-in token read against the deadline", async () => {
+    const stuck = () => new Promise<string | null>(() => undefined)
+    const spy = vi.spyOn(globalThis, "fetch")
+    await expect(getTrip(stuck, "lisbon", { timeoutMs: 20 })).rejects.toBeInstanceOf(TimeoutError)
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it("waits as before without one", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ trip: makeTrip(), access: "owner" }))
+    await expect(getTrip(getToken, "lisbon")).resolves.toMatchObject({ access: "owner" })
   })
 })
 

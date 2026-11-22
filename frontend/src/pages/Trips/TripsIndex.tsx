@@ -1,11 +1,11 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type RefObject } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowRight, Copy, MoreHorizontal, Plus, RotateCcw, Search, Share2, Sparkles, Trash2, Users } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
-import { deleteTrip, duplicateTrip, getTrip, listTrips } from "./tripsApi"
+import { deleteTrip, duplicateTrip, getTrip } from "./tripsApi"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { ACCENT_FILL, dayCount, formatRange, plural, resolveAccent, tripTiming, visibleTags, type TripPhase } from "./meta"
 import { AtlasMap, canRenderMap, useIsDark } from "./map/AtlasMap"
@@ -16,8 +16,12 @@ import { TripCover } from "./components/TripCover"
 import { atlasFigures } from "./live/atlasFigures"
 import { countdownLabel } from "./live/liveTrip"
 import { useNow } from "./live/useNow"
-import type { TripSummary } from "./types"
+import { todayDay } from "./today"
+import { useShowCopy, useTripsDevice } from "./offline/tripsDevice"
+import { canLoadTripList, loadTripList } from "./offline/tripList"
+import type { Trip, TripSummary } from "./types"
 import { a } from "./atlas.stylex"
+import { foldText } from "./command/commands"
 import { tripListCommands } from "./command/tripCommands"
 import { useRegisterCommands } from "./command/CommandContext"
 import { idx as s } from "./index.stylex"
@@ -51,6 +55,58 @@ export function tripHref(trip: Pick<TripSummary, "id" | "slug">): string {
   return `/trips/${trip.slug ?? trip.id}`
 }
 
+const PHONE_QUERY = "(max-width: 899.98px)"
+
+/** On a phone the globe waits for its turn: the list comes first. Elsewhere, or without the APIs to wait with, it mounts at once. */
+function deferGlobe(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    typeof IntersectionObserver !== "undefined" &&
+    window.matchMedia(PHONE_QUERY).matches
+  )
+}
+
+/**
+ * True once `ref` has been on screen and the browser has had an idle moment,
+ * so the ambient globe (MapLibre, tiles, WebGL) never competes with a phone's
+ * first paint of the trip list. Always true where `deferGlobe` says not to wait.
+ */
+function useGlobeReady(ref: RefObject<HTMLElement | null>): boolean {
+  const [ready, setReady] = useState(() => !deferGlobe())
+  useEffect(() => {
+    const element = ref.current
+    if (ready || !element) return
+    let cancelIdle = () => {}
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        observer.disconnect()
+        if (typeof window.requestIdleCallback === "function") {
+          const id = window.requestIdleCallback(() => setReady(true), { timeout: 2000 })
+          cancelIdle = () => window.cancelIdleCallback(id)
+        } else {
+          const timer = setTimeout(() => setReady(true), 300)
+          cancelIdle = () => clearTimeout(timer)
+        }
+      },
+      { rootMargin: "200px" },
+    )
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+      cancelIdle()
+    }
+  }, [ready, ref])
+  return ready
+}
+
+/** The day of a trip under way that is today, as a path; the trip itself when no day is today. */
+function todayPath(trip: Pick<TripSummary, "id" | "slug">, doc: Pick<Trip, "timezone" | "days">, now: number): string {
+  const day = todayDay(doc, now)
+  return day ? `${tripHref(trip)}/day/${encodeURIComponent(day.id)}` : tripHref(trip)
+}
+
 export function TripsIndex() {
   useTabTitle("Trips")
   const navigate = useNavigate()
@@ -61,6 +117,12 @@ export function TripsIndex() {
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [reloadKey, setReloadKey] = useState(0)
   const [, startTransition] = useTransition()
+  const { store, owner, mode } = useTripsDevice()
+  /** Set while the list on screen is the copy kept on this device: when it was taken. */
+  const [copiedAt, setCopiedAt] = useState<number | null>(null)
+  useShowCopy(copiedAt === null ? null : { what: "list", savedAt: copiedAt, unsaved: false })
+  /** Nothing that needs the server (create, share, duplicate, delete) while reading the device copy. */
+  const onDevice = copiedAt !== null || mode === "copy"
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
   const [hot, setHot] = useState<string | null>(null)
@@ -75,12 +137,21 @@ export function TripsIndex() {
   const dark = useIsDark()
   const [stills, setStills] = useState<Record<string, string>>({})
   const now = useNow(COUNTDOWN_STEP_MS)
+  const globeRef = useRef<HTMLDivElement>(null)
+  const globeReady = useGlobeReady(globeRef)
+  /** The days of the trip under way, read when someone reaches for the "Now" link. */
+  const [liveDoc, setLiveDoc] = useState<{ id: string; doc: Pick<Trip, "timezone" | "days"> } | null>(null)
+  const liveFetch = useRef<{ id: string; promise: Promise<Pick<Trip, "timezone" | "days"> | null> } | null>(null)
 
   useEffect(() => {
-    if (!authReady) return
+    if (!canLoadTripList(authReady, { mode })) return
     let cancelled = false
-    listTrips(readToken).then(
-      (trips) => !cancelled && startTransition(() => setState({ status: "success", trips })),
+    loadTripList(readToken, { store, owner, mode }).then(
+      ({ trips, copiedAt: at }) => {
+        if (cancelled) return
+        setCopiedAt(at)
+        startTransition(() => setState({ status: "success", trips }))
+      },
       (err: unknown) => {
         if (cancelled) return
         const message = err instanceof Error ? err.message : String(err)
@@ -91,7 +162,7 @@ export function TripsIndex() {
     return () => {
       cancelled = true
     }
-  }, [authReady, reloadKey, readToken])
+  }, [authReady, reloadKey, readToken, store, owner, mode])
 
   useEffect(() => {
     mounted.current = true
@@ -165,28 +236,29 @@ export function TripsIndex() {
   // straight to the trip it most likely belongs to: the one under way, else
   // the next one, else the latest.
   const [searchParams] = useSearchParams()
-  const shared = extractInstagramUrls(
+  const sharedPost = extractInstagramUrls(
     [searchParams.get("instagram"), searchParams.get("url"), searchParams.get("text")].filter(Boolean).join(" "),
   )[0]
+  // With no trip to put it on, the link stays and the empty state offers to start one.
   useEffect(() => {
-    if (!shared || timed.length === 0) return
+    if (!sharedPost || timed.length === 0) return
     const rank = { now: 0, upcoming: 1, past: 2 } as const
     const target = [...timed].sort(
       (x, y) => rank[x.timing.phase] - rank[y.timing.phase] || Math.abs(x.timing.daysAway) - Math.abs(y.timing.daysAway),
     )[0]!.trip
-    navigate(`/trips/${target.slug ?? target.id}?instagram=${encodeURIComponent(shared)}`, { replace: true })
-  }, [shared, timed, navigate])
+    navigate(`/trips/${target.slug ?? target.id}?instagram=${encodeURIComponent(sharedPost)}`, { replace: true })
+  }, [sharedPost, timed, navigate])
 
+  // Folded like the palette: "sao" finds "São Paulo", "ㅅ" finds "서울".
+  const searching = foldText(deferredQuery)
   const filtered = useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase()
-    if (!q) return timed
-    return timed.filter(({ trip }) =>
-      [trip.name, ...trip.destinations, ...trip.tags].some((text) => text.toLowerCase().includes(q)),
-    )
-  }, [timed, deferredQuery])
+    if (!searching) return timed
+    return timed.filter(({ trip }) => [trip.name, ...trip.destinations, ...trip.tags].some((text) => foldText(text).includes(searching)))
+  }, [timed, searching])
 
   // A handful of trips reads best as one row (each card already says when it
-  // is); the Now / Upcoming / Past headings earn their place from four up.
+  // is); the Now / Upcoming / Past headings earn their place from four up,
+  // and only for buckets with trips in them (no "Past · 0").
   const groups = useMemo(() => {
     const order: Record<TripPhase, number> = { now: 0, upcoming: 1, past: 2 }
     const byDate = (phase: TripPhase) => (x: (typeof filtered)[number], y: (typeof filtered)[number]) =>
@@ -201,7 +273,7 @@ export function TripsIndex() {
       phase: phase as string,
       label: label as string | null,
       rows: filtered.filter((t) => t.timing.phase === phase).sort(byDate(phase)),
-    }))
+    })).filter((group) => group.rows.length > 0)
   }, [filtered])
 
   const pins = useMemo<AtlasPin[]>(
@@ -224,6 +296,31 @@ export function TripsIndex() {
   // At rest the globe faces the next trip, so its pin and label sit mid-sphere.
   const framePoints = hotTrip?.center ? [hotTrip.center] : nextUp?.trip.center ? [nextUp.trip.center] : pins
   const upcomingCount = timed.filter((t) => t.timing.phase !== "past").length
+
+  // "Now: Seoul" opens today's day. The list has no days, so the trip is read
+  // the first time someone points at, focuses or taps the link.
+  const liveTrip = nextUp?.timing.phase === "now" ? nextUp.trip : null
+  const loadLive = (trip: TripSummary) => {
+    if (liveFetch.current?.id === trip.id) return liveFetch.current.promise
+    const promise = getTrip(readToken, trip.id).then(
+      ({ trip: full }) => {
+        const doc = { timezone: full.timezone, days: full.days }
+        if (mounted.current) setLiveDoc({ id: trip.id, doc })
+        return doc
+      },
+      () => {
+        liveFetch.current = null
+        return null
+      },
+    )
+    liveFetch.current = { id: trip.id, promise }
+    return promise
+  }
+  const nextHref = !nextUp
+    ? null
+    : liveTrip && liveDoc?.id === liveTrip.id
+      ? todayPath(liveTrip, liveDoc.doc, now.getTime())
+      : tripHref(nextUp.trip)
 
   const remove = async (trip: TripSummary) => {
     const mine = { kind: "delete" as const, id: trip.id }
@@ -296,18 +393,35 @@ export function TripsIndex() {
           <p {...sx(s.heroLede)}>
             Plan each day on a live 3D map, let AI draft the first pass, and share the whole thing with whoever’s coming.
           </p>
-          <div {...sx(s.heroActions)}>
-            <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
-              <Plus size={18} strokeWidth={2} aria-hidden />
-              Plan a trip
-            </Link>
-            <Link to="/trips/new?ai=1" {...sx(a.btn, a.btnSecondary)}>
-              <Sparkles size={16} strokeWidth={1.75} aria-hidden />
-              Draft one with AI
-            </Link>
-          </div>
-          {nextUp && (
-            <Link to={tripHref(nextUp.trip)} {...sx(s.nextUp)} data-trip-accent={resolveAccent(nextUp.trip.accent)}>
+          {!onDevice && (
+            <div {...sx(s.heroActions)}>
+              <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
+                <Plus size={18} strokeWidth={2} aria-hidden />
+                Plan a trip
+              </Link>
+              <Link to="/trips/new?ai=1" {...sx(a.btn, a.btnSecondary)}>
+                <Sparkles size={16} strokeWidth={1.75} aria-hidden />
+                Draft one with AI
+              </Link>
+            </div>
+          )}
+          {nextUp && nextHref && (
+            <Link
+              to={nextHref}
+              {...sx(s.nextUp)}
+              data-trip-accent={resolveAccent(nextUp.trip.accent)}
+              onPointerEnter={() => liveTrip && void loadLive(liveTrip)}
+              onFocus={() => liveTrip && void loadLive(liveTrip)}
+              onClick={(event) => {
+                if (!liveTrip || liveDoc?.id === liveTrip.id) return
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                // Not read yet (a tap gives no hover): read it, then go. A failed read opens the trip.
+                event.preventDefault()
+                void loadLive(liveTrip).then((doc) => {
+                  if (mounted.current) navigate(doc ? todayPath(liveTrip, doc, Date.now()) : tripHref(liveTrip))
+                })
+              }}
+            >
               <span {...sx(s.liveDot)} aria-hidden />
               <span {...sx(a.truncate)}>
                 {nextUp.timing.phase === "now" ? "Now" : "Next"}: {nextUp.trip.name}
@@ -317,25 +431,27 @@ export function TripsIndex() {
             </Link>
           )}
         </div>
-        <div {...sx(s.globe)}>
-          <AtlasMap
-            ambient
-            pins={pins}
-            framePoints={framePoints}
-            frameKey={`${hot ?? "all"}:${pins.map((p) => p.id).join(",")}`}
-            restCenter={REST_CENTER}
-            hotId={hot}
-            onSelect={(id) => {
-              const trip = trips?.find((t) => t.id === id)
-              if (trip) navigate(tripHref(trip))
-            }}
-            onHover={setHot}
-            label={
-              pins.length > 0
-                ? `Globe with ${plural(pins.length, "trip")} pinned. Each pin opens its trip.`
-                : "Globe. Trips appear here as pins once they have a destination."
-            }
-          />
+        <div ref={globeRef} {...sx(s.globe)}>
+          {globeReady && (
+            <AtlasMap
+              ambient
+              pins={pins}
+              framePoints={framePoints}
+              frameKey={`${hot ?? "all"}:${pins.map((p) => p.id).join(",")}`}
+              restCenter={REST_CENTER}
+              hotId={hot}
+              onSelect={(id) => {
+                const trip = trips?.find((t) => t.id === id)
+                if (trip) navigate(tripHref(trip))
+              }}
+              onHover={setHot}
+              label={
+                pins.length > 0
+                  ? `Globe with ${plural(pins.length, "trip")} pinned. Each pin opens its trip.`
+                  : "Globe. Trips appear here as pins once they have a destination."
+              }
+            />
+          )}
           <p {...sx(a.eyebrow, s.globeCaption)} aria-hidden>
             {hotTrip?.center ? `${hotTrip.name} · ${formatCoord(hotTrip.center)}` : "Drag to turn the globe"}
           </p>
@@ -378,11 +494,17 @@ export function TripsIndex() {
           <h2 {...sx(a.display, s.emptyTitle)}>
             A blank <span {...sx(a.italic)}>map.</span>
           </h2>
-          <p {...sx(a.body)}>Name a place and some dates. You can fill in the days yourself or have AI sketch them.</p>
-          <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
-            <Plus size={18} strokeWidth={2} aria-hidden />
-            Plan your first trip
-          </Link>
+          {sharedPost ? (
+            <p {...sx(a.body)}>You shared an Instagram post. Start a trip and its places go straight onto it.</p>
+          ) : (
+            <p {...sx(a.body)}>Name a place and some dates. You can fill in the days yourself or have AI sketch them.</p>
+          )}
+          {!onDevice && (
+            <Link to={sharedPost ? `/trips/new?instagram=${encodeURIComponent(sharedPost)}` : "/trips/new"} {...sx(a.btn, a.btnPrimary)}>
+              <Plus size={18} strokeWidth={2} aria-hidden />
+              Plan your first trip
+            </Link>
+          )}
         </div>
       )}
 
@@ -430,8 +552,11 @@ export function TripsIndex() {
             </label>
           </div>
 
+          <p {...sx(a.srOnly)} role="status">
+            {searching ? (filtered.length === 0 ? "No matching trips." : `${plural(filtered.length, "matching trip")}.`) : ""}
+          </p>
           {filtered.length === 0 && (
-            <div {...sx(s.empty)} role="status">
+            <div {...sx(s.empty)}>
               <p {...sx(a.body, a.ink)}>No trips match “{deferredQuery.trim()}”.</p>
               <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setQuery("")}>
                 Clear search
@@ -440,7 +565,6 @@ export function TripsIndex() {
           )}
 
           {groups.map(({ phase, label, rows }, index) => {
-            if (rows.length === 0 && index !== groups.length - 1) return null
             return (
               <div key={phase} {...sx(s.bucket)}>
                 {label && (
@@ -513,7 +637,7 @@ export function TripsIndex() {
                               )}
                             </span>
                             <span {...sx(s.cardMenu)}>
-                              {action?.id === trip.id ? (
+                              {onDevice ? null : action?.id === trip.id ? (
                                 <span {...sx(a.iconBtn)} role="status" aria-label="Working">
                                   <Spinner />
                                 </span>
@@ -531,7 +655,7 @@ export function TripsIndex() {
                       </li>
                     )
                   })}
-                  {index === groups.length - 1 && !deferredQuery.trim() && (
+                  {index === groups.length - 1 && !searching && !onDevice && (
                     <li>
                       <Link to="/trips/new" {...sx(s.newCard)}>
                         <span {...sx(s.newCardPlus)}>
@@ -594,8 +718,12 @@ export function TripsIndex() {
         ) : null}
       </Modal>
 
+      {/* Mounted before any toast, so a screen reader hears the first one too. */}
+      <p {...sx(a.srOnly)} role="status">
+        {toast ?? ""}
+      </p>
       {toast && (
-        <div {...sx(s.toast)} role="status">
+        <div {...sx(s.toast)} aria-hidden>
           {toast}
         </div>
       )}

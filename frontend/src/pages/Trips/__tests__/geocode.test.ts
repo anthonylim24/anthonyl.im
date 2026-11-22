@@ -62,9 +62,14 @@ describe("searchCities", () => {
     expect(await searchCities("zzzz")).toEqual([])
   })
 
-  it("returns [] on a non-OK response", async () => {
+  it("rejects on a non-OK response, so a failed search never reads as no results", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ error: true }, 500))
-    expect(await searchCities("Lisbon")).toEqual([])
+    await expect(searchCities("Lisbon")).rejects.toMatchObject({ _tag: "HttpStatusError", status: 500 })
+  })
+
+  it("rejects when the network is down", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"))
+    await expect(searchCities("Lisbon")).rejects.toThrow(/Failed to fetch/)
   })
 
   it("returns [] when the request is aborted", async () => {

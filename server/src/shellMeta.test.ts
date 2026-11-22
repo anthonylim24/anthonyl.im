@@ -41,6 +41,25 @@ describe("injectPreviewMeta", () => {
     }
   });
 
+  test("links one manifest: Trips for every trip but Korea's, Korea's elsewhere", () => {
+    for (const [path, manifest] of [
+      ["/trips", "/trips.webmanifest"],
+      ["/trips/new", "/trips.webmanifest"],
+      ["/trips/tokyo/day/1", "/trips.webmanifest"],
+      ["/trips/korea-2026", "/korea.webmanifest"],
+      ["/trips/korea-2026/day/3", "/korea.webmanifest"],
+      ["/korea", "/korea.webmanifest"],
+      ["/", "/korea.webmanifest"],
+      ["/breathwork", "/korea.webmanifest"],
+    ] as const) {
+      const html = render(path);
+      const links = [...html.matchAll(/<link rel="manifest" href="([^"]*)"/g)].map((m) => m[1]);
+      expect(links).toEqual([manifest]);
+      // Ahead of the route scripts, which keep it right under a preview base.
+      expect(html.indexOf('rel="manifest"')).toBeLessThan(html.indexOf("<script"));
+    }
+  });
+
   test("never puts the full page title in the install name", () => {
     expect(contentOf(render("/trips"), "apple-mobile-web-app-title")).not.toContain("Trips — plan a trip, pin by pin");
   });

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent as ReactFocusEvent,
@@ -144,6 +145,21 @@ export function Menu({
   )
 }
 
+/**
+ * The element that had focus when `open` turned true: the button or menu
+ * that opened the dialog. Read in a layout effect, before the dialog mounts
+ * (Radix portals in a later commit) and moves focus inside itself.
+ */
+function useOpener(open: boolean) {
+  const opener = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    if (!open) return
+    const active = document.activeElement
+    opener.current = active instanceof HTMLElement && active !== document.body ? active : null
+  }, [open])
+  return opener
+}
+
 export function Modal({
   open,
   onClose,
@@ -163,6 +179,7 @@ export function Modal({
   footer?: ReactNode
   children: ReactNode
 }) {
+  const opener = useOpener(open)
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogPrimitive.Portal>
@@ -170,6 +187,14 @@ export function Modal({
           <DialogPrimitive.Overlay {...sx(a.scrim)} />
           <DialogPrimitive.Content
             {...sx(a.dialog, wide && a.dialogWide)}
+            onCloseAutoFocus={(event) => {
+              // These dialogs have no Radix Trigger, so Radix would send focus
+              // to a null trigger: <body>, and a keyboard user starts over.
+              const target = opener.current
+              if (!target?.isConnected) return
+              event.preventDefault()
+              target.focus({ preventScroll: true })
+            }}
           >
             <div {...sx(a.dialogHead)}>
               <div {...sx(a.stack)}>

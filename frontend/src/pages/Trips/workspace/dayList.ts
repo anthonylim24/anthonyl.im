@@ -1,6 +1,6 @@
 import { distanceMeters, isLocated, splitDay } from "../map/geo"
 import { formatDistance } from "../reservationView"
-import { clockMinutes, layoutDay, leaveAt, legEstimate, legWords, type TimelineGap } from "../timeline/timeline"
+import { isOver, layoutDay, leaveAt, legEstimate, legWords, outcomeOf, planStarts, type TimelineGap } from "../timeline/timeline"
 import type { TravelMode } from "../timeline/travel"
 import type { ItineraryItem, TripDay } from "../types"
 
@@ -32,6 +32,8 @@ export interface DoneRun {
   length: number
   /** The stops in it. */
   stops: string[]
+  /** How many of `stops` were skipped rather than done. */
+  skipped: number
   /** Minutes from midnight: the first start and the last end. */
   from: number
   to: number
@@ -49,11 +51,14 @@ export interface DayList {
   /**
    * The leg into a stop from the one before it on the route, drawn above the
    * stop, so Now (drawn before the next stop) always comes before the walk it
-   * leads into. None into or between Anytime stops.
+   * leads into. None into or between Anytime stops, and none into or out of
+   * a skipped stop: the leg runs from the stop before it to the one after.
    */
   legs: Map<string, Leg>
-  /** Timed stops that ended by `now`. */
+  /** Stops that are over: marked done or skipped (any day), or on today ended by `now`. */
   past: Set<string>
+  /** Stops marked skipped: not happening, drawn struck. */
+  skipped: Set<string>
   /** The first stop under way at `now`. */
   current: string | null
   /** On today, the leading run of the list that is over; null when the first stop is still to come. */
@@ -61,19 +66,23 @@ export interface DayList {
 }
 
 const isStop = (item: ItineraryItem) => item.kind !== "section" && item.kind !== "note"
-const isTimed = (item: ItineraryItem) => isStop(item) && clockMinutes(item.time) !== null
 
-/** `now` is minutes from the day's midnight, and only for today. */
+/**
+ * `now` is minutes on the day's own clock, and only while the day is under
+ * way (`dayNow` in `live/liveTrip.ts`): past 1440 in the small hours after it.
+ */
 export function dayList(day: TripDay, now: number | null): DayList {
   const { planned } = splitDay(day)
-  const lastTimed = planned.reduce((last, item, i) => (isTimed(item) ? i : last), -1)
+  const starts = planStarts(day)
+  const isTimed = (item: ItineraryItem, i: number) => isStop(item) && starts[i] !== null
+  const lastTimed = planned.reduce((last, item, i) => (isTimed(item, i) ? i : last), -1)
   const firstAnytime = lastTimed < 0 ? -1 : planned.findIndex((item, i) => i > lastTimed && isStop(item))
   const anytimeAt = firstAnytime >= 0 ? firstAnytime : null
 
   const labels = new Map<string, string>()
   let n = 0
-  // Places parked under "To schedule" carry no number, as on the map.
-  for (const item of planned) if (isLocated(item)) labels.set(item.id, String((n += 1)))
+  // Places parked under "To schedule", and skipped stops, carry no number, as on the map.
+  for (const item of planned) if (isLocated(item) && item.status !== "skipped") labels.set(item.id, String((n += 1)))
 
   const layout = layoutDay(day)
   // Conflicts and gaps run in clock order, the list in itinerary order: match either way.
@@ -82,7 +91,10 @@ export function dayList(day: TripDay, now: number | null): DayList {
   const gaps = new Map<string, TimelineGap>()
   for (const gap of layout.gaps) gaps.set(`${gap.afterId}>${gap.beforeId}`, gap).set(`${gap.beforeId}>${gap.afterId}`, gap)
   const legs = new Map<string, Leg>()
-  const route = planned.filter((item, i) => !(anytimeAt !== null && i >= anytimeAt && isStop(item))).filter(isLocated)
+  const route = planned
+    .filter((item, i) => !(anytimeAt !== null && i >= anytimeAt && isStop(item)))
+    .filter((item) => outcomeOf(item) !== "skipped")
+    .filter(isLocated)
   for (let i = 1; i < route.length; i++) {
     const [from, to] = [route[i - 1]!, route[i]!]
     // Same estimate as the timeline; none out of a flight or train booking.
@@ -106,26 +118,42 @@ export function dayList(day: TripDay, now: number | null): DayList {
   }
 
   const past = new Set<string>()
+  const skipped = new Set<string>()
+  for (const item of day.items) {
+    if (!isStop(item)) continue
+    const outcome = outcomeOf(item)
+    if (outcome !== "planned") past.add(item.id)
+    if (outcome === "skipped") skipped.add(item.id)
+  }
   let current: string | null = null
   if (now !== null) {
     for (const block of layout.blocks) {
-      if (block.end <= now) past.add(block.itemId)
+      if (isOver(block, now)) past.add(block.itemId)
       else if (block.start <= now) current ??= block.itemId
     }
   }
 
+  // The finished head of the list folds only on today; on other days a stop marked done stays in place.
   let length = 0
-  for (const [i, item] of day.items.entries()) {
-    if (!isStop(item)) continue
-    if (!past.has(item.id)) break
-    length = i + 1
+  if (now !== null) {
+    for (const [i, item] of day.items.entries()) {
+      if (!isStop(item)) continue
+      if (!past.has(item.id)) break
+      length = i + 1
+    }
   }
   const head = new Set(day.items.slice(0, length).map((item) => item.id))
   const spans = layout.blocks.filter((block) => head.has(block.itemId))
   const done =
     spans.length === 0
       ? null
-      : { length, stops: spans.map((block) => block.itemId), from: Math.min(...spans.map((b) => b.start)), to: Math.max(...spans.map((b) => b.end)) }
+      : {
+          length,
+          stops: spans.map((block) => block.itemId),
+          skipped: spans.filter((block) => block.outcome === "skipped").length,
+          from: Math.min(...spans.map((b) => b.start)),
+          to: Math.max(...spans.map((b) => b.end)),
+        }
 
-  return { anytimeAt, labels, legs, past, current, done }
+  return { anytimeAt, labels, legs, past, skipped, current, done }
 }

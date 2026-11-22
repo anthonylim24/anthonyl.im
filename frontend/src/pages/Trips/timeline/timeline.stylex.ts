@@ -264,6 +264,14 @@ export const tl = stylex.create({
     color: "var(--trips-ink)",
   },
   titlePast: { color: "var(--trips-ink-secondary)", fontWeight: 500 },
+  // Skipped: not happening. Struck through in the tertiary ink, the strike a shade lighter than the words.
+  titleSkipped: {
+    color: "var(--trips-ink-tertiary)",
+    fontWeight: 500,
+    textDecorationLine: "line-through",
+    textDecorationColor: "var(--trips-line-strong)",
+    textDecorationThickness: "1.5px",
+  },
   meta: {
     gridColumn: "2",
     display: "flex",
@@ -399,6 +407,7 @@ export const tl = stylex.create({
   },
   foldText: { flexGrow: 1, minWidth: 0, fontSize: "0.8125rem", fontWeight: 500, lineHeight: 1.3 },
   foldWhen: { fontFamily: "var(--trips-mono)", fontSize: "0.6875rem", fontWeight: 400, color: "var(--trips-ink-tertiary)", marginLeft: "0.375rem", whiteSpace: "nowrap" },
+  foldSkipped: { fontWeight: 400, color: "var(--trips-ink-secondary)" },
   foldAction: { display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", fontWeight: 600, color: "var(--trips-ink)" },
   foldChevron: { transitionProperty: "transform", transitionDuration: "200ms", [REDUCE]: { transitionDuration: "0ms" } },
   foldChevronOpen: { transform: "rotate(180deg)" },

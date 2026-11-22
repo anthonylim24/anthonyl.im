@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect"
 import { apiFetch } from "../lib/apiBase"
-import { DecodeError, HttpStatusError } from "./errors"
+import { DecodeError, HttpStatusError, TimeoutError } from "./errors"
 
 const ErrorEnvelope = Schema.Struct({
   error: Schema.optional(Schema.Unknown),
@@ -85,23 +85,51 @@ export const requireOk = (res: Response): Effect.Effect<Response, HttpStatusErro
     return yield* Effect.fail(new HttpStatusError({ status: res.status, message }))
   })
 
+export interface RequestOptions {
+  /**
+   * Give up after this many milliseconds, the token read included, with a
+   * `TimeoutError` carrying `timeoutMessage`; the request in flight is
+   * aborted. Off by default. Not for AI calls, which can rightly take minutes.
+   */
+  timeoutMs?: number
+  timeoutMessage?: string
+}
+
+/** `fetchApi` that aborts the request when its fiber is interrupted (a deadline passing). */
+const fetchApiAbortable = (path: string, init: RequestInit): Effect.Effect<Response, Error> =>
+  Effect.tryPromise({
+    try: (signal) => apiFetch(path, { ...init, signal: init.signal ?? signal }),
+    catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+  })
+
 /** Authenticated JSON request used by trips / places / ingest. */
 export const requestJson = <T>(
   getToken: GetToken,
   path: string,
   init: RequestInit = {},
-): Effect.Effect<T, Error | HttpStatusError | DecodeError> =>
-  Effect.gen(function* () {
+  options: RequestOptions = {},
+): Effect.Effect<T, Error | HttpStatusError | DecodeError | TimeoutError> => {
+  const { timeoutMs } = options
+  const request = Effect.gen(function* () {
     const token = yield* readAuthToken(getToken)
     const headers = new Headers(init.headers)
     if (init.body && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json")
     }
     if (token) headers.set("Authorization", `Bearer ${token}`)
-    const res = yield* fetchApi(path, { ...init, headers, cache: "no-store" })
+    const sent = { ...init, headers, cache: "no-store" as const }
+    const res = yield* timeoutMs === undefined ? fetchApi(path, sent) : fetchApiAbortable(path, sent)
     yield* requireOk(res)
     return yield* parseJson<T>(res)
   })
+  if (timeoutMs === undefined) return request
+  return request.pipe(
+    Effect.timeoutFail({
+      duration: timeoutMs,
+      onTimeout: () => new TimeoutError({ message: options.timeoutMessage ?? "The server didn’t answer in time." }),
+    }),
+  )
+}
 
 /** Wait `ms`. With a `signal`, an abort ends the wait at once (the caller
  *  checks `signal.aborted` next), and an interrupted fiber clears the timer. */

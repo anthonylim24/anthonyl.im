@@ -886,6 +886,7 @@ body {
   --trips-scrim: rgb(12 14 17 / 0.48);
   --trips-danger: #b3261e;
   --trips-danger-soft: rgb(179 38 30 / 0.08);
+  --trips-on-danger: #ffffff;
   --trips-ok: #0b7a5c;
   --trips-radius: 0.875rem;
   --trips-radius-sm: 0.625rem;
@@ -951,6 +952,8 @@ html.dark .trips,
   --trips-scrim: rgb(0 0 0 / 0.62);
   --trips-danger: #ff8a80;
   --trips-danger-soft: rgb(255 138 128 / 0.12);
+  /* 7.9:1 on --trips-danger; white is 2.3:1 here. */
+  --trips-on-danger: #14171a;
   --trips-ok: #4fd1ae;
   --brand: #ff9166;
   --brand-soft: rgb(240 88 43 / 0.16);
