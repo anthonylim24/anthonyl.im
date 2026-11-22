@@ -58,6 +58,31 @@ export function centroid(points: readonly LngLat[]): LngLat | null {
   return { lat: lat / points.length, lng: lng / points.length }
 }
 
+/** Points this close are one place to search around: a city and its day trips. */
+const CLUSTER_M = 60_000
+
+/**
+ * Where a "near the trip" search should look: the middle of the biggest
+ * group of points, not the middle of all of them. A flight's departure
+ * airport or a second city drags a plain centroid out to sea or between
+ * cities, where a nearby search finds neither. Ties go to the group nearest
+ * `hint` (the trip's destination). No points: the hint itself.
+ */
+export function searchCenter(points: readonly LngLat[], hint?: LngLat | null): LngLat | null {
+  if (points.length === 0) return hint ?? null
+  let best: LngLat[] = []
+  let bestToHint = Infinity
+  for (const p of points) {
+    const group = points.filter((q) => distanceMeters(p, q) <= CLUSTER_M)
+    const toHint = hint ? distanceMeters(p, hint) : 0
+    if (group.length > best.length || (group.length === best.length && toHint < bestToHint)) {
+      best = group
+      bestToHint = toHint
+    }
+  }
+  return centroid(best)
+}
+
 /**
  * The points worth framing: drops far outliers (one stop across the river)
  * so the camera fits where the trip mostly happens. Falls back to every

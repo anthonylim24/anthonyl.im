@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, rankPlaces, searchCities, searchPlaces, type PlaceResult } from "../geocode"
+import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, rankPlaces, searchCities, searchPlaces, worthAskingGoogle, type PlaceResult } from "../geocode"
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -390,5 +390,15 @@ describe("localBox", () => {
   it("is a box about 110 km tall around the point, wider in longitude away from the equator", () => {
     expect(localBox({ lat: 21.3, lng: -157.86 })).toBe("-158.40,20.80,-157.32,21.80")
     expect(localBox({ lat: 0, lng: 179.9 })).toBe("179.40,-0.50,180.00,0.50")
+  })
+})
+
+describe("worthAskingGoogle", () => {
+  it("waits for three letters, or two of Chinese, Japanese or Korean", () => {
+    expect(worthAskingGoogle("Go")).toBe(false)
+    expect(worthAskingGoogle("Goh")).toBe(true)
+    expect(worthAskingGoogle("명동")).toBe(true)
+    expect(worthAskingGoogle("新宿")).toBe(true)
+    expect(worthAskingGoogle("명")).toBe(false)
   })
 })

@@ -252,8 +252,11 @@ export function rankPlaces(sources: readonly (readonly PlaceResult[])[], near: {
 }
 
 const PHOTON = "https://photon.komoot.io/api/"
+/** Two letters of Chinese, Japanese or Korean can be a whole name (명동, 新宿). */
+const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u
+
 /** Google is asked only once a query is specific enough to be worth a paid call. */
-const GOOGLE_MIN_LENGTH = 3
+export const worthAskingGoogle = (query: string) => query.length >= 3 || (query.length === 2 && CJK.test(query))
 
 const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
   query: string,
@@ -264,7 +267,7 @@ const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
   const q = encodeURIComponent(query)
   const bias = near ? `&lat=${near.lat.toFixed(2)}&lon=${near.lng.toFixed(2)}&location_bias_scale=0.1` : ""
   const legs = [
-    getToken && query.length >= GOOGLE_MIN_LENGTH ? googleEffect(query, near, getToken, signal) : null,
+    getToken && worthAskingGoogle(query) ? googleEffect(query, near, getToken, signal) : null,
     near ? photonEffect(`${PHOTON}?q=${q}&limit=10&lang=en&bbox=${localBox(near)}`, signal) : null,
     photonEffect(`${PHOTON}?q=${q}&limit=15&lang=en${bias}`, signal),
   ].filter((leg) => leg !== null)
