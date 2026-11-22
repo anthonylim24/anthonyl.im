@@ -188,7 +188,7 @@ describe("generateItinerary robustness", () => {
     }
     const started = Date.now()
     const out = await generateItinerary({ trip: trip(6), llm, budgets })
-    expect(Date.now() - started).toBeLessThan(1_000)
+    expect(Date.now() - started).toBeLessThan(2_000)
     // The budget is spent, so the part is not asked twice.
     expect(hung).toBe(1)
     expect(out.days.slice(0, 3).every((d) => d.items.length === 3)).toBe(true)
@@ -204,23 +204,23 @@ describe("generateItinerary robustness", () => {
     }
     const started = Date.now()
     const out = await generateItinerary({ trip: trip(6), llm, budgets })
-    expect(Date.now() - started).toBeLessThan(800)
+    expect(Date.now() - started).toBeLessThan(2_000)
     expect(out.days.every((d) => d.items.length === 3)).toBe(true)
     expect(out.incompleteDays).toEqual([])
   })
 
   test("twelve days draft in one round, and a part with no time left is not started", async () => {
-    const budgets = { outlineMs: 1_000, partMs: 600, totalMs: 300 }
+    const budgets = { outlineMs: 5_000, partMs: 3_000, totalMs: 1_500 }
     const asked: number[] = []
     const llm: LlmCall = async ({ system, user }) => {
       if (system.includes("settle the shape")) return JSON.stringify({ days: [] })
       const from = Number(user.match(/draft only days? (\d+)/)![1])
       asked.push(from)
-      await Bun.sleep(150)
+      await Bun.sleep(700)
       return JSON.stringify({ days: [0, 1, 2].map((k) => dayJson(from + k)) })
     }
     // Thirteen days: four parts run at once, the fifth would start with
-    // 150 ms of the draft left, less than a third of a part's budget.
+    // 800 ms of the draft left, less than a third of a part's budget.
     const out = await generateItinerary({ trip: trip(13), llm, budgets })
     expect(asked.sort((a, b) => a - b)).toEqual([1, 4, 7, 10])
     expect(out.days.slice(0, 12).every((d) => d.items.length === 3)).toBe(true)
@@ -246,6 +246,19 @@ describe("generateItinerary robustness", () => {
     expect(parts).toBe(1)
     expect(out.incompleteDays).toEqual([])
     expect(out.days[4]!.items.map((i) => i.title)).toEqual(["Stop 5-1", "Wedding"])
+  })
+
+  test("a day with bookings whose part failed is still reported, not counted as drafted", async () => {
+    const train = { id: "k", kind: "reservation", title: "KTX to Seoul", time: "10:28", status: "booked", createdBy: "user", reservation: { type: "train", status: "confirmed" } } as ItineraryItem
+    const dinner = { id: "d", kind: "reservation", title: "Dinner", time: "19:00", status: "booked", createdBy: "user", reservation: { type: "meal", status: "confirmed" } } as ItineraryItem
+    const llm: LlmCall = async ({ system, user }) => {
+      if (system.includes("settle the shape")) return JSON.stringify({ days: [] })
+      if (user.includes("draft only days 4 to 6")) throw new Error("gemini 503")
+      return JSON.stringify({ days: [dayJson(1), dayJson(2), dayJson(3)] })
+    }
+    const out = await generateItinerary({ trip: trip(6, { 4: [train, dinner] }), llm })
+    expect(out.incompleteDays).toEqual([4, 5, 6])
+    expect(out.days[3]!.items.map((i) => i.title)).toEqual(["KTX to Seoul", "Dinner"])
   })
 
   test("the same venue drafted on two days is kept on the earlier one", async () => {

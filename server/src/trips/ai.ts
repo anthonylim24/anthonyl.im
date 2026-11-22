@@ -794,11 +794,12 @@ const CHUNK_DAYS = 3
 const CHUNK_CONCURRENCY = 4
 
 /**
- * How long each step of a draft may take, across its attempts. Without
- * these a 12-day draft ran almost 13 minutes on production: every call had
- * its own timeout per tool mode, times two attempts, times two rounds of
- * parts. Each budget is sized like a review attempt: the Maps-grounded try
- * gets most of it and a quicker fallback the rest (`modeTimeoutMs`).
+ * How long each step of a draft may take, across its attempts. Before
+ * these nothing bounded a draft as a whole: each call had its own timeout
+ * per tool mode, times two attempts, times two rounds of parts, and a
+ * 12-day redraft on production ran almost 13 minutes. Each budget is sized
+ * like a review attempt: the Maps-grounded try gets most of it and a
+ * quicker fallback the rest (`modeTimeoutMs`).
  */
 export interface DraftBudgets {
   /** The outline, both attempts. Without one the parts still draft. */
@@ -856,10 +857,15 @@ function toTripItems(items: AiDay["items"]): ItineraryItem[] {
 const stopCount = (day: AiDay | undefined) => (day?.items ?? []).filter((item) => item.kind === "place").length
 
 /** Enough stops to be a plan rather than a fragment: fewer earns a retry.
- *  What the traveller already booked counts (a wedding, the flight home):
- *  such a day is full with one more stop, and asking again would not change
- *  that. Where they sleep does not count; it is no plan for the day. */
-const dayLooksDrafted = (day: AiDay | undefined, booked = 0) => stopCount(day) + booked >= 2
+ *  Once the model has planned something for a day, what the traveller
+ *  already booked on it counts too (a wedding, the flight home): such a day
+ *  is full with one more stop. A day the model planned nothing for is never
+ *  drafted, however much is booked on it: its part failed. Where they sleep
+ *  does not count; it is no plan for the day. */
+const dayLooksDrafted = (day: AiDay | undefined, booked = 0) => {
+  const stops = stopCount(day)
+  return stops >= 2 || (stops >= 1 && stops + booked >= 2)
+}
 
 /** Keep whichever attempt at a day has more in it. */
 const fuller = (a: AiDay | undefined, b: AiDay | undefined) => (stopCount(b) > stopCount(a) || !a ? (b ?? a) : a)
