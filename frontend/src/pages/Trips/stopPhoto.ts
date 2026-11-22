@@ -13,7 +13,7 @@ const settled = new Map<string, string | null>()
  * restaurant ("Park Hyatt" → Grand Hyatt), and a wrong photo is worse than
  * none. Businesses only get a Google photo.
  */
-const BUSINESS = /hotel|lodging|hostel|stay|restaurant|meal|food|cafe|coffee|bakery|bar|pub|shop|store|boutique|salon|spa|clinic/i
+export const BUSINESS = /hotel|lodging|hostel|stay|restaurant|meal|food|cafe|coffee|bakery|bar|pub|shop|store|boutique|salon|spa|clinic/i
 
 async function find(name: string, city: string, lat: number, lng: number, size: number, category?: string): Promise<string | null> {
   const google = await lookupGooglePlacePhoto({ name, city, lat, lng, maxWidth: size })
