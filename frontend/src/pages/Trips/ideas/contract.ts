@@ -32,7 +32,7 @@ export interface PlaceDetails {
   ratingCount?: number
   /** 0 free … 4 very expensive. */
   priceLevel?: 0 | 1 | 2 | 3 | 4
-  /** One line per weekday, Monday first, as Google writes them ("Monday: 9:00 AM – 5:00 PM"). */
+  /** One line per weekday, in the order and words Google writes them for the language asked ("Monday: 9:00 AM – 5:00 PM"). */
   hours?: string[]
   website?: string
   phone?: string
@@ -70,12 +70,19 @@ export interface DaySuggestions {
 
 type Edit = (fn: (doc: Trip) => Trip, undo?: UndoMark) => void
 
+/** Who opened an idea's details: a list row anchors a popover on it; a map pin opens a sheet. */
+export type IdeaOpener = "row" | "map"
+
 /** The details popover for one wishlist idea (`ideas/IdeaDetails.tsx`). */
 export interface IdeaDetailsProps {
   trip: Trip
   idea: ItineraryItem
-  /** The list row that opened it: anchors the popover on wide screens. Null (phones, the map) opens it as a sheet. */
-  anchor: HTMLElement | null
+  /**
+   * Who opened it. "row": a popover beside that list row on wide screens,
+   * when the row is in view as they open. A map pin or a pasted link (null),
+   * or a phone: a sheet. Read once, when they open.
+   */
+  from: IdeaOpener | null
   editable: boolean
   locked: boolean
   getToken: GetToken
@@ -107,6 +114,15 @@ export interface IdeaOverlayProps {
   locked: boolean
   getToken: GetToken
   onEdit: Edit
+}
+
+/**
+ * What to call an idea anywhere it is named (a heading, a dialog's name, an
+ * alt text, a pin): its title, else its place's name. Never empty, so no
+ * dialog or button goes unnamed.
+ */
+export function ideaName(idea: Pick<ItineraryItem, "title" | "location">): string {
+  return idea.title.trim() || idea.location?.name.trim() || "Untitled place"
 }
 
 export const IDEA_PARAM = "idea"

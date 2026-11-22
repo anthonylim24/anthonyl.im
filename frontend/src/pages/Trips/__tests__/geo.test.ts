@@ -3,6 +3,7 @@ import {
   boxProjection,
   centroid,
   ideaPins,
+  sliceView,
   pinsKey,
   searchCenter,
   dayPins,
@@ -200,6 +201,18 @@ describe("projectToBox", () => {
   })
 })
 
+describe("sliceView", () => {
+  it("crops the overflow evenly on both sides", () => {
+    expect(sliceView(800, 300, 400, 300)).toEqual({ left: 0, top: 75, right: 400, bottom: 225 })
+    expect(sliceView(300, 600, 400, 300)).toEqual({ left: 125, top: 0, right: 275, bottom: 300 })
+    expect(sliceView(400, 300, 400, 300)).toEqual({ left: 0, top: 0, right: 400, bottom: 300 })
+  })
+
+  it("knows nothing before the box is laid out", () => {
+    expect(sliceView(0, 0, 400, 300)).toBeNull()
+  })
+})
+
 describe("boxProjection", () => {
   it("has nothing to fit with no points", () => {
     expect(boxProjection([], 400, 300, 56)).toBeNull()
@@ -232,6 +245,11 @@ describe("ideaPins", () => {
 
   it("keeps the idea's own id, so a pick names the idea", () => {
     expect(ideaPins({ ideas }).map((pin) => pin.id)).toEqual(["ramen", "named"])
+  })
+
+  it("never leaves a pin unnamed", () => {
+    const blank = item("blank", " ", A, { location: { name: "", lat: A.lat, lng: A.lng, source: "user" } })
+    expect(ideaPins({ ideas: [blank] })[0]?.title).toBe("Untitled place")
   })
 
   it("has none for a trip with no wishlist", () => {

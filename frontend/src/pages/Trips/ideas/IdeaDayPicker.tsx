@@ -5,7 +5,7 @@ import { useLatestCallback } from "../../../hooks/useLatestCallback"
 import { a } from "../atlas.stylex"
 import { DayPicker } from "../workspace/DayPicker"
 import { ws as s } from "../workspace.stylex"
-import type { DaySuggestions, IdeaDayPickerProps } from "./contract"
+import { ideaName, type DaySuggestions, type IdeaDayPickerProps } from "./contract"
 import { ideaDayChoices } from "./dayChoices"
 import { picker as p } from "./picker.stylex"
 import { formatKm, suggestDays } from "./suggestDaysApi"
@@ -26,7 +26,7 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   // the trip must not ask again (each ask counts against a per-person limit).
   const load = useLatestCallback((signal: AbortSignal) => suggestDays(getToken, trip.id, idea, signal))
   const key = `${trip.id}:${idea.id}`
-  const name = idea.title || idea.location?.name || "this place"
+  const name = ideaName(idea)
   const [answer, setAnswer] = useState<Recommendation | null>(null)
 
   useEffect(() => {

@@ -1,5 +1,4 @@
 import { useId, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
-import { useSearchParams } from "react-router-dom"
 import { CalendarPlus, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
@@ -11,7 +10,8 @@ import type { LngLat } from "../map/geo"
 import { plural } from "../meta"
 import { addIdea, ideasFull, removeIdea } from "../tripEdits"
 import type { ItemTheme, ItineraryItem, Trip } from "../types"
-import { IDEA_ANCHOR_ATTR, withIdea } from "../ideas/contract"
+import { IDEA_ANCHOR_ATTR, ideaName } from "../ideas/contract"
+import { useIdeaNav } from "../ideas/ideaNav"
 import { compareAreas, ideaAreas } from "../ideas/areas"
 import { THEME_ORDER, themeLabel, themeOf } from "../ideas/themes"
 import { ThemeMenu, ThemeTag } from "../ideas/ThemeMenu"
@@ -75,11 +75,10 @@ interface Group {
   ideas: ItineraryItem[]
 }
 
-const ideaName = (idea: ItineraryItem) => idea.title || idea.location?.name || "Untitled place"
 
 export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelProps) {
   const uid = useId()
-  const [, setSearchParams] = useSearchParams()
+  const nav = useIdeaNav()
   const [announcement, setAnnouncement] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
   const [chosenGrouping, setGrouping] = useState<Grouping>(readGrouping)
@@ -123,8 +122,9 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
   }, [grouping, visible, themes, areas])
 
   const save = (item: ItineraryItem) => {
-    onEdit((doc) => addIdea(doc, item), { label: `Saved “${item.title}” for later` })
-    setAnnouncement(`Saved ${item.title} for later`)
+    const name = ideaName(item)
+    onEdit((doc) => addIdea(doc, item), { label: `Saved “${name}” for later` })
+    setAnnouncement(`Saved ${name} for later`)
   }
 
   const remove = (idea: ItineraryItem) => {
@@ -133,8 +133,8 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
     setAnnouncement(`Removed ${name}`)
   }
 
-  // Pushed, not replaced: on a phone, Back closes what opened.
-  const open = (idea: ItineraryItem, add = false) => setSearchParams((prev) => withIdea(prev, idea.id, add))
+  // One history entry per opening (`ideas/ideaNav`): on a phone, Back closes what opened.
+  const open = (idea: ItineraryItem, add = false) => nav.open(idea.id, "row", add)
 
   const chooseGrouping = (next: Grouping) => {
     setGrouping(next)
@@ -336,7 +336,7 @@ function IdeaRow({
           {editable ? <ThemeMenu idea={idea} locked={locked} onEdit={onEdit} /> : <ThemeTag idea={idea} />}
           {where && <span {...sx(a.small, a.wrap)}>{where}</span>}
         </div>
-        {idea.notes && <span {...sx(a.small, a.wrap)}>{idea.notes}</span>}
+        {idea.notes && <span {...sx(a.small, a.wrap, s.ideaNotes)}>{idea.notes}</span>}
         {links.length > 0 && (
           <ul {...sx(s.links)} aria-label="Links">
             {links.map((link) => (

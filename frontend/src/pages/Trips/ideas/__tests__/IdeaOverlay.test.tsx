@@ -13,7 +13,7 @@ vi.mock("../IdeaDetails", () => ({
   IdeaDetails: (props: IdeaDetailsProps) => {
     detailsProps(props)
     return (
-      <div role="dialog" aria-label={`Details: ${props.idea.title}`} data-anchor={props.anchor?.getAttribute("data-idea-anchor") ?? "none"}>
+      <div role="dialog" aria-label={`Details: ${props.idea.title}`} data-from={props.from ?? "none"}>
         {props.themeControl}
         <button type="button" disabled={!props.editable || props.locked} onClick={props.onAddToDay}>
           Add to day
@@ -61,6 +61,7 @@ import type { Trip } from "../../types"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
 import { Presence } from "../../components/presence"
 import { IDEA_PARAM } from "../contract"
+import { useIdeaNav } from "../ideaNav"
 import { IdeaOverlay } from "../IdeaOverlay"
 
 afterEach(() => {
@@ -74,30 +75,67 @@ const getToken = async () => "token"
 interface Harness {
   trip: Trip
   marks: (UndoMark | undefined)[]
+  pathname: string
   search: string
-  navigate: (to: string) => void
+  navigate: (to: string | number) => void
   setTrip: (trip: Trip) => void
-}
-
-/** Where the anchor row sits: in view, scrolled away, or hidden (no box). */
-type AnchorAt = false | "inView" | "scrolledAway" | "hidden"
-
-function placeOnScreen(node: HTMLElement, at: Exclude<AnchorAt, false>) {
-  const top = at === "scrolledAway" ? -400 : 120
-  const size = at === "hidden" ? 0 : 20
-  node.getBoundingClientRect = () => ({ x: 16, y: top, top, left: 16, width: size * 8, height: size, right: 16 + size * 8, bottom: top + size, toJSON: () => ({}) })
 }
 
 function renderOverlay(
   trip: Trip,
-  { url = "/trips/lisbon?idea=idea-tram", editable = true, locked = false, anchor = false as AnchorAt } = {},
+  {
+    url = "/trips/lisbon?idea=idea-tram",
+    /** Entries before `url`, as Back would find them. */
+    before = [] as string[],
+    editable = true,
+    locked = false,
+  } = {},
 ) {
   const state = { trip, marks: [], search: "" } as unknown as Harness
   function Probe() {
     const location = useLocation()
+    state.pathname = location.pathname
     state.search = location.search
-    state.navigate = useNavigate()
+    const navigate = useNavigate()
+    state.navigate = (to) => (typeof to === "number" ? navigate(to) : navigate(to))
     return null
+  }
+  /** What opens an idea in the workspace: a list row's name, its Add to day, a map pin; and an overview tab. */
+  function Openers() {
+    const nav = useIdeaNav()
+    const [, setParams] = useSearchParams()
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            // As the workspace's tabs do: replace, keeping every other param.
+            setParams(
+              (prev) => {
+                const next = new URLSearchParams(prev)
+                next.set("tab", "budget")
+                return next
+              },
+              { replace: true },
+            )
+          }
+        >
+          Tab: Budget
+        </button>
+        <button type="button" onClick={() => nav.open("idea-other", "row")}>
+          Row: Other
+        </button>
+        <button type="button" onClick={() => nav.open("idea-tram", "row")}>
+          Row: Tram 28
+        </button>
+        <button type="button" onClick={() => nav.open("idea-tram", "row", true)}>
+          Row: Add to day
+        </button>
+        <button type="button" onClick={() => nav.open("idea-tram", "map")}>
+          Pin: Tram 28
+        </button>
+      </>
+    )
   }
   function Workspace() {
     const [doc, setDoc] = useState(trip)
@@ -108,13 +146,7 @@ function renderOverlay(
     }
     return (
       <>
-        {anchor && (
-          <button type="button" data-idea-anchor="idea-tram" ref={(node) => {
-            if (node) placeOnScreen(node, anchor)
-          }}>
-            Tram 28
-          </button>
-        )}
+        <Openers />
         {/* Mounted as TripWorkspace mounts it: inside a Presence keyed on ?idea. */}
         <Presence when={searchParams.has(IDEA_PARAM)}>{() => (
           <IdeaOverlay
@@ -133,7 +165,7 @@ function renderOverlay(
     )
   }
   render(
-    <MemoryRouter initialEntries={[url]}>
+    <MemoryRouter initialEntries={[...before, url]} initialIndex={before.length}>
       <Workspace />
       <Probe />
     </MemoryRouter>,
@@ -164,22 +196,127 @@ describe("IdeaOverlay", () => {
     expect(screen.queryByRole("dialog", { name: /Pick a day/ })).toBeNull()
   })
 
-  it("anchors on the list row's name when it is on the page and in view", () => {
-    // As in the workspace: the row is on the page before its name is pressed.
-    const state = renderOverlay(twoDays(), { url: "/trips/lisbon", anchor: "inView" })
-    act(() => state.navigate("/trips/lisbon?idea=idea-tram"))
-    expect(screen.getByRole("dialog", { name: "Details: Tram 28" })).toHaveAttribute("data-anchor", "idea-tram")
+  it.each([
+    ["Row: Tram 28", "row"],
+    ["Pin: Tram 28", "map"],
+  ])("tells the details who opened them: %s", (opener, from) => {
+    renderOverlay(twoDays(), { url: "/trips/lisbon" })
+    fireEvent.click(screen.getByRole("button", { name: opener }))
+    expect(screen.getByRole("dialog", { name: "Details: Tram 28" })).toHaveAttribute("data-from", from)
   })
 
-  it.each(["scrolledAway", "hidden"] as const)("opens as a sheet when the row is %s", (at) => {
-    const state = renderOverlay(twoDays(), { url: "/trips/lisbon", anchor: at })
-    act(() => state.navigate("/trips/lisbon?idea=idea-tram"))
-    expect(detailsProps.mock.lastCall![0].anchor).toBeNull()
-  })
-
-  it("has no anchor when the row is not on the page (a map pin opened it)", () => {
+  it("opens a pasted link with no opener, so as a sheet", () => {
     renderOverlay(twoDays())
-    expect(detailsProps.mock.lastCall![0].anchor).toBeNull()
+    expect(detailsProps.mock.lastCall![0].from).toBeNull()
+  })
+
+  it("keeps who opened them from the details to the picker and back", () => {
+    renderOverlay(twoDays(), { url: "/trips/lisbon" })
+    fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add to day" }))
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.getByRole("dialog", { name: "Details: Tram 28" })).toHaveAttribute("data-from", "row")
+  })
+
+  it("ignores details on their way out: their Remove or Close change nothing", () => {
+    const state = renderOverlay(twoDays())
+    fireEvent.click(screen.getByRole("button", { name: "Add to day" }))
+    // The details still render while they leave, with this render's callbacks.
+    const leaving = detailsProps.mock.lastCall![0]
+    act(() => leaving.onRemove())
+    act(() => leaving.onClose())
+    expect(state.marks).toEqual([])
+    expect(params(state).get("add")).toBe("1")
+    expect(screen.getByRole("dialog", { name: "Pick a day: Tram 28" })).toBeInTheDocument()
+  })
+
+  describe("history", () => {
+    const fromTrips = { url: "/trips/lisbon?tab=wishlist", before: ["/trips"] }
+
+    it("opening adds one entry and closing takes it back: the next Back leaves the trip", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      expect(params(state).get("idea")).toBe("idea-tram")
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      expect(state.search).toBe("?tab=wishlist")
+      // No dead entry left behind: Back goes where it went before the place was opened.
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    it("closes from a map pin the same way", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Pin: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    it("adds nothing when the open place's name is pressed again", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      expect(state.search).toBe("?tab=wishlist")
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    it("goes through the picker and back on one entry", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Add to day" }))
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      expect(state.search).toBe("?tab=wishlist")
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    it("takes the entry back after a pick or a removal", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Add to day" }))
+      fireEvent.click(screen.getByRole("button", { name: "Pick day-1" }))
+      expect(state.search).toBe("?tab=wishlist")
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    describe("a close while the browser is already on an entry not yet shown", () => {
+      /** As BrowserRouter leaves it between a navigation and its commit: history.state names another entry. */
+      const pending = () => window.history.replaceState({ key: "not-yet-shown" }, "")
+      afterEach(() => window.history.replaceState(null, ""))
+
+      it("still closes once that entry shows the same place (a tab that kept ?idea)", () => {
+        const state = renderOverlay(twoDays(), fromTrips)
+        fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+        pending()
+        fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+        expect(params(state).get("idea")).toBe("idea-tram")
+        window.history.replaceState(null, "")
+        fireEvent.click(screen.getByRole("button", { name: "Tab: Budget" }))
+        expect(params(state).get("tab")).toBe("budget")
+        expect(params(state).has("idea")).toBe(false)
+      })
+
+      it("lapses when that entry opens another place", () => {
+        const state = renderOverlay(makeTrip({ ...twoDays(), ideas: [tram, makeItem({ id: "idea-other", title: "Other" })] }), fromTrips)
+        fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+        pending()
+        fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+        window.history.replaceState(null, "")
+        fireEvent.click(screen.getByRole("button", { name: "Row: Other" }))
+        expect(params(state).get("idea")).toBe("idea-other")
+        expect(screen.getByRole("dialog", { name: "Details: Other" })).toBeInTheDocument()
+      })
+    })
+
+    it("replaces a pasted link's entry rather than going back past it", () => {
+      const state = renderOverlay(twoDays(), { url: "/trips/lisbon?tab=wishlist&idea=idea-tram", before: ["/trips"] })
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      expect(state.pathname).toBe("/trips/lisbon")
+      expect(state.search).toBe("?tab=wishlist")
+    })
   })
 
   it("gives a viewer the details only: no category control, no picker", () => {

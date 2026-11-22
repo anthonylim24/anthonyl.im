@@ -5,7 +5,7 @@ import { sx } from "@/styles/merge"
 import { layout } from "@/styles/common.stylex"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { boxProjection, pinsKey, routesKey, spanMeters, type AtlasPin, type LngLat } from "./geo"
+import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AtlasPin, type LngLat } from "./geo"
 import type { AtlasMapHandle, FrameOptions } from "./engine"
 import { mapStyles as s } from "./map.stylex"
 
@@ -358,10 +358,24 @@ function StaticChart({
   // never shrinks the day; one stop (or none) has no frame of its own to keep.
   const project = boxProjection(spanMeters(pins) > 0 ? pins : [...pins, ...ideas], CHART_W, CHART_H, 56)
   const points = project ? pins.map(project) : []
+  // The chart fills its box and crops the rest ("slice"): an idea in the
+  // cropped band would be an invisible button that Tab still reaches.
+  const chart = useRef<SVGSVGElement>(null)
+  const [box, setBox] = useState<{ width: number; height: number } | null>(null)
+  useEffect(() => {
+    const node = chart.current
+    if (!node || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setBox({ width: entry.contentRect.width, height: entry.contentRect.height })
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  const shown = (box && sliceView(box.width, box.height, CHART_W, CHART_H)) ?? { left: 0, top: 0, right: CHART_W, bottom: CHART_H }
   const placed = project
     ? ideas.flatMap((idea) => {
         const at = project(idea)
-        return at.x >= 0 && at.x <= CHART_W && at.y >= 0 && at.y <= CHART_H ? [{ idea, ...at }] : []
+        return at.x >= shown.left && at.x <= shown.right && at.y >= shown.top && at.y <= shown.bottom ? [{ idea, ...at }] : []
       })
     : []
   const onKey = (event: KeyboardEvent, ideaId: string) => {
@@ -372,6 +386,7 @@ function StaticChart({
   return (
     <>
       <svg
+        ref={chart}
         {...sx(s.chart, loading && s.chartLoading)}
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
         preserveAspectRatio="xMidYMid slice"

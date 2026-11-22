@@ -1448,6 +1448,9 @@ export const ws = stylex.create({
     [HOVER]: { ":hover": { textDecorationColor: "var(--trips-line-strong)" } },
     [REDUCE]: { transitionDuration: "0ms" },
   },
+  // Positioned, so it sits above the category button's 44px band reaching
+  // down over it: the notes stay selectable, not a second category button.
+  ideaNotes: { position: "relative" },
   ideaActions: { display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0, marginInlineStart: "auto" },
   ideaMeta: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.625rem", rowGap: "0.125rem", minWidth: 0 },
   ideaThemeText: { overflowWrap: "anywhere", minWidth: 0 },

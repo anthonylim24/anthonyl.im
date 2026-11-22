@@ -130,31 +130,39 @@ const RESERVATION: Record<string, ItemTheme> = {
 // guess. Hangul and Japanese have no word breaks: those match as suffixes
 // or as whole tokens.
 
-const NAME_RULES: ReadonlyArray<[RegExp, ItemTheme]> = [
-  [/\b(hotel|hostel|inn|ryokan|guest ?house|hyatt|hilton|marriott|airport|station|terminal)\b|호텔|게스트하우스|공항|역$/, "other"],
+/**
+ * A whole-word rule written with `\b`, rebuilt with Unicode word edges: JS's
+ * `\b` knows only ASCII, so "Café de Flore" or "Jinbō-chō" never matched.
+ * A letter or digit in any script is part of a word.
+ */
+const WORD_EDGE = String.raw`(?:(?<=[\p{L}\p{N}])(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])(?=[\p{L}\p{N}]))`
+const wholeWords = (rule: RegExp) => new RegExp(rule.source.split(String.raw`\b`).join(WORD_EDGE), "u")
+
+const NAME_RULES: ReadonlyArray<[RegExp, ItemTheme]> = ([
+  [/\b(hotel|hostel|inn|ryokan|guest ?house|hyatt|hilton|marriott|airport|station|terminal)\b|호텔|게스트하우스|공항|역$/u, "other"],
   [
-    /\b(theme park|amusement park|water ?park|zoo|aquarium|tours?|class|workshop|spa|sauna|jjimjilbang|onsen|hot springs?|cooking|cruise|kayak(ing)?|surf(ing)?|golf|bowling|escape room|cinema|theat(er|re)|musical|concert)\b|찜질방|체험|공연|温泉/,
+    /\b(theme park|amusement park|water ?park|zoo|aquarium|tours?|class|workshop|spa|sauna|jjimjilbang|onsen|hot springs?|cooking|cruise|kayak(ing)?|surf(ing)?|golf|bowling|escape room|cinema|theat(er|re)|musical|concert)\b|찜질방|체험|공연|温泉/u,
     "activity",
   ],
   [
-    /\b(restaurants?|caf[eé]s?|coffee|roast(ers|ery)|bakery|bakeries|boulangerie|patisserie|bistro|brasserie|trattoria|osteria|taverna|diner|eatery|noodles?|ramen|udon|soba|sushi|pizza|pizzeria|bbq|barbecue|dumplings?|tacos?|taqueria|deli|gelato|ice cream|desserts?|tea ?house|food|grill|juice|brunch|burgers?|bagels?|dim sum|hot ?pot|pojangmacha|pocha)\b|(?<!(flea|antiques?) )\bmarkets?\b|식당|맛집|카페|시장|국밥|냉면|베이커리|ラーメン|食堂|カフェ|市場/,
+    /\b(restaurants?|caf[eé]s?|coffee|roast(ers|ery)|bakery|bakeries|boulangerie|patisserie|bistro|brasserie|trattoria|osteria|taverna|diner|eatery|noodles?|ramen|udon|soba|sushi|pizza|pizzeria|bbq|barbecue|dumplings?|tacos?|taqueria|deli|gelato|ice cream|desserts?|tea ?house|food|grill|juice|brunch|burgers?|bagels?|dim sum|hot ?pot|pojangmacha|pocha)\b|(?<!(flea|antiques?) )\bmarkets?\b|식당|맛집|카페|시장|국밥|냉면|베이커리|ラーメン|食堂|カフェ|市場/u,
     "food",
   ],
-  [/\b(bars?|pubs?|night ?club|jazz club|brewery|brewing|taproom|beer hall|cocktails?|speakeasy|karaoke|noraebang|lounge|izakaya)\b|술집|노래방|居酒屋/, "nightlife"],
-  [/\b(shops?|shopping|stores?|mall|boutiques?|outlets?|department store|bookstore|bookshop|flagship|duty free|flea market|antiques?|vintage)\b|백화점|쇼핑|서점|아울렛/, "shopping"],
+  [/\b(bars?|pubs?|night ?club|jazz club|brewery|brewing|taproom|beer hall|cocktails?|speakeasy|karaoke|noraebang|lounge|izakaya)\b|술집|노래방|居酒屋/u, "nightlife"],
+  [/\b(shops?|shopping|stores?|mall|boutiques?|outlets?|department store|bookstore|bookshop|flagship|duty free|flea market|antiques?|vintage)\b|백화점|쇼핑|서점|아울렛/u, "shopping"],
   [
-    /\b(trails?|hikes?|hiking|trek(king)?|mountains?|mt|peak|summit|beach(es)?|park|forest|woods|waterfall|falls|lake|national park|nature|islands?|valley|canyon|gorge|cliffs?|caves?|botanic(al)? gardens?|gardens|volcano|crater|lagoon)\b|공원|해수욕장|해변|숲|둘레길|오름|폭포|公園/,
+    /\b(trails?|hikes?|hiking|trek(king)?|mountains?|mt|peak|summit|beach(es)?|park|forest|woods|waterfall|falls|lake|national park|nature|islands?|valley|canyon|gorge|cliffs?|caves?|botanic(al)? gardens?|gardens|volcano|crater|lagoon)\b|공원|해수욕장|해변|숲|둘레길|오름|폭포|公園/u,
     "nature",
   ],
   [
-    /\b(museum|gallery|palace|castle|temple|shrine|church|cathedral|chapel|basilica|mosque|synagogue|pagoda|monastery|abbey|monument|memorial|tower|fortress|ruins|tomb|gate|observatory|observation deck|lookout|viewpoint|bridge|statue|plaza|square|heritage)\b|박물관|미술관|성당|사찰|타워|궁(?=$|\s)|寺|神社|城|美術館|博物館/,
+    /\b(museum|gallery|palace|castle|temple|shrine|church|cathedral|chapel|basilica|mosque|synagogue|pagoda|monastery|abbey|monument|memorial|tower|fortress|ruins|tomb|gate|observatory|observation deck|lookout|viewpoint|bridge|statue|plaza|square|heritage)\b|박물관|미술관|성당|사찰|타워|궁(?=$|\s)|寺|神社|城|美術館|博物館/u,
     "sights",
   ],
   [
-    /\b(alley(way)?s?|lane|street|district|quarter|neighbou?rhood|old town|chinatown|downtown|village|[a-z]+-(gil|dong|ro|gu|machi|ch[oō]))\b|골목|거리|마을|(?:^|\s)[가-힣]+(?:동|길)(?=$|\s)/,
+    /\b(alley(way)?s?|lane|street|district|quarter|neighbou?rhood|old town|chinatown|downtown|village|\p{L}+-(gil|dong|ro|gu|machi|ch[oō]))\b|골목|거리|마을|(?:^|\s)[가-힣]+(?:동|길)(?=$|\s)/u,
     "neighborhood",
   ],
-]
+] satisfies Array<[RegExp, ItemTheme]>).map(([rule, theme]) => [wholeWords(rule), theme])
 
 export function themeFromName(name: string): ItemTheme | null {
   const text = name.normalize("NFC").toLowerCase()

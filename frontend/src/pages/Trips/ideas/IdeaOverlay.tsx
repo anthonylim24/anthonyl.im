@@ -1,12 +1,13 @@
 import { useEffect, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useLocation, useSearchParams } from "react-router-dom"
 import { Presence } from "../components/presence"
 import { dayFull, ideaToDay, removeIdea } from "../tripEdits"
 import type { ItineraryItem } from "../types"
 import { announce, prepareAnnouncer } from "./announce"
-import { IDEA_ADD_PARAM, IDEA_ANCHOR_ATTR, IDEA_PARAM, withIdea, type IdeaOverlayProps } from "./contract"
+import { IDEA_ADD_PARAM, IDEA_PARAM, ideaName, type IdeaOverlayProps } from "./contract"
 import { IdeaDayPicker } from "./IdeaDayPicker"
 import { IdeaDetails } from "./IdeaDetails"
+import { ideaOpenedFrom, useIdeaNav } from "./ideaNav"
 import { ThemeSelect } from "./ThemeMenu"
 
 // What the wishlist opens over the page, driven by the URL: `?idea=<id>`
@@ -15,31 +16,17 @@ import { ThemeSelect } from "./ThemeMenu"
 // when they opened it). TripWorkspace mounts this once inside a Presence
 // keyed on `?idea`, so a list row and a map pin open the same thing.
 
-const ideaName = (idea: ItineraryItem) => idea.title || idea.location?.name || "Untitled place"
-
-/**
- * The list row to anchor an idea's details on: its name, when it is on the
- * page and in view. A row in a hidden pane (the phone's map view) or
- * scrolled away (a map pin opened it) is no anchor: the details open as a
- * sheet. The id is compared, never put into a selector.
- */
-function anchorFor(ideaId: string): HTMLElement | null {
-  if (typeof document === "undefined") return null
-  for (const node of document.querySelectorAll<HTMLElement>(`[${IDEA_ANCHOR_ATTR}]`)) {
-    if (node.getAttribute(IDEA_ANCHOR_ATTR) !== ideaId || !node.isConnected) continue
-    const box = node.getBoundingClientRect()
-    const inView = box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < window.innerHeight
-    return inView ? node : null
-  }
-  return null
-}
-
 export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOverlayProps) {
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
+  const location = useLocation()
+  const nav = useIdeaNav()
   const asked = params.has(IDEA_PARAM)
   const ideaId = params.get(IDEA_PARAM)
   const idea = ideaId ? (trip.ideas?.find((i) => i.id === ideaId) ?? null) : null
   const adding = params.get(IDEA_ADD_PARAM) === "1" && editable && !locked
+  // Who opened it (a row, a map pin, or a pasted link): the details decide
+  // popover or sheet from this once, when they open.
+  const from = ideaOpenedFrom(location.state)
 
   /** The picker was opened from the details, so Cancel goes back to them. */
   const addFromDetails = useRef<string | null>(null)
@@ -53,10 +40,11 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
   useEffect(prepareAnnouncer, [])
 
   // Opened for an idea that is not on the list (removed, someone else put it
-  // on a day, or an empty `?idea=`): close, without leaving a history entry.
+  // on a day, or an empty `?idea=`): close.
+  const { close } = nav
   useEffect(() => {
-    if (asked && !idea) setParams((prev) => withIdea(prev, null), { replace: true })
-  }, [asked, idea, setParams])
+    if (asked && !idea) close()
+  }, [asked, idea, close])
 
   // Another idea, or none: a new opening starts fresh.
   useEffect(() => {
@@ -64,19 +52,24 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
     addFromDetails.current = null
   }, [ideaId])
 
-  const close = () => setParams((prev) => withIdea(prev, null), { replace: true })
-
   const settled = (id: string) => finished.current === id
+  /**
+   * Whether `piece` is what the URL shows for `target` now, and the idea is
+   * not yet scheduled or removed: details or a picker on their way out (the
+   * other one took over, or another idea opened) change nothing.
+   */
+  const showing = (target: ItineraryItem, piece: "details" | "picker") =>
+    target.id === ideaId && !settled(target.id) && (piece === "picker") === adding
   const canChange = editable && !locked
 
   const onAddToDay = (target: ItineraryItem) => {
-    if (!canChange || settled(target.id)) return
+    if (!canChange || !showing(target, "details")) return
     addFromDetails.current = target.id
-    setParams((prev) => withIdea(prev, target.id, true), { replace: true })
+    nav.show(target.id, true)
   }
 
   const onPick = (target: ItineraryItem, dayId: string) => {
-    if (!canChange || settled(target.id)) return
+    if (!canChange || !showing(target, "picker")) return
     const index = trip.days.findIndex((day) => day.id === dayId)
     const day = trip.days[index]
     if (!day || dayFull(day)) return
@@ -88,15 +81,15 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
   }
 
   const onPickerClose = (target: ItineraryItem) => {
-    if (settled(target.id)) return
+    if (!showing(target, "picker")) return
     if (addFromDetails.current === target.id) {
       addFromDetails.current = null
-      setParams((prev) => withIdea(prev, target.id), { replace: true })
+      nav.show(target.id)
     } else close()
   }
 
   const onRemove = (target: ItineraryItem) => {
-    if (!canChange || settled(target.id)) return
+    if (!canChange || !showing(target, "details")) return
     const name = ideaName(target)
     onEdit((doc) => removeIdea(doc, target.id), { label: `Removed “${name}” from the wishlist`, toast: true })
     announce(`Removed ${name}`)
@@ -105,14 +98,14 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
   }
 
   const onDetailsClose = (target: ItineraryItem) => {
-    if (settled(target.id)) return
-    close()
+    if (showing(target, "details")) close()
   }
 
   // Each piece leaves through its own Presence, which keeps showing the idea
   // it last had: going from the details to the picker animates one out and
   // the other in, and once `?idea` is cleared (or the idea is gone before the
-  // URL catches up) both leave with what they showed.
+  // URL catches up) both leave with what they showed. Keyed by idea, so
+  // another idea opens fresh details that decide their own anchor.
   const details = idea && !adding ? idea : null
   const picking = idea && adding ? idea : null
 
@@ -120,9 +113,10 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
     <>
       <Presence when={details}>{(shown) => (
         <IdeaDetails
+          key={shown.id}
           trip={trip}
           idea={shown}
-          anchor={anchorFor(shown.id)}
+          from={from}
           editable={editable}
           locked={locked}
           getToken={getToken}

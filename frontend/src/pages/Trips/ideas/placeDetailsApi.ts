@@ -1,10 +1,11 @@
 import { Effect, Schema } from "effect"
-import { HttpStatusError } from "../../../effect/errors"
-import { fetchExternal, requestJson, type GetToken } from "../../../effect/http"
+import { DecodeError, HttpStatusError } from "../../../effect/errors"
+import { fetchExternal, parseJson, requestJson, type GetToken } from "../../../effect/http"
 import { runPromise } from "../../../effect/runtime"
 import { BUSINESS } from "../stopPhoto"
 import type { ItineraryItem } from "../types"
 import type { PlaceDetails, PlacePhoto } from "./contract"
+import { withDeadline, type Deadline } from "./deadline"
 
 // What the details popover shows about a wishlist idea, fetched on open:
 // GET /api/places/details (Google Places through the server, which keeps the
@@ -13,7 +14,9 @@ import type { PlaceDetails, PlacePhoto } from "./contract"
 
 /** Where a lookup goes for one idea. Null: the idea has neither a place id nor a point, so nothing to look up. */
 export interface DetailsTarget {
-  /** The cache key: one place, however the idea names it. */
+  /** One place, however the idea names it: what Google's answer is kept under. */
+  place: string
+  /** One lookup: the place, and whether Wikipedia may fill in for Google (a business never). */
   key: string
   name: string
   placeId?: string
@@ -35,8 +38,9 @@ export function detailsTarget(idea: ItineraryItem): DetailsTarget | null {
       : undefined
   if (!name || (!placeId && !point)) return null
   const business = Boolean((location?.category && BUSINESS.test(location.category)) || (idea.theme && BUSINESS_THEMES.has(idea.theme)))
-  const key = placeId ? `id:${placeId}` : `at:${name.toLowerCase()}|${point!.lat.toFixed(4)},${point!.lng.toFixed(4)}`
-  return { key, name, placeId, point, business }
+  const place = placeId ? `id:${placeId}` : `at:${name.toLowerCase()}|${point!.lat.toFixed(4)},${point!.lng.toFixed(4)}`
+  // Re-filing an idea from Food to Sights changes what may be shown, so it is another lookup.
+  return { place, key: business ? `${place}|business` : place, name, placeId, point, business }
 }
 
 /** Loading failed; `message` is the sentence to show beside Retry. */
@@ -51,6 +55,7 @@ export function detailsErrorMessage(status: number): string {
 }
 
 const OFFLINE = "Couldn’t reach the server. Check your connection and try again."
+const TOO_SLOW = "This place’s details are taking too long. Try again in a moment."
 /** The server gives Google 5 s and each photo 3.5 s; past this, something is stuck. */
 const SERVER_DEADLINE_MS = 15_000
 const WIKI_DEADLINE_MS = 8_000
@@ -67,35 +72,66 @@ export function webUrl(value: unknown, httpsOnly = false): string | undefined {
   return undefined
 }
 
-/** The server's answer, kept only where it has the contract's shape. */
+const text = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value.trim() : undefined)
+
+/** The server's answer, kept only where it has the contract's shape, field by field: nothing unknown rides along. */
 export function cleanDetails(value: unknown): PlaceDetails | null {
-  const raw = value as Partial<PlaceDetails> | null | undefined
-  if (!raw || typeof raw.name !== "string" || !raw.name.trim()) return null
+  if (!value || typeof value !== "object") return null
+  const raw = value as Record<string, unknown>
+  const name = text(raw.name)
+  if (!name) return null
   const photos: PlacePhoto[] = []
-  for (const photo of Array.isArray(raw.photos) ? raw.photos : []) {
+  for (const item of Array.isArray(raw.photos) ? (raw.photos as unknown[]) : []) {
+    const photo = item as Partial<PlacePhoto> | null
     const url = webUrl(photo?.url, true)
-    if (!url) continue
+    if (!photo || !url) continue
     const clean: PlacePhoto = { url }
     if (typeof photo.width === "number" && typeof photo.height === "number" && photo.width > 0 && photo.height > 0) {
       clean.width = photo.width
       clean.height = photo.height
     }
-    if (typeof photo.author?.name === "string" && photo.author.name.trim()) {
-      clean.author = { name: photo.author.name.trim() }
-      const uri = webUrl(photo.author.uri)
+    const author = text(photo.author?.name)
+    if (author) {
+      clean.author = { name: author }
+      const uri = webUrl(photo.author?.uri)
       if (uri) clean.author.uri = uri
     }
     photos.push(clean)
   }
-  const details: PlaceDetails = { ...raw, name: raw.name.trim(), photos }
+  const details: PlaceDetails = { name, photos }
+  const placeId = text(raw.placeId)
+  if (placeId) details.placeId = placeId
+  const summary = text(raw.summary)
+  if (summary) details.summary = summary
+  if (raw.summarySource === "google" || raw.summarySource === "wikipedia") details.summarySource = raw.summarySource
   for (const field of ["website", "mapsUrl", "summaryUrl"] as const) {
-    if (details[field] !== undefined && !webUrl(details[field])) delete details[field]
+    const url = webUrl(raw[field])
+    if (url) details[field] = url
+  }
+  for (const field of ["address", "phone", "typeLabel"] as const) {
+    const value = text(raw[field])
+    if (value) details[field] = value
+  }
+  const rating = raw.rating
+  if (typeof rating === "number" && Number.isFinite(rating) && rating >= 1 && rating <= 5) details.rating = rating
+  const ratingCount = raw.ratingCount
+  if (typeof ratingCount === "number" && Number.isInteger(ratingCount) && ratingCount >= 0) details.ratingCount = ratingCount
+  const price = raw.priceLevel
+  if (price === 0 || price === 1 || price === 2 || price === 3 || price === 4) details.priceLevel = price
+  if (Array.isArray(raw.hours)) {
+    const hours = (raw.hours as unknown[]).map(text).filter((line): line is string => line !== undefined)
+    if (hours.length > 0) details.hours = hours
   }
   return details
 }
 
-const withDeadline = (signal: AbortSignal | undefined, ms: number) =>
-  signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms)
+/** Runs `use` with a signal that also ends at the deadline; the clock stops when it settles. */
+const withinDeadline = <A, E>(signal: AbortSignal | undefined, ms: number, use: (deadline: Deadline) => Effect.Effect<A, E>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => withDeadline(signal, ms)),
+    use,
+    (deadline) => Effect.sync(deadline.release),
+  )
 
 /**
  * Statuses that mean "Google can say nothing about this place", like `place:
@@ -114,17 +150,18 @@ const fromServer = Effect.fn("PlaceDetails.server")(function* (getToken: GetToke
     params.set("lat", String(target.point.lat))
     params.set("lng", String(target.point.lng))
   }
-  const body = yield* requestJson<{ place?: unknown }>(getToken, `/api/places/details?${params}`, {
-    signal: withDeadline(signal, SERVER_DEADLINE_MS),
-  }).pipe(
-    Effect.catchIf(
-      (err): err is HttpStatusError => err instanceof HttpStatusError && NOTHING_KNOWN.has(err.status),
-      () => Effect.succeed({ place: null }),
-    ),
-    Effect.mapError((err) =>
-      err instanceof HttpStatusError
-        ? new PlaceDetailsError({ message: detailsErrorMessage(err.status) })
-        : new PlaceDetailsError({ message: OFFLINE }),
+  const body = yield* withinDeadline(signal, SERVER_DEADLINE_MS, (deadline) =>
+    requestJson<{ place?: unknown }>(getToken, `/api/places/details?${params}`, { signal: deadline.signal }).pipe(
+      Effect.catchIf(
+        (err): err is HttpStatusError => err instanceof HttpStatusError && NOTHING_KNOWN.has(err.status),
+        () => Effect.succeed({ place: null }),
+      ),
+      Effect.mapError((err) =>
+        err instanceof HttpStatusError
+          ? new PlaceDetailsError({ message: detailsErrorMessage(err.status) })
+          : // A server that is reachable but slow is not a connection problem.
+            new PlaceDetailsError({ message: deadline.timedOut() ? TOO_SLOW : OFFLINE }),
+      ),
     ),
   )
   return cleanDetails(body.place)
@@ -161,11 +198,21 @@ export function titleMatches(name: string, title: string): boolean {
   return page.length >= 4 && ` ${wanted} `.includes(` ${page} `)
 }
 
-const wikiGet = <T>(params: Record<string, string>, signal?: AbortSignal) =>
-  fetchExternal(`${WIKI}?${new URLSearchParams({ format: "json", formatversion: "2", origin: "*", ...params })}`, {
-    signal: withDeadline(signal, WIKI_DEADLINE_MS),
-  }).pipe(
-    Effect.flatMap((res) => (res.ok ? Effect.tryPromise(() => res.json() as Promise<T>) : Effect.fail(new Error(`wikipedia ${res.status}`)))),
+/** Wikipedia answered with an error status. */
+class WikipediaError extends Schema.TaggedError<WikipediaError>()("WikipediaError", {
+  status: Schema.Number,
+  message: Schema.String,
+}) {}
+
+const wikiGet = <T>(params: Record<string, string>, signal?: AbortSignal): Effect.Effect<T, Error | WikipediaError | DecodeError> =>
+  withinDeadline(signal, WIKI_DEADLINE_MS, (deadline) =>
+    fetchExternal(`${WIKI}?${new URLSearchParams({ format: "json", formatversion: "2", origin: "*", ...params })}`, {
+      signal: deadline.signal,
+    }).pipe(
+      Effect.flatMap((res): Effect.Effect<T, DecodeError | WikipediaError> =>
+        res.ok ? parseJson<T>(res) : Effect.fail(new WikipediaError({ status: res.status, message: `Wikipedia answered ${res.status}` })),
+      ),
+    ),
   )
 
 interface GeoSearch {
@@ -308,40 +355,74 @@ const fromWikipedia = Effect.fn("PlaceDetails.wikipedia")(function* (target: Det
 // ── The loader ───────────────────────────────────────────────────────────
 
 /**
- * How long an answer is reused. Google's photo links carry no documented
- * lifetime, so stay inside the server's own 30 minutes; a tab left open
- * longer asks again rather than showing photos that may have lapsed.
+ * How long a full answer is reused. Google's photo links carry no documented
+ * lifetime; the server hands out links it may have held for up to 30 minutes,
+ * and the images behind them are served for a day. Reusing an answer for 25
+ * more minutes keeps every link well inside that day, and an <img> whose link
+ * has lapsed anyway drops out of the carousel on its own.
  */
 const KEEP_MS = 25 * 60_000
+/**
+ * How long an answer that may be partial is reused, matching the server's
+ * own 2 minutes for one missing a photo that timed out. The server does not
+ * say which answers are partial, so any Google answer with fewer photos than
+ * it ever sends (6) counts; asking again within the server's 30 minutes
+ * costs it nothing.
+ */
+const PARTIAL_KEEP_MS = 2 * 60_000
+const FULL_PHOTOS = 6
 
-/** Settled answers by `DetailsTarget.key`. Null: nothing known about the place. */
-const settled = new Map<string, { at: number; details: PlaceDetails | null }>()
+interface Kept {
+  until: number
+  details: PlaceDetails | null
+}
+
+/** Google's answers by `DetailsTarget.place`. Null: Google knows nothing about the place. */
+const fromGoogle = new Map<string, Kept>()
+/** Wikipedia's answers by `DetailsTarget.place`, for places Google knows nothing about. Null: no article names it. Failures are never kept. */
+const fromWiki = new Map<string, Kept>()
+
+function keptIn(cache: Map<string, Kept>, key: string, now: number): PlaceDetails | null | undefined {
+  const hit = cache.get(key)
+  if (!hit) return undefined
+  if (now < hit.until) return hit.details
+  cache.delete(key)
+  return undefined
+}
+
+const wikiMayAnswer = (target: DetailsTarget) => Boolean(target.point) && !target.business
 
 /** What a target's lookup answered in the last while; undefined when it has not settled or has lapsed. */
 export function cachedPlaceDetails(target: DetailsTarget, now = Date.now()): PlaceDetails | null | undefined {
-  const hit = settled.get(target.key)
-  if (!hit) return undefined
-  if (now - hit.at < KEEP_MS) return hit.details
-  settled.delete(target.key)
-  return undefined
+  const google = keptIn(fromGoogle, target.place, now)
+  if (google !== null) return google
+  return wikiMayAnswer(target) ? keptIn(fromWiki, target.place, now) : null
 }
 
 /** Forget every answer (tests). */
 export function clearPlaceDetailsCache() {
-  settled.clear()
+  fromGoogle.clear()
+  fromWiki.clear()
 }
 
 const loadEffect = Effect.fn("PlaceDetails.load")(function* (getToken: GetToken, target: DetailsTarget, signal?: AbortSignal) {
-  const google = yield* fromServer(getToken, target, signal)
-  // Wikipedia is a fallback: a failure there is "nothing known", not an error.
-  const details =
-    google ??
-    (target.point && !target.business
-      ? yield* fromWikipedia(target, signal).pipe(Effect.catchAll(() => Effect.succeed(null)))
-      : null)
   // An answer cut short by closing the popover is not an answer to keep.
-  if (!signal?.aborted) settled.set(target.key, { at: Date.now(), details })
-  return details
+  const keep = (cache: Map<string, Kept>, details: PlaceDetails | null, ms: number) => {
+    if (!signal?.aborted) cache.set(target.place, { until: Date.now() + ms, details })
+  }
+  let google = keptIn(fromGoogle, target.place, Date.now())
+  if (google === undefined) {
+    google = yield* fromServer(getToken, target, signal)
+    keep(fromGoogle, google, google && google.photos.length < FULL_PHOTOS ? PARTIAL_KEEP_MS : KEEP_MS)
+  }
+  if (google || !wikiMayAnswer(target)) return google
+  const known = keptIn(fromWiki, target.place, Date.now())
+  if (known !== undefined) return known
+  // Wikipedia is a fallback: a failure there shows "nothing known" this time, and is asked again next time.
+  return yield* fromWikipedia(target, signal).pipe(
+    Effect.tap((details) => Effect.sync(() => keep(fromWiki, details, KEEP_MS))),
+    Effect.catchAll(() => Effect.succeed(null)),
+  )
 })
 
 /**

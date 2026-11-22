@@ -1,3 +1,4 @@
+import { ideaName } from "../ideas/contract"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 
 // Pure geometry + pin derivation for the Trips map. No MapLibre imports, so
@@ -197,7 +198,7 @@ export function ideaPins(trip: Pick<Trip, "ideas">): AtlasPin[] {
     const lat = idea.location?.lat
     const lng = idea.location?.lng
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
-    return [{ id: idea.id, lat: lat!, lng: lng!, title: idea.title || idea.location!.name, variant: "idea" }]
+    return [{ id: idea.id, lat: lat!, lng: lng!, title: ideaName(idea), variant: "idea" }]
   })
 }
 
@@ -274,6 +275,27 @@ export function boxProjection(
     x: width / 2 + ((p.lng - mid.lng) * k - cx) * usable,
     y: height / 2 + (-(p.lat - mid.lat) - cy) * usable,
   })
+}
+
+/**
+ * The part of a `viewWidth` × `viewHeight` viewBox that an element of
+ * `width` × `height` px shows under `preserveAspectRatio="xMidYMid slice"`:
+ * it fills the element and crops what overflows, evenly on both sides. Null
+ * while the element has no size (not laid out yet): treat all of it as shown.
+ */
+export function sliceView(
+  width: number,
+  height: number,
+  viewWidth: number,
+  viewHeight: number,
+): { left: number; top: number; right: number; bottom: number } | null {
+  if (!(width > 0 && height > 0)) return null
+  const scale = Math.max(width / viewWidth, height / viewHeight)
+  const shownWidth = width / scale
+  const shownHeight = height / scale
+  const left = (viewWidth - shownWidth) / 2
+  const top = (viewHeight - shownHeight) / 2
+  return { left, top, right: left + shownWidth, bottom: top + shownHeight }
 }
 
 /** A pin where the camera puts it on screen, with its place in the day (its number). */
