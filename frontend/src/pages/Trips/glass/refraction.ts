@@ -1,6 +1,11 @@
 // Real refraction for the Liquid Glass look, in Chromium only: each glass
-// surface gets its own SVG displacement filter, drawn to its size and corner
-// radius, and `glass.css` puts it in front of the blur in `backdrop-filter`.
+// surface gets its own SVG filter, drawn to its size and corner radius, that
+// stands in for the CSS blur in `backdrop-filter` (see `glass.css`). It makes
+// two images of the backdrop: the frosted body (the material's blur) and a
+// nearly sharp copy bent by the bezel's displacement map; the map's blue
+// channel masks the bent copy to the rim. So the edge of every capsule and
+// sheet visibly lenses what is behind it, and the middle, where the text
+// sits, is only ever the frosted body.
 // Other browsers (Safari, Firefox) cannot use `url()` in `backdrop-filter`,
 // so they keep the frosted material, which is designed to stand on its own.
 //
@@ -59,9 +64,19 @@ interface Surface {
   visible: boolean
   /** Before this time it stays frosted (entrance animations). */
   settleAt: number
+  /** The material's blur radius, px, read from `--tg-blur`. */
+  blur: number
   /** The key its filter currently shows, or null while frosted. */
   shown: string | null
-  filter: SVGFilterElement | null
+  filter: Lens | null
+}
+
+/** The nodes of one surface's filter that change with its size. */
+interface Lens {
+  filter: SVGFilterElement
+  image: SVGFEImageElement
+  frost: SVGFEGaussianBlurElement
+  bend: SVGFEDisplacementMapElement
 }
 
 const px = (value: string) => {
@@ -69,14 +84,53 @@ const px = (value: string) => {
   return Number.isFinite(n) ? n : 0
 }
 
-function readCorners(el: HTMLElement): Corners {
+function readShape(el: HTMLElement): { corners: Corners; blur: number } {
   const style = getComputedStyle(el)
   return {
-    tl: px(style.borderTopLeftRadius),
-    tr: px(style.borderTopRightRadius),
-    br: px(style.borderBottomRightRadius),
-    bl: px(style.borderBottomLeftRadius),
+    corners: {
+      tl: px(style.borderTopLeftRadius),
+      tr: px(style.borderTopRightRadius),
+      br: px(style.borderBottomRightRadius),
+      bl: px(style.borderBottomLeftRadius),
+    },
+    blur: px(style.getPropertyValue("--tg-blur")),
   }
+}
+
+/** How sharp the bent rim stays: a touch of blur so it reads as glass, not a copy. */
+const RIM_SOFTNESS = 0.75
+
+function node<K extends keyof SVGElementTagNameMap>(name: K, attrs: Record<string, string>, ...children: SVGElement[]): SVGElementTagNameMap[K] {
+  const el = document.createElementNS(SVG_NS, name)
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value)
+  el.append(...children)
+  return el
+}
+
+/**
+ * The filter graph. A blur near the edge of the filter region averages in
+ * transparency; setting alpha back to 1 un-premultiplies it, so the edge keeps
+ * the colour of what is inside it (as the CSS blur's edge mode does).
+ */
+function buildLens(id: string): Lens {
+  const opaque = () => node("feFuncA", { type: "linear", slope: "0", intercept: "1" })
+  const image = node("feImage", { preserveAspectRatio: "none", result: "lens" })
+  const frost = node("feGaussianBlur", { in: "SourceGraphic", result: "frosted" })
+  const bend = node("feDisplacementMap", { in: "sharp", in2: "lens", xChannelSelector: "R", yChannelSelector: "G", result: "bent" })
+  const filter = node(
+    "filter",
+    { id, "color-interpolation-filters": "sRGB", filterUnits: "userSpaceOnUse", primitiveUnits: "userSpaceOnUse" },
+    image,
+    frost,
+    node("feComponentTransfer", { in: "frosted", result: "body" }, opaque()),
+    node("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(RIM_SOFTNESS), result: "soft" }),
+    node("feComponentTransfer", { in: "soft", result: "sharp" }, opaque()),
+    bend,
+    node("feColorMatrix", { in: "lens", type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0", result: "mask" }),
+    node("feComposite", { in: "bent", in2: "mask", operator: "in", result: "rim" }),
+    node("feMerge", {}, node("feMergeNode", { in: "body" }), node("feMergeNode", { in: "rim" })),
+  )
+  return { filter, image, frost, bend }
 }
 
 /** Paints a lens into a blob URL off the main thread where it can. */
@@ -152,39 +206,27 @@ export function startRefraction(): () => void {
   }
 
   const lensOf = (s: Surface): LensSpec => ({ width: s.width, height: s.height, corners: s.corners, bezel: LENS[s.material].bezel })
+  const shownKey = (s: Surface) => `${lensKey(lensOf(s))}|${s.blur}`
 
   const refract = (s: Surface) => {
-    const spec = lensOf(s)
-    const key = lensKey(spec)
+    const key = shownKey(s)
     if (s.shown === key) return
-    mapFor(spec).then(
+    mapFor(lensOf(s)).then(
       (url) => {
-        if (disposed || !surfaces.has(s.el) || lensKey(lensOf(s)) !== key) return
+        if (disposed || !surfaces.has(s.el) || shownKey(s) !== key) return
         if (!s.filter) {
-          s.filter = document.createElementNS(SVG_NS, "filter")
-          s.filter.id = s.id
-          s.filter.setAttribute("color-interpolation-filters", "sRGB")
-          s.filter.setAttribute("filterUnits", "userSpaceOnUse")
-          s.filter.setAttribute("primitiveUnits", "userSpaceOnUse")
-          const image = document.createElementNS(SVG_NS, "feImage")
-          image.setAttribute("preserveAspectRatio", "none")
-          image.setAttribute("result", "lens")
-          const bend = document.createElementNS(SVG_NS, "feDisplacementMap")
-          bend.setAttribute("in", "SourceGraphic")
-          bend.setAttribute("in2", "lens")
-          bend.setAttribute("xChannelSelector", "R")
-          bend.setAttribute("yChannelSelector", "G")
-          s.filter.append(image, bend)
-          defs.append(s.filter)
+          s.filter = buildLens(s.id)
+          defs.append(s.filter.filter)
         }
-        const [image, bend] = s.filter.children as unknown as [SVGFEImageElement, SVGFEDisplacementMapElement]
-        for (const node of [s.filter, image]) {
-          node.setAttribute("x", "0")
-          node.setAttribute("y", "0")
-          node.setAttribute("width", String(s.width))
-          node.setAttribute("height", String(s.height))
+        const { filter, image, frost: body, bend } = s.filter
+        for (const el of [filter, image]) {
+          el.setAttribute("x", "0")
+          el.setAttribute("y", "0")
+          el.setAttribute("width", String(s.width))
+          el.setAttribute("height", String(s.height))
         }
         image.setAttribute("href", url)
+        body.setAttribute("stdDeviation", String(s.blur))
         bend.setAttribute("scale", displacementScale(LENS[s.material].shift).toFixed(2))
         s.shown = key
         s.el.style.setProperty("--tg-refract", `url(#${s.id})`)
@@ -230,7 +272,7 @@ export function startRefraction(): () => void {
       const box = entry.borderBoxSize?.[0]
       s.width = box ? box.inlineSize : (entry.target as HTMLElement).offsetWidth
       s.height = box ? box.blockSize : (entry.target as HTMLElement).offsetHeight
-      s.corners = readCorners(s.el)
+      Object.assign(s, readShape(s.el))
     }
     // A sheet growing as it opens settles first; its map is drawn once.
     schedule(120)
@@ -260,7 +302,7 @@ export function startRefraction(): () => void {
           id: `tg-lens-${++serial}`,
           width: el.offsetWidth,
           height: el.offsetHeight,
-          corners: readCorners(el),
+          ...readShape(el),
           visible: false,
           settleAt: performance.now() + SETTLE_MS,
           shown: null,
@@ -275,7 +317,7 @@ export function startRefraction(): () => void {
       resize.unobserve(el)
       seen.unobserve(el)
       el.style.removeProperty("--tg-refract")
-      s.filter?.remove()
+      s.filter?.filter.remove()
       surfaces.delete(el)
     })
     schedule(60)
