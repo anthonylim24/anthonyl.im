@@ -151,6 +151,17 @@ itinerary) was only a client fallback for servers without `/api/trips/:id/chat`,
 The snapshot is data, and the trips system is the path for all new
 destination work. Do not add new destination-specific routes or logic.
 
+**Jank bench:** `frontend/scripts/trips-jank.mjs` measures frame pacing, long
+animation frames, layout shift and input latency for the interactions people
+repeat (index and trip load, scrolling, day and tab switches, the map, typing,
+dialogs, the concierge stream, the 3D view), comparing builds A / B. Each
+target is a production build (`VITE_DEV_BEARER` baked in, local only) served by
+its own `TRIPS_STORE=memory` API and seeded with
+`bun scripts/seed-bench-trips.ts http://127.0.0.1:<port>`; the method (real
+GPU, CPU 4x, alternating targets, medians) is in the script's header. `--look
+glass` and `--theme dark` cover the other looks. The 3D scenarios need a dev
+build (no Google key).
+
 ## Korea helpers (`frontend/src/pages/Korea/`)
 
 The legacy Korea pages are gone; frontend `/korea*` redirects to
