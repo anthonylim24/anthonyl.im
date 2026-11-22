@@ -173,7 +173,7 @@ Anthony (primary) and his partner, planning and executing a 12-day Seoul + Busan
 
 ## Design Context: photoreal 3D view — "Fly the day"
 
-Code: `frontend/src/pages/Trips/photoreal/`. Any trip day opens it from the day map's "Fly in 3D" button or its "⋯" menu ("Fly the day in 3D"). The day's located stops stand on Google Photorealistic 3D Tiles; chrome is atlas paper plates (opaque `--trips-*` surfaces, no glass stacks).
+Code: `frontend/src/pages/Trips/photoreal/`. Any trip day opens it from the day map's "Fly in 3D" button or its "⋯" menu ("Fly the day in 3D"). The day's located stops stand on Google Photorealistic 3D Tiles; chrome is atlas paper plates (opaque `--trips-*` surfaces, no glass stacks), in the Liquid Glass look too.
 
 - **Files:** `PhotorealOverlay.tsx` (chrome + state, `role="dialog"` with focus trap), `photoreal.stylex.ts`, `scene.ts` (engine), `tilesGround.ts` (Google tiles) / `devGround.ts` (DEV-only procedural model city, dynamic import), `camera.ts` + `sun.ts` + `stops.ts` (pure, tested), `terrainAnchor.ts`, `adaptiveQuality.ts`, `deviceTier.ts`, `youPin.ts`, `available.ts` (`photorealAvailable()`; the only file outside the `photoreal` chunk).
 - **Stops:** the day map's `.atlas-pin` stop pins as DOM buttons (`.photoreal-pin*` in `index.css`), projected from terrain-snapped points, each with a 3D stem and ground ring. Crowded or occluded pins shrink to dots. Numbering comes from `dayStops` and matches `dayPins`.
@@ -226,7 +226,21 @@ The same travelers as Korea, plus future trips and the people they share a link 
 - **Accent (two, never mixed):** the **brand** accent is constant signal orange (`--brand` text, `--brand-fill`, `--brand-soft`, `--brand-ring`) and paints chrome: focus rings, AI actions, switches, links, the compass mark. The **trip** accent (`--ta`, `--ta-fill`, `--ta-on`, `--ta-soft`, `--ta-ring`; set by `data-trip-accent`, defaults to the brand) is reserved for trip identity: pins, route, date tiles, the status eyebrow, the pinned-location row, covers. Trip accents: rose "Poppy" `#e5484d`, amber "Saffron" `#f2a71b` (dark ink on fill), emerald "Jade" `#0f9b76`, sky "Cobalt" `#2f7bf0`, violet "Iris" `#7c5cff`. Primary buttons are ink.
 - **Code:** `atlas.stylex.ts` (primitives `a`), `index.stylex.ts` (`shell`, `idx`, `cover`, `create`), `workspace.stylex.ts` (`share`, `ws`), `map/map.stylex.ts`, `chat.stylex.ts`, `components/kit.tsx` (`Menu`, `Modal`), `meta.ts`, `useTripEditor.ts`.
 - **Motion:** spring on pins / buttons, fly-to camera, drop-in for new pins, staggered card rise. Reduced motion: map uses `jumpTo`, globe does not spin.
-- **Anti-references:** the previous toy / sticker look, glassmorphism stacks, gradient text, stock travel photography, generic SaaS dashboards. Do not restyle Trips into the Korea dossier.
+- **Anti-references:** the previous toy / sticker look, glassmorphism stacks, gradient text, stock travel photography, generic SaaS dashboards. Do not restyle Trips into the Korea dossier. The one sanctioned exception is the opt-in Liquid Glass look below.
+
+### The Liquid Glass look (opt-in)
+
+A second look the traveller chooses (the droplet button in the header, or "Use the Liquid Glass look" in ⌘K); the atlas stays the default and nothing changes for anyone who does not pick it. It is kept per device (`trips-look`, `<html data-trips-look="glass">`), independent of light / dark. It is Apple's iOS 26 Liquid Glass, not generic glassmorphism: one layer of glass over content, never glass over glass.
+
+- **Material:** floating chrome is glass that bends what is behind it. In Chromium each surface gets its own displacement lens (a convex squircle bezel: strong bending at the rim, clear in the middle; `glass/refraction.ts`, at most twelve at once, on-screen only); everywhere else (Safari, iOS, Firefox) the same surfaces are frosted (blur, saturation, a lift in brightness), which is the designed look on the phone, not a fallback. A hairline specular rim catches the light, which follows a hovering pointer on desktop and rests at the top left. Cards, rows and fields are tinted only, so scrolling costs nothing extra.
+- **Wallpaper:** soft pools of the trip's accent with two companion hues (sky and lilac beside a warm accent, peach and rose beside a cool one), painted once by a small WebGL2 shader and kept as a still; a CSS gradient until it arrives and wherever WebGL2 is missing. It never drifts (idle means no frames).
+- **Shape:** the header, the day rail and the phone dock are floating capsules inset from the edges (the dock respects the safe area and carries the concierge button in its right slot); segmented controls and the overview tabs are capsule tracks with a glass thumb; sheets and dialogs take 2rem corners over a light scrim with no blur of its own; the phone map runs under the dock.
+- **Type:** the system face (SF Pro via `-apple-system`), bold large titles, the eyebrows in SF with tracking; Instrument Serif and Fragment Mono belong to the atlas.
+- **Colour:** both accents keep their jobs. The concierge button is brand-tinted glass. On the wallpaper the text tones deepen one step (`--ta` takes `--ta-strong`, `--brand` `#9a3409`, tertiary ink `#4f545b`) so everything clears 4.5:1.
+- **Contrast floor:** the wallpaper is held in a luminance band (≥ 0.72 light, ≤ 0.028 dark; `glass/palette.ts`, tested against every ink it carries), and each material's tint is at least what keeps its text at 4.5:1 over a busy, blurred backdrop.
+- **Where it is off:** print, the recap card (and its picture) and the photoreal 3D view keep the atlas as they are (`.trips-glass-off` on the photoreal host); no backdrop filter ever sits over the photoreal canvas.
+- **Preferences:** reduce transparency makes every surface solid and drops the wallpaper; increase contrast makes it solid with every edge drawn; reduced motion freezes the light and removes the press squish (a spring `scale` on buttons, links, tabs and segments).
+- **Cost:** the glass code is a lazy chunk loaded only in this look; `glass.css` is scoped to `[data-trips-look="glass"]` and inert in the atlas.
 
 ### Per-route Tokens
 

@@ -76,21 +76,30 @@ function useWallpaper(wall: Wall): string | null {
   useEffect(() => {
     let live = true
     const seed = parseInt(wall.accent.slice(1, 4), 16) / 97
-    paintWallpaper({ width: wall.width, height: wall.height, palette: wallPalette(wall.accent, wall.dark), seed }).then(
-      (next) => {
-        if (!live) {
-          if (next) URL.revokeObjectURL(next)
-          return
-        }
-        if (current.current) URL.revokeObjectURL(current.current)
-        current.current = next
-        setUrl(next)
-      },
-      // No WebGL2, or the context was refused: the gradient stays.
-      () => {},
-    )
+    const paint = () =>
+      paintWallpaper({ width: wall.width, height: wall.height, palette: wallPalette(wall.accent, wall.dark), seed }).then(
+        (next) => {
+          if (!live) {
+            if (next) URL.revokeObjectURL(next)
+            return
+          }
+          if (current.current) URL.revokeObjectURL(current.current)
+          current.current = next
+          setUrl(next)
+        },
+        // No WebGL2, or the context was refused: the gradient stays.
+        () => {},
+      )
+    // Paint when the page is idle: the gradient holds until then, and a trip
+    // that loads its accent a moment later costs one paint, not two.
+    const hasIdle = "requestIdleCallback" in window
+    const idle = hasIdle
+      ? window.requestIdleCallback(paint, { timeout: 1500 })
+      : window.setTimeout(paint, 300)
     return () => {
       live = false
+      if (hasIdle) window.cancelIdleCallback(idle)
+      else window.clearTimeout(idle)
     }
   }, [wall])
   useEffect(

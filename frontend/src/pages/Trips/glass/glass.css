@@ -29,9 +29,11 @@
   inherits: false;
 }
 
+/* Written by light.ts on the surfaces only; not inherited, so moving the
+   light restyles a dozen elements, not the page. */
 @property --tg-light {
   syntax: "<angle>";
-  inherits: true;
+  inherits: false;
   initial-value: 315deg;
 }
 
@@ -253,6 +255,7 @@ html.dark[data-trips-look="glass"][data-trips-scroll] {
    pointer on desktop, the top left at rest), bright on the lit side and
    faint on the far one, as light caught in the edge of a lens. */
 :root[data-trips-look="glass"] :is(.trips-glass-bar, .trips-glass-pill, .trips-glass-sheet)::before {
+  --tg-light: inherit;
   content: "";
   position: absolute;
   inset: 0;
@@ -490,6 +493,17 @@ html.dark[data-trips-look="glass"][data-trips-scroll] {
   :root[data-trips-look="glass"] .trips:not(.trips-glass-off) :is(button, a[href], [role="tab"], [role="radio"]):not(.trips-glass-pill, :disabled):active {
     scale: 0.96;
     transition-duration: 90ms, 180ms, 160ms, 160ms, 160ms, 160ms, 160ms;
+  }
+
+  /* Links are the overview's big cards, and the pointer sweeps across them as
+     the list scrolls: animating their colour and shadow on every hover cost
+     two or three dropped frames per scroll. They keep only the squish. */
+  :root[data-trips-look="glass"] .trips:not(.trips-glass-off) a[href]:not(.trips-glass-pill) {
+    transition: scale 420ms var(--trips-spring);
+  }
+
+  :root[data-trips-look="glass"] .trips:not(.trips-glass-off) a[href]:not(.trips-glass-pill):active {
+    transition-duration: 90ms;
   }
 }
 
