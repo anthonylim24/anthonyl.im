@@ -13,8 +13,9 @@ export interface AtlasPin extends LngLat {
   title: string
   /** Text inside a stop pin (its order in the day, or the day number). */
   label?: string
-  /** `stop`: numbered teardrop. `dot`: small round marker. `trip`: dot + name chip. */
-  variant?: "stop" | "dot" | "trip"
+  /** `stop`: numbered teardrop. `dot`: small round marker. `trip`: dot + name chip.
+   *  `idea`: a wishlist place, in the wishlist colour (`AtlasMapProps.ideaPins`, never `pins`). */
+  variant?: "stop" | "dot" | "trip" | "idea"
   /** Per-pin accent (index globe: each trip keeps its own colour). */
   accent?: string
   /** Just added: plays the drop-in animation once. */

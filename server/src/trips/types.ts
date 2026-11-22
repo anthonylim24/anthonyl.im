@@ -44,6 +44,12 @@ export interface TripLocation {
 }
 
 export type ItemKind = "place" | "note" | "section" | "reservation"
+
+/** What kind of outing a wishlist idea is: the wishlist's filter and groups.
+ *  Stored only when the traveller picks one; otherwise the client infers it
+ *  from `location.category`. Keep in step with the frontend `ITEM_THEMES`. */
+export const ITEM_THEMES = ["food", "nature", "sights", "neighborhood", "shopping", "nightlife", "activity", "other"] as const
+export type ItemTheme = (typeof ITEM_THEMES)[number]
 export type ItemStatus = "none" | "optional" | "booked" | "completed" | "skipped" | "needs_review"
 
 export interface ItineraryReservation {
@@ -90,6 +96,8 @@ export interface ItineraryItem {
   cost?: Money
   /** The traveller loved it: kept for the trip's recap. */
   highlight?: boolean
+  /** The traveller's own wishlist category; absent means "infer from the place". */
+  theme?: ItemTheme
   createdBy: LocationSource
 }
 
@@ -489,6 +497,7 @@ export const itemSchema = z.object({
     .optional(),
   cost: moneySchema.optional(),
   highlight: z.boolean().optional(),
+  theme: z.enum(ITEM_THEMES).optional(),
   createdBy: z.enum(["user", "ai", "migration"]).default("user"),
 })
 

@@ -26,6 +26,7 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap, canRenderMap, loadMapEngine, type AtlasMapProps } from "./map/AtlasMap"
+import { IDEA_PARAM, withIdea } from "./ideas/contract"
 import { liveValue, useLiveValue, type LiveValue } from "./workspace/liveValue"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
@@ -74,6 +75,7 @@ const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
 const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
+const IdeaOverlay = lazyRetry(() => import("./ideas/IdeaOverlay").then((m) => ({ default: m.IdeaOverlay })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -1281,6 +1283,13 @@ function Workspace() {
         <OverlayBoundary onError={overlayFailed("The recap", () => setRecapOpen(false))}>
           <Suspense fallback={null}>
             <TripRecap open trip={trip} onClose={() => setRecapOpen(false)} />
+          </Suspense>
+        </OverlayBoundary>
+      )}</Presence>
+      <Presence when={searchParams.has(IDEA_PARAM)}>{() => (
+        <OverlayBoundary onError={overlayFailed("The wishlist place", () => setSearchParams((prev) => withIdea(prev, null), { replace: true }))}>
+          <Suspense fallback={null}>
+            <IdeaOverlay trip={trip} editable={editable} locked={locked} getToken={editor.readToken} onEdit={editor.edit} />
           </Suspense>
         </OverlayBoundary>
       )}</Presence>
