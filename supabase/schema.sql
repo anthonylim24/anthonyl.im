@@ -742,6 +742,27 @@ language plpgsql security definer set search_path = public, extensions, pg_temp 
 declare
   r public.trip_enhancement_runs;
 begin
+  -- A live review older than QUEUED_RUN_MAX_MS (types.ts) already reads as
+  -- failed to every reader; it must not keep blocking new ones (no worker
+  -- ever took it). Fail it for good, as settleStaleRun shows it.
+  for r in
+    select t.* from public.trip_enhancement_runs t
+     where t.trip_id = p_trip_id
+       and t.queue_state in ('queued', 'working')
+       and t.created_at < now() - interval '30 minutes'
+     for update
+  loop
+    r.queue_state := 'done';
+    r.locked_by := null;
+    r.locked_until := null;
+    r.doc := r.doc || jsonb_build_object(
+      'status', 'error',
+      'error', coalesce(r.last_error, 'The AI review was interrupted. Nothing in your itinerary changed, so you can run it again.'),
+      'outcome', 'no_adds_possible',
+      'outcomeReason', 'The AI review failed before it could add places.');
+    perform public.trip_review_save(r);
+  end loop;
+
   -- The live run that blocked the insert can finish before the select below
   -- reads it; then the next insert goes through. Bounded so it cannot spin.
   for i in 1..3 loop

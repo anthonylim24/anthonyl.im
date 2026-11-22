@@ -468,15 +468,14 @@ describe("enhancement endpoints", () => {
   })
 
   test("a review that throws is retried, and after its last attempt reads as failed with the reason", async () => {
-    // The forecast is fetched outside the model call, so a weather outage
-    // throws out of `enhanceTrip`: the queue's retry path, end to end.
+    // A model outage throws out of `enhanceTrip`: the queue's retry path, end to end.
     const store = new MemoryTripStore()
-    let weatherCalls = 0
-    const fetchWeather = async () => {
-      weatherCalls++
-      throw new Error("The weather service is down.")
+    let llmCalls = 0
+    const llm = async () => {
+      llmCalls++
+      throw new Error("gemini 503: overloaded")
     }
-    const llm = async () => JSON.stringify({ summary: "ok", suggestions: [] })
+    const fetchWeather = async () => []
     const reviewWorker = createTripReviewWorker({ store, llm, fetchWeather, backoffMs: [0], log: () => {} })
     const { app } = makeApp({ store, llm, fetchWeather, reviewWorker })
     const trip = await createTrip(app)
@@ -495,9 +494,9 @@ describe("enhancement endpoints", () => {
     })
     const started = await startEnhance(app, trip.id)
     const body = await waitForEnhance(app, trip.id, started.id)
-    expect(weatherCalls).toBe(REVIEW_MAX_ATTEMPTS)
+    expect(llmCalls).toBe(REVIEW_MAX_ATTEMPTS)
     expect(body.error).toBe("enhancement_failed")
-    expect(body.message).toBe("The weather service is down.")
+    expect(body.message).toBe("The review did not finish. Try again in a moment.")
     expect((body.run as { queue?: unknown }).queue).toMatchObject({ state: "done", attempt: REVIEW_MAX_ATTEMPTS })
   })
 

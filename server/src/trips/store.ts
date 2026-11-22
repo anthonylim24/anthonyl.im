@@ -1,5 +1,6 @@
 import { config } from "../config"
 import { createSupabaseClient, type SupabaseClient } from "../igPlaces/supabase"
+import { QUEUED_RUN_MAX_MS } from "./types"
 import type {
   CompleteEnhancementRun,
   EnhancementRun,
@@ -174,13 +175,26 @@ export class MemoryTripStore implements TripStore {
   }
 
   async enqueueReview(run: RunningEnhancementRun, request: ReviewRequest, maxAttempts: number): Promise<EnqueueReviewResult> {
+    const now = this.now()
     for (const [id, row] of this.queue) {
       const live = this.runs.get(id)
-      if (live?.tripId === run.tripId && (row.state === "queued" || row.state === "working")) {
-        return { inserted: false, live: structuredClone(live) }
+      if (live?.tripId !== run.tripId || (row.state !== "queued" && row.state !== "working")) continue
+      if (now - Date.parse(live.createdAt) >= QUEUED_RUN_MAX_MS) {
+        // Readers already show it as failed: no worker ever took it. It must
+        // not keep blocking new reviews, so it fails for good.
+        row.state = "done"
+        row.lockedBy = null
+        this.sync(id, {
+          ...live,
+          status: "error",
+          error: row.lastError ?? "The AI review was interrupted. Nothing in your itinerary changed, so you can run it again.",
+          outcome: "no_adds_possible",
+          outcomeReason: "The AI review failed before it could add places.",
+        })
+        continue
       }
+      return { inserted: false, live: structuredClone(live) }
     }
-    const now = this.now()
     this.queue.set(run.id, {
       request: structuredClone(request),
       state: "queued",

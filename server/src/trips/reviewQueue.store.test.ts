@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createSupabaseClient, type SupabaseClient } from "../igPlaces/supabase"
 import { isNotProvisionedError, MemoryTripStore, type ReviewClaim, SupabaseTripStore } from "./store"
-import { finishRun, RUN_FAILED_REASON, type RunningEnhancementRun, type Trip } from "./types"
+import { finishRun, QUEUED_RUN_MAX_MS, RUN_FAILED_REASON, type RunningEnhancementRun, type Trip } from "./types"
 
 const T0 = Date.parse("2026-11-21T10:00:00.000Z")
 const iso = (ms: number) => new Date(ms).toISOString()
@@ -64,6 +64,17 @@ describe("MemoryTripStore review queue", () => {
     if (!claim) throw new Error("expected r1")
     expect(await store.completeReview(claim, completeDoc(claim), null)).toBe("ok")
     expect(await store.enqueueReview(pending("r4"), { scope: "trip" }, 3)).toMatchObject({ inserted: true })
+  })
+
+  test("a live review no worker finished in QUEUED_RUN_MAX_MS fails and stops blocking new ones", async () => {
+    const { store, clock } = queueAt()
+    await store.enqueueReview(pending("r1"), { scope: "trip" }, 3)
+    clock.now += QUEUED_RUN_MAX_MS - 1
+    expect(await store.enqueueReview(pending("r2"), { scope: "trip" }, 3)).toMatchObject({ inserted: false, live: { id: "r1" } })
+
+    clock.now += 1
+    expect(await store.enqueueReview(pending("r3"), { scope: "trip" }, 3)).toMatchObject({ inserted: true, run: { id: "r3" } })
+    expect(await store.getRun("t1", "r1")).toMatchObject({ status: "error", queue: { state: "done" } })
   })
 
   test("doc.queue mirrors each step on the stored run", async () => {

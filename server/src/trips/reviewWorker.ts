@@ -3,6 +3,9 @@ import {
   autoApplyAddSuggestions,
   enhanceTrip,
   fetchOpenMeteoWeather,
+  isRetryableReviewError,
+  ReviewAttemptError,
+  travelerFacingLlmError,
   type Geocoder,
   type LlmCall,
   type WeatherFetcher,
@@ -134,6 +137,7 @@ export function createTripReviewWorker(
   const { llm, fetchWeather = fetchOpenMeteoWeather, geocode, ...worker } = args
   return createReviewWorker({
     workerId: reviewWorkerId(),
+    isRetryable: isRetryableReviewError,
     ...worker,
     runReview: (trip, request, signal) =>
       enhanceTrip({
@@ -145,6 +149,11 @@ export function createTripReviewWorker(
         fetchWeather,
         geocode,
         signal,
+      }).catch((err: unknown) => {
+        // The run's error is shown to the traveller: never a raw stack or SDK message.
+        throw err instanceof ReviewAttemptError
+          ? err
+          : new ReviewAttemptError(travelerFacingLlmError(err), { retryable: isRetryableReviewError(err), cause: err })
       }),
   })
 }
