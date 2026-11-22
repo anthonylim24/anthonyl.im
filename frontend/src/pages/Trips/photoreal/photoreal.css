@@ -1,0 +1,19 @@
+/* The 3D view keeps opaque plates in the glass look. Glass turns the surface
+   tokens translucent with no backdrop filter, which over a moving city puts
+   buildings and the route behind every label. These are the glass tokens
+   composited over --trips-glass-solid, so the look keeps its type and radii.
+   Unlayered and more specific than glass.css on purpose. */
+
+:root[data-trips-look="glass"] .trips.photoreal-portal {
+  --trips-surface: var(--trips-glass-solid);
+  --trips-raised: #fdfdfe;
+  --trips-sunken: #e7e8eb;
+  --trips-rail: #e7e8eb;
+}
+
+:root.dark[data-trips-look="glass"] .trips.photoreal-portal {
+  --trips-surface: var(--trips-glass-solid);
+  --trips-raised: #282c36;
+  --trips-sunken: #32343c;
+  --trips-rail: #32343c;
+}

@@ -13,6 +13,7 @@ import { formatClock, formatTripDate, itemIcon, plural, resolveAccent, titleCase
 import type { Trip, TripDay } from "../types"
 import { tilesKey } from "./available"
 import { useStopPhoto, type PhotoState } from "../stopPhoto"
+import "./photoreal.css"
 import { p } from "./photoreal.stylex"
 import { PhotorealScene, type Insets, type SceneStop } from "./scene"
 import {
@@ -510,7 +511,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   )
 
   return createPortal(
-    <div className="trips trips-portal" data-trip-accent={accent}>
+    <div className="trips trips-portal photoreal-portal" data-trip-accent={accent}>
       <div
         ref={rootRef}
         role="dialog"
