@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
 import {
+  distanceParts,
   formatDistance,
   formatWalkMinutes,
   haversineMeters,
   itemToReservation,
   nextMappedItem,
   upcomingReservations,
+  walkingStat,
   walkLegBetween,
 } from "../reservationView"
 import type { ItineraryItem, TripDay } from "../types"
@@ -109,6 +111,20 @@ describe("walk legs", () => {
     expect(formatWalkMinutes(5_670)).toBe("1h 10m walk")
     expect(formatDistance(80)).not.toMatch(/—|--/)
     expect(formatWalkMinutes(5_670)).not.toMatch(/—|--/)
+  })
+
+  it("splits a distance into figure and unit, metres under 1 km", () => {
+    expect(distanceParts(700)).toEqual({ value: "700", unit: "m" })
+    expect(distanceParts(1_240)).toEqual({ value: "1.2", unit: "km" })
+    expect(distanceParts(12_400)).toEqual({ value: "12", unit: "km" })
+  })
+
+  it("gives the overview's Walking stat one unit, never \"700 m km\"", () => {
+    expect(walkingStat(700)).toEqual({ value: "700", unit: "m" })
+    expect(walkingStat(1_240)).toEqual({ value: "1.2", unit: "km" })
+    expect(walkingStat(12_000)).toEqual({ value: "12", unit: "km" })
+    expect(walkingStat(500)).toEqual({ value: "–", unit: "" })
+    expect(walkingStat(0)).toEqual({ value: "–", unit: "" })
   })
 
   it("returns null when either pin is missing or the hop is under 30m", () => {

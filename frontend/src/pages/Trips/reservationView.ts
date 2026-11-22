@@ -87,10 +87,21 @@ export function haversineMeters(
   return 2 * EARTH_M * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
-export function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters / 10) * 10} m`
+/** A distance as figure and unit, so a stat can set the unit apart: 700 m, 1.2 km, 12 km. */
+export function distanceParts(meters: number): { value: string; unit: "m" | "km" } {
+  if (meters < 1000) return { value: String(Math.round(meters / 10) * 10), unit: "m" }
   const km = meters / 1000
-  return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`
+  return { value: km < 10 ? km.toFixed(1) : String(Math.round(km)), unit: "km" }
+}
+
+export function formatDistance(meters: number): string {
+  const { value, unit } = distanceParts(meters)
+  return `${value} ${unit}`
+}
+
+/** The overview's Walking figure: "–" until the trip walks more than 500 m. */
+export function walkingStat(meters: number): { value: string; unit: string } {
+  return meters > 500 ? distanceParts(meters) : { value: "–", unit: "" }
 }
 
 export function formatWalkMinutes(meters: number): string {
