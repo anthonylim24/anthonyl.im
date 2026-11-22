@@ -61,6 +61,21 @@ forecast, plus the trip's description, tags, party, budget (planned and
 spent), open checklist items and the **wishlist** (`trip.ideas`). It fills
 gaps from the wishlist first: such an add carries `fromIdeaId`, and applying
 it (auto-apply or `/apply`) takes the idea off the wishlist in the same write.
+A stop is on a day or on the wishlist, never both: the client merge
+(`tripMerge.ts`, `scheduledOnce`) keeps a scheduled idea off the wishlist even
+when the traveller edited it meanwhile, moving their edits onto the stop, and
+`PATCH /api/trips/:id` drops any idea whose id is on a day
+(`withoutScheduledIdeas`). No add lands on a venue the trip already has under
+a near name (`sameVenue.ts`: same words in order, or extra words that only
+say what kind of place it is, with pins within 1 km, or 400 m for a near
+name); the draft, the wishlist list and `/apply` use the same rule.
+Everything the traveller wrote goes through `redactPrivate`
+(`privateText.ts`) before it reaches the review, the draft or the concierge:
+booking codes, emails, phone, card and passport numbers become `[code]`,
+`[email]` or `[number]`; flight and train numbers, dates, times and prices stay.
+Model text that repeats a placeholder (`fromModel`) is never saved, so an
+echoed note cannot overwrite the real code. Undo and Redo (`replayPlan`) keep
+the same one-place-per-stop rule.
 An attempt's `AbortSignal` bounds every model, tool mode and lookup it makes,
 and its `deadlineAt` sizes the Gemini ladder: the first (Maps) try gets all
 but 30 s of the attempt, up to 210 s (`modeTimeoutMs`), since a grounded

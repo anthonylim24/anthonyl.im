@@ -28,6 +28,7 @@
 // {meta} {status} {places} {proposal} {sources} {followups}, then [DONE].
 
 import { streamSSE } from "hono/streaming"
+import { redactPrivate } from "./privateText"
 import type { Context } from "hono"
 import { sourcesFromGrounding, type ConciergeSource, type GeminiGrounding, type PlaceGeocoder } from "../geminiGrounding"
 import { mergeGeminiGrounding, readGeminiAgentRound, type GeminiFunctionCall } from "../geminiStream"
@@ -126,7 +127,7 @@ function fmtItem(item: ItineraryItem, next?: ItineraryItem): string {
   }
   if (item.status && item.status !== "none" && STATUS_WORDS[item.status]) extra.push(STATUS_WORDS[item.status]!)
   if (item.cost) extra.push(`cost ${fmtMoney(item.cost.amount, item.cost.currency)}`)
-  if (item.notes) extra.push(`note: ${clip(item.notes, MAX_NOTE)}`)
+  if (item.notes) extra.push(`note: ${clip(redactPrivate(item.notes), MAX_NOTE)}`)
   const here = itemPoint(item)
   const there = itemPoint(next)
   const leg = here && there && next ? `\n        ↳ to ${clip(next.title, 40)}: ${describeWalk(here, there)}` : ""
@@ -220,7 +221,7 @@ function fmtDayDetail(day: TripDay, index: number, today?: string, forecast?: Da
   } else if (day.weather) {
     lines.push(`  Weather (saved earlier): ${day.weather.condition}, ${day.weather.lowC}–${day.weather.highC}°C`)
   }
-  if (day.notes) lines.push(`  Theme: ${clip(day.notes, MAX_NOTE)}`)
+  if (day.notes) lines.push(`  Theme: ${clip(redactPrivate(day.notes), MAX_NOTE)}`)
   if (day.callouts?.length) {
     for (const c of day.callouts) lines.push(`  [${c.tone}] ${clip(c.body, MAX_NOTE)}`)
   }
@@ -346,7 +347,7 @@ export function buildTripChatContext(
       `Time zone: ${trip.timezone}\n` +
       `Destinations: ${trip.destinations.join(", ") || "(none)"}\n` +
       `Status: ${trip.status}` +
-      (trip.description ? `\nDescription: ${clip(trip.description, 600)}` : "") +
+      (trip.description ? `\nDescription: ${clip(redactPrivate(trip.description), 600)}` : "") +
       (trip.appearance?.headline ? `\nHeadline: ${clip(trip.appearance.headline, 400)}` : ""),
   )
   const planning = fmtPlanning(trip)

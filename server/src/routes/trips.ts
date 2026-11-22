@@ -29,6 +29,7 @@ import {
   settleStaleRun,
   slugify,
   updateTripSchema,
+  withoutScheduledIdeas,
   type ReviewRequest,
   type RunningEnhancementRun,
   type Trip,
@@ -417,13 +418,13 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       if (baseUpdatedAt !== undefined && fresh.updatedAt !== baseUpdatedAt) {
         return c.json({ error: "conflict", trip: present(fresh, access) }, 409)
       }
-      const next: Trip = {
+      const next: Trip = withoutScheduledIdeas({
         ...fresh,
         ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
         description: patch.description === null ? undefined : (patch.description ?? fresh.description),
         budget: patch.budget === null ? undefined : (patch.budget ?? fresh.budget),
         updatedAt: nextUpdatedAt(fresh.updatedAt),
-      }
+      })
       if (next.endDate < next.startDate) {
         return c.json({ error: "endDate must be on or after startDate" }, 400)
       }

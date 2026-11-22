@@ -766,6 +766,17 @@ export const aiEnhancementSchema = z.object({
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
+/**
+ * A stop is on a day or on the wishlist, never both. A save that brings back
+ * an idea already on a day (an older client's merge, where an edit to the
+ * idea beat the review that scheduled it) keeps the stop and drops the idea.
+ */
+export function withoutScheduledIdeas<T extends Pick<Trip, "days" | "ideas">>(trip: T): T {
+  if (!trip.ideas?.length) return trip
+  const onDays = new Set(trip.days.flatMap((d) => d.items.map((i) => i.id)))
+  return trip.ideas.some((idea) => onDays.has(idea.id)) ? { ...trip, ideas: trip.ideas.filter((idea) => !onDays.has(idea.id)) } : trip
+}
+
 export function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`
 }
