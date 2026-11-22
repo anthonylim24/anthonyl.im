@@ -30,8 +30,9 @@ const MAX_MODEL_DAYS = 21
 const MAX_STOP_NAMES = 12
 /** Past this, a day's stops are in another city: still a pick, but after nearer and same-city days. */
 const NEAR_KM = 25
-/** A gentle push toward lighter days: each stop counts as this many km. */
-const KM_PER_STOP = 0.25
+/** A gentle push toward lighter days (`busyKm`): never enough to beat a clearly nearer day. */
+const KM_PER_STOP = 0.15
+const BUSY_CAP = 8
 
 // ── The request ────────────────────────────────────────────────────────────
 
@@ -213,15 +214,50 @@ const norm = (value: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
 
-/** The neighbourhood or city of `day` that the idea's name or address mentions. */
-function placeMatch(day: DayFacts, idea: SuggestIdea): { kind: "neighborhood" | "city"; name: string } | null {
+/** Words that say what kind of day it is, not where: a title part made only of these names no place. */
+const GENERIC_WORDS = new Set(
+  (
+    "a an and at day days de del in of on the to with trip arrival departure easy free final first last old new evening morning afternoon " +
+    "night nights market markets food bites lunch dinner breakfast brunch cafe cafes coffee shopping museum museums palace palaces temple " +
+    "temples walk walks tour tours show class hotel move drift city town beach park lanes house home rest relax pivot capstone"
+  ).split(" "),
+)
+
+/** The places a day's title names: "Busan · Haeundae · Gwangalli" → Busan, Haeundae, Gwangalli. */
+function titlePlaces(title: string | undefined): string[] {
+  if (!title) return []
+  return title
+    .split(/\s*(?:·|&|\+|\/|,|→|->|\||–|—|:|\(|\)|\s-\s)\s*/u)
+    .map((part) => part.trim())
+    .filter((part) => {
+      const words = norm(part).split(" ").filter(Boolean)
+      return words.length > 0 && words.some((word) => !GENERIC_WORDS.has(word))
+    })
+}
+
+type PlaceMatch = { kind: "neighborhood" | "title" | "city"; name: string }
+
+/**
+ * The neighbourhood, title place or city of `day` that the idea's name or
+ * address mentions, most specific first. A city named in a title is left to
+ * the city check (`cities`: every day's city), so a travel day titled
+ * "Busan → Seoul" is not taken for a day in Busan.
+ */
+export function placeMatch(
+  day: Pick<DayFacts, "neighborhoods" | "title" | "city">,
+  idea: SuggestIdea,
+  cities: ReadonlySet<string> = new Set(),
+): PlaceMatch | null {
   const hay = ` ${norm([idea.title, idea.location?.name, idea.location?.address].filter(Boolean).join(" "))} `
   const mentions = (name: string) => {
     const needle = norm(name)
-    return needle.length >= 2 && hay.includes(` ${needle} `)
+    // Two Latin letters name nothing; two Hangul or kanji can ("명동").
+    return (needle.length >= 3 || /[^\p{Script=Latin}\p{N}\s]/u.test(needle)) && hay.includes(` ${needle} `)
   }
   const hood = day.neighborhoods.find(mentions)
   if (hood) return { kind: "neighborhood", name: hood }
+  const named = titlePlaces(day.title).find((part) => !cities.has(norm(part)) && mentions(part))
+  if (named) return { kind: "title", name: named }
   if (day.city && mentions(day.city)) return { kind: "city", name: day.city }
   return null
 }
@@ -232,49 +268,80 @@ export function formatKm(km: number): string {
   return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`
 }
 
-const stopsSoFar = (n: number) => (n === 0 ? "Nothing planned yet" : n === 1 ? "Only 1 stop so far" : `Only ${n} stops so far`)
+const stopsSoFar = (n: number) =>
+  n === 0 ? "Nothing planned yet" : n === 1 ? "Only 1 stop so far" : n <= 3 ? `Only ${n} stops so far` : `${n} stops so far`
+
+/** How much busier days are pushed back: each stop counts as this many km, up to `BUSY_CAP` stops (1.2 km at most). */
+const busyKm = (stops: number) => KM_PER_STOP * Math.min(stops, BUSY_CAP)
 
 const toPick = (day: DayFacts, reason: string): DayPick => (day.nearest ? { dayId: day.dayId, reason, nearestKm: day.nearest.km } : { dayId: day.dayId, reason })
 
+/** Within this, the idea and the stop are the same place (an idea already on that day). */
+const SAME_PLACE_KM = 0.05
+
 /**
  * Every eligible day in the distance ranking's order, each with its plain
- * reason. With a point: nearest stop (a little further for busier days);
- * then days in the neighbourhood or city the idea names (lightest first);
- * then days in other cities; then the rest, lightest first. Without a point
- * there are no distances, so the named neighbourhood or city leads.
+ * reason and whether anything ties it to the idea. With a point: nearest
+ * stop (a little further for busier days). Then days in the neighbourhood,
+ * titled place or city the idea names (lightest first); then days in other
+ * cities, by distance; then the rest, lightest first. Without a point there
+ * are no distances, so the named place leads.
  */
-export function rankDays(eligible: readonly DayFacts[], idea: SuggestIdea): DayPick[] {
-  const lightestIn = new Map<string, number>()
+function rank(eligible: readonly DayFacts[], idea: SuggestIdea): Array<{ pick: DayPick; tied: boolean }> {
+  // Per city (eligible days only): how many days, and the fewest stops on one.
+  const cityLoads = new Map<string, CityLoad>()
   for (const day of eligible) {
     const key = day.city ? norm(day.city) : ""
-    lightestIn.set(key, Math.min(lightestIn.get(key) ?? Infinity, day.stops))
+    const seen = cityLoads.get(key)
+    cityLoads.set(key, { days: (seen?.days ?? 0) + 1, stops: Math.min(seen?.stops ?? Infinity, day.stops) })
   }
+  const cities = new Set(eligible.flatMap((day) => (day.city ? [norm(day.city)] : [])))
   const ranked = eligible.map((day, order) => {
-    const match = placeMatch(day, idea)
+    const match = placeMatch(day, idea, cities)
     let tier: number
     let score: number
-    if (day.nearest && day.nearest.km <= NEAR_KM) [tier, score] = [0, day.nearest.km + KM_PER_STOP * day.stops]
-    else if (match) [tier, score] = [match.kind === "neighborhood" ? 1 : 2, day.stops]
-    else if (day.nearest) [tier, score] = [3, day.nearest.km + KM_PER_STOP * day.stops]
-    else [tier, score] = [4, day.stops]
+    if (day.nearest && day.nearest.km <= NEAR_KM) [tier, score] = [0, day.nearest.km + busyKm(day.stops)]
+    else if (match) [tier, score] = [{ neighborhood: 1, title: 2, city: 3 }[match.kind], day.stops]
+    else if (day.nearest) [tier, score] = [4, day.nearest.km + busyKm(day.stops)]
+    else [tier, score] = [5, day.stops]
     return { day, match, tier, score, order }
   })
   ranked.sort((x, y) => x.tier - y.tier || x.score - y.score || x.order - y.order)
-  return ranked.map(({ day, match, tier }) => toPick(day, nearbyReason(day, tier === 0 || tier === 3 ? null : match, lightestIn)))
+  return ranked.map(({ day, match, tier }) => ({
+    pick: toPick(day, nearbyReason(day, tier === 0 || tier === 4 ? null : match, cityLoads)),
+    tied: tier < 5,
+  }))
 }
 
-/** The fallback answer: the distance ranking's best three. */
-export const rankNearby = (eligible: readonly DayFacts[], idea: SuggestIdea): DayPick[] => rankDays(eligible, idea).slice(0, MAX_PICKS)
+/** Every eligible day, best first, with its reason: the model's shortlist and its reasons of last resort. */
+export const rankDays = (eligible: readonly DayFacts[], idea: SuggestIdea): DayPick[] => rank(eligible, idea).map(({ pick }) => pick)
 
-function nearbyReason(day: DayFacts, match: ReturnType<typeof placeMatch>, lightestIn: Map<string, number>): string {
+/**
+ * The fallback answer: the ranking's best three. Days with nothing tying
+ * them to the idea fill in only when no day has anything, so a Busan idea
+ * is not padded out with a light day in another city.
+ */
+export function rankNearby(eligible: readonly DayFacts[], idea: SuggestIdea): DayPick[] {
+  const ranked = rank(eligible, idea)
+  const tied = ranked.filter((entry) => entry.tied)
+  return (tied.length > 0 ? tied : ranked).slice(0, MAX_PICKS).map(({ pick }) => pick)
+}
+
+type CityLoad = { days: number; stops: number }
+
+function nearbyReason(day: DayFacts, match: PlaceMatch | null, cityLoads: Map<string, CityLoad>): string {
   if (day.nearest && !match) {
+    if (day.nearest.km < SAME_PLACE_KM) return `${day.nearest.name} is already on this day`
     const meal = day.nearest.meal ? `, your ${day.nearest.meal} stop` : ""
     return `${formatKm(day.nearest.km)} from ${day.nearest.name}${meal}`
   }
   if (match?.kind === "neighborhood") return `You’re in ${match.name} that day`
+  if (match?.kind === "title") return `Your “${match.name}” day`
   if (day.stops === 0) return day.city ? `Nothing planned yet in ${day.city}` : "Nothing planned yet"
-  const lightest = lightestIn.get(day.city ? norm(day.city) : "") === day.stops
-  if (lightest) return day.city ? `Your lightest day in ${day.city}` : "Your lightest day"
+  const city = cityLoads.get(day.city ? norm(day.city) : "")
+  if (day.city && city?.days === 1) return `Your only day in ${day.city}`
+  if (city?.stops === day.stops) return day.city ? `Your lightest day in ${day.city}` : "Your lightest day"
+  if (match?.kind === "city") return `Also in ${match.name}, with ${day.stops === 1 ? "1 stop" : `${day.stops} stops`} so far`
   return stopsSoFar(day.stops)
 }
 
@@ -499,7 +566,7 @@ export function createDaySuggester(opts: {
     const eligible = eligibleDays(dayFacts(trip, idea, at))
     if (eligible.length === 0) return { picks: [], source: "nearby" }
     const ranked = rankDays(eligible, idea)
-    const nearby: DaySuggestions = { picks: ranked.slice(0, MAX_PICKS), source: "nearby" }
+    const nearby: DaySuggestions = { picks: rankNearby(eligible, idea), source: "nearby" }
     const model = opts.model
     if (!model || signal?.aborted) return nearby
     // A long trip: the model sees the days the distance ranking likes best, in trip order.

@@ -6,6 +6,8 @@ import {
   dayFacts,
   eligibleDays,
   formatKm,
+  placeMatch,
+  rankDays,
   rankNearby,
   readModelPicks,
   SUGGEST_DAYS_MODEL,
@@ -164,6 +166,19 @@ describe("the nearby fallback", () => {
     expect(rankNearby(eligibleDays(dayFacts(busy, ikseon, NOW)), ikseon)[0]!.dayId).toBe("light")
   })
 
+  test("but never enough to beat a clearly nearer day, however busy", () => {
+    const packed = makeTrip([
+      { id: "packed", date: "2026-12-01", items: [stop("Next door", 37.5755, 126.9897), ...Array.from({ length: 18 }, (_, i) => stop(`P${i}`))] },
+      { id: "quiet", date: "2026-12-02", items: [stop("Across town", 37.5743, 127.012), ...Array.from({ length: 7 }, (_, i) => stop(`Q${i}`))] },
+    ])
+    expect(rankNearby(eligibleDays(dayFacts(packed, ikseon, NOW)), ikseon).map((p) => p.dayId)).toEqual(["packed", "quiet"])
+  })
+
+  test("an idea already on a day says so, not a distance from itself", () => {
+    const already = makeTrip([{ id: "d", date: "2026-12-01", items: [stop("Ikseon-dong", 37.5743, 126.9897)] }])
+    expect(rankNearby(eligibleDays(dayFacts(already, ikseon, NOW)), ikseon)[0]!.reason).toBe("Ikseon-dong is already on this day")
+  })
+
   test("an empty day in the idea's city beats days in another city", () => {
     const haeundaeIdea: SuggestIdea = { title: "Haeundae Blueline Park", location: { name: "Blueline Park", address: "Haeundae, Busan", lat: 35.1609, lng: 129.1879 } }
     const seoulOnly = makeTrip([trip.days[0]!, trip.days[1]!, trip.days[3]!])
@@ -177,14 +192,47 @@ describe("the nearby fallback", () => {
     expect(picks[0]).toEqual({ dayId: "day-2", reason: "You’re in Hongdae that day" })
     const busanIdea: SuggestIdea = { title: "Gamcheon Culture Village", location: { name: "Gamcheon", address: "Saha-gu, Busan" } }
     const busan = rankNearby(eligibleDays(dayFacts(trip, busanIdea, NOW)), busanIdea)
-    expect(busan.map((p) => p.dayId)).toEqual(["day-4", "day-3", "day-1"])
+    // Only the Busan days: a light day in Seoul has nothing to do with it.
+    expect(busan.map((p) => p.dayId)).toEqual(["day-4", "day-3"])
     expect(busan[0]!.reason).toBe("Nothing planned yet in Busan")
-    expect(busan[1]!.reason).toBe("Only 1 stop so far")
+    expect(busan[1]!.reason).toBe("Also in Busan, with 1 stop so far")
     const nowhere: SuggestIdea = { title: "Somewhere" }
     const light = rankNearby(eligibleDays(dayFacts(trip, nowhere, NOW)), nowhere)
     expect(light[0]).toEqual({ dayId: "day-4", reason: "Nothing planned yet in Busan" })
     expect(light[1]).toEqual({ dayId: "day-3", reason: "Only 1 stop so far" })
     expect(light[2]).toEqual({ dayId: "day-1", reason: "Your lightest day in Seoul" })
+  })
+
+  test("a place the day's title names counts, below its neighbourhoods and above its city", () => {
+    const titled = makeTrip([
+      { id: "t1", date: "2026-12-01", city: "Busan", title: "Gamcheon & Jagalchi", items: [stop("A"), stop("B"), stop("C"), stop("D")] },
+      { id: "t2", date: "2026-12-02", city: "Busan", items: [stop("E")] },
+      { id: "t3", date: "2026-12-03", city: "Busan", title: "Only Busan", items: [] },
+    ])
+    const village: SuggestIdea = { title: "Gamcheon Culture Village", location: { name: "Gamcheon", address: "Saha-gu, Busan" } }
+    const picks = rankNearby(eligibleDays(dayFacts(titled, village, NOW)), village)
+    expect(picks[0]).toEqual({ dayId: "t1", reason: "Your “Gamcheon” day" })
+    expect(picks.map((p) => p.dayId)).toEqual(["t1", "t3", "t2"])
+  })
+
+  test("title words that name no place, and cities in a travel day's title, do not match", () => {
+    const day = (title: string, city = "Seoul") => ({ neighborhoods: [], title, city })
+    const market: SuggestIdea = { title: "Night market", location: { name: "Night market", address: "Market Street" } }
+    expect(placeMatch(day("Markets & Final Bites"), market)).toBeNull()
+    expect(placeMatch(day("Arrival day · Easy evening"), { title: "An easy evening walk" })).toBeNull()
+    // "Busan → Seoul" is a Seoul day; the Busan idea does not make it a Busan day.
+    const cities = new Set(["seoul", "busan"])
+    expect(placeMatch(day("Busan → Seoul / Jamsil"), { title: "Gamcheon", location: { name: "Gamcheon", address: "Busan" } }, cities)).toBeNull()
+    expect(placeMatch(day("Busan → Seoul / Jamsil"), { title: "Lotte World Tower, Jamsil" }, cities)).toEqual({ kind: "title", name: "Jamsil" })
+    // Two Latin letters name nothing; two Hangul syllables can.
+    expect(placeMatch({ neighborhoods: ["Mo"], city: undefined, title: undefined }, { title: "Mo bar" })).toBeNull()
+    expect(placeMatch({ neighborhoods: ["명동"], city: undefined, title: undefined }, { title: "명동 교자" })).toEqual({ kind: "neighborhood", name: "명동" })
+  })
+
+  test("the only day in a city says so", () => {
+    const one = makeTrip([trip.days[0]!, { id: "b", date: "2026-12-02", city: "Busan", items: [stop("X"), stop("Y"), stop("Z"), stop("W")] }])
+    const idea: SuggestIdea = { title: "Gamcheon", location: { name: "Gamcheon", address: "Busan" } }
+    expect(rankNearby(eligibleDays(dayFacts(one, idea, NOW)), idea)).toEqual([{ dayId: "b", reason: "Your only day in Busan" }])
   })
 
   test("formats distances for people", () => {
@@ -218,13 +266,17 @@ describe("the prompt", () => {
 })
 
 describe("cleaning the model's answer", () => {
-  const days = eligibleDays(dayFacts(trip, ikseon, new Date("2026-12-01T15:30:00Z"))) // day-1 is past
-  const ranked = rankNearby(days, ikseon)
+  // day-1 is past; day-5 is full.
+  const withFull = makeTrip([...trip.days, { id: "day-5", date: "2026-12-05", items: Array.from({ length: 200 }, (_, i) => stop(`F${i}`)) }])
+  const days = eligibleDays(dayFacts(withFull, ikseon, new Date("2026-12-01T15:30:00Z")))
+  const ranked = rankDays(days, ikseon)
 
   test("keeps eligible, distinct days, at most three, with our own distances", () => {
+    expect(days.map((d) => d.dayId)).toEqual(["day-2", "day-3", "day-4"])
     const raw = JSON.stringify({
       picks: [
         { dayId: "day-1", reason: "Past day" },
+        { dayId: "day-5", reason: "Full day" },
         { dayId: "day-9", reason: "Invented" },
         { dayId: "day-2", reason: "Close to the cafes", nearestKm: 0.1 },
         { dayId: "day-2", reason: "Again" },
