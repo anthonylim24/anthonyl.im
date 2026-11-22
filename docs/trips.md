@@ -48,7 +48,22 @@ SIGTERM / SIGINT it hands its runs back without spending the attempt
 preview API and a server with the sweep off only take the runs they queue
 themselves (and their retries). Schema: `supabase/schema.sql` plus
 `supabase/migrations/20261121_trip_review_queue.sql`; without them the
-trips routes answer `503 trips_not_provisioned`.
+trips routes answer `503 trips_not_provisioned`. A live run older than
+`QUEUED_RUN_MAX_MS` is failed when the next review is queued, so it never
+blocks a trip. The client follows a run until the server settles it (no
+client deadline short of 32 min), shows `run.queue` progress, and picks a
+running run back up on open and on tab return.
+
+**What a review sees** (`enhanceTrip` in `trips/ai.ts`): the days with every
+stop's time, place, notes, cost and booking (bookings and lodging are fixed),
+day themes, callouts and journal, the lodging bases, travel legs and the
+forecast, plus the trip's description, tags, party, budget (planned and
+spent), open checklist items and the **wishlist** (`trip.ideas`). It fills
+gaps from the wishlist first: such an add carries `fromIdeaId`, and applying
+it (auto-apply or `/apply`) takes the idea off the wishlist in the same write.
+An attempt's `AbortSignal` bounds every model, tool mode and lookup it makes;
+`enhanceTrip` throws `ReviewAttemptError` for what a retry could fix and
+returns a failed run only for what it cannot (day gone, prompt refused).
 
 **Maps:** every Trips map is MapLibre GL JS v6 over OpenFreeMap vector tiles
 (no API key; `map/mapStyle.ts`). The photoreal 3D view ("Fly the day",
@@ -162,8 +177,8 @@ banner says it is a copy and from when, and nothing that needs the server
 are replayed, dropped if the server already has them, or shown as a conflict.
 A sign-out forgets the copies and list but keeps unsaved edits for the same
 account; another account signing in clears everything. `/api/*` is never
-cached by the service worker. AI runs take an `AbortSignal`: Stop (or leaving) drops the
-answer; the server may still finish, and its change arrives like any other.
+cached by the service worker. AI runs take an `AbortSignal`: Stop (or leaving) stops following
+the run; the server may still finish, and its change arrives like any other.
 
 **Permissions:** owner > editor/viewer collaborators > `sharedWithAllUsers`
 (legacy Korea behavior: all signed-in users can view/edit). Only owners delete,
