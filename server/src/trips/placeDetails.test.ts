@@ -229,6 +229,31 @@ describe("createGooglePlaceDetails", () => {
     expect((err as Error).message).toBe("place details 403")
   })
 
+  it("answers null for an id Google no longer knows, and keeps that answer", async () => {
+    const google = fakeGoogle({ detailsStatus: 404 })
+    const lookup = createGooglePlaceDetails(KEY, google.fetchImpl)
+    expect(await lookup({ placeId: PALACE_ID })).toBeNull()
+    expect(await lookup({ placeId: PALACE_ID })).toBeNull()
+    expect(google.calls).toHaveLength(1)
+  })
+
+  it("finds the place by name and point when its id is gone", async () => {
+    const moved = "ChIJmovedPlaceId0001"
+    const base = fakeGoogle()
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes(`/places/${moved}?`) ? new Response("", { status: 404 }) : base.fetchImpl(input, init)) as typeof fetch
+    const place = await createGooglePlaceDetails(KEY, fetchImpl)({
+      placeId: moved,
+      fallback: { name: "Gyeongbokgung", near: { lat: 37.5796, lng: 126.977 } },
+    })
+    expect(place?.placeId).toBe(PALACE_ID)
+  })
+
+  it("keeps a 400 a failure, so a broken field mask is never an empty place", async () => {
+    const google = fakeGoogle({ detailsStatus: 400 })
+    await expect(createGooglePlaceDetails(KEY, google.fetchImpl)({ placeId: PALACE_ID })).rejects.toBeInstanceOf(PlaceDetailsUpstreamError)
+  })
+
   describe("with no place id", () => {
     const near = { lat: 37.5796, lng: 126.977 }
 

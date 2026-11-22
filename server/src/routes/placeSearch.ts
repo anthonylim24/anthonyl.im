@@ -41,20 +41,27 @@ export function parseNear(lat: string | undefined, lng: string | undefined): Lat
   return point
 }
 
-/** A place id, else a name with the point it is at; a string says what is wrong with the request. */
+/**
+ * A place id (with the name and point, when sent, to fall back on), else a
+ * name with the point it is at. An id that is not Google's shape (a trip can
+ * hold anything there) gives way to the name and point. A string says what is
+ * wrong with the request.
+ */
 export function parseDetailsQuery(
   placeId: string | undefined,
   name: string | undefined,
   lat: string | undefined,
   lng: string | undefined,
 ): PlaceDetailsQuery | string {
-  const id = placeId?.trim()
-  if (id) return PLACE_ID.test(id) ? { placeId: id } : "placeId is not a Google place id"
+  const id = placeId?.trim().replace(/^places\//, "")
   const tidy = (name ?? "").replace(/\s+/g, " ").trim()
-  if (tidy.length < 2 || tidy.length > MAX_NAME) return `name must be 2–${MAX_NAME} characters, or send a placeId`
   const near = parseNear(lat, lng)
-  if (near === null || near === "invalid") return "lat and lng must be a point on the globe"
-  return { name: tidy, near }
+  const named = tidy && tidy.length <= MAX_NAME && near && near !== "invalid" ? { name: tidy, near } : null
+  if (id && PLACE_ID.test(id)) return named ? { placeId: id, fallback: named } : { placeId: id }
+  if (named) return named
+  if (id) return "placeId is not a Google place id"
+  if (!tidy || tidy.length > MAX_NAME) return `name must be 1–${MAX_NAME} characters, or send a placeId`
+  return "lat and lng must be a point on the globe"
 }
 
 export function createPlaceSearchRouter(deps: PlaceSearchRouterDeps) {

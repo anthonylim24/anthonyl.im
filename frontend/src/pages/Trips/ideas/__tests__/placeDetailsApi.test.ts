@@ -166,7 +166,10 @@ describe("loadPlaceDetails", () => {
     const spy = stubFetch(() => json({ place: palace }))
     expect(await loadPlaceDetails(getToken, byId)).toEqual(palace)
     const [input, init] = spy.mock.calls[0]!
-    expect(String(input)).toContain("/api/places/details?placeId=ChIJod7tSseifDUR9hXHLFNGMIs")
+    const url = new URL(String(input), "https://example.test")
+    expect(url.pathname).toContain("/api/places/details")
+    // The name and point ride along, so a stale id still finds the place.
+    expect(Object.fromEntries(url.searchParams)).toEqual({ placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", name: "Gyeongbokgung", lat: "37.5796", lng: "126.977" })
     expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-token")
   })
 
@@ -200,6 +203,20 @@ describe("loadPlaceDetails", () => {
     })
     const geo = new URL(urls(spy).find((url) => url.includes("geosearch"))!)
     expect(geo.searchParams.get("gscoord")).toBe("37.5796|126.977")
+  })
+
+  it("lets the answer lapse after a while, then asks again", async () => {
+    const spy = stubFetch(() => json({ place: palace }))
+    await loadPlaceDetails(getToken, byId)
+    expect(cachedPlaceDetails(byId, Date.now() + 24 * 60_000)).toEqual(palace)
+    expect(cachedPlaceDetails(byId, Date.now() + 26 * 60_000)).toBeUndefined()
+    await loadPlaceDetails(getToken, byId)
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it("treats a refused id (400) as nothing known, and tries Wikipedia", async () => {
+    stubFetch(() => json({ error: "placeId is not a Google place id" }, 400))
+    expect((await loadPlaceDetails(getToken, detailsTarget(place())!))?.summarySource).toBe("wikipedia")
   })
 
   it("falls back to Wikipedia when the server has no Maps key (503)", async () => {

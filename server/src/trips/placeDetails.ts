@@ -37,7 +37,14 @@ export interface PlaceDetails {
   photos: PlacePhoto[]
 }
 
-export type PlaceDetailsQuery = { placeId: string } | { name: string; near: LatLng }
+/** A place's name and where it is: enough to find it when there is no (working) place id. */
+export interface NamedPoint {
+  name: string
+  near: LatLng
+}
+
+/** By place id, with the name and point to fall back on when Google no longer knows the id; or by name and point alone. */
+export type PlaceDetailsQuery = { placeId: string; fallback?: NamedPoint } | NamedPoint
 
 /** Null: no place we can be sure is the one asked for (a wrong venue is worse than none). */
 export type PlaceDetailsLookup = (query: PlaceDetailsQuery, signal?: AbortSignal) => Promise<PlaceDetails | null>
@@ -89,8 +96,8 @@ const PHOTO_TIMEOUT_MS = 3_500
  * A place id goes into a URL path, so only Google's own alphabet passes.
  * Ids are usually 27 characters; some run longer.
  */
-export const PLACE_ID = /^[A-Za-z0-9_-]{10,256}$/
-const PHOTO_NAME = /^places\/[A-Za-z0-9_-]{10,256}\/photos\/[A-Za-z0-9_-]{10,1024}$/
+export const PLACE_ID = /^[A-Za-z0-9_-]{8,256}$/
+const PHOTO_NAME = /^places\/[A-Za-z0-9_-]{8,256}\/photos\/[A-Za-z0-9_-]{8,1024}$/
 
 const PRICE: Record<string, 0 | 1 | 2 | 3 | 4> = {
   PRICE_LEVEL_FREE: 0,
@@ -350,11 +357,22 @@ export function createGooglePlaceDetails(
   const byId = async (placeId: string, signal?: AbortSignal): Promise<PlaceDetails | null> => {
     const hit = answers.get(placeId)
     if (hit) return hit.value
-    const res = await call(
-      `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=en`,
-      { method: "GET", headers: { "X-Goog-FieldMask": DETAILS_FIELDS } },
-      signal,
-    )
+    let res: Response
+    try {
+      res = await call(
+        `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=en`,
+        { method: "GET", headers: { "X-Goog-FieldMask": DETAILS_FIELDS } },
+        signal,
+      )
+    } catch (err) {
+      // An id Google no longer knows (places move and merge) is an answer: nothing.
+      // A 400 stays a failure, so a broken field mask is never mistaken for an empty place.
+      if (err instanceof PlaceDetailsUpstreamError && err.status === 404) {
+        answers.set(placeId, null, ttlMs)
+        return null
+      }
+      throw err
+    }
     const raw = (await res.json()) as RawDetails
     if (raw.businessStatus === "CLOSED_PERMANENTLY") {
       answers.set(placeId, null, ttlMs)
@@ -368,17 +386,19 @@ export function createGooglePlaceDetails(
     return details
   }
 
-  return async (query, signal) => {
-    if ("placeId" in query) {
-      if (!PLACE_ID.test(query.placeId)) return null
-      return byId(query.placeId, signal)
-    }
-    const key = `${norm(query.name)}|${query.near.lat.toFixed(4)},${query.near.lng.toFixed(4)}`
+  const byName = async ({ name, near }: NamedPoint, signal?: AbortSignal): Promise<PlaceDetails | null> => {
+    const key = `${norm(name)}|${near.lat.toFixed(4)},${near.lng.toFixed(4)}`
     let match = matches.get(key)
     if (!match) {
-      match = { value: await findId(query.name, query.near, signal) }
+      match = { value: await findId(name, near, signal) }
       matches.set(key, match.value, ttlMs)
     }
     return match.value ? byId(match.value, signal) : null
+  }
+
+  return async (query, signal) => {
+    if (!("placeId" in query)) return byName(query, signal)
+    const found = PLACE_ID.test(query.placeId) ? await byId(query.placeId, signal) : null
+    return found ?? (query.fallback ? byName(query.fallback, signal) : null)
   }
 }

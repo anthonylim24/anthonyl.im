@@ -215,11 +215,16 @@ export const d = stylex.create({
     minWidth: 0,
   },
   factIcon: { width: "1.125rem", height: "1.125rem", flexShrink: 0, marginTop: "0.0625rem", color: "var(--trips-ink-tertiary)" },
+  // The whole row is the link: it takes back the row's padding, so the
+  // target is the row's full 44 px height, not one line of text.
   factLink: {
     display: "flex",
     alignItems: "flex-start",
     gap: "0.75rem",
     width: "100%",
+    minHeight: "2.75rem",
+    marginBlock: "-0.625rem",
+    paddingBlock: "0.625rem",
     minWidth: 0,
     color: "var(--brand)",
     fontWeight: 500,

@@ -97,20 +97,28 @@ export function cleanDetails(value: unknown): PlaceDetails | null {
 const withDeadline = (signal: AbortSignal | undefined, ms: number) =>
   signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms)
 
-/** Google, through the server. A 503 (no Maps key) reads as "nothing known", like `place: null`. */
+/**
+ * Statuses that mean "Google can say nothing about this place", like `place:
+ * null`: 503, the server has no Maps key; 400, the idea's id or name is not
+ * one the server can look up (an id from another map service). Retrying
+ * either would never help.
+ */
+const NOTHING_KNOWN = new Set([400, 503])
+
+/** Google, through the server. The name and point ride along with an id, so a place Google has since merged is still found. */
 const fromServer = Effect.fn("PlaceDetails.server")(function* (getToken: GetToken, target: DetailsTarget, signal?: AbortSignal) {
   const params = new URLSearchParams()
   if (target.placeId) params.set("placeId", target.placeId)
-  else {
+  if (target.point) {
     params.set("name", target.name.slice(0, 200))
-    params.set("lat", String(target.point!.lat))
-    params.set("lng", String(target.point!.lng))
+    params.set("lat", String(target.point.lat))
+    params.set("lng", String(target.point.lng))
   }
   const body = yield* requestJson<{ place?: unknown }>(getToken, `/api/places/details?${params}`, {
     signal: withDeadline(signal, SERVER_DEADLINE_MS),
   }).pipe(
     Effect.catchIf(
-      (err): err is HttpStatusError => err instanceof HttpStatusError && err.status === 503,
+      (err): err is HttpStatusError => err instanceof HttpStatusError && NOTHING_KNOWN.has(err.status),
       () => Effect.succeed({ place: null }),
     ),
     Effect.mapError((err) =>
@@ -299,12 +307,23 @@ const fromWikipedia = Effect.fn("PlaceDetails.wikipedia")(function* (target: Det
 
 // ── The loader ───────────────────────────────────────────────────────────
 
-/** Settled answers for this session, by `DetailsTarget.key`. Null: nothing known about the place. */
-const settled = new Map<string, PlaceDetails | null>()
+/**
+ * How long an answer is reused. Google's photo links carry no documented
+ * lifetime, so stay inside the server's own 30 minutes; a tab left open
+ * longer asks again rather than showing photos that may have lapsed.
+ */
+const KEEP_MS = 25 * 60_000
 
-/** What a target's lookup answered earlier this session; undefined when it has not settled. */
-export function cachedPlaceDetails(target: DetailsTarget): PlaceDetails | null | undefined {
-  return settled.get(target.key)
+/** Settled answers by `DetailsTarget.key`. Null: nothing known about the place. */
+const settled = new Map<string, { at: number; details: PlaceDetails | null }>()
+
+/** What a target's lookup answered in the last while; undefined when it has not settled or has lapsed. */
+export function cachedPlaceDetails(target: DetailsTarget, now = Date.now()): PlaceDetails | null | undefined {
+  const hit = settled.get(target.key)
+  if (!hit) return undefined
+  if (now - hit.at < KEEP_MS) return hit.details
+  settled.delete(target.key)
+  return undefined
 }
 
 /** Forget every answer (tests). */
@@ -321,7 +340,7 @@ const loadEffect = Effect.fn("PlaceDetails.load")(function* (getToken: GetToken,
       ? yield* fromWikipedia(target, signal).pipe(Effect.catchAll(() => Effect.succeed(null)))
       : null)
   // An answer cut short by closing the popover is not an answer to keep.
-  if (!signal?.aborted) settled.set(target.key, details)
+  if (!signal?.aborted) settled.set(target.key, { at: Date.now(), details })
   return details
 })
 
@@ -332,7 +351,7 @@ const loadEffect = Effect.fn("PlaceDetails.load")(function* (getToken: GetToken,
  * makes its own requests, so one caller aborting never fails another.
  */
 export function loadPlaceDetails(getToken: GetToken, target: DetailsTarget, signal?: AbortSignal): Promise<PlaceDetails | null> {
-  const known = settled.get(target.key)
+  const known = cachedPlaceDetails(target)
   if (known !== undefined) return Promise.resolve(known)
   return runPromise(loadEffect(getToken, target, signal))
 }

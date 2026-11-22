@@ -163,7 +163,7 @@ describe("GET /api/places/details", () => {
     ["/details?placeId=../../places:searchText", "a path in the id"],
     ["/details?placeId=short", "too short an id"],
     ["/details?name=Tosokchon", "a name with no point"],
-    ["/details?name=T&lat=37&lng=126", "a one-letter name"],
+    ["/details?name=%20%20&lat=37&lng=126", "a blank name"],
     [`/details?name=${"x".repeat(201)}&lat=37&lng=126`, "too long a name"],
     ["/details?name=Tosokchon&lat=91&lng=0", "off the globe"],
   ])("refuses %s (%s)", async (path) => {
@@ -236,7 +236,16 @@ describe("GET /api/places/details", () => {
 })
 
 describe("parseDetailsQuery", () => {
-  it("prefers the place id", () => {
-    expect(parseDetailsQuery("ChIJod7tSseifDUR9hXHLFNGMIs", "Anything", "1", "2")).toEqual({ placeId: "ChIJod7tSseifDUR9hXHLFNGMIs" })
+  const id = "ChIJod7tSseifDUR9hXHLFNGMIs"
+
+  it("takes the place id, keeping the name and point to fall back on", () => {
+    expect(parseDetailsQuery(id, "Gyeongbokgung", "37.5", "126.9")).toEqual({ placeId: id, fallback: { name: "Gyeongbokgung", near: { lat: 37.5, lng: 126.9 } } })
+    expect(parseDetailsQuery(id, undefined, undefined, undefined)).toEqual({ placeId: id })
+    expect(parseDetailsQuery(`places/${id}`, undefined, undefined, undefined)).toEqual({ placeId: id })
+  })
+
+  it("lets an id that is not Google's shape give way to the name and point", () => {
+    expect(parseDetailsQuery("osm:node/123", "숲", "37.5", "126.9")).toEqual({ name: "숲", near: { lat: 37.5, lng: 126.9 } })
+    expect(parseDetailsQuery("osm:node/123", undefined, undefined, undefined)).toBe("placeId is not a Google place id")
   })
 })

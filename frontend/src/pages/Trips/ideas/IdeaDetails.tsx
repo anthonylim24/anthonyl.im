@@ -66,9 +66,10 @@ function usePlaceDetails(target: DetailsTarget | null, getToken: IdeaDetailsProp
   const requestKey = target ? `${target.key}#${attempt}` : ""
   const [answer, setAnswer] = useState<{ key: string; load: DetailsLoad } | null>(null)
   const known = target ? cachedPlaceDetails(target) : null
+  const cached = known !== undefined
 
   useEffect(() => {
-    if (!target || known !== undefined) return
+    if (!target || cached) return
     // The answer belongs to this request: closing the popover or opening
     // another idea aborts it, and a late answer is dropped.
     const controller = new AbortController()
@@ -83,8 +84,9 @@ function usePlaceDetails(target: DetailsTarget | null, getToken: IdeaDetailsProp
     )
     return () => controller.abort()
     // `requestKey` names the place and the attempt; `target` is rebuilt on every edit to the idea.
+    // `cached` turning false (an answer lapsing while open) asks again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, getToken])
+  }, [requestKey, getToken, cached])
 
   const load: DetailsLoad =
     known !== undefined ? { status: "ready", details: known } : answer?.key === requestKey ? answer.load : { status: "loading" }
@@ -370,23 +372,22 @@ function DetailsContent({
           {details?.summary ? (
             <div>
               <p {...sx(d.summary)}>{details.summary}</p>
-              <p {...sx(d.source)}>
-                {details.summarySource === "wikipedia" ? (
-                  details.summaryUrl ? (
+              {details.summarySource === "wikipedia" ? (
+                <p {...sx(d.source)}>
+                  {details.summaryUrl ? (
                     <a href={details.summaryUrl} target="_blank" rel="noopener noreferrer" {...sx(d.creditLink)}>
                       From Wikipedia
                     </a>
                   ) : (
                     "From Wikipedia"
-                  )
-                ) : (
-                  "From Google Maps"
-                )}
-              </p>
+                  )}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
           <Facts details={details} address={address} maps={maps} />
+          {details?.placeId ? <p {...sx(d.source)}>Details and photos from Google Maps</p> : null}
 
           {notes || links.length > 0 ? (
             <div {...sx(d.own)}>

@@ -112,7 +112,7 @@ describe("IdeaDetails", () => {
     expect(within(dialog).getByText("Cultural landmark")).toBeInTheDocument()
     expect(within(dialog).getByText(/Rated 4\.6 out of 5 on Google Maps, from 47,397 reviews/)).toBeInTheDocument()
     expect(within(dialog).getByText("Free")).toBeInTheDocument()
-    expect(within(dialog).getByText("From Google Maps")).toBeInTheDocument()
+    expect(within(dialog).getByText("Details and photos from Google Maps")).toBeInTheDocument()
     expect(within(dialog).getByText(palace.address!)).toBeInTheDocument()
     expect(within(dialog).getByText("Opening hours")).toBeInTheDocument()
     expect(within(dialog).getByRole("link", { name: "royal.khs.go.kr" })).toHaveAttribute("href", "https://royal.khs.go.kr/gbg")
