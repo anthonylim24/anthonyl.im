@@ -4,19 +4,10 @@ import { editorReducer, initialEditor, sameContent, savePatch, type Editor, type
 import type { ItineraryItem, Trip } from "../types"
 import { makeItem, makeTrip } from "./tripFixtures"
 
-// Property check of the save protocol: the real editor reducer, driven
-// through every interleaving fast-check generates with
-//   - the traveller editing (stop notes, day titles, new stops, undo / redo),
-//   - another writer (a second device, the concierge) saving straight to the server,
-//   - the network losing a request, losing an answer, or answering out of order,
-//   - the editor hearing of the other copy by a 409, a refetch or a trip-changed event.
-// The server is `PATCH /api/trips/:id` reduced to what decides the outcome:
-// compare-and-set on `baseUpdatedAt`, 409 with its copy otherwise
-// (server/src/routes/trips.ts). The shell is `useTripEditor`'s save effect:
-// it sends each save request the machine asks for exactly once.
-//
-// Run: cd frontend && bunx vitest run src/pages/Trips/__tests__/saveProtocol.property.test.ts
-// More runs: SAVE_PROTOCOL_RUNS=20000 (same command).
+// Property check of the save protocol: the real editor reducer against a
+// modelled `PATCH /api/trips/:id` (compare-and-set on `baseUpdatedAt`) and
+// `useTripEditor`'s save effect. What each step stands for, how to run it and
+// how to read a counterexample: .agents/skills/verify-trip-save/SKILL.md.
 
 const RUNS = Number(process.env.SAVE_PROTOCOL_RUNS ?? 5000)
 const TIMEOUT_MS = Math.max(30_000, RUNS * 6)

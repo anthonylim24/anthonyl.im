@@ -46,6 +46,7 @@ test('typing while a save is on its way sends each save once', async ({ page, re
     await title.fill('Ky')
     await expect.poll(() => sent.length, { message: 'the first save went out' }).toBe(1)
     await title.fill('Kyoto')
+    // Past the 900 ms save debounce: a repeated PATCH would have gone out by now.
     await page.waitForTimeout(1500)
     release()
 
