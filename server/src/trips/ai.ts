@@ -1645,7 +1645,10 @@ export async function enhanceTrip(args: {
     return finishRun(run, { status: "complete", ...resolved })
   } catch (err) {
     const failure = toReviewAttemptError(err, signal)
-    console.warn(`[trips/ai] review attempt failed (${failure.retryable ? "retryable" : "final"}): ${rawMessage(failure.cause ?? err)}`)
+    // A stopped attempt says why (the worker's deadline, a lost lease, a
+    // shutdown handing it back), not what the cut-off request looked like.
+    const why = rawMessage(signal?.aborted ? signal.reason : (failure.cause ?? err))
+    console.warn(`[trips/ai] review attempt failed (${failure.retryable ? "retryable" : "final"}): ${why}`)
     if (failure.retryable) throw failure
     return finishRun(run, { status: "error", error: failure.message })
   }
