@@ -129,6 +129,7 @@ describe("plausibleName", () => {
     ["Café de Flore", "Cafe de Flore"],
     ["Onion Anguk", "Cafe Onion Anguk"],
     ["Tosokchon Samgyetang", "Tosokchon Samgyetang Restaurant"],
+    ["Jagalchi Fish Market", "Jagalchi Market"],
   ])("accepts %s as %s", (wanted, found) => {
     expect(plausibleName(wanted, found)).toBe(true)
   })
@@ -138,6 +139,7 @@ describe("plausibleName", () => {
     ["Cafe", "Cafe Onion"],
     ["Bo", "Bo Bar"],
     ["Gwangjang Market", "Namdaemun Market"],
+    ["Bo Fish", "Bo Market"],
     ["경복궁", "Gyeongbokgung Palace"],
     ["", "Anything"],
   ])("refuses %s as %s", (wanted, found) => {
@@ -296,7 +298,7 @@ describe("createGooglePlaceDetails", () => {
       expect(place?.placeId).toBe(PALACE_ID)
       const search = google.calls[0]!
       expect(search.url).toBe("https://places.googleapis.com/v1/places:searchText")
-      expect(google.header(search, "X-Goog-FieldMask")).toBe("places.id,places.displayName,places.location")
+      expect(google.header(search, "X-Goog-FieldMask")).toBe("places.id,places.displayName,places.location,places.primaryType")
       const body = JSON.parse(String(search.init.body))
       expect(body).toMatchObject({ textQuery: "Gyeongbokgung", pageSize: 1, languageCode: "en" })
       expect(body.locationBias.circle.center).toEqual({ latitude: 37.5796, longitude: 126.977 })
@@ -309,6 +311,24 @@ describe("createGooglePlaceDetails", () => {
       })
       expect(await createGooglePlaceDetails(KEY, google.fetchImpl)({ name: "Gyeongbokgung Palace", near })).toBeNull()
       expect(google.calls).toHaveLength(1)
+    })
+
+    it("takes a park, mountain or neighbourhood of the same name from kilometres off", async () => {
+      const park = { lat: 37.6584, lng: 126.978 }
+      // Google's point for the park, 4.7 km from where the idea was pinned (measured).
+      const hit = { id: "ChIJBukhansanNationalPk", displayName: { text: "Bukhansan National Park" }, location: { latitude: 37.6994, longitude: 126.9906 }, primaryType: "national_park" }
+      const google = fakeGoogle({ search: [hit] })
+      expect(await createGooglePlaceDetails(KEY, google.fetchImpl)({ name: "Bukhansan National Park", near: park })).not.toBeNull()
+      expect(google.calls[1]!.url).toContain(`/places/${hit.id}`)
+
+      // Only on the same name: a merely similar one stays local.
+      const similar = fakeGoogle({ search: [{ ...hit, displayName: { text: "Bukhansan Dulle-gil Trail Park" } }] })
+      expect(await createGooglePlaceDetails(KEY, similar.fetchImpl)({ name: "Bukhansan Park", near: park })).toBeNull()
+      // And never past the area radius, or for a business.
+      const far = fakeGoogle({ search: [{ ...hit, location: { latitude: 37.79, longitude: 126.99 } }] })
+      expect(await createGooglePlaceDetails(KEY, far.fetchImpl)({ name: "Bukhansan National Park", near: park })).toBeNull()
+      const cafe = fakeGoogle({ search: [{ ...hit, displayName: { text: "Cafe Onion" }, primaryType: "cafe" }] })
+      expect(await createGooglePlaceDetails(KEY, cafe.fetchImpl)({ name: "Cafe Onion", near: park })).toBeNull()
     })
 
     it("answers null when the top hit is close but another place", async () => {

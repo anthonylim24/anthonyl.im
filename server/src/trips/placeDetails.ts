@@ -94,10 +94,21 @@ export const DETAILS_FIELDS = [
 ].join(",")
 
 /** Text Search when there is no place id: the id, name and point are all the match rule needs. */
-const MATCH_FIELDS = "places.id,places.displayName,places.location"
+const MATCH_FIELDS = "places.id,places.displayName,places.location,places.primaryType"
 
 /** How far the top hit may sit from the idea's pin and still be it. */
 export const MATCH_RADIUS_M = 300
+/**
+ * Parks, mountains and neighbourhoods are kilometres across: an idea pinned
+ * anywhere in Bukhansan sits far from Google's point for it (4.7 km, measured).
+ * Such a hit may be this far away, but only when its name is the idea's own.
+ */
+export const AREA_MATCH_RADIUS_M = 10_000
+const AREA_TYPES = new Set([
+  "national_park", "state_park", "park", "hiking_area", "natural_feature", "mountain_peak", "beach", "island",
+  "lake", "river", "neighborhood", "sublocality", "sublocality_level_1", "sublocality_level_2", "locality",
+  "botanical_garden", "garden", "zoo", "campground", "ski_resort", "historical_place", "cultural_landmark",
+])
 export const MAX_PHOTOS = 6
 const PHOTO_WIDTH_PX = 1200
 const TIMEOUT_MS = 5_000
@@ -132,6 +143,7 @@ export interface RawDetails {
   internationalPhoneNumber?: string
   googleMapsUri?: string
   primaryTypeDisplayName?: { text?: string }
+  primaryType?: string
   businessStatus?: string
   photos?: Array<{
     name?: string
@@ -206,13 +218,25 @@ export function plausibleName(wanted: string, found: string): boolean {
   const a = norm(wanted)
   const b = norm(found)
   if (!a || !b) return false
-  if (a === b || sameVenue(wanted, found)) return true
+  if (sameName(wanted, found)) return true
   // A lone short word ("Bo") says too little to stake a venue on.
   const words = a.split(" ").filter((word) => word.length >= 2 && !GENERIC.has(word))
   if (words.length === 0 || (words.length === 1 && words[0]!.length < 4)) return false
   const theirs = new Set(b.split(" "))
   const shared = words.filter((word) => theirs.has(word)).length
-  return shared / words.length >= 0.6
+  if (shared / words.length >= 0.6) return true
+  // Half is enough when the shared half is the name's own head word
+  // ("Jagalchi Fish Market" / "Jagalchi Market"), not a district both
+  // happen to be in ("Onion Anguk" / "London Bagel Museum Anguk").
+  const head = words[0]!
+  return shared / words.length >= 0.5 && head.length >= 4 && theirs.has(head)
+}
+
+/** The same name, folded, or one inside the other as whole words: strong enough to match from further off. */
+export function sameName(wanted: string, found: string): boolean {
+  const a = norm(wanted)
+  const b = norm(found)
+  return Boolean(a && b) && (a === b || sameVenue(wanted, found))
 }
 
 /**
@@ -319,8 +343,10 @@ export function createGooglePlaceDetails(
     const lng = top?.location?.longitude
     const found = text(top?.displayName)
     if (!top?.id || !PLACE_ID.test(top.id) || !found || typeof lat !== "number" || typeof lng !== "number") return null
-    if (haversineMeters(near, { lat, lng }) > MATCH_RADIUS_M) return null
-    return plausibleName(name, found) ? top.id : null
+    const meters = haversineMeters(near, { lat, lng })
+    if (meters <= MATCH_RADIUS_M) return plausibleName(name, found) ? top.id : null
+    const area = top.primaryType !== undefined && AREA_TYPES.has(top.primaryType)
+    return area && meters <= AREA_MATCH_RADIUS_M && sameName(name, found) ? top.id : null
   }
 
   /** One photo's keyless URI, or null when it fails, is slow, or is not what we expect. */

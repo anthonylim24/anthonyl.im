@@ -161,6 +161,7 @@ export const d = stylex.create({
   bodyBare: { paddingTop: "1.25rem" },
   head: { display: "flex", alignItems: "flex-start", gap: "0.5rem", minWidth: 0 },
   headText: { display: "flex", flexDirection: "column", gap: "0.375rem", flexGrow: 1, minWidth: 0 },
+  themeSlot: { alignSelf: "flex-start", maxWidth: "100%", marginTop: "0.25rem" },
   title: {
     fontFamily: "var(--trips-display)",
     fontWeight: 400,

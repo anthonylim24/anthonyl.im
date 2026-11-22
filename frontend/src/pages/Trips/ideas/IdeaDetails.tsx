@@ -344,8 +344,9 @@ function DetailsContent({
               {details?.typeLabel ? <p {...sx(a.eyebrow)}>{details.typeLabel}</p> : null}
               {title}
               <Meta details={details} />
+              {/* Its own line: beside the title it squeezed a long name into a column of letters. */}
+              {themeControl ? <div {...sx(d.themeSlot)}>{themeControl}</div> : null}
             </div>
-            {themeControl}
             {!photoBox ? closeButton(false) : null}
           </div>
 
