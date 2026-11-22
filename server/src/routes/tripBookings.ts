@@ -3,6 +3,7 @@ import { bodyLimit } from "hono/body-limit"
 import { z } from "zod"
 import { createRateLimit, userOrClientKey } from "../middleware/rateLimit"
 import { MAX_PASTE_CHARS, type BookingParser } from "../trips/bookingParse"
+import { todayIn } from "../trips/suggestDays"
 import type { Trip, TripAccess } from "../trips/types"
 
 // POST /api/trips/:id/bookings/parse — read the bookings out of a pasted
@@ -26,13 +27,7 @@ const bodySchema = z.object({ text: z.string() })
 
 const TOO_LONG = `That’s more than ${MAX_PASTE_CHARS.toLocaleString("en-US")} characters. Paste just the part with the booking.`
 
-function todayIn(timezone: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
-  } catch {
-    return new Date().toISOString().slice(0, 10)
-  }
-}
+const today = (timezone: string) => todayIn(timezone, new Date())
 
 export function registerBookingRoutes(trips: Hono, deps: BookingRoutesDeps): void {
   const limit = deps.rateLimit ?? createRateLimit({ windowMs: 10 * 60_000, max: 10, keyPrefix: "trips-booking-parse", key: userOrClientKey })
@@ -55,7 +50,7 @@ export function registerBookingRoutes(trips: Hono, deps: BookingRoutesDeps): voi
     }
     const { trip } = loaded
     try {
-      const bookings = await deps.parse({ text, trip, today: (deps.today ?? todayIn)(trip.timezone) })
+      const bookings = await deps.parse({ text, trip, today: (deps.today ?? today)(trip.timezone) })
       return c.json({ bookings })
     } catch {
       // The parser has already logged which model failed, without the paste.

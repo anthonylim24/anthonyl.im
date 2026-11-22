@@ -912,6 +912,12 @@ body {
   --ta-on: #ffffff;
   --ta-soft: rgb(240 88 43 / 0.1);
   --ta-ring: rgb(240 88 43 / 0.55);
+  /* Wishlist ("Orchid"): places the traveller might fit in, on the map and in
+     its key. Hue 309, about 50° from Poppy (358) and Iris (252), the nearest
+     trip accents, and far from the brand; never a trip accent, so a wishlist
+     heart never reads as a stop. 6.6:1 on raised, 5.8:1 on canvas: safe for
+     text and glyphs. */
+  --trips-wish: #a3238f;
   --radius: 0.875rem;
   color-scheme: light dark;
   background-color: var(--trips-canvas);
@@ -955,6 +961,8 @@ html.dark .trips,
   /* 7.9:1 on --trips-danger; white is 2.3:1 here. */
   --trips-on-danger: #14171a;
   --trips-ok: #4fd1ae;
+  /* 6.8:1 on raised, 7.9:1 on canvas. */
+  --trips-wish: #ea7fdc;
   --brand: #ff9166;
   --brand-soft: rgb(240 88 43 / 0.16);
   --ta: #ff9166;
@@ -1212,6 +1220,38 @@ html.dark .trips .trips-sky-plate > .trips-sky-art,
   transform-origin: 50% 50%;
 }
 
+/* A wishlist place: a hollow paper disc ringed in the wishlist colour with a
+   heart, so it reads apart from a stop without colour (no number, no stem,
+   an outline where stops are filled). Canvas, not raised: raised turns
+   translucent in the Liquid Glass look. */
+.atlas-pin--idea::before {
+  inset: -9px;
+}
+
+.atlas-pin--idea .atlas-pin__body {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--trips-canvas);
+  border-color: var(--trips-wish);
+  color: var(--trips-wish);
+  transform-origin: 50% 50%;
+}
+
+.atlas-pin--idea .atlas-pin__body svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+/* The trip's own places stand over its wishlist. Markers stack in DOM order,
+   so an idea added after the stops would otherwise sit on top of one; hover,
+   hot (2) and active (3) still lift any pin, an idea included. */
+.atlas-pin--stop,
+.atlas-pin--dot {
+  z-index: 1;
+}
+
 .atlas-pin--trip {
   width: 14px;
   height: 14px;
@@ -1273,6 +1313,11 @@ html.dark .trips .trips-sky-plate > .trips-sky-art,
 
 .atlas-pin:focus-visible .atlas-pin__body {
   box-shadow: 0 0 0 3px var(--trips-raised), 0 0 0 5px var(--ta-fill);
+}
+
+/* An idea is chrome's to ring, not the trip's: its own colour is already the ring. */
+.atlas-pin--idea:focus-visible .atlas-pin__body {
+  box-shadow: 0 0 0 3px var(--trips-raised), 0 0 0 5px var(--brand-ring);
 }
 
 .atlas-pin--active {

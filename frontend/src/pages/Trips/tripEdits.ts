@@ -2,7 +2,7 @@ import type { ConciergePlace } from "../../lib/conciergeGrounding"
 import { clockMinutes, dayStarts } from "./dayClock"
 import { LIMITS } from "./limits"
 import { isToSchedule } from "./map/geo"
-import type { ItemStatus, ItineraryItem, ItemKind, Trip, TripDay, TripLocation } from "./types"
+import type { ItemStatus, ItemTheme, ItineraryItem, ItemKind, Trip, TripDay, TripLocation } from "./types"
 
 // Pure itinerary-mutation helpers behind the editor UI. Every function
 // returns new arrays (no in-place mutation) so React state updates and the
@@ -194,6 +194,21 @@ export function addIdea<T extends IdeaDoc>(trip: T, item: ItineraryItem): T {
 export function removeIdea<T extends IdeaDoc>(trip: T, ideaId: string): T {
   const ideas = trip.ideas ?? []
   return ideas.some((i) => i.id === ideaId) ? { ...trip, ideas: ideas.filter((i) => i.id !== ideaId) } : trip
+}
+
+/**
+ * Set an idea's wishlist category, or with null go back to inferring it
+ * (the key is removed, not set to undefined, so the document says nothing).
+ * Unchanged, it returns the same trip, so no empty undo step is recorded.
+ */
+export function setIdeaTheme<T extends IdeaDoc>(trip: T, ideaId: string, theme: ItemTheme | null): T {
+  const ideas = trip.ideas ?? []
+  const idea = ideas.find((i) => i.id === ideaId)
+  if (!idea || (idea.theme ?? null) === theme) return trip
+  const next: ItineraryItem = { ...idea }
+  if (theme) next.theme = theme
+  else delete next.theme
+  return { ...trip, ideas: ideas.map((i) => (i.id === ideaId ? next : i)) }
 }
 
 /** Take a stop off its day and keep it in the ideas list. */

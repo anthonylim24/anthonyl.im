@@ -26,6 +26,8 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap, canRenderMap, loadMapEngine, type AtlasMapProps } from "./map/AtlasMap"
+import { IDEA_PARAM } from "./ideas/contract"
+import { useIdeaNav } from "./ideas/ideaNav"
 import { liveValue, useLiveValue, type LiveValue } from "./workspace/liveValue"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
@@ -34,7 +36,7 @@ import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
-import { centroid, corePoints, searchCenter, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
+import { centroid, corePoints, searchCenter, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, ideaPins, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry } from "./editorMachine"
 import { SaveIndicator } from "./offline/SaveIndicator"
@@ -74,6 +76,7 @@ const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
 const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
+const IdeaOverlay = lazyRetry(() => import("./ideas/IdeaOverlay").then((m) => ({ default: m.IdeaOverlay })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -239,19 +242,19 @@ function Workspace() {
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
+  const ideaNav = useIdeaNav()
   const tab = readOverviewTab(searchParams.get("tab"))
+  // A tab replaces the entry; a wishlist place open on it closes with it, its
+  // own entry gone back from first, so the visit keeps one entry.
+  const { replaceClosing } = ideaNav
   const setTab = useCallback(
     (next: OverviewTab) =>
-      setSearchParams(
-        (prev) => {
-          const params = new URLSearchParams(prev)
-          if (next === "itinerary") params.delete("tab")
-          else params.set("tab", next)
-          return params
-        },
-        { replace: true },
-      ),
-    [setSearchParams],
+      replaceClosing((params) => {
+        if (next === "itinerary") params.delete("tab")
+        else params.set("tab", next)
+        return params
+      }),
+    [replaceClosing],
   )
   /** What this opening of the Instagram import has added: one undo step, one toast. */
   const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
@@ -430,6 +433,10 @@ function Workspace() {
   const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
+  // Wishlist places ride their own prop, on the overview and on a day (what is
+  // near the day). Never in `pins`: they must not frame, count or tour.
+  const ideas = trip?.ideas
+  const wishPins = useMemo(() => ideaPins({ ideas }), [ideas])
   const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
   const cardCovers = !wide && focusPin !== undefined && cardInset > MAP_PADDING_NARROW.bottom
   const mapPadding = wide ? MAP_PADDING : cardCovers ? { ...MAP_PADDING_NARROW, bottom: cardInset } : MAP_PADDING_NARROW
@@ -1104,6 +1111,9 @@ function Workspace() {
               setActiveId(id)
               setFocusId(null)
             }}
+            ideaPins={wishPins}
+            // One history entry per opening: Back closes the wishlist place again.
+            onSelectIdea={(ideaId) => ideaNav.open(ideaId, "map")}
             label={
               day
                 ? `Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`
@@ -1281,6 +1291,13 @@ function Workspace() {
         <OverlayBoundary onError={overlayFailed("The recap", () => setRecapOpen(false))}>
           <Suspense fallback={null}>
             <TripRecap open trip={trip} onClose={() => setRecapOpen(false)} />
+          </Suspense>
+        </OverlayBoundary>
+      )}</Presence>
+      <Presence when={searchParams.has(IDEA_PARAM)}>{() => (
+        <OverlayBoundary onError={overlayFailed("The wishlist place", ideaNav.close)}>
+          <Suspense fallback={null}>
+            <IdeaOverlay trip={trip} editable={editable} locked={locked} getToken={editor.readToken} onEdit={editor.edit} />
           </Suspense>
         </OverlayBoundary>
       )}</Presence>

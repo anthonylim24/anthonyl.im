@@ -26,6 +26,8 @@ colors:
   accent-emerald-jade: "#0f9b76"
   accent-sky-cobalt: "#2f7bf0"
   accent-violet-iris: "#7c5cff"
+  trips-wish: "#a3238f"
+  trips-wish-dark: "#ea7fdc"
 typography:
   display: "Instrument Serif (--trips-display); italic for the emphasised word"
   mono: "Fragment Mono (--trips-mono): eyebrows, coordinates, data"
@@ -93,6 +95,8 @@ Two accents, never mixed.
 | `sky` | Cobalt | `#2f7bf0` | |
 | `violet` | Iris | `#7c5cff` | |
 
+**Wishlist** (`--trips-wish`, Orchid: `#a3238f` light / `#ea7fdc` dark, hue ~308°, at least 50° from every trip accent and far from the brand; 4.5:1 or better on canvas, raised and the basemap in both themes). Wishlist places on the map only: never a trip accent, never chrome.
+
 Vars: `--ta` (text-safe, 4.5:1 on canvas and surface), `--ta-fill` (pins, route, cover art), `--ta-on` (ink on the fill), `--ta-soft` (tint), `--ta-ring`. Labels and helpers live in `meta.ts` (`TRIP_ACCENTS`, `ACCENT_LABEL`, `resolveAccent`).
 
 ## Map (`frontend/src/pages/Trips/map/`)
@@ -100,11 +104,12 @@ Vars: `--ta` (text-safe, 4.5:1 on canvas and surface), `--ta-fill` (pins, route,
 - **`AtlasMap.tsx`**: React host. Lazy-loads `engine.ts`, so the `maplibre` chunk loads with the first map, not with the route.
 - **`engine.ts`**: `createAtlasMap`. Owns the MapLibre instance, pins, route line and camera (fly-to, fit bounds, tilted arrival frames at pitch 52 for city-scale spans, ambient spin on the index globe). `renderStills` renders index card covers from one off-screen map.
 - **`mapStyle.ts`**: custom two-palette basemap (light and dark) over OpenFreeMap OpenMapTiles. Globe projection with atmosphere at low zoom; extruded 3D buildings from zoom ~13.2.
-- **`geo.ts`**: pure helpers (`dayPins`, `tripPins`, `tripDots`, `dayRoute`, `centroid`, `formatCoord`, `projectToBox`).
+- **`geo.ts`**: pure helpers (`dayPins`, `tripPins`, `tripDots`, `ideaPins`, `dayRoute`, `centroid`, `formatCoord`, `projectToBox`).
 - **`map.stylex.ts`**: map frame, place card, phone map toggle.
 - Pins are DOM buttons styled by `.atlas-pin*` in `index.css`.
 - Overview map: one numbered pin per day at that day's centroid (click opens the day) over small dots for every stop. No routes.
 - Day map: numbered stop pins plus the route. One shallow arc per leg (deduplicated), a solid 3px trip-accent line on a paper casing, small direction chevrons.
+- Wishlist places (overview and day maps): a hollow paper disc ringed in Orchid with a filled heart, under the stops, so colour is never the only difference. They travel on `AtlasMap`'s `ideaPins`, never `pins`: they never frame the camera, count as stops or join the tour. Picking one opens its details (`?idea=<id>`). A mono "♥ Wishlist · N" key under the map controls hides or shows them, remembered per device (`trips-map-wishlist`). The fallback chart draws them as buttons inside the stops' frame.
 - Index globe: trip chips that flip side past the globe's midline. No basemap labels, a CSS limb shade, and at rest it faces the next trip.
 - Hovering a list item lifts its pin. Clicking a stop pin flies the camera to it and opens a place card: the stop's photo bled to its edges, "Stop N of M" (its eyebrow parts kept whole, the "·" ending its line, so no line starts with one; the category always takes its own line, the card being narrow at every width: "STOP 5 OF 9 · 3:30 PM" / "NEIGHBORHOOD"), Directions, Edit stop, and previous / next stepping that flies the camera. The day map's chip counts stops, as the day header does ("Day 1 · Kyoto · 9 stops", "6 of 9 stops" while some have no pin). Below 1024 px the card spans the foot of the map, so a stop flown to is framed above it (the fly-to's bottom padding is the card's height).
 - The photoreal 3D view (`pages/Trips/photoreal/`, "Fly the day") is a separate full-screen mode on Google 3D Tiles, opened from a day's "…" menu as "Fly the day in 3D" when `photorealAvailable()` is true (a Google tiles / Places key and WebGL2; always in dev). It must unmount when closed.

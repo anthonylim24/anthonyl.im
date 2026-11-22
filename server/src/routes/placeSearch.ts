@@ -1,5 +1,6 @@
 import { Hono, type MiddlewareHandler } from "hono"
 import type { LatLng } from "../trips/conciergeTools"
+import { PLACE_ID, PlaceDetailsUpstreamError, type PlaceDetailsLookup, type PlaceDetailsQuery } from "../trips/placeDetails"
 import type { PlaceTypeahead } from "../trips/placeSearch"
 
 // ── /api/places router ───────────────────────────────────────────────────
@@ -8,17 +9,27 @@ import type { PlaceTypeahead } from "../trips/placeSearch"
 // place fields. Signed-in users only (it spends the Maps key). It has its
 // own rate limit: a search runs per pause in typing, and sharing the trips
 // bucket would let a long search starve saves.
+//
+// GET /details?placeId=… (or ?name=…&lat=…&lng=…) — photos, summary, rating,
+// hours and links for the wishlist's details popover. A tighter bucket of its
+// own: each answer bills Place Details at its top tier plus up to six photos.
 
 export interface PlaceSearchRouterDeps {
   /** Resolves the Authorization header to a userId, or null. */
   verifyAuth: (authHeader: string | undefined) => Promise<string | null>
   /** Null when the server has no Maps key: the client keeps its OpenStreetMap results. */
   search: PlaceTypeahead | null
-  /** Runs after the auth gate, so it can key on the signed-in user. */
+  /** Runs after the auth gate, so it can key on the signed-in user. Applies to /search only. */
   rateLimit?: MiddlewareHandler
+  /** Null (or absent) when the server has no Maps key: the client falls back to Wikipedia or the idea's own notes. */
+  details?: PlaceDetailsLookup | null
+  /** /details' own bucket, after the auth gate. */
+  detailsRateLimit?: MiddlewareHandler
 }
 
 export const MAX_QUERY = 120
+/** The longest place name /details will look up. */
+export const MAX_NAME = 200
 
 /** `lat` / `lng` as a bias point: both or neither, and on the globe. */
 export function parseNear(lat: string | undefined, lng: string | undefined): LatLng | null | "invalid" {
@@ -30,6 +41,37 @@ export function parseNear(lat: string | undefined, lng: string | undefined): Lat
   return point
 }
 
+/**
+ * A place id (with the name and point, when sent, to fall back on), else a
+ * name with the point it is at. An id that is not Google's shape (a trip can
+ * hold anything there) gives way to the name and point. A string says what is
+ * wrong with the request.
+ */
+export function parseDetailsQuery(
+  placeId: string | undefined,
+  name: string | undefined,
+  lat: string | undefined,
+  lng: string | undefined,
+): PlaceDetailsQuery | string {
+  const id = placeId?.trim().replace(/^places\//, "")
+  const tidy = (name ?? "").replace(/\s+/g, " ").trim()
+  const near = parseNear(lat, lng)
+  const named = tidy && tidy.length <= MAX_NAME && near && near !== "invalid" ? { name: tidy, near } : null
+  if (id && PLACE_ID.test(id)) return named ? { placeId: id, fallback: named } : { placeId: id }
+  if (named) return named
+  if (id) return "placeId is not a Google place id"
+  if (!tidy || tidy.length > MAX_NAME) return `name must be 1–${MAX_NAME} characters, or send a placeId`
+  return "lat and lng must be a point on the globe"
+}
+
+/**
+ * The client hung up (a popover closed, a newer keystroke): not a failure,
+ * so nothing is logged and the answer, which nobody reads, is not a 5xx.
+ * Checked on the request's own signal, not the error's name: a timeout is a
+ * real failure and still answers 502.
+ */
+const clientGone = () => new Response(null, { status: 499 })
+
 export function createPlaceSearchRouter(deps: PlaceSearchRouterDeps) {
   const places = new Hono()
 
@@ -39,7 +81,8 @@ export function createPlaceSearchRouter(deps: PlaceSearchRouterDeps) {
     c.set("userId" as never, userId as never)
     await next()
   })
-  if (deps.rateLimit) places.use("*", deps.rateLimit)
+  if (deps.rateLimit) places.use("/search", deps.rateLimit)
+  if (deps.detailsRateLimit) places.use("/details", deps.detailsRateLimit)
 
   places.get("/search", async (c) => {
     const query = (c.req.query("q") ?? "").replace(/\s+/g, " ").trim()
@@ -50,8 +93,24 @@ export function createPlaceSearchRouter(deps: PlaceSearchRouterDeps) {
     try {
       return c.json({ places: await deps.search({ query, near, signal: c.req.raw.signal }) })
     } catch (err) {
+      if (c.req.raw.signal.aborted) return clientGone()
       console.warn("[places] search failed:", err instanceof Error ? err.message : err)
       return c.json({ error: "place search failed" }, 502)
+    }
+  })
+
+  places.get("/details", async (c) => {
+    const query = parseDetailsQuery(c.req.query("placeId"), c.req.query("name"), c.req.query("lat"), c.req.query("lng"))
+    if (typeof query === "string") return c.json({ error: query }, 400)
+    if (!deps.details) return c.json({ error: "place details unavailable" }, 503)
+    try {
+      return c.json({ place: await deps.details(query, c.req.raw.signal) })
+    } catch (err) {
+      if (c.req.raw.signal.aborted) return clientGone()
+      // The status alone: an error from fetch can quote the URL it was sent to.
+      const reason = err instanceof PlaceDetailsUpstreamError ? `upstream ${err.status}` : err instanceof Error ? err.name : "unknown"
+      console.warn("[places] details failed:", reason)
+      return c.json({ error: "place details failed" }, 502)
     }
   })
 

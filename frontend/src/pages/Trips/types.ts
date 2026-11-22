@@ -5,6 +5,9 @@ export type CollaboratorRole = "viewer" | "editor"
 export type LocationSource = "user" | "ai" | "migration"
 export type ConfidenceLevel = "high" | "medium" | "low"
 export type ItemKind = "place" | "note" | "section" | "reservation"
+/** What kind of outing a wishlist idea is (server `ITEM_THEMES`; keep the two in step). */
+export const ITEM_THEMES = ["food", "nature", "sights", "neighborhood", "shopping", "nightlife", "activity", "other"] as const
+export type ItemTheme = (typeof ITEM_THEMES)[number]
 export type ItemStatus = "none" | "optional" | "booked" | "completed" | "skipped" | "needs_review"
 export type TripAccess = "none" | "view" | "edit" | "owner"
 
@@ -79,6 +82,8 @@ export interface ItineraryItem {
   cost?: Money
   /** The traveller loved it: kept for the trip's recap. */
   highlight?: boolean
+  /** The traveller's own wishlist category; absent means "infer from the place" (`ideas/themes.ts`). */
+  theme?: ItemTheme
   createdBy: LocationSource
 }
 

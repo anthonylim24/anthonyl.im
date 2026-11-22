@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 import {
+  boxProjection,
   centroid,
+  ideaPins,
+  sliceView,
+  pinsKey,
   searchCenter,
   dayPins,
   dayRoute,
@@ -194,6 +198,71 @@ describe("projectToBox", () => {
     // A purely horizontal spread fills the usable width.
     expect(west!.x).toBeCloseTo(20, 6)
     expect(east!.x).toBeCloseTo(380, 6)
+  })
+})
+
+describe("sliceView", () => {
+  it("crops the overflow evenly on both sides", () => {
+    expect(sliceView(800, 300, 400, 300)).toEqual({ left: 0, top: 75, right: 400, bottom: 225 })
+    expect(sliceView(300, 600, 400, 300)).toEqual({ left: 125, top: 0, right: 275, bottom: 300 })
+    expect(sliceView(400, 300, 400, 300)).toEqual({ left: 0, top: 0, right: 400, bottom: 300 })
+  })
+
+  it("knows nothing before the box is laid out", () => {
+    expect(sliceView(0, 0, 400, 300)).toBeNull()
+  })
+})
+
+describe("boxProjection", () => {
+  it("has nothing to fit with no points", () => {
+    expect(boxProjection([], 400, 300, 56)).toBeNull()
+  })
+
+  it("places other points in the frame its points set, without refitting", () => {
+    const frame = [{ lat: 0, lng: 0 }, { lat: 0, lng: 10 }]
+    const project = boxProjection(frame, 400, 300, 20)!
+    expect(frame.map(project)).toEqual(projectToBox(frame, 400, 300, 20))
+    // Halfway between the two is the middle; twice as far east runs off the right edge.
+    expect(project({ lat: 0, lng: 5 }).x).toBeCloseTo(200, 6)
+    expect(project({ lat: 0, lng: 20 }).x).toBeGreaterThan(400)
+  })
+})
+
+describe("ideaPins", () => {
+  const ideas = [
+    item("ramen", "Ramen Jiro", A),
+    item("unpinned", "Somewhere nice"),
+    item("broken", "Broken point", undefined, { location: { name: "Broken", lat: Number.NaN, lng: 2, source: "user" } }),
+    item("named", "", B, { location: { name: "Named place", lat: B.lat, lng: B.lng, source: "user" } }),
+  ]
+
+  it("pins every idea with a finite point, in list order, as an idea", () => {
+    expect(ideaPins({ ideas })).toEqual([
+      { id: "ramen", lat: A.lat, lng: A.lng, title: "Ramen Jiro", variant: "idea" },
+      { id: "named", lat: B.lat, lng: B.lng, title: "Named place", variant: "idea" },
+    ])
+  })
+
+  it("keeps the idea's own id, so a pick names the idea", () => {
+    expect(ideaPins({ ideas }).map((pin) => pin.id)).toEqual(["ramen", "named"])
+  })
+
+  it("never leaves a pin unnamed", () => {
+    const blank = item("blank", " ", A, { location: { name: "", lat: A.lat, lng: A.lng, source: "user" } })
+    expect(ideaPins({ ideas: [blank] })[0]?.title).toBe("Untitled place")
+  })
+
+  it("has none for a trip with no wishlist", () => {
+    expect(ideaPins({})).toEqual([])
+    expect(ideaPins({ ideas: [] })).toEqual([])
+  })
+
+  it("changes its key when an idea is added, moved or renamed, and only then", () => {
+    const key = pinsKey(ideaPins({ ideas }))
+    expect(pinsKey(ideaPins({ ideas: [...ideas] }))).toBe(key)
+    expect(pinsKey(ideaPins({ ideas: [...ideas, item("more", "More", { lat: 1, lng: 1 })] }))).not.toBe(key)
+    expect(pinsKey(ideaPins({ ideas: [item("ramen", "Ramen Jiro", B), ...ideas.slice(1)] }))).not.toBe(key)
+    expect(pinsKey(ideaPins({ ideas: [item("ramen", "Ichiran", A), ...ideas.slice(1)] }))).not.toBe(key)
   })
 })
 

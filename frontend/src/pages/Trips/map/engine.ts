@@ -24,6 +24,8 @@ export interface AtlasMapOptions {
   flat?: boolean
   onSelect?: (id: string) => void
   onHover?: (id: string | null) => void
+  /** A wishlist pin was picked, with the idea's id. */
+  onSelectIdea?: (ideaId: string) => void
   onReady?: () => void
   /** Fires when the camera settles, with whether it is tilted into 3D. */
   onTilt?: (tilted: boolean) => void
@@ -39,6 +41,12 @@ export interface FrameOptions {
 
 export interface AtlasMapHandle {
   setPins(pins: readonly AtlasPin[]): void
+  /**
+   * Wishlist pins: their own marker set, drawn under the stops. They never
+   * frame the camera, join the declutter or the label guard, or light up
+   * as the active or hovered stop.
+   */
+  setIdeaPins(pins: readonly AtlasPin[]): void
   setRoute(lines: readonly LngLat[][]): void
   /** Small non-interactive dots (every stop on the overview). */
   setDots(points: readonly LngLat[]): void
@@ -95,14 +103,35 @@ function pinElement(pin: AtlasPin): HTMLButtonElement {
   return el
 }
 
+/** Lucide's heart, the wishlist's mark inside its pins. */
+const HEART = "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"
+
+function heart(): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+  svg.setAttribute("viewBox", "0 0 24 24")
+  svg.setAttribute("aria-hidden", "true")
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
+  path.setAttribute("d", HEART)
+  svg.appendChild(path)
+  return svg
+}
+
 function applyPin(el: HTMLButtonElement, pin: AtlasPin) {
   el.className = `atlas-pin atlas-pin--${pin.variant ?? "stop"}${pin.fresh ? " atlas-pin--fresh" : ""}`
-  el.setAttribute("aria-label", pin.title)
-  el.dataset.pinId = pin.id
   if (pin.accent) el.dataset.tripAccent = pin.accent
   else delete el.dataset.tripAccent
   const body = el.firstElementChild ?? el.appendChild(document.createElement("span"))
   body.className = "atlas-pin__body"
+  if (pin.variant === "idea") {
+    // A wishlist place: named as one, with the plain name on hover.
+    el.setAttribute("aria-label", `${pin.title}, on the wishlist`)
+    el.title = pin.title
+    el.dataset.ideaId = pin.id
+    if (!body.firstElementChild) body.replaceChildren(heart())
+    return
+  }
+  el.setAttribute("aria-label", pin.title)
+  el.dataset.pinId = pin.id
   body.textContent = pin.variant === "trip" ? pin.title : (pin.label ?? "")
   if (el.classList.contains("atlas-pin--flip-keep")) el.classList.add("atlas-pin--flip")
 }
@@ -124,6 +153,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   /** The user has moved the camera since the last programmatic frame. */
   let touched = false
   const pins = new Map<string, PinEntry>()
+  /** Wishlist pins, kept apart from `pins` so nothing that reads stops sees them. */
+  const ideas = new Map<string, PinEntry>()
 
   const map = new MapLibre({
     container,
@@ -466,6 +497,32 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       declutter()
       ;(map.getSource(GUARD_SOURCE) as GeoJSONSource | undefined)?.setData(guardData())
     },
+    setIdeaPins(next) {
+      const seen = new Set<string>()
+      for (const pin of next) {
+        seen.add(pin.id)
+        const existing = ideas.get(pin.id)
+        if (existing) {
+          const moved = existing.pin.lat !== pin.lat || existing.pin.lng !== pin.lng
+          existing.pin = pin
+          applyPin(existing.el, pin)
+          if (moved) existing.marker.setLngLat([pin.lng, pin.lat])
+          continue
+        }
+        const el = pinElement(pin)
+        el.addEventListener("click", (event) => {
+          event.stopPropagation()
+          options.onSelectIdea?.(pin.id)
+        })
+        const marker = new Marker({ element: el, anchor: "center", subpixelPositioning: true }).setLngLat([pin.lng, pin.lat]).addTo(map)
+        ideas.set(pin.id, { pin, marker, el })
+      }
+      for (const [id, entry] of ideas) {
+        if (seen.has(id)) continue
+        entry.marker.remove()
+        ideas.delete(id)
+      }
+    },
     setDots(points) {
       dots = points
       const source = map.getSource(DOTS_SOURCE) as GeoJSONSource | undefined
@@ -590,7 +647,9 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       destroyed = true
       if (spinFrame) cancelAnimationFrame(spinFrame)
       for (const entry of pins.values()) entry.marker.remove()
+      for (const entry of ideas.values()) entry.marker.remove()
       pins.clear()
+      ideas.clear()
       map.remove()
     },
   }
