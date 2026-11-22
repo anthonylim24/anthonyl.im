@@ -919,7 +919,9 @@ body {
      text and glyphs. */
   --trips-wish: #a3238f;
   --radius: 0.875rem;
-  color-scheme: light dark;
+  /* Follows the theme Trips is in (html.dark), not the OS: a native checkbox
+     drawn dark on the light theme reads as ticked. */
+  color-scheme: light;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
   caret-color: var(--brand-fill);
@@ -936,6 +938,7 @@ body {
 html.dark .trips,
 .trips.dark,
 :root.dark .trips {
+  color-scheme: dark;
   --trips-canvas: #0b0d10;
   --trips-surface: #13161a;
   --trips-raised: #1a1e23;
