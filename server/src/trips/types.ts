@@ -352,6 +352,10 @@ export const REVIEW_ATTEMPT_DEADLINE_MS = 4 * 60_000
 export const REVIEW_RETRY_BACKOFF_MS = [5_000, 30_000] as const
 /** A queued run older than this reads as failed: no worker took it. */
 export const QUEUED_RUN_MAX_MS = 30 * 60_000
+/** No attempt starts on a run older than this, so every attempt ends (by its
+ *  deadline) before readers call the run failed: a run shown as failed never
+ *  writes the trip afterwards. Such a run is failed instead of claimed. */
+export const REVIEW_CLAIM_MAX_AGE_MS = QUEUED_RUN_MAX_MS - REVIEW_ATTEMPT_DEADLINE_MS - 60_000
 
 function runBase(run: EnhancementRunBase): EnhancementRunBase {
   return {

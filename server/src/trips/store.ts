@@ -1,6 +1,6 @@
 import { config } from "../config"
 import { createSupabaseClient, type SupabaseClient } from "../igPlaces/supabase"
-import { QUEUED_RUN_MAX_MS } from "./types"
+import { QUEUED_RUN_MAX_MS, REVIEW_CLAIM_MAX_AGE_MS } from "./types"
 import type {
   CompleteEnhancementRun,
   EnhancementRun,
@@ -217,11 +217,17 @@ export class MemoryTripStore implements TripStore {
     for (const [id, row] of due) {
       const run = this.runs.get(id)
       if (!run || run.status !== "running") continue
-      if (row.attempts >= row.maxAttempts) {
-        // Out of attempts: the last one died with its lease. Fail it for good.
+      const tooOld = now - Date.parse(run.createdAt) >= REVIEW_CLAIM_MAX_AGE_MS
+      if (row.attempts >= row.maxAttempts || tooOld) {
+        // Out of attempts (the last one died with its lease), or too old to
+        // finish before readers call it failed. Fail it for good.
         row.state = "done"
         row.lockedBy = null
-        const lastError = row.lastError ?? "The AI review stopped before it finished."
+        const lastError =
+          row.lastError ??
+          (tooOld
+            ? "The AI review was interrupted. Nothing in your itinerary changed, so you can run it again."
+            : "The AI review stopped before it finished.")
         this.sync(id, {
           ...run,
           status: "error",

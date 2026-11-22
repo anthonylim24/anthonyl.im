@@ -790,7 +790,8 @@ end $$;
 
 -- Claim one due review for p_worker, leased for p_lease_sec. Returns 0 or 1
 -- row. A due review is queued with run_after passed, or working with a lapsed
--- lease (its worker died). A review out of attempts is failed instead.
+-- lease (its worker died). A review out of attempts, or too old to finish
+-- before readers call it failed (REVIEW_CLAIM_MAX_AGE_MS), is failed instead.
 -- p_run_id claims only that run. Legacy rows (queue_state null) and runs
 -- whose doc is no longer 'running' are left alone.
 create or replace function public.trip_review_claim(p_worker text, p_lease_sec int, p_run_id text default null)
@@ -805,7 +806,9 @@ begin
      where (p_run_id is null or t.id = p_run_id)
        and t.queue_state is not null
        and t.doc->>'status' = 'running'
-       and t.attempts >= t.max_attempts
+       and (t.attempts >= t.max_attempts
+            -- REVIEW_CLAIM_MAX_AGE_MS: too old to finish before readers call it failed.
+            or t.created_at < now() - interval '25 minutes')
        and (t.queue_state = 'queued' or (t.queue_state = 'working' and t.locked_until < now()))
      for update skip locked
   loop
@@ -814,7 +817,10 @@ begin
     r.locked_until := null;
     r.doc := r.doc || jsonb_build_object(
       'status', 'error',
-      'error', coalesce(r.last_error, 'The AI review stopped before it finished.'),
+      'error', coalesce(r.last_error,
+                        case when r.attempts >= r.max_attempts
+                             then 'The AI review stopped before it finished.'
+                             else 'The AI review was interrupted. Nothing in your itinerary changed, so you can run it again.' end),
       'outcome', 'no_adds_possible',
       'outcomeReason', 'The AI review failed before it could add places.');
     perform public.trip_review_save(r);
@@ -826,6 +832,7 @@ begin
      and t.queue_state is not null
      and t.doc->>'status' = 'running'
      and t.attempts < t.max_attempts
+     and t.created_at >= now() - interval '25 minutes'
      and ((t.queue_state = 'queued' and t.run_after <= now())
           or (t.queue_state = 'working' and t.locked_until < now()))
    order by t.run_after

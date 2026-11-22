@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createSupabaseClient, type SupabaseClient } from "../igPlaces/supabase"
 import { isNotProvisionedError, MemoryTripStore, type ReviewClaim, SupabaseTripStore } from "./store"
-import { finishRun, QUEUED_RUN_MAX_MS, RUN_FAILED_REASON, type RunningEnhancementRun, type Trip } from "./types"
+import { finishRun, QUEUED_RUN_MAX_MS, REVIEW_CLAIM_MAX_AGE_MS, RUN_FAILED_REASON, type RunningEnhancementRun, type Trip } from "./types"
 
 const T0 = Date.parse("2026-11-21T10:00:00.000Z")
 const iso = (ms: number) => new Date(ms).toISOString()
@@ -75,6 +75,18 @@ describe("MemoryTripStore review queue", () => {
     clock.now += 1
     expect(await store.enqueueReview(pending("r3"), { scope: "trip" }, 3)).toMatchObject({ inserted: true, run: { id: "r3" } })
     expect(await store.getRun("t1", "r1")).toMatchObject({ status: "error", queue: { state: "done" } })
+  })
+
+  test("a run too old to finish before readers call it failed is failed, not claimed", async () => {
+    const { store, clock } = queueAt()
+    await store.enqueueReview(pending("r1"), { scope: "trip" }, 3)
+    clock.now += REVIEW_CLAIM_MAX_AGE_MS
+    expect(await store.claimReview("w1", LEASE)).toBeNull()
+    expect(await store.getRun("t1", "r1")).toMatchObject({
+      status: "error",
+      error: "The AI review was interrupted. Nothing in your itinerary changed, so you can run it again.",
+      queue: { state: "done", attempt: 0 },
+    })
   })
 
   test("doc.queue mirrors each step on the stored run", async () => {
