@@ -82,8 +82,10 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
   const [, setSearchParams] = useSearchParams()
   const [announcement, setAnnouncement] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
-  const [grouping, setGrouping] = useState<Grouping>(readGrouping)
+  const [chosenGrouping, setGrouping] = useState<Grouping>(readGrouping)
   const ideas = useMemo(() => trip.ideas ?? [], [trip.ideas])
+  // One idea has nothing to sort into groups (and no control to say how it is grouped).
+  const grouping = ideas.length > 1 ? chosenGrouping : "none"
   const full = ideasFull(trip)
 
   const themes = useMemo(() => new Map(ideas.map((idea) => [idea.id, themeOf(idea)])), [ideas])

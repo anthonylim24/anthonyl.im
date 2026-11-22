@@ -65,20 +65,39 @@ const EXACT: Record<string, FromCategory> = {
   experience: { theme: "activity", vague: true },
 }
 
+/**
+ * Whole `_`-separated words of a raw type, so `speakeasy` is not a peak,
+ * `public_bath` not a pub and `campus` not a campsite. A word may span
+ * tokens (`theme_park`).
+ */
+const words = (list: string) => new RegExp(`(?:^|_)(?:${list})(?:$|_)`)
+
 /** Raw types, first match wins. Order matters: `amusement_park` is an outing before it is a park. */
 const RAW_TYPES: ReadonlyArray<[RegExp, ItemTheme]> = [
-  [/parking|lodging|hotel|hostel|motel|guest_house|airport|station|transit|bus_stop|car_rental|gas_station|atm|bank|hospital|pharmacy/, "other"],
-  [/amusement|theme_park|water_park|zoo|aquarium|(^|_)spa($|_)|sauna|hot_spring|onsen|jjimjilbang|tour|theat(er|re)|cinema|movie|concert|performing_arts|stadium|arena|bowling|golf|ski|casino|escape_room|workshop|class/, "activity"],
-  [/restaurant|cafe|coffee|bakery|bistro|diner|food|meal|tea_house|dessert|ice_cream|patisserie|pastry|confection|(^|_)deli($|_)|juice|brunch|grill|^(food_|farmers_|night_)?market$/, "food"],
-  [/(^|_)bar($|_)|pub|night_?club|wine|brewery|cocktail|lounge|karaoke|izakaya|jazz/, "nightlife"],
-  [/store|shop|mall|boutique|outlet|department|supermarket|duty_free|flea_market/, "shopping"],
-  [/hiking|trail|park|garden|beach|nature|forest|mountain|peak|lake|waterfall|island|camp|botanical|reserve|valley|canyon|cave/, "nature"],
-  [/museum|gallery|palace|castle|temple|shrine|church|cathedral|chapel|basilica|mosque|synagogue|pagoda|monastery|worship|monument|memorial|histor|landmark|attraction|viewpoint|observ|lookout|tower|ruins|heritage|cultural/, "sights"],
-  [/neighbou?rhood|sublocality|locality|district|quarter|street|route/, "neighborhood"],
+  [words("parking|lodging|hotel|hostel|motel|guest_house|airport|station|transit|bus_stop|car_rental|atm|bank|hospital|pharmacy"), "other"],
+  [
+    words("amusement_park|amusement_center|theme_park|water_park|zoo|aquarium|spa|sauna|hot_spring|onsen|jjimjilbang|tour|tours|theat(?:er|re)|cinema|movie_theater|concert_hall|performing_arts|stadium|arena|bowling_alley|golf_course|ski_resort|casino|escape_room|workshop|class"),
+    "activity",
+  ],
+  [
+    words("restaurant|cafe|cafeteria|coffee|coffee_shop|bakery|bistro|diner|food|food_court|meal_takeaway|meal_delivery|tea_house|dessert|dessert_shop|ice_cream|patisserie|pastry|confectionery|deli|juice_shop|brunch|bar_and_grill|steak_house|steakhouse|pizzeria|market|food_market|farmers_market|night_market"),
+    "food",
+  ],
+  [words("bar|pub|night_?club|lounge|karaoke|brewery|brewpub|izakaya|jazz_club|beer_garden|biergarten|speakeasy"), "nightlife"],
+  [words("store|shop|shopping|shopping_mall|mall|boutique|outlet|department_store|supermarket|duty_free|flea_market|bookstore"), "shopping"],
+  [
+    words("hiking_area|hiking|trail|park|national_park|state_park|garden|botanical_garden|beach|nature|nature_reserve|reserve|forest|mountain|mountain_peak|peak|lake|waterfall|island|campground|camping|valley|canyon|cave"),
+    "nature",
+  ],
+  [
+    words("museum|art_gallery|gallery|palace|castle|temple|shrine|church|cathedral|chapel|basilica|mosque|synagogue|pagoda|monastery|place_of_worship|monument|memorial|historic|historical|landmark|attraction|viewpoint|observation_deck|observatory|lookout|scenic_spot|tower|ruins|heritage|cultural_center|cultural"),
+    "sights",
+  ],
+  [words("neighbou?rhood|sublocality|locality|district|quarter|street|route"), "neighborhood"],
 ]
 
 /** Vague raw types: a likely theme the name may overrule. */
-const VAGUE_RAW = /attraction|landmark|viewpoint|observ|lookout|scenic|experience/
+const VAGUE_RAW = words("attraction|landmark|viewpoint|observation_deck|lookout|scenic_spot|experience")
 
 const normalise = (category: string) => category.trim().toLowerCase().replace(/[\s-]+/g, "_")
 

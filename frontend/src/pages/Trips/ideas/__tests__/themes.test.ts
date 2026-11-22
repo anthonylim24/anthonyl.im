@@ -183,6 +183,24 @@ describe("themeFromCategory", () => {
     expect(themeFromCategory("restaurant")).toEqual({ theme: "food", vague: false })
   })
 
+  it.each([
+    ["speakeasy", "nightlife"], // not a peak
+    ["wine_bar", "nightlife"],
+    ["ice_cream_shop", "food"], // food before shop
+    ["gift_shop", "shopping"],
+    ["skate_park", "nature"],
+    ["historical_landmark", "sights"],
+  ] as const)("matches whole words of a raw type: %s is %s", (category, theme) => {
+    expect(themeFromCategory(category)?.theme).toBe(theme)
+  })
+
+  it.each(["public_bath", "skin_care_clinic", "campus", "barber", "observer", "spanish_school"])(
+    "reads nothing into a word that merely contains another: %s",
+    (category) => {
+      expect(themeFromCategory(category)).toBeNull()
+    },
+  )
+
   it("treats parking and lodging as Other, not a park or a sight", () => {
     expect(themeFromCategory("parking")?.theme).toBe("other")
     expect(themeFromCategory("lodging")?.theme).toBe("other")

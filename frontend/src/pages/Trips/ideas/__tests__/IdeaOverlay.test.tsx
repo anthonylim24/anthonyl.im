@@ -79,7 +79,19 @@ interface Harness {
   setTrip: (trip: Trip) => void
 }
 
-function renderOverlay(trip: Trip, { url = "/trips/lisbon?idea=idea-tram", editable = true, locked = false, anchor = false } = {}) {
+/** Where the anchor row sits: in view, scrolled away, or hidden (no box). */
+type AnchorAt = false | "inView" | "scrolledAway" | "hidden"
+
+function placeOnScreen(node: HTMLElement, at: Exclude<AnchorAt, false>) {
+  const top = at === "scrolledAway" ? -400 : 120
+  const size = at === "hidden" ? 0 : 20
+  node.getBoundingClientRect = () => ({ x: 16, y: top, top, left: 16, width: size * 8, height: size, right: 16 + size * 8, bottom: top + size, toJSON: () => ({}) })
+}
+
+function renderOverlay(
+  trip: Trip,
+  { url = "/trips/lisbon?idea=idea-tram", editable = true, locked = false, anchor = false as AnchorAt } = {},
+) {
   const state = { trip, marks: [], search: "" } as unknown as Harness
   function Probe() {
     const location = useLocation()
@@ -97,7 +109,9 @@ function renderOverlay(trip: Trip, { url = "/trips/lisbon?idea=idea-tram", edita
     return (
       <>
         {anchor && (
-          <button type="button" data-idea-anchor="idea-tram">
+          <button type="button" data-idea-anchor="idea-tram" ref={(node) => {
+            if (node) placeOnScreen(node, anchor)
+          }}>
             Tram 28
           </button>
         )}
@@ -146,15 +160,21 @@ describe("IdeaOverlay", () => {
     expect(props.editable).toBe(true)
     expect(props.locked).toBe(false)
     expect(props.getToken).toBe(getToken)
-    expect(within(details).getByRole("button", { name: "Category for Tram 28: Other (automatic)" })).toBeInTheDocument()
+    expect(within(details).getByRole("combobox", { name: "Category for Tram 28: Other (automatic)" })).toBeInTheDocument()
     expect(screen.queryByRole("dialog", { name: /Pick a day/ })).toBeNull()
   })
 
-  it("anchors on the list row's name when it is on the page", () => {
+  it("anchors on the list row's name when it is on the page and in view", () => {
     // As in the workspace: the row is on the page before its name is pressed.
-    const state = renderOverlay(twoDays(), { url: "/trips/lisbon", anchor: true })
+    const state = renderOverlay(twoDays(), { url: "/trips/lisbon", anchor: "inView" })
     act(() => state.navigate("/trips/lisbon?idea=idea-tram"))
     expect(screen.getByRole("dialog", { name: "Details: Tram 28" })).toHaveAttribute("data-anchor", "idea-tram")
+  })
+
+  it.each(["scrolledAway", "hidden"] as const)("opens as a sheet when the row is %s", (at) => {
+    const state = renderOverlay(twoDays(), { url: "/trips/lisbon", anchor: at })
+    act(() => state.navigate("/trips/lisbon?idea=idea-tram"))
+    expect(detailsProps.mock.lastCall![0].anchor).toBeNull()
   })
 
   it("has no anchor when the row is not on the page (a map pin opened it)", () => {
@@ -241,8 +261,7 @@ describe("IdeaOverlay", () => {
 
   it("changes the category from inside the details through onEdit", () => {
     const state = renderOverlay(twoDays())
-    fireEvent.click(screen.getByRole("button", { name: /Category for Tram 28/ }))
-    fireEvent.click(screen.getByRole("menuitem", { name: "Bars & nightlife" }))
+    fireEvent.change(screen.getByRole("combobox", { name: /Category for Tram 28/ }), { target: { value: "nightlife" } })
     expect(state.trip.ideas?.[0]?.theme).toBe("nightlife")
     expect(state.marks).toEqual([{ label: "Filed “Tram 28” under Bars & nightlife" }])
   })
@@ -254,6 +273,11 @@ describe("IdeaOverlay", () => {
     // Still the same idea on the way out, not an empty frame.
     expect(screen.getByRole("dialog", { name: "Details: Tram 28" })).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("clears an empty ?idea=", () => {
+    const state = renderOverlay(twoDays(), { url: "/trips/lisbon?tab=wishlist&idea=" })
+    expect(params(state).toString()).toBe("tab=wishlist")
   })
 
   it("clears both params when the idea is not on the list", () => {
@@ -275,7 +299,7 @@ describe("IdeaOverlay", () => {
     expect(screen.queryByRole("dialog", { name: /Pick a day/ })).toBeNull()
     expect(detailsProps.mock.lastCall![0].locked).toBe(true)
     // The category shows as text, not as a menu.
-    expect(screen.queryByRole("button", { name: /Category for/ })).toBeNull()
+    expect(screen.queryByRole("combobox", { name: /Category for/ })).toBeNull()
     // Even if the details call through, nothing is written.
     act(() => detailsProps.mock.lastCall![0].onRemove())
     act(() => detailsProps.mock.lastCall![0].onAddToDay())

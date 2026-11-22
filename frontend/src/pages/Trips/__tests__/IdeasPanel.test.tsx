@@ -256,6 +256,13 @@ describe("IdeasPanel", () => {
     expect(screen.getByRole("radio", { name: "Type" })).toHaveAttribute("aria-checked", "true")
   })
 
+  it("lists a single idea plainly, whatever grouping was remembered", () => {
+    localStorage.setItem("trips-wishlist-group", "area")
+    renderIdeas(makeTrip({ ideas: [tram] }))
+    expect(screen.queryByRole("heading", { level: 3 })).toBeNull()
+    expect(screen.getByRole("list", { name: "1 place on the wishlist" })).toBeInTheDocument()
+  })
+
   it("still groups when storage throws (private mode), for this page only", () => {
     const fail = () => {
       throw new Error("blocked")

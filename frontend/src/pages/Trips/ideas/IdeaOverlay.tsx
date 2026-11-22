@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Presence, useClosing } from "../components/presence"
+import { Presence } from "../components/presence"
 import { dayFull, ideaToDay, removeIdea } from "../tripEdits"
 import type { ItineraryItem } from "../types"
 import { announce, prepareAnnouncer } from "./announce"
 import { IDEA_ADD_PARAM, IDEA_ANCHOR_ATTR, IDEA_PARAM, withIdea, type IdeaOverlayProps } from "./contract"
 import { IdeaDayPicker } from "./IdeaDayPicker"
 import { IdeaDetails } from "./IdeaDetails"
-import { ThemeMenu } from "./ThemeMenu"
+import { ThemeSelect } from "./ThemeMenu"
 
 // What the wishlist opens over the page, driven by the URL: `?idea=<id>`
 // shows that idea's details, `&add=1` its day picker instead. One thing at
@@ -17,19 +17,26 @@ import { ThemeMenu } from "./ThemeMenu"
 
 const ideaName = (idea: ItineraryItem) => idea.title || idea.location?.name || "Untitled place"
 
-/** The list row an idea's details open from, if it is on the page. Compared, never put into a selector. */
+/**
+ * The list row to anchor an idea's details on: its name, when it is on the
+ * page and in view. A row in a hidden pane (the phone's map view) or
+ * scrolled away (a map pin opened it) is no anchor: the details open as a
+ * sheet. The id is compared, never put into a selector.
+ */
 function anchorFor(ideaId: string): HTMLElement | null {
   if (typeof document === "undefined") return null
   for (const node of document.querySelectorAll<HTMLElement>(`[${IDEA_ANCHOR_ATTR}]`)) {
-    if (node.getAttribute(IDEA_ANCHOR_ATTR) === ideaId && node.isConnected) return node
+    if (node.getAttribute(IDEA_ANCHOR_ATTR) !== ideaId || !node.isConnected) continue
+    const box = node.getBoundingClientRect()
+    const inView = box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < window.innerHeight
+    return inView ? node : null
   }
   return null
 }
 
 export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOverlayProps) {
   const [params, setParams] = useSearchParams()
-  // The surrounding Presence is letting go: `?idea` is gone and what was shown animates out.
-  const closing = useClosing()
+  const asked = params.has(IDEA_PARAM)
   const ideaId = params.get(IDEA_PARAM)
   const idea = ideaId ? (trip.ideas?.find((i) => i.id === ideaId) ?? null) : null
   const adding = params.get(IDEA_ADD_PARAM) === "1" && editable && !locked
@@ -45,11 +52,11 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
 
   useEffect(prepareAnnouncer, [])
 
-  // Opened for an idea that is not on the list (removed, or someone else put
-  // it on a day): close, without leaving a history entry for it.
+  // Opened for an idea that is not on the list (removed, someone else put it
+  // on a day, or an empty `?idea=`): close, without leaving a history entry.
   useEffect(() => {
-    if (ideaId && !idea) setParams((prev) => withIdea(prev, null), { replace: true })
-  }, [ideaId, idea, setParams])
+    if (asked && !idea) setParams((prev) => withIdea(prev, null), { replace: true })
+  }, [asked, idea, setParams])
 
   // Another idea, or none: a new opening starts fresh.
   useEffect(() => {
@@ -106,9 +113,8 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
   // it last had: going from the details to the picker animates one out and
   // the other in, and once `?idea` is cleared (or the idea is gone before the
   // URL catches up) both leave with what they showed.
-  const current = closing ? null : idea
-  const details = current && !adding ? current : null
-  const picking = current && adding ? current : null
+  const details = idea && !adding ? idea : null
+  const picking = idea && adding ? idea : null
 
   return (
     <>
@@ -120,7 +126,7 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
           editable={editable}
           locked={locked}
           getToken={getToken}
-          themeControl={editable ? <ThemeMenu idea={shown} locked={locked} onEdit={onEdit} /> : undefined}
+          themeControl={editable ? <ThemeSelect idea={shown} locked={locked} onEdit={onEdit} /> : undefined}
           onAddToDay={() => onAddToDay(shown)}
           onRemove={() => onRemove(shown)}
           onClose={() => onDetailsClose(shown)}
