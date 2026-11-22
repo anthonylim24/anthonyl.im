@@ -10,6 +10,8 @@ import { createClerkAuth, verifyClerkOptional } from "./middleware/clerkAuth"
 import invokeRouter from "./routes/invoke"
 import { createInstagramPlacesRouter } from "./routes/instagramPlaces"
 import { createTripsRouter } from "./routes/trips"
+import { createPlaceSearchRouter } from "./routes/placeSearch"
+import { createGooglePlaceTypeahead } from "./trips/placeSearch"
 import { getTripStore } from "./trips/store"
 import { createGoogleGeocoder, createTripsLlm } from "./trips/ai"
 import {
@@ -80,6 +82,20 @@ export function createPreviewApiApp(): Hono {
         groqApiKey: config.groqApiKey,
       }),
       geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : null,
+    }),
+  )
+
+  app.route(
+    "/api/places",
+    createPlaceSearchRouter({
+      search: config.googleMapsApiKey ? createGooglePlaceTypeahead(config.googleMapsApiKey) : null,
+      rateLimit: createRateLimit({ windowMs: 60_000, max: 120, keyPrefix: "preview-places", key: userOrClientKey }),
+      verifyAuth: (authHeader) =>
+        verifyClerkOptional(authHeader, {
+          secretKey: config.clerkSecretKey,
+          devBearer: config.igDevBearer,
+          devUserId: config.igDevUserId,
+        }),
     }),
   )
 

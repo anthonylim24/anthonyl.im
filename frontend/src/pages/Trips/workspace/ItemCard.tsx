@@ -779,6 +779,7 @@ function LocationField({
                       lat: place.lat,
                       lng: place.lng,
                       category: place.category ?? item.location?.category,
+                      ...(place.placeId ? { placeId: place.placeId } : {}),
                       source: "user",
                       confidence: "high",
                     },

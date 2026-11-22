@@ -13,6 +13,7 @@ import { ws as s } from "../workspace.stylex"
 import { Spinner } from "../components/kit"
 import { LIMITS } from "../limits"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useGetToken } from "@/lib/safeAuth"
 import { composing } from "../ime"
 
 // One input adds anything to a day. Typing searches real places (pinned on
@@ -20,8 +21,9 @@ import { composing } from "../ime"
 // a booking, or a heading. An Instagram link is handed to the import sheet,
 // which pins every place the post names.
 
-/** Debounced, abortable place search biased toward `near`. */
+/** Debounced, abortable place search, the places near `near` first. */
 export function usePlaceSearch(query: string, near: LngLat | null) {
+  const getToken = useLatestCallback(useGetToken())
   const nearKey = near ? `${near.lat.toFixed(2)},${near.lng.toFixed(2)}` : ""
   const nearRef = useRef(near)
   useLayoutEffect(() => {
@@ -39,7 +41,7 @@ export function usePlaceSearch(query: string, near: LngLat | null) {
     if (text.length < 2) return
     const controller = new AbortController()
     const timer = setTimeout(() => {
-      searchPlaces(text, nearRef.current, controller.signal)
+      searchPlaces(text, nearRef.current, controller.signal, getToken)
         .then((found) => {
           if (controller.signal.aborted) return
           setSearch({ key: searchKey, results: found })
@@ -53,7 +55,7 @@ export function usePlaceSearch(query: string, near: LngLat | null) {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [text, searchKey])
+  }, [text, searchKey, getToken])
 
   return { results, loading }
 }
@@ -67,6 +69,7 @@ export function placeItem(place: PlaceResult): ItineraryItem {
       lat: place.lat,
       lng: place.lng,
       category: place.category,
+      ...(place.placeId ? { placeId: place.placeId } : {}),
       source: "user",
       confidence: "high",
     },
