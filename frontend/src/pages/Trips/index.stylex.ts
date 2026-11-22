@@ -83,7 +83,7 @@ export const shell = stylex.create({
     transitionProperty: "transform",
     transitionDuration: "700ms",
     transitionTimingFunction: "var(--trips-spring)",
-    ":is(.group:hover) &": { transform: "rotate(45deg)" },
+    transform: { default: null, [stylex.when.ancestor(":hover")]: "rotate(45deg)" },
     [REDUCE]: { transitionDuration: "0ms" },
   },
   headerSide: { display: "flex", alignItems: "center", gap: "0.25rem", minWidth: 0 },
@@ -321,19 +321,18 @@ export const idx = stylex.create({
     [REDUCE]: { animationName: "none", transitionDuration: "0ms" },
   },
   // The lifted shadow is a layer that fades in under a hovered card (the card
-  // carries `group`): animating box-shadow itself repaints the card on every
+  // carries the default marker): animating box-shadow itself repaints the card on every
   // frame of the hover.
   cardLift: {
     position: "absolute",
     inset: 0,
     borderRadius: "inherit",
     boxShadow: "var(--trips-shadow-2)",
-    opacity: 0,
+    opacity: { default: 0, [HOVER]: { default: 0, [stylex.when.ancestor(":hover")]: 1 } },
     pointerEvents: "none",
     transitionProperty: "opacity",
     transitionDuration: "320ms",
     transitionTimingFunction: "var(--trips-ease-out)",
-    [HOVER]: { ":is(.group:hover) &": { opacity: 1 } },
     [REDUCE]: { transitionDuration: "0ms" },
   },
   nextUpSkeleton: { display: "block", height: "2.75rem", width: "min(20rem, 100%)", borderRadius: "999px" },

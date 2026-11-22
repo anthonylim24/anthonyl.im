@@ -12,7 +12,7 @@ import {
 } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowRight, Copy, MoreHorizontal, Plus, RotateCcw, Search, Share2, Sparkles, Trash2, Users } from "lucide-react"
-import { sx } from "@/styles/merge"
+import { stylex, sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
@@ -184,7 +184,7 @@ const TripCard = memo(function TripCard({
       : []
   return (
     <article
-      {...sx("group", s.card)}
+      {...sx(stylex.defaultMarker(), s.card)}
       style={{ animationDelay: `${Math.min(order, 8) * 60}ms` }}
       data-trip-accent={resolveAccent(trip.accent)}
       onMouseEnter={enter}

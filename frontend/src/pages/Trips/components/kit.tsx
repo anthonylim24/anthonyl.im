@@ -1,4 +1,5 @@
 import {
+  memo,
   useEffect,
   useId,
   useLayoutEffect,
@@ -8,6 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react"
+import { createPortal } from "react-dom"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 import { sx } from "@/styles/merge"
@@ -160,6 +162,18 @@ function useOpener(open: boolean) {
   return opener
 }
 
+/**
+ * A closing dialog keeps showing what it showed while open: the state that
+ * closed it ("which trip to delete", the day's stops) is often cleared in the
+ * same click, and the exit animation must not flash the emptied version.
+ */
+const Frozen = memo(
+  function Frozen({ children }: { open: boolean; children: ReactNode }) {
+    return <>{children}</>
+  },
+  (_, next) => !next.open,
+)
+
 export function Modal({
   open,
   onClose,
@@ -182,12 +196,18 @@ export function Modal({
   const opener = useOpener(open)
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogPrimitive.Portal>
+      {/* A plain portal, not Radix's: its presence would watch this token
+          wrapper, which never animates, and drop the dialog the instant `open`
+          turns false. The scrim and the dialog keep their own presence and
+          leave when their closing animations end; closed, the wrapper is empty. */}
+      {createPortal(
         <div className="trips trips-portal" data-trip-accent={accent}>
           {/* `trips-scrim` / `trips-dialog`: the closing animations in index.css. */}
           <DialogPrimitive.Overlay {...sx(a.scrim, "trips-scrim")} />
           <DialogPrimitive.Content
             {...sx(a.dialog, wide && a.dialogWide, "trips-dialog", "trips-glass-sheet")}
+            // While it animates out, nothing in it can be pressed again.
+            inert={!open}
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
@@ -197,24 +217,27 @@ export function Modal({
               target.focus({ preventScroll: true })
             }}
           >
-            <div {...sx(a.dialogHead)}>
-              <div {...sx(a.stack)}>
-                <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
-                {description ? (
-                  <DialogPrimitive.Description {...sx(a.body)}>{description}</DialogPrimitive.Description>
-                ) : (
-                  <DialogPrimitive.Description {...sx(a.srOnly)}>{title}</DialogPrimitive.Description>
-                )}
+            <Frozen open={open}>
+              <div {...sx(a.dialogHead)}>
+                <div {...sx(a.stack)}>
+                  <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
+                  {description ? (
+                    <DialogPrimitive.Description {...sx(a.body)}>{description}</DialogPrimitive.Description>
+                  ) : (
+                    <DialogPrimitive.Description {...sx(a.srOnly)}>{title}</DialogPrimitive.Description>
+                  )}
+                </div>
+                <DialogPrimitive.Close {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Close">
+                  <X size={18} strokeWidth={1.75} aria-hidden />
+                </DialogPrimitive.Close>
               </div>
-              <DialogPrimitive.Close {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Close">
-                <X size={18} strokeWidth={1.75} aria-hidden />
-              </DialogPrimitive.Close>
-            </div>
-            <div {...sx(a.dialogBody)}>{children}</div>
-            {footer && <div {...sx(a.dialogFoot, "trips-dialog-foot")}>{footer}</div>}
+              <div {...sx(a.dialogBody)}>{children}</div>
+              {footer && <div {...sx(a.dialogFoot, "trips-dialog-foot")}>{footer}</div>}
+            </Frozen>
           </DialogPrimitive.Content>
-        </div>
-      </DialogPrimitive.Portal>
+        </div>,
+        document.body,
+      )}
     </DialogPrimitive.Root>
   )
 }
