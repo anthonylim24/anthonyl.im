@@ -1,6 +1,6 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono"
 import { categoryColor, categoryIcon, formatDistance, haversineMeters, type PlaceCategory } from "../data/koreaPlaces"
-import { applySuggestions, generateItinerary, type Geocoder, type LlmCall, type WeatherFetcher } from "../trips/ai"
+import { applySuggestions, generateItinerary, type AppliedSuggestions, type Geocoder, type LlmCall, type WeatherFetcher } from "../trips/ai"
 import { streamTripChat } from "../trips/chat"
 import { createBookingParserFromKeys, type BookingParser } from "../trips/bookingParse"
 import { config } from "../config"
@@ -699,19 +699,18 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       if (run.status !== "complete") {
         return c.json({ error: "run_not_complete", message: "This AI review has not finished.", run }, 409)
       }
-      let applied: string[] = []
-      let skipped: string[] = []
+      let outcome: Omit<AppliedSuggestions, "trip"> = { applied: [], skipped: [], skipReasons: {} }
       const next = await mutate(tripId, (fresh) => {
-        const outcome = applySuggestions(fresh, run, body.data.suggestionIds)
-        applied = outcome.applied
-        skipped = outcome.skipped
-        return outcome.applied.length > 0 ? outcome.trip : fresh
+        const { trip, ...result } = applySuggestions(fresh, run, body.data.suggestionIds)
+        outcome = result
+        return result.applied.length > 0 ? trip : fresh
       })
       if (!next) return c.json({ error: "trip not found" }, 404)
+      const { applied, skipped, skipReasons } = outcome
       if (applied.length > 0) {
         await deps.store.saveRun({ ...run, appliedSuggestionIds: [...run.appliedSuggestionIds, ...applied] })
       }
-      return c.json({ trip: present(next, accessFor(next, userId)), applied, skipped })
+      return c.json({ trip: present(next, accessFor(next, userId)), applied, skipped, skipReasons })
     })
   })
 

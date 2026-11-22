@@ -98,6 +98,8 @@ export interface ItineraryItem {
   highlight?: boolean
   /** The traveller's own wishlist category; absent means "infer from the place". */
   theme?: ItemTheme
+  /** Put on a day from the wishlist, by the traveller or a review. */
+  fromWishlist?: true
   createdBy: LocationSource
 }
 
@@ -259,6 +261,8 @@ export interface EnhancementSuggestion {
   proposedItem?: ItineraryItem // for "add"
   proposedChanges?: Partial<Omit<ItineraryItem, "id">> // for "edit"
   proposedOrder?: string[] // for "reorder": full item-id order for the day
+  /** "reorder" only: new start (and end) for the stops it moves, by item id, so the new order reads in clock order. */
+  proposedTimes?: Record<string, { time: string; endTime?: string }>
   /** "move": the day the item goes to. "swap_days": the day traded with `dayId`. */
   toDayId?: string
   /** "add" only: the wishlist idea (`trip.ideas[].id`) this stop schedules.
@@ -498,6 +502,7 @@ export const itemSchema = z.object({
   cost: moneySchema.optional(),
   highlight: z.boolean().optional(),
   theme: z.enum(ITEM_THEMES).optional(),
+  fromWishlist: z.literal(true).optional(),
   createdBy: z.enum(["user", "ai", "migration"]).default("user"),
 })
 
@@ -761,6 +766,12 @@ export const aiSuggestionSchema = z.object({
   proposedItem: aiItemSchema.optional(),
   proposedChanges: aiItemSchema.partial().optional(),
   proposedOrder: z.array(z.string().max(64)).max(200).optional(),
+  proposedTimes: z
+    .record(
+      z.string().max(64),
+      z.object({ time: z.string().regex(/^\d{2}:\d{2}$/), endTime: z.string().regex(/^\d{2}:\d{2}$/).optional() }),
+    )
+    .optional(),
   toDayId: z.string().max(64).optional(),
 })
 

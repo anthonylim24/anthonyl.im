@@ -276,6 +276,109 @@ describe("review prompt: the whole trip's context", () => {
     expect(ENHANCEMENT_SYSTEM).toMatch(/Fill from the wishlist first/)
     expect(ENHANCEMENT_SYSTEM).toMatch(/Add each wishlist place at most once/)
     expect(ENHANCEMENT_SYSTEM).toMatch(/FIXED[^\n]*never move, remove or retime it/)
+    // The key the review reads a reorder's new times from.
+    expect(ENHANCEMENT_SYSTEM).toContain(`"proposedTimes": {`)
+  })
+})
+
+describe("review: every order it offers agrees with the clock", () => {
+  const timedDay = () => [
+    place("it-castle", "Castelo de São Jorge", { lat: 38.7139, lng: -9.1335, time: "10:00" }),
+    place("it-lunch", "Taberna da Rua das Flores", { lat: 38.7105, lng: -9.1435, time: "13:00", endTime: "14:00" }),
+    place("it-tram", "Tram 28", { lat: 38.7115, lng: -9.1300, time: "15:00" }),
+  ]
+  const reorder = (fields: Record<string, unknown> = {}) => ({
+    kind: "reorder",
+    dayId: "day-1",
+    title: "Ride the tram before lunch",
+    detail: "The tram stop is beside the castle.",
+    confidence: "medium",
+    proposedOrder: ["it-castle", "it-tram", "it-lunch"],
+    ...fields,
+  })
+  async function reviewed(days: Trip["days"], suggestions: unknown[]) {
+    const { llm } = recordingLlm({ summary: "Checked the order.", suggestions })
+    const run = await enhanceTrip({ trip: makeTrip({ days }), scope: "trip", llm })
+    expect(run.status).toBe("complete")
+    return run.suggestions.filter((s) => s.kind === "reorder")
+  }
+
+  test("a reorder that gives its stops new times is offered, with times only for stops on that day", async () => {
+    const offered = await reviewed(
+      [{ id: "day-1", date: "2026-04-10", items: timedDay() }],
+      [reorder({ proposedTimes: { "it-tram": { time: "11:30", endTime: "12:30" }, "it-lunch": { time: "13:00" }, "it-ghost": { time: "09:00" } } })],
+    )
+    expect(offered).toHaveLength(1)
+    expect(offered[0]!.proposedTimes).toEqual({ "it-tram": { time: "11:30", endTime: "12:30" }, "it-lunch": { time: "13:00" } })
+  })
+
+  test("the same reorder without times, which the clock would undo, is never offered", async () => {
+    expect(await reviewed([{ id: "day-1", date: "2026-04-10", items: timedDay() }], [reorder()])).toEqual([])
+  })
+
+  test("a reorder on a day without times is offered as it is", async () => {
+    const untimed = timedDay().map(({ time: _time, endTime: _end, ...rest }) => rest)
+    expect(await reviewed([{ id: "day-1", date: "2026-04-10", items: untimed }], [reorder()])).toHaveLength(1)
+  })
+
+  test("one bad time costs that entry, not the reorder", () => {
+    const parsed = salvageSuggestions(
+      JSON.stringify({ suggestions: [reorder({ proposedTimes: { "it-tram": { time: "noon" }, "it-lunch": "1:00 pm", "it-castle": { time: "10:00", endTime: "25:99" } } })] }),
+    )
+    expect(parsed.dropped).toBe(0)
+    expect(parsed.suggestions[0]!.proposedTimes).toEqual({ "it-lunch": { time: "13:00" }, "it-castle": { time: "10:00" } })
+  })
+
+  test("a day listed out of clock order is offered back in it, naming the first stop out of place", async () => {
+    const days: Trip["days"] = [
+      { id: "day-1", date: "2026-04-10", items: timedDay() },
+      {
+        id: "day-2",
+        date: "2026-04-11",
+        items: [
+          place("it-poai", "Po'ai", { time: "15:00" }),
+          place("it-leonards", "Leonard's", { time: "08:30" }),
+          place("it-diamond", "Diamond Head", { time: "10:00" }),
+        ],
+      },
+    ]
+    const offered = await reviewed(days, [])
+    expect(offered).toHaveLength(1)
+    expect(offered[0]).toMatchObject({
+      dayId: "day-2",
+      title: "Put Day 2 back in time order",
+      detail: "Po'ai (3:00 PM) is listed before Leonard's (8:30 AM).",
+      confidence: "high",
+      proposedOrder: ["it-leonards", "it-diamond", "it-poai"],
+    })
+    const trip = makeTrip({ days })
+    const applied = applySuggestions(trip, { suggestions: offered, appliedSuggestionIds: [] }, [offered[0]!.id])
+    expect(applied.trip.days[1]!.items.map((i) => i.time)).toEqual(["08:30", "10:00", "15:00"])
+  })
+
+  test("the time-order fix stands aside for the review's own order, and for a day getting a stop", async () => {
+    const outOfOrder = () => [place("it-poai", "Po'ai", { time: "15:00" }), place("it-leonards", "Leonard's", { time: "08:30" })]
+    const own = await reviewed([{ id: "day-1", date: "2026-04-10", items: outOfOrder() }], [
+      reorder({ title: "Breakfast first", proposedOrder: ["it-leonards", "it-poai"] }),
+    ])
+    expect(own.map((s) => s.title)).toEqual(["Breakfast first"])
+    const adding = await reviewed(
+      [{ id: "day-1", date: "2026-04-10", items: outOfOrder() }],
+      [addSuggestion({ dayId: "day-1", proposedItem: { kind: "place", title: "Kona Coffee", time: "12:00", location: { name: "Kona Coffee", lat: 21.28, lng: -157.83 } } })],
+    )
+    expect(adding).toEqual([])
+    // Also when the add only becomes a place on the map once it is geocoded.
+    const { llm } = recordingLlm({
+      summary: "Added coffee.",
+      suggestions: [addSuggestion({ dayId: "day-1", proposedItem: { kind: "place", title: "Kona Coffee", time: "12:00", location: { name: "Kona Coffee" } } })],
+    })
+    const geocoded = await enhanceTrip({
+      trip: makeTrip({ days: [{ id: "day-1", date: "2026-04-10", items: outOfOrder() }] }),
+      scope: "trip",
+      llm,
+      geocode: async () => ({ lat: 21.28, lng: -157.83 }),
+    })
+    expect(geocoded.suggestions.filter((s) => s.kind === "reorder")).toEqual([])
   })
 })
 
@@ -295,6 +398,7 @@ describe("review: wishlist adds", () => {
       notes: "Go before the coach tours.",
       links: ["https://pasteisdebelem.pt"],
       cost: { amount: 6, currency: "EUR" },
+      fromWishlist: true,
       createdBy: "ai",
       location: { name: "Pastéis de Belém", lat: 38.6975, lng: -9.2032, source: "user" },
     })
@@ -500,6 +604,8 @@ describe("applying wishlist adds", () => {
     const { trip: next, applied } = applySuggestions(trip, scheduled(trip), ["sug-idea"])
     expect(applied).toEqual(["sug-idea"])
     expect(next.days[1]!.items.map((i) => i.id)).toEqual(["idea-pasteis"])
+    // Linked back to the wishlist, even from a run stored before reviews set the link.
+    expect(next.days[1]!.items[0]!.fromWishlist).toBe(true)
     expect(next.ideas!.map((i) => i.id)).toEqual(["idea-lx"])
     // The trip it was given is untouched.
     expect(trip.ideas).toHaveLength(2)
@@ -525,7 +631,7 @@ describe("applying wishlist adds", () => {
     expect(next.ideas!.map((i) => i.id)).toEqual(["idea-lx"])
   })
 
-  test("an idea the traveller scheduled meanwhile is not added twice", () => {
+  test("an idea the traveller scheduled on that day meanwhile is not added twice, and is not a failure", () => {
     const trip = makeTrip({ ideas: wishlist() })
     const run = scheduled(trip)
     // The client's "Add to day" moves the idea itself, id included.
@@ -534,18 +640,26 @@ describe("applying wishlist adds", () => {
       ideas: trip.ideas!.filter((i) => i.id !== "idea-pasteis"),
       days: [trip.days[0]!, { ...trip.days[1]!, items: [trip.ideas![0]!] }],
     }
-    expect(applySuggestions(moved, run, ["sug-idea"]).skipped).toEqual(["sug-idea"])
-    // Or the same venue under another id.
+    const out = applySuggestions(moved, run, ["sug-idea"])
+    expect(out.applied).toEqual(["sug-idea"])
+    expect(out.trip.days[1]!.items.map((i) => i.id)).toEqual(["idea-pasteis"])
+  })
+
+  test("an idea already planned on another day is skipped, saying which day", () => {
+    const trip = makeTrip({ ideas: wishlist() })
+    const run = scheduled(trip)
     const again: Trip = {
       ...trip,
       days: [{ ...trip.days[0]!, items: [...trip.days[0]!.items, place("it-mine", "Pastéis de Belém")] }, trip.days[1]!],
     }
     const out = applySuggestions(again, run, ["sug-idea"])
     expect(out.skipped).toEqual(["sug-idea"])
+    expect(out.skipReasons["sug-idea"]).toBe("Pastéis de Belém is already on Day 1.")
+    expect(out.trip.days[1]!.items).toEqual([])
     expect(out.trip.ideas).toHaveLength(2)
   })
 
-  test("an add whose venue the traveller put on a day meanwhile, under a near name, is skipped", () => {
+  test("an add whose venue the traveller put on that day meanwhile, under a near name, lands once and counts as done", () => {
     const trip = makeTrip()
     const run: EnhancementRun = {
       id: "run-2",
@@ -570,7 +684,8 @@ describe("applying wishlist adds", () => {
     }
     const mine: Trip = { ...trip, days: [trip.days[0]!, { ...trip.days[1]!, items: [place("it-mine", "LX Factory Market")] }] }
     const out = applySuggestions(mine, run, ["sug-lx"])
-    expect(out.skipped).toEqual(["sug-lx"])
+    expect(out.applied).toEqual(["sug-lx"])
+    expect(out.skipped).toEqual([])
     expect(out.trip.days[1]!.items.map((i) => i.id)).toEqual(["it-mine"])
   })
 

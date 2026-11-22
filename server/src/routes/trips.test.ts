@@ -411,9 +411,9 @@ describe("enhancement endpoints", () => {
       body: JSON.stringify({ suggestionIds: [run.suggestions[0]!.id] }),
     })
     expect(applyRes.status).toBe(200)
-    const { applied: reapplied, skipped } = (await applyRes.json()) as { applied: string[]; skipped: string[] }
-    expect(reapplied).toEqual([])
-    expect(skipped).toEqual([run.suggestions[0]!.id])
+    // Already applied by the review: neither applied again nor reported as a failure.
+    const reapply = (await applyRes.json()) as { applied: string[]; skipped: string[]; skipReasons: Record<string, string> }
+    expect(reapply).toMatchObject({ applied: [], skipped: [], skipReasons: {} })
   })
 
   test("leaves edit suggestions reviewable and surfaces a no-add reason", async () => {
@@ -466,6 +466,21 @@ describe("enhancement endpoints", () => {
     expect(enhanced.days[0]!.items.find((i) => i.id === "it-a")!.time).toBeUndefined()
     expect(run.outcome).toBe("no_adds_needed")
     expect(run.outcomeReason).toMatch(/overpack|meals|cluster/i)
+
+    // The traveller removes the stop, then accepts the edit: it is skipped, and says why.
+    await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({ days: [{ id: "day-1", date: trip.days[0]!.date, items: [] }] }),
+    })
+    const editId = run.suggestions[0]!.id
+    const applyRes = await app.request(`/api/trips/${trip.id}/enhancements/${run.id}/apply`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ suggestionIds: [editId] }),
+    })
+    expect(applyRes.status).toBe(200)
+    expect(await applyRes.json()).toMatchObject({ applied: [], skipped: [editId], skipReasons: { [editId]: "That stop is no longer on the trip." } })
   })
 
   test("returns a parseable error body when the model fails", async () => {

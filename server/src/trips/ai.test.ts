@@ -73,6 +73,25 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
 }
 
 describe("generateItinerary", () => {
+  test("each drafted day reads in clock order, whatever order the model wrote it in", async () => {
+    const llm = async () =>
+      JSON.stringify({
+        days: [
+          {
+            title: "Asakusa",
+            items: [
+              { kind: "place", title: "Dinner at Komagata Dozeu", time: "19:00", location: { name: "Komagata Dozeu", lat: 35.709, lng: 139.795 } },
+              { kind: "note", title: "Order the loach hot pot" },
+              { kind: "place", title: "Senso-ji", time: "08:00", location: { name: "Senso-ji", lat: 35.7148, lng: 139.7967 } },
+              { kind: "place", title: "Bar Kamiya", time: "21:00", location: { name: "Bar Kamiya", lat: 35.711, lng: 139.797 } },
+            ],
+          },
+        ],
+      })
+    const result = await generateItinerary({ trip: makeTrip(), llm })
+    expect(result.days[0]!.items.map((i) => i.title)).toEqual(["Senso-ji", "Dinner at Komagata Dozeu", "Order the loach hot pot", "Bar Kamiya"])
+  })
+
   test("maps structured model output into trip days with AI provenance", async () => {
     const llm = async () =>
       JSON.stringify({
@@ -394,22 +413,24 @@ describe("applySuggestions", () => {
     expect(next.days[0]!.items.map((i) => i.id)).toEqual(["it-b", "it-a"])
   })
 
-  test("skips unknown and already-applied suggestions", () => {
+  test("skips an unknown suggestion with a reason, and leaves one already applied out of both lists", () => {
     const trip = makeTrip()
     const run = makeRun(trip)
     run.appliedSuggestionIds = ["sug-edit"]
-    const { applied, skipped } = applySuggestions(trip, run, ["sug-edit", "nope"])
+    const { applied, skipped, skipReasons } = applySuggestions(trip, run, ["sug-edit", "nope"])
     expect(applied).toEqual([])
-    expect(skipped).toEqual(["sug-edit", "nope"])
+    expect(skipped).toEqual(["nope"])
+    expect(skipReasons).toEqual({ nope: "This suggestion is no longer part of the review." })
   })
 
   test("skips add suggestions that lack a dayId instead of dumping onto day 1", () => {
     const trip = makeTrip()
     const run = makeRun(trip)
     run.suggestions[0]!.dayId = undefined
-    const { trip: next, applied, skipped } = applySuggestions(trip, run, ["sug-add"])
+    const { trip: next, applied, skipped, skipReasons } = applySuggestions(trip, run, ["sug-add"])
     expect(applied).toEqual([])
     expect(skipped).toEqual(["sug-add"])
+    expect(skipReasons["sug-add"]).toBe("Its day is no longer on the trip.")
     expect(next.days[0]!.items.map((i) => i.title)).not.toContain("Ichiran")
     expect(next.days[1]!.items.map((i) => i.title)).not.toContain("Ichiran")
   })

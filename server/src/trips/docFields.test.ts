@@ -23,6 +23,7 @@ describe("trip document fields", () => {
               endTime: "13:40",
               status: "skipped",
               highlight: true,
+              fromWishlist: true,
               reservation: {
                 type: "flight",
                 status: "confirmed",
@@ -47,6 +48,7 @@ describe("trip document fields", () => {
     const item = day?.items[0]
     expect(item?.status).toBe("skipped")
     expect(item?.highlight).toBe(true)
+    expect(item?.fromWishlist).toBe(true)
     expect(item?.reservation).toMatchObject({ provider: "Hawaiian Airlines", number: "HA 11", from: "SFO", to: "HNL", endTimezone: "Pacific/Honolulu" })
   })
 
