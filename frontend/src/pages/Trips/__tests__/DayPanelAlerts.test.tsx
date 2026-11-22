@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom"
 import type { DayForecast } from "../forecast"
 import type { TripDay } from "../types"
 import { DayPanel, type DayPanelProps } from "../workspace/DayPanel"
+import { liveValue } from "../workspace/liveValue"
 import { makeItem, makeTrip } from "./tripFixtures"
 
 afterEach(() => {
@@ -43,14 +44,13 @@ function renderDay(day: TripDay, sky: DayPanelProps["sky"], props: Partial<DayPa
         run={null}
         dayOptions={[]}
         recentIds={new Set()}
-        hotId={null}
+        hot={liveValue<string | null>(null)}
         activeId={null}
         edit={null}
         near={null}
         onChange={noop}
         onDelete={noop}
         onAdded={noop}
-        onHover={noop}
         onLocate={noop}
         onAskAi={noop}
         onClear={noop}

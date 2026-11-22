@@ -3,6 +3,7 @@ import { fireEvent, render } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import type { TripDay } from "../types"
 import { DayPanel } from "../workspace/DayPanel"
+import { liveValue } from "../workspace/liveValue"
 import { makeItem, makeTrip } from "./tripFixtures"
 
 const day: TripDay = {
@@ -32,14 +33,13 @@ function renderDay(onChange = vi.fn()) {
         run={null}
         dayOptions={[]}
         recentIds={new Set()}
-        hotId={null}
+        hot={liveValue<string | null>(null)}
         activeId={null}
         edit={null}
         near={null}
         onChange={onChange}
         onDelete={noop}
         onAdded={noop}
-        onHover={noop}
         onLocate={noop}
         onAskAi={noop}
         onClear={noop}
@@ -55,7 +55,7 @@ function renderDay(onChange = vi.fn()) {
 
 /** The day after the last change the panel asked for. */
 const applied = (onChange: ReturnType<typeof vi.fn>) => {
-  const change = onChange.mock.calls.at(-1)?.[0] as (days: TripDay[]) => TripDay[]
+  const change = onChange.mock.calls[onChange.mock.calls.length - 1]?.[0] as (days: TripDay[]) => TripDay[]
   return change([day])[0]!.items.map((item) => item.id)
 }
 

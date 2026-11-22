@@ -47,7 +47,8 @@ import { weatherKind, wetDuring, wetSpells, type DaySky as Sky, type WetSpell } 
 import { NowLine } from "../live/NowLine"
 import { clockText, dayNow, nowSlot } from "../live/liveTrip"
 import { useNow } from "../live/useNow"
-import { DayTimeline, ModeIcon } from "../timeline/DayTimeline"
+import { DayTimeline, ModeIcon, type DayTimelineProps } from "../timeline/DayTimeline"
+import { useHolds, useLiveValue, type LiveValue } from "./liveValue"
 import { DoneFold } from "../timeline/DoneFold"
 import { stopTitle } from "../timeline/timeline"
 import { useDayView } from "./dayView"
@@ -72,7 +73,8 @@ export interface DayPanelProps {
   run: EnhancementRun | null
   dayOptions: DayOption[]
   recentIds: ReadonlySet<string>
-  hotId: string | null
+  /** The stop under the pointer, shared with the map's pins. Only the cards it names re-render. */
+  hot: LiveValue<string | null>
   activeId: string | null
   /** Stop whose editor should open (from the map's "Edit stop"); `n` is new for each request. */
   edit: { id: string; n: number } | null
@@ -86,7 +88,6 @@ export interface DayPanelProps {
   onEditTrip?: (fn: (doc: Trip) => Trip, undo?: UndoMark) => void
   onDelete: (dayId: string, item: ItineraryItem) => void
   onAdded: (id: string) => void
-  onHover: (id: string | null) => void
   onLocate: (id: string) => void
   /** Opens "Ideas for this day", with a brief already written when one is given. */
   onAskAi: (prompt?: string) => void
@@ -104,7 +105,8 @@ export interface DayPanelProps {
   holidays?: readonly Holiday[]
 }
 
-type SortableProps = ItemCardProps & {
+type SortableProps = Omit<ItemCardProps, "hot" | "onHover"> & {
+  hotSource: LiveValue<string | null>
   leg: Leg | null
   legWet: number | null
   /** This stop's grip is held: only then can it be dragged. */
@@ -133,8 +135,9 @@ const sameProps = (prev: SortableProps, next: SortableProps) =>
  */
 const Sortable = memo(function Sortable(props: SortableProps) {
   const controls = useDragControls()
-  const { leg, legWet, held, layoutKey, onHold, ...card } = props
+  const { leg, legWet, held, layoutKey, onHold, hotSource, ...card } = props
   const id = props.item.id
+  const hot = useHolds(hotSource, id)
   const onGrip = useCallback(
     (event: ReactPointerEvent) => {
       // Motion reads `drag` when the pointer first moves: commit it before the gesture starts.
@@ -163,7 +166,7 @@ const Sortable = memo(function Sortable(props: SortableProps) {
       whileDrag={{ scale: 1.02, zIndex: 5 }}
     >
       {leg && <LegRow leg={leg} wet={legWet} />}
-      <ItemCard {...card} onGrip={onGrip} />
+      <ItemCard {...card} hot={hot} onHover={hotSource.set} onGrip={onGrip} />
     </Reorder.Item>
   )
 }, sameProps)
@@ -220,7 +223,7 @@ export function DayPanel({
   run,
   dayOptions,
   recentIds,
-  hotId,
+  hot,
   activeId,
   edit,
   near,
@@ -228,7 +231,6 @@ export function DayPanel({
   onEditTrip,
   onDelete,
   onAdded,
-  onHover,
   onLocate,
   onAskAi,
   onClear,
@@ -347,7 +349,7 @@ export function DayPanel({
     if (item && isLocated(item)) onLocate(id)
     else {
       setDayView("list")
-      onHover(id)
+      hot.set(id)
     }
   })
 
@@ -608,12 +610,11 @@ export function DayPanel({
             </p>
           </div>
         ) : dayView === "timeline" ? (
-          <DayTimeline
+          <HotTimeline
             trip={trip}
             day={day}
             activeId={activeId}
-            hotId={hotId}
-            onHover={onHover}
+            hot={hot}
             now={dayClock ?? undefined}
             forecast={forecast}
             fold={{ open: foldOpen, onToggle: toggleFold }}
@@ -673,7 +674,7 @@ export function DayPanel({
                   legWet={legWet(list.legs.get(item.id))}
                   editable={editable}
                   locked={locked}
-                  hot={hotId === item.id}
+                  hotSource={hot}
                   active={activeId === item.id}
                   expand={edit?.id === item.id ? edit.n : 0}
                   flash={recentIds.has(item.id)}
@@ -683,7 +684,6 @@ export function DayPanel({
                   onChange={onChange}
                   onDelete={removeStop}
                   onGone={leave}
-                  onHover={onHover}
                   onLocate={onLocate}
                   onAnnounce={setSpoken}
                   held={held === item.id}
@@ -764,6 +764,11 @@ export function DayPanel({
       </nav>
     </div>
   )
+}
+
+/** The timeline reads the hovered stop itself, so a hover redraws it and not the day. */
+function HotTimeline({ hot, ...props }: Omit<DayTimelineProps, "hotId" | "onHover"> & { hot: LiveValue<string | null> }) {
+  return <DayTimeline {...props} hotId={useLiveValue(hot)} onHover={hot.set} />
 }
 
 /** `items` in the order of `ids`. */
