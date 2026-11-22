@@ -27,6 +27,7 @@ on:
       - "bun.lock"
       - ".bun-version"
       - "deploy/publish-preview.sh"
+      - "deploy/write-frontend-env.sh"
       - "scripts/wait-for-preview.ts"
       - ".github/actions/setup-ci/**"
       - ".github/workflows/preview.yml"
@@ -74,19 +75,20 @@ jobs:
         env:
           VITE_BASE: /preview/pr/${{ github.event.pull_request.number }}/
           VITE_API_BASE: /preview/pr/${{ github.event.pull_request.number }}
-          # Passed as env, never spliced into the script text.
+          # Passed as env, never spliced into the script text. No VITE_
+          # prefix: see deploy/write-frontend-env.sh.
           FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
+          IN_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          IN_CLERK_PROXY_URL: ${{ vars.VITE_CLERK_PROXY_URL }}
+          IN_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
         run: |
           set -euo pipefail
           umask 077
-          if [ -z "$FRONTEND_ENV" ]; then
-            echo "::error::FRONTEND_ENV secret is missing — cannot bake Clerk/Supabase keys into the preview."
-            exit 1
-          fi
-          # Never bake the local-dev Clerk bypass into a public preview.
-          printf '%s\n' "$FRONTEND_ENV" | sed '/^[[:space:]]*VITE_DEV_BEARER=/d' > .env
-          printf '\nVITE_ENABLE_SERVICE_WORKER=false\n' >> .env
-          printf 'VITE_API_BASE=/preview/pr/%s\n' "$PR_NUMBER" >> .env
+          # The production build's Clerk + Supabase values (the sidecar
+          # verifies tokens with the production secret), with the local-dev
+          # Clerk bypass stripped, the service worker off and the API on the
+          # PR's sidecar.
+          bash ../deploy/write-frontend-env.sh .env --preview "$PR_NUMBER"
           bun run build
           grep -F "/preview/pr/${PR_NUMBER}/assets/" dist/index.html \
             || { echo "::error::built index.html is missing the preview asset base"; exit 1; }
@@ -94,6 +96,32 @@ jobs:
             echo "::error::VITE_DEV_BEARER leaked into the preview .env"
             exit 1
           fi
+
+      # A bundle on any other Clerk instance cannot sign in: the sidecar
+      # answers 401 to its tokens. Clerk's own code ships the bare `pk_test_`
+      # prefix, so look for a whole key. Never print the key.
+      - name: Check preview uses production Clerk
+        working-directory: frontend
+        env:
+          IN_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          case "$IN_CLERK_PUBLISHABLE_KEY" in
+            pk_live_*) ;;
+            *)
+              echo "::error::VITE_CLERK_PUBLISHABLE_KEY secret is not a production (pk_live_) key."
+              exit 1
+              ;;
+          esac
+          if grep -rqE 'pk_test_[A-Za-z0-9+/=]{20,}' dist; then
+            echo "::error::preview bundle contains a development Clerk key (pk_test_)."
+            exit 1
+          fi
+          if ! grep -rqF -- "$IN_CLERK_PUBLISHABLE_KEY" dist; then
+            echo "::error::preview bundle is missing the production Clerk publishable key."
+            exit 1
+          fi
+          echo "[preview] bundle uses the production Clerk key"
 
       - name: Stamp preview.json + chrome
         run: |

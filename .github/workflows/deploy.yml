@@ -78,25 +78,9 @@ jobs:
           bun test --parallel --bail server/src > server-tests.log 2>&1 &
           TESTS_PID=$!
 
-          # The Clerk publishable key has its own secret so the production
-          # instance can be swapped without rewriting the whole FRONTEND_ENV.
-          printf '%s\n' "$FRONTEND_ENV" \
-            | sed '/^[[:space:]]*VITE_CLERK_PUBLISHABLE_KEY=/d' > frontend/.env
-          if [ -n "$IN_CLERK_PUBLISHABLE_KEY" ]; then
-            printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\n' "$IN_CLERK_PUBLISHABLE_KEY" >> frontend/.env
-          else
-            echo "::error::VITE_CLERK_PUBLISHABLE_KEY secret is missing."
-            exit 1
-          fi
-          if [ -n "$IN_CLERK_PROXY_URL" ]; then
-            printf 'VITE_CLERK_PROXY_URL=%s\n' "$IN_CLERK_PROXY_URL" >> frontend/.env
-          fi
-          # Public Supabase key for BreathFlow cloud sync. Without it the
-          # client is silently null and sync never runs.
-          if [ -n "$IN_SUPABASE_ANON_KEY" ]; then
-            sed -i '/^[[:space:]]*VITE_SUPABASE_ANON_KEY=/d' frontend/.env
-            printf 'VITE_SUPABASE_ANON_KEY=%s\n' "$IN_SUPABASE_ANON_KEY" >> frontend/.env
-          fi
+          # Shared with preview.yml so PR previews bake the same Clerk and
+          # Supabase values as production.
+          bash deploy/write-frontend-env.sh frontend/.env
           (cd frontend && bun run build)
 
           if ! wait "$TESTS_PID"; then
