@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { Menu, Modal } from "../components/kit"
 import { Presence, useLeaving } from "../components/presence"
@@ -118,9 +118,10 @@ describe("Presence", () => {
 })
 
 function Popover({ open }: { open: boolean }) {
-  const leave = useLeaving(open)
+  const ref = useRef<HTMLDivElement>(null)
+  const leave = useLeaving(open, ref)
   return leave.present ? (
-    <div role="dialog" aria-label="Calendar" className="trips-pop" {...leave.bind}>
+    <div role="dialog" aria-label="Calendar" className="trips-pop" ref={ref} {...leave.bind}>
       <button type="button">12</button>
     </div>
   ) : null

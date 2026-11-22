@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type AnimationEvent, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type AnimationEvent, type ReactNode, type RefObject } from "react"
 
 // Overlays leave the way they came instead of vanishing in one frame. Two
 // pieces, for the two ways an overlay is put on screen:
@@ -79,18 +79,18 @@ function animates(node: HTMLElement | null): boolean {
 
 /**
  * Keeps an element mounted after `open` turns false until its exit
- * animation ends. Spread `bind` on the element: it marks the closing state
- * (`data-state="closed"`, which index.css animates), makes the element inert
- * so no focus or click lands on it, and hides it from assistive tech at once.
+ * animation ends. `ref` is the element's own ref; spread `bind` on it too:
+ * it marks the closing state (`data-state="closed"`, which index.css
+ * animates), makes the element inert so no focus or click lands on it, and
+ * hides it from assistive tech at once.
  */
-export function useLeaving<E extends HTMLElement = HTMLDivElement>(open: boolean) {
+export function useLeaving<E extends HTMLElement>(open: boolean, ref: RefObject<E | null>) {
   const [seen, setSeen] = useState(open)
   const [leaving, setLeaving] = useState(false)
   if (open !== seen) {
     setSeen(open)
     setLeaving(!open)
   }
-  const ref = useRef<E | null>(null)
 
   useEffect(() => {
     if (!leaving) return
@@ -98,7 +98,7 @@ export function useLeaving<E extends HTMLElement = HTMLDivElement>(open: boolean
     // nothing animates.
     const timer = setTimeout(() => setLeaving(false), animates(ref.current) ? EXIT_DEADLINE_MS : 0)
     return () => clearTimeout(timer)
-  }, [leaving])
+  }, [leaving, ref])
 
   const onAnimationEnd = useCallback(
     (event: AnimationEvent<E>) => {
@@ -110,7 +110,6 @@ export function useLeaving<E extends HTMLElement = HTMLDivElement>(open: boolean
   return {
     present: open || leaving,
     bind: {
-      ref,
       "data-state": open ? "open" : "closed",
       inert: !open,
       "aria-hidden": open ? undefined : true,

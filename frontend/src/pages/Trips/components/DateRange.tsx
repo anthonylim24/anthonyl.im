@@ -53,7 +53,8 @@ export function DateRange({
   label?: string
 }) {
   const [open, setOpen] = useState(false)
-  const leave = useLeaving(open)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const leave = useLeaving(open, panelRef)
   const [month, setMonth] = useState(() => monthOf(start))
   /** First click of a new range; the next click completes it. */
   const [anchor, setAnchor] = useState<string | null>(null)
@@ -158,6 +159,7 @@ export function DateRange({
           aria-label={`Choose ${label.toLowerCase()}`}
           // `trips-pop`: the closing animation in index.css.
           {...sx(r.panel, "trips-pop")}
+          ref={panelRef}
           {...leave.bind}
           onKeyDown={onKeyDown}
         >

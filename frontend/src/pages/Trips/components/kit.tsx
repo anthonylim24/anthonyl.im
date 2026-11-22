@@ -15,11 +15,12 @@ import { X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import type { TripAccent } from "../types"
+import { placeMenu } from "./menuPlacement"
 import { ExitSignal, useClosing, useLeaving } from "./presence"
 
 // Small shared pieces: a popover menu and a modal that becomes a bottom
-// sheet on phones. Both portal-safe: the modal re-declares the `.trips`
-// token scope because Radix portals to <body>.
+// sheet on phones. Both portal to <body>, so neither is clipped by a pane,
+// and re-declare the `.trips` token scope there.
 
 /** An engraving from `pages/Trips/art/`, inked in the theme's own ink so it reads on either paper. */
 export function Engraving({ src }: { src: string }) {
@@ -56,21 +57,54 @@ export function Menu({
   triggerStyle?: Parameters<typeof sx>[0]
 }) {
   const [open, setOpen] = useState(false)
-  const leave = useLeaving(open)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const leave = useLeaving(open, menuRef)
   const wrapRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuId = useId()
+  /** The button and the menu: the menu is portalled, so it is not inside the wrapper. */
+  const inside = (node: Node | null) => Boolean(node && (wrapRef.current?.contains(node) || menuRef.current?.contains(node)))
 
   useEffect(() => {
     if (!open) return
-    const first = wrapRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')
-    first?.focus()
+    const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')
+    first?.focus({ preventScroll: true })
     const onPointer = (event: PointerEvent) => {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
+      if (!inside(event.target as Node)) setOpen(false)
     }
     document.addEventListener("pointerdown", onPointer)
     return () => document.removeEventListener("pointerdown", onPointer)
   }, [open])
+
+  // The menu floats over the page, so no pane that clips its overflow can cut
+  // it off. Placed before it paints, and again whenever the page under it
+  // scrolls or resizes. Written to the node: nothing in React depends on it.
+  useLayoutEffect(() => {
+    if (!open) return
+    const place = () => {
+      const menu = menuRef.current
+      const button = buttonRef.current
+      if (!menu || !button) return
+      const at = placeMenu({
+        trigger: button.getBoundingClientRect(),
+        size: { width: menu.offsetWidth, height: menu.scrollHeight },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        align,
+        side,
+      })
+      menu.style.top = `${at.top}px`
+      menu.style.left = `${at.left}px`
+      menu.style.maxHeight = at.maxHeight === null ? "" : `${at.maxHeight}px`
+      menu.style.transformOrigin = at.transformOrigin
+    }
+    place()
+    window.addEventListener("scroll", place, { capture: true, passive: true })
+    window.addEventListener("resize", place)
+    return () => {
+      window.removeEventListener("scroll", place, { capture: true })
+      window.removeEventListener("resize", place)
+    }
+  }, [open, align, side, menuRef])
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!open) return
@@ -80,9 +114,16 @@ export function Menu({
       buttonRef.current?.focus()
       return
     }
+    // Tab leaves the menu from its button, so focus moves on in page order
+    // rather than from wherever the portal sits in the document.
+    if (event.key === "Tab") {
+      setOpen(false)
+      buttonRef.current?.focus()
+      return
+    }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return
     event.preventDefault()
-    const nodes = [...(wrapRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])]
+    const nodes = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])]
     if (nodes.length === 0) return
     const at = nodes.indexOf(document.activeElement as HTMLElement)
     const next =
@@ -99,8 +140,44 @@ export function Menu({
   // blurs to nothing when a menu item is pressed, before its click lands.
   const onFocusOut = (event: ReactFocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget
-    if (open && next instanceof Node && !wrapRef.current?.contains(next)) setOpen(false)
+    if (open && next instanceof Node && !inside(next)) setOpen(false)
   }
+
+  const menu = (
+    <div
+      id={menuId}
+      role="menu"
+      aria-label={label}
+      // `trips-pop`: the closing animation in index.css.
+      {...sx(a.menu, "trips-glass-sheet", "trips-pop")}
+      // Fixed, at the spot `placeMenu` finds; scrolls if taller than the room.
+      style={FLOATING}
+      ref={menuRef}
+      {...leave.bind}
+    >
+      {items.map((item) => (
+        <div key={item.label} role="none">
+          {item.separated && <div {...sx(a.menuRule)} role="separator" />}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={item.disabled}
+            {...sx(a.menuItem, item.danger && a.menuItemDanger)}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setOpen(false)
+              buttonRef.current?.focus()
+              item.onSelect()
+            }}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     <div ref={wrapRef} {...sx(a.menuWrap)} onKeyDown={onKeyDown} onBlur={onFocusOut}>
@@ -120,41 +197,15 @@ export function Menu({
       >
         {trigger}
       </button>
-      {leave.present && (
-        <div
-          id={menuId}
-          role="menu"
-          aria-label={label}
-          // `trips-pop`: the closing animation in index.css.
-          {...sx(a.menu, align === "start" && a.menuLeft, side === "up" && a.menuUp, "trips-glass-sheet", "trips-pop")}
-          {...leave.bind}
-        >
-          {items.map((item) => (
-            <div key={item.label} role="none">
-              {item.separated && <div {...sx(a.menuRule)} role="separator" />}
-              <button
-                type="button"
-                role="menuitem"
-                disabled={item.disabled}
-                {...sx(a.menuItem, item.danger && a.menuItemDanger)}
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  setOpen(false)
-                  buttonRef.current?.focus()
-                  item.onSelect()
-                }}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* On <body>, inside a wrapper that re-declares the `.trips` tokens.
+          React still bubbles the menu's key and focus events to the wrapper above. */}
+      {leave.present && createPortal(<div className="trips trips-portal">{menu}</div>, document.body)}
     </div>
   )
 }
+
+/** Over the sticky header and the map; under a dialog's scrim (80) only if one opens on top. */
+const FLOATING = { position: "fixed", right: "auto", bottom: "auto", zIndex: 90, maxWidth: "calc(100vw - 16px)", overflowY: "auto" } as const
 
 /**
  * The element that had focus when `open` turned true: the button or menu
