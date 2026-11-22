@@ -10,6 +10,8 @@ import { createPlaceSearchRouter } from "./src/routes/placeSearch";
 import { createGooglePlaceTypeahead } from "./src/trips/placeSearch";
 import { getTripStore } from "./src/trips/store";
 import { createGoogleGeocoder, createPhotonGeocoder, createTripsLlm } from "./src/trips/ai";
+import { createTripReviewWorker, REVIEW_SWEEP_MS } from "./src/trips/reviewWorker";
+import { onShutdown } from "./src/shutdown";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit, trustedProxyClientAddress, userOrClientKey } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays, removeExtractedPlace } from "./src/igPlaces/wire";
@@ -88,10 +90,25 @@ app.route("/api/invoke", invokeRouter);
 // Multi-trip travel planner — Clerk-authenticated CRUD + AI generation /
 // enhancement + per-day Map Mode places. The Korea trip is seeded into the
 // store on first request and appears as a normal trip.
+const tripStore = getTripStore();
+// Gemini (GEMINI_MODEL, Maps → Search → JSON retry) with Groq as final fallback —
+// Groq's on-demand tier 8k-TPM still 413s on full-trip itineraries, so
+// it's last resort only.
+const tripsLlm = createTripsLlm({
+  geminiApiKey: config.geminiApiKey,
+  groqApiKey: config.groqApiKey,
+});
+// No Maps key → keyless Photon (OpenStreetMap) so AI places still get coordinates.
+const tripsGeocode = config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : createPhotonGeocoder();
+// One worker for AI reviews: `/enhance` kicks it with each new run, and (when
+// TRIPS_REVIEW_WORKER is on) it also sweeps the queue, below.
+const reviewWorker = tripsLlm
+  ? createTripReviewWorker({ store: tripStore, llm: tripsLlm, geocode: tripsGeocode })
+  : undefined;
 app.route(
   "/api/trips",
   createTripsRouter({
-    store: getTripStore(),
+    store: tripStore,
     rateLimit: createRateLimit({ windowMs: 60_000, max: 60, keyPrefix: "trips", key: userOrClientKey }),
     verifyAuth: (authHeader) =>
       verifyClerkOptional(authHeader, {
@@ -99,17 +116,26 @@ app.route(
         devBearer: config.igDevBearer,
         devUserId: config.igDevUserId,
       }),
-    // Gemini (GEMINI_MODEL, Maps → Search → JSON retry) with Groq as final fallback —
-    // Groq's on-demand tier 8k-TPM still 413s on full-trip itineraries, so
-    // it's last resort only.
-    llm: createTripsLlm({
-      geminiApiKey: config.geminiApiKey,
-      groqApiKey: config.groqApiKey,
-    }),
-    // No Maps key → keyless Photon (OpenStreetMap) so AI places still get coordinates.
-    geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : createPhotonGeocoder(),
+    llm: tripsLlm,
+    geocode: tripsGeocode,
+    reviewWorker,
   }),
 );
+
+// The sweep picks up retries, runs whose worker died, and (with its first
+// pass, now) the runs this process's restart left behind. On shutdown the
+// runs in progress are handed back so the next process takes them at once
+// without spending an attempt; PM2 kills the process ~1.6 s after SIGINT.
+if (reviewWorker && config.tripsReviewWorkerEnabled) {
+  reviewWorker.start(REVIEW_SWEEP_MS);
+  onShutdown("trips-review", async () => {
+    reviewWorker.stop();
+    await reviewWorker.drain(1_000);
+  });
+  console.log(`[trips/review] worker sweeping every ${REVIEW_SWEEP_MS / 1000}s`);
+} else if (reviewWorker) {
+  console.log("[trips/review] TRIPS_REVIEW_WORKER is off: reviews start when asked for, nothing sweeps");
+}
 
 // Type-ahead place search for the planner's place fields (Google Places,
 // biased to the trip). Its own bucket: a search per pause in typing must

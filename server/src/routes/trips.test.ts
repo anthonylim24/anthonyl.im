@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { Hono } from "hono"
 import { MemoryTripStore } from "../trips/store"
 import { KOREA_TRIP_ID } from "../trips/koreaTrip"
+import { createTripReviewWorker, type ReviewWorker } from "../trips/reviewWorker"
+import { REVIEW_MAX_ATTEMPTS } from "../trips/types"
 import { createTripsRouter, type TripsRouterDeps } from "./trips"
 import { createRateLimit, userOrClientKey } from "../middleware/rateLimit"
 
@@ -450,7 +452,12 @@ describe("enhancement endpoints", () => {
   })
 
   test("returns a parseable error body when the model fails", async () => {
-    const { app } = makeApp({ llm: async () => "not json at all" })
+    // Retried at once: unusable model output may be a thrown, retryable
+    // error, and the run reads as failed only after its last attempt.
+    const store = new MemoryTripStore()
+    const llm = async () => "not json at all"
+    const reviewWorker = createTripReviewWorker({ store, llm, fetchWeather: async () => [], backoffMs: [0], log: () => {} })
+    const { app } = makeApp({ store, llm, reviewWorker })
     const trip = await createTrip(app)
     const started = await startEnhance(app, trip.id)
     const body = await waitForEnhance(app, trip.id, started.id)
@@ -458,6 +465,40 @@ describe("enhancement endpoints", () => {
     expect(body.message).toBeTruthy()
     expect(body.run.status).toBe("error")
     expect(body.run.outcomeReason).toMatch(/failed before/i)
+  })
+
+  test("a review that throws is retried, and after its last attempt reads as failed with the reason", async () => {
+    // The forecast is fetched outside the model call, so a weather outage
+    // throws out of `enhanceTrip`: the queue's retry path, end to end.
+    const store = new MemoryTripStore()
+    let weatherCalls = 0
+    const fetchWeather = async () => {
+      weatherCalls++
+      throw new Error("The weather service is down.")
+    }
+    const llm = async () => JSON.stringify({ summary: "ok", suggestions: [] })
+    const reviewWorker = createTripReviewWorker({ store, llm, fetchWeather, backoffMs: [0], log: () => {} })
+    const { app } = makeApp({ store, llm, fetchWeather, reviewWorker })
+    const trip = await createTrip(app)
+    await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          {
+            id: "day-1",
+            date: "2026-07-10",
+            items: [{ id: "it-a", kind: "place", title: "Senso-ji", status: "none", createdBy: "user", location: { name: "Senso-ji", lat: 35.71, lng: 139.79, source: "user" } }],
+          },
+        ],
+      }),
+    })
+    const started = await startEnhance(app, trip.id)
+    const body = await waitForEnhance(app, trip.id, started.id)
+    expect(weatherCalls).toBe(REVIEW_MAX_ATTEMPTS)
+    expect(body.error).toBe("enhancement_failed")
+    expect(body.message).toBe("The weather service is down.")
+    expect((body.run as { queue?: unknown }).queue).toMatchObject({ state: "done", attempt: REVIEW_MAX_ATTEMPTS })
   })
 
   test("remeshes a concurrent PATCH instead of overwriting it", async () => {
@@ -521,43 +562,39 @@ describe("enhancement endpoints", () => {
     const hold = new Promise<void>((resolve) => {
       release = resolve
     })
-    const { app, store } = makeApp({
-      llm: async () => {
-        await hold
-        return JSON.stringify({
-          summary: "One tweak.",
-          suggestions: [
-            {
-              kind: "add",
-              dayId: "day-1",
-              title: "Add lunch",
-              detail: "No meals on day 1",
-              confidence: "medium",
-              proposedItem: {
-                kind: "place",
-                title: "Ichiran",
-                location: { name: "Ichiran", lat: 35.66, lng: 139.7, category: "restaurant" },
-              },
+    const llm = async () => {
+      await hold
+      return JSON.stringify({
+        summary: "One tweak.",
+        suggestions: [
+          {
+            kind: "add",
+            dayId: "day-1",
+            title: "Add lunch",
+            detail: "No meals on day 1",
+            confidence: "medium",
+            proposedItem: {
+              kind: "place",
+              title: "Ichiran",
+              location: { name: "Ichiran", lat: 35.66, lng: 139.7, category: "restaurant" },
             },
-          ],
-        })
-      },
-    })
+          },
+        ],
+      })
+    }
+    const store = new MemoryTripStore()
+    const reviewWorker = createTripReviewWorker({ store, llm, fetchWeather: async () => [], log: () => {} })
+    const { app } = makeApp({ store, llm, reviewWorker })
     const trip = await createTrip(app)
     const started = await startEnhance(app, trip.id)
     await store.delete(trip.id)
     release()
-    for (let i = 0; i < 50; i++) {
-      await Bun.sleep(5)
-      const run = await store.getRun(trip.id, started.id)
-      if (run && run.status !== "running") {
-        expect(run.status).toBe("error")
-        expect(run.outcomeReason).toMatch(/failed before/i)
-        expect(await store.get(trip.id)).toBeNull()
-        return
-      }
-    }
-    throw new Error("enhancement did not finish")
+    for (let i = 0; i < 50 && reviewWorker.inflight() > 0; i++) await Bun.sleep(5)
+    expect(reviewWorker.inflight()).toBe(0)
+    // Deleting a trip deletes its runs; the review's late save finds its
+    // claim gone and writes nothing, trip or run.
+    expect(await store.get(trip.id)).toBeNull()
+    expect(await store.getRun(trip.id, started.id)).toBeNull()
   })
 
   test("returns the trip that matches a just-finished run", async () => {
@@ -1568,7 +1605,8 @@ describe("enhancement run lifecycle", () => {
   test("refuses a second review while one is running, and hands back the one in flight", async () => {
     const { app, store } = makeApp({ llm: async () => "{}" })
     const trip = await createTrip(app)
-    await store.saveRun(runningRun(trip.id, ago(1_000)))
+    // Queued, not merely saved: the queue is what knows a review is live.
+    await store.enqueueReview(runningRun(trip.id, ago(1_000)), { scope: "trip" }, REVIEW_MAX_ATTEMPTS)
     const res = await app.request(`/api/trips/${trip.id}/enhance`, {
       method: "POST",
       headers: AUTH,
@@ -1578,6 +1616,45 @@ describe("enhancement run lifecycle", () => {
     const body = (await res.json()) as { error: string; run: { id: string; status: string } }
     expect(body.error).toBe("enhancement_running")
     expect(body.run).toMatchObject({ id: "run-live", status: "running" })
+  })
+
+  test("queues the review with its request and kicks the worker with the new run", async () => {
+    const kicked: Array<string | undefined> = []
+    const reviewWorker: ReviewWorker = {
+      kick: (runId) => void kicked.push(runId),
+      sweep: async () => {},
+      start: () => {},
+      stop: () => {},
+      drain: async () => {},
+      inflight: () => 0,
+    }
+    const { app, store } = makeApp({ llm: async () => "{}", reviewWorker })
+    const trip = await createTrip(app)
+    const run = await startEnhance(app, trip.id, { scope: "day", dayId: "day-2", prompt: "rainy-day ideas" })
+    expect(kicked).toEqual([run.id])
+    expect((run as { queue?: unknown }).queue).toEqual({ state: "queued", attempt: 0, maxAttempts: REVIEW_MAX_ATTEMPTS, nextAttemptAt: expect.any(String) })
+    // The request rides with the queued run: a worker in another process
+    // (or after a restart) reviews exactly what was asked for.
+    const claim = await store.claimReview("test-worker", 60_000, run.id)
+    expect(claim?.request).toEqual({ scope: "day", dayId: "day-2", prompt: "rainy-day ideas" })
+  })
+
+  test("a database that is not set up answers 503 naming both setup files, not a 500", async () => {
+    const store = new MemoryTripStore()
+    store.enqueueReview = async () => {
+      throw new Error("PGRST205: Could not find the table 'public.trip_enhancement_runs' in the schema cache")
+    }
+    const { app } = makeApp({ store, llm: async () => "{}" })
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/enhance`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ scope: "trip" }),
+    })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: string; message: string }
+    expect(body.error).toBe("trips_not_provisioned")
+    expect(body.message).toContain("supabase/migrations/20261121_trip_review_queue.sql")
   })
 
   test("two reviews started together: one runs, the other is refused", async () => {

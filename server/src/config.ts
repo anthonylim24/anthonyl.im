@@ -109,6 +109,15 @@ export const config = {
   igWorkerStaleSec: Number(process.env.IG_WORKER_STALE_SEC ?? 600),
   igDevBearer: resolveDevBearers(),
   igDevUserId: process.env.IG_DEV_USER_ID ?? 'dev-user',
+
+  // The AI review queue's sweep (server/src/trips/reviewWorker.ts): retries,
+  // runs whose worker died, runs stranded by a restart. On by default only in
+  // production, so a dev server holding real keys never claims production
+  // reviews and `bun test` (NODE_ENV=test) starts no timers. Off, a review
+  // still starts the moment it is asked for, in this process.
+  tripsReviewWorkerEnabled: isTruthy(
+    process.env.TRIPS_REVIEW_WORKER ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false'),
+  ),
 } as const;
 
 // Warn about keys for features that are enabled. Nothing is required at boot:
