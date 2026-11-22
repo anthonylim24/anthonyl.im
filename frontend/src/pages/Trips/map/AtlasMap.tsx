@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
-import { Box, Minus, Plus, Scan } from "lucide-react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import * as stylex from "@stylexjs/stylex"
+import { Box, Heart, Minus, Plus, Scan } from "lucide-react"
 import { sx } from "@/styles/merge"
+import { layout } from "@/styles/common.stylex"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { pinsKey, projectToBox, routesKey, type AtlasPin, type LngLat } from "./geo"
+import { boxProjection, pinsKey, routesKey, spanMeters, type AtlasPin, type LngLat } from "./geo"
 import type { AtlasMapHandle, FrameOptions } from "./engine"
 import { mapStyles as s } from "./map.stylex"
 
@@ -78,6 +80,32 @@ export function canRenderMap(): boolean {
   return webgl2
 }
 
+const IDEAS_KEY = "trips-map-wishlist"
+const NO_PINS: readonly AtlasPin[] = []
+
+function readIdeasShown(): boolean {
+  try {
+    return localStorage.getItem(IDEAS_KEY) !== "hidden"
+  } catch {
+    return true
+  }
+}
+
+/** Whether this viewer shows wishlist pins on the map: shown unless they hid them on this device. */
+function useIdeasShown(): [boolean, (shown: boolean) => void] {
+  const [shown, setShown] = useState(readIdeasShown)
+  const change = useCallback((next: boolean) => {
+    setShown(next)
+    try {
+      if (next) localStorage.removeItem(IDEAS_KEY)
+      else localStorage.setItem(IDEAS_KEY, "hidden")
+    } catch {
+      // Private mode: the choice lasts for this page only.
+    }
+  }, [])
+  return [shown, change]
+}
+
 let engine: Promise<typeof import("./engine")> | null = null
 
 /**
@@ -104,6 +132,8 @@ export function AtlasMap({
   hotId = null,
   onSelect,
   onHover,
+  ideaPins = NO_PINS,
+  onSelectIdea,
   ambient = false,
   padding,
   maxZoom,
@@ -121,9 +151,12 @@ export function AtlasMap({
   const dark = useIsDark()
   const select = useLatestCallback((id: string) => onSelect?.(id))
   const hover = useLatestCallback((id: string | null) => onHover?.(id))
-  const latest = useRef({ pins, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
+  const selectIdea = useLatestCallback((id: string) => onSelectIdea?.(id))
+  const [ideasShown, setIdeasShown] = useIdeasShown()
+  const ideas = ideasShown && !ambient ? ideaPins : NO_PINS
+  const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
   useLayoutEffect(() => {
-    latest.current = { pins, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
+    latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
   })
   const framedRef = useRef(false)
 
@@ -169,6 +202,7 @@ export function AtlasMap({
           zoom: now.restZoom,
           onSelect: select,
           onHover: hover,
+          onSelectIdea: selectIdea,
           onError: () => setStatus("static"),
           onTilt: setTilted,
           onReady: () => {
@@ -178,6 +212,7 @@ export function AtlasMap({
         })
         handleRef.current = handle
         handle.setPins(now.pins)
+        handle.setIdeaPins(now.ideas)
         handle.setRoute(now.routes ?? [])
         handle.setDots(now.dots ?? [])
         handle.setActive(now.activeId)
@@ -212,11 +247,17 @@ export function AtlasMap({
   // Pages rebuild pins on every edit (a keystroke in a stop's notes makes a
   // new array). MapLibre is only told when what it draws has changed.
   const pinKey = pinsKey(pins)
+  const ideaKey = pinsKey(ideas)
   const routeKey = routesKey(routes ?? [])
   const dotKey = routesKey([dots ?? []])
   useEffect(() => {
     handleRef.current?.setPins(latest.current.pins)
   }, [pinKey])
+  // Wishlist pins have their own marker set: a changed (or hidden) idea
+  // never rebuilds the stops' markers or moves the camera.
+  useEffect(() => {
+    handleRef.current?.setIdeaPins(latest.current.ideas)
+  }, [ideaKey])
   useEffect(() => {
     handleRef.current?.setRoute(latest.current.routes ?? [])
   }, [routeKey])
@@ -237,32 +278,56 @@ export function AtlasMap({
     frame(true)
   }, [frameKey])
 
+  const showControls = status === "ready" && !ambient && !bare
+  const showLegend = ideaPins.length > 0 && !ambient && !bare
+
   return (
     <div {...sx(s.root, ambient && s.rootAmbient)} role="region" aria-label={label}>
       <div ref={hostRef} {...sx(s.canvas, !ambient && s.canvasQuick, status === "ready" && s.canvasReady)} />
-      {status !== "ready" && !(ambient && status === "loading") && <StaticChart pins={pins} loading={status === "loading"} />}
+      {status !== "ready" && !(ambient && status === "loading") && (
+        <StaticChart pins={pins} ideas={ideas} loading={status === "loading"} onSelectIdea={selectIdea} />
+      )}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
-      {status === "ready" && !ambient && !bare && (
-        <div {...sx(s.controls, "trips-glass-pill")}>
-          <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>
-            <Plus size={16} strokeWidth={1.75} aria-hidden />
-          </button>
-          <button type="button" {...sx(s.control)} aria-label="Zoom out" onClick={() => handleRef.current?.zoomBy(-1)}>
-            <Minus size={16} strokeWidth={1.75} aria-hidden />
-          </button>
-          <span {...sx(s.controlRule)} aria-hidden />
-          <button
-            type="button"
-            {...sx(s.control, tilted && s.controlOn)}
-            aria-label="3D tilt"
-            aria-pressed={tilted}
-            onClick={() => setTilted(handleRef.current?.toggleTilt() ?? tilted)}
-          >
-            <Box size={16} strokeWidth={1.75} aria-hidden />
-          </button>
-          <button type="button" {...sx(s.control)} aria-label="Fit all stops" onClick={() => frame(true)}>
-            <Scan size={16} strokeWidth={1.75} aria-hidden />
-          </button>
+      {(showControls || showLegend) && (
+        <div {...sx(s.rail)}>
+          {showControls && (
+            <div {...sx(s.controls, "trips-glass-pill")}>
+              <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>
+                <Plus size={16} strokeWidth={1.75} aria-hidden />
+              </button>
+              <button type="button" {...sx(s.control)} aria-label="Zoom out" onClick={() => handleRef.current?.zoomBy(-1)}>
+                <Minus size={16} strokeWidth={1.75} aria-hidden />
+              </button>
+              <span {...sx(s.controlRule)} aria-hidden />
+              <button
+                type="button"
+                {...sx(s.control, tilted && s.controlOn)}
+                aria-label="3D tilt"
+                aria-pressed={tilted}
+                onClick={() => setTilted(handleRef.current?.toggleTilt() ?? tilted)}
+              >
+                <Box size={16} strokeWidth={1.75} aria-hidden />
+              </button>
+              <button type="button" {...sx(s.control)} aria-label="Fit all stops" onClick={() => frame(true)}>
+                <Scan size={16} strokeWidth={1.75} aria-hidden />
+              </button>
+            </div>
+          )}
+          {/* The wishlist's key: what the hearts are, and a switch to hide them. */}
+          {showLegend && (
+            <div {...sx(s.legend, "trips-glass-pill")}>
+              <button
+                type="button"
+                {...sx(s.legendBtn, !ideasShown && s.legendBtnOff)}
+                aria-pressed={ideasShown}
+                onClick={() => setIdeasShown(!ideasShown)}
+              >
+                <Heart size={13} strokeWidth={2} fill={ideasShown ? "currentColor" : "none"} {...sx(s.legendMark)} aria-hidden />
+                <span aria-hidden>{`Wishlist · ${ideaPins.length}`}</span>
+                <span {...sx(layout.srOnly)}>{`Wishlist places on the map: ${ideaPins.length}`}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
       {children}
@@ -270,30 +335,84 @@ export function AtlasMap({
   )
 }
 
-/** Graticule + plotted pins: the loading state and the no-WebGL fallback. */
-function StaticChart({ pins, loading }: { pins: readonly AtlasPin[]; loading: boolean }) {
-  const W = 400
-  const H = 300
-  const points = projectToBox(pins, W, H, 56)
+const CHART_W = 400
+const CHART_H = 300
+
+/**
+ * Graticule + plotted pins: the loading state and the no-WebGL fallback.
+ * Stops are a picture; wishlist places are real buttons on a layer of their
+ * own, since in a browser with no WebGL this is the only map there is.
+ */
+function StaticChart({
+  pins,
+  ideas,
+  loading,
+  onSelectIdea,
+}: {
+  pins: readonly AtlasPin[]
+  ideas: readonly AtlasPin[]
+  loading: boolean
+  onSelectIdea: (ideaId: string) => void
+}) {
+  // The stops set the frame and the ideas are placed in it, so a far-off idea
+  // never shrinks the day; one stop (or none) has no frame of its own to keep.
+  const project = boxProjection(spanMeters(pins) > 0 ? pins : [...pins, ...ideas], CHART_W, CHART_H, 56)
+  const points = project ? pins.map(project) : []
+  const placed = project
+    ? ideas.flatMap((idea) => {
+        const at = project(idea)
+        return at.x >= 0 && at.x <= CHART_W && at.y >= 0 && at.y <= CHART_H ? [{ idea, ...at }] : []
+      })
+    : []
+  const onKey = (event: KeyboardEvent, ideaId: string) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onSelectIdea(ideaId)
+  }
   return (
-    <svg
-      {...sx(s.chart, loading && s.chartLoading)}
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="xMidYMid slice"
-      aria-hidden
-    >
-      {Array.from({ length: 9 }, (_, i) => (
-        <line key={`v${i}`} x1={i * 50} y1={0} x2={i * 50} y2={H} {...sx(s.chartRule)} />
-      ))}
-      {Array.from({ length: 7 }, (_, i) => (
-        <line key={`h${i}`} x1={0} y1={i * 50} x2={W} y2={i * 50} {...sx(s.chartRule)} />
-      ))}
-      {points.length > 1 && (
-        <polyline points={points.map((p) => `${p.x},${p.y}`).join(" ")} {...sx(s.chartRoute)} />
+    <>
+      <svg
+        {...sx(s.chart, loading && s.chartLoading)}
+        viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden
+      >
+        {Array.from({ length: 9 }, (_, i) => (
+          <line key={`v${i}`} x1={i * 50} y1={0} x2={i * 50} y2={CHART_H} {...sx(s.chartRule)} />
+        ))}
+        {Array.from({ length: 7 }, (_, i) => (
+          <line key={`h${i}`} x1={0} y1={i * 50} x2={CHART_W} y2={i * 50} {...sx(s.chartRule)} />
+        ))}
+        {points.length > 1 && (
+          <polyline points={points.map((p) => `${p.x},${p.y}`).join(" ")} {...sx(s.chartRoute)} />
+        )}
+        {points.map((p, i) => (
+          <circle key={pins[i]!.id} cx={p.x} cy={p.y} r={4} {...sx(s.chartDot)} />
+        ))}
+      </svg>
+      {placed.length > 0 && (
+        // Same viewBox and slice as the chart, so the two layers line up exactly.
+        <svg {...sx(s.chart)} viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="xMidYMid slice">
+          {placed.map(({ idea, x, y }) => (
+            <g
+              key={idea.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`${idea.title}, on the wishlist`}
+              transform={`translate(${x} ${y})`}
+              onClick={() => onSelectIdea(idea.id)}
+              onKeyDown={(event) => onKey(event, idea.id)}
+              {...sx(stylex.defaultMarker(), s.chartIdea)}
+            >
+              <title>{idea.title}</title>
+              <circle r={11} {...sx(s.chartIdeaHit)} />
+              <circle r={8.5} {...sx(s.chartIdeaFocus)} />
+              <circle r={6} {...sx(s.chartIdeaRing)} />
+              <Heart x={-3.25} y={-3.25} width={6.5} height={6.5} strokeWidth={0} fill="currentColor" aria-hidden />
+            </g>
+          ))}
+        </svg>
       )}
-      {points.map((p, i) => (
-        <circle key={pins[i]!.id} cx={p.x} cy={p.y} r={4} {...sx(s.chartDot)} />
-      ))}
-    </svg>
+    </>
   )
 }

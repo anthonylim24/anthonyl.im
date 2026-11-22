@@ -187,6 +187,20 @@ export function tripPins(trip: Pick<Trip, "days">): AtlasPin[] {
   })
 }
 
+/**
+ * One pin per wishlist idea that has a point, in list order. The id is the
+ * idea's own (`trip.ideas[].id`): idea pins travel on their own prop and
+ * marker set, so they never share a namespace with stops.
+ */
+export function ideaPins(trip: Pick<Trip, "ideas">): AtlasPin[] {
+  return (trip.ideas ?? []).flatMap((idea): AtlasPin[] => {
+    const lat = idea.location?.lat
+    const lng = idea.location?.lng
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
+    return [{ id: idea.id, lat: lat!, lng: lng!, title: idea.title || idea.location!.name, variant: "idea" }]
+  })
+}
+
 /** Every located stop on the trip (the overview's small dots). */
 export function tripDots(trip: Pick<Trip, "days">): LngLat[] {
   return trip.days.flatMap(dayRoute)
@@ -230,7 +244,22 @@ export function projectToBox(
   height: number,
   inset: number,
 ): Array<{ x: number; y: number }> {
-  if (points.length === 0) return []
+  const project = boxProjection(points, width, height, inset)
+  return project ? points.map(project) : []
+}
+
+/**
+ * The projection `projectToBox` fits to `points`, as a function, so other
+ * points can be placed in the same frame (the fallback chart's wishlist pins,
+ * which must not rescale the stops). Null when there is nothing to fit.
+ */
+export function boxProjection(
+  points: readonly LngLat[],
+  width: number,
+  height: number,
+  inset: number,
+): ((point: LngLat) => { x: number; y: number }) | null {
+  if (points.length === 0) return null
   const mid = centroid(points)!
   const k = Math.cos(rad(mid.lat))
   const xs = points.map((p) => (p.lng - mid.lng) * k)
@@ -241,10 +270,10 @@ export function projectToBox(
   const usable = spanX === 0 && spanY === 0 ? 0 : scale
   const cx = (Math.max(...xs) + Math.min(...xs)) / 2
   const cy = (Math.max(...ys) + Math.min(...ys)) / 2
-  return xs.map((x, i) => ({
-    x: width / 2 + (x - cx) * usable,
-    y: height / 2 + (ys[i]! - cy) * usable,
-  }))
+  return (p) => ({
+    x: width / 2 + ((p.lng - mid.lng) * k - cx) * usable,
+    y: height / 2 + (-(p.lat - mid.lat) - cy) * usable,
+  })
 }
 
 /** A pin where the camera puts it on screen, with its place in the day (its number). */
