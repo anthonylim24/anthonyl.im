@@ -6,6 +6,7 @@ import {
   nameLanguage,
   PlaceDetailsUpstreamError,
   plausibleName,
+  sameName,
   toPlaceDetails,
   type RawDetails,
 } from "./placeDetails"
@@ -130,6 +131,10 @@ describe("plausibleName", () => {
     ["Onion Anguk", "Cafe Onion Anguk"],
     ["Tosokchon Samgyetang", "Tosokchon Samgyetang Restaurant"],
     ["Jagalchi Fish Market", "Jagalchi Market"],
+    ["경복궁", "경복궁"],
+    ["一蘭", "一蘭 新宿中央東口店"],
+    ["ガスト", "ガスト 渋谷駅前店"],
+    ["Myeongdong Kyoja", "Myeongdong Kyoja Main"],
   ])("accepts %s as %s", (wanted, found) => {
     expect(plausibleName(wanted, found)).toBe(true)
   })
@@ -142,8 +147,39 @@ describe("plausibleName", () => {
     ["Bo Fish", "Bo Market"],
     ["경복궁", "Gyeongbokgung Palace"],
     ["", "Anything"],
+    // A cuisine or kind word is never the name.
+    ["Sushi Saito", "Sushi Sho"],
+    ["Ramen Nagi Shinjuku", "Ramen Fuunji Shinjuku"],
+    ["Kyochon Chicken Anguk", "BHC Chicken Anguk"],
+    ["Gogung Bibimbap Myeongdong", "Jeonju Bibimbap Myeongdong"],
+    ["Pizza Hut Itaewon", "Pizza Express Itaewon"],
+    // A district both share never carries the match.
+    ["Myeongdong Kyoja", "Myeongdong Hamheung Naengmyeon"],
+    ["Ichiran Shibuya Tokyo", "Ippudo Shibuya Tokyo"],
+    // Kana voicing marks and Thai vowel marks are part of the letter.
+    ["ガスト 渋谷", "バスト 渋谷"],
+    ["サバ 銀座", "サハ 銀座"],
+    ["ブルーボトル 渋谷", "プルーボトル 渋谷"],
+    ["ร้านกาแฟ บ้านสวน", "ร้านกาแฟ บ้านไร่"],
+    // Both say what they are, and it differs.
+    ["Sushi Saito", "Ramen Saito"],
+    ["Gyeongbokgung Station", "Gyeongbokgung Palace"],
   ])("refuses %s as %s", (wanted, found) => {
     expect(plausibleName(wanted, found)).toBe(false)
+  })
+})
+
+describe("sameName", () => {
+  it.each([
+    ["Bukhansan National Park", "Bukhansan National Park", true],
+    ["Café de Flore", "Cafe de Flore", true],
+    ["경복궁", "경복궁", true],
+    // Containment is not sameness: these are kilometres apart.
+    ["Seoul Forest", "Seoul", false],
+    ["Hangang Park", "Yeouido Hangang Park", false],
+    ["ブルーボトル", "プルーボトル", false],
+  ])("%s / %s → %p", (wanted, found, same) => {
+    expect(sameName(wanted, found)).toBe(same)
   })
 })
 
@@ -158,6 +194,24 @@ describe("nameLanguage", () => {
     ["Ακρόπολη", "el"],
   ])("reads %s as %s", (name, language) => {
     expect(nameLanguage(name)).toBe(language)
+  })
+
+  it.each([
+    ["Tokyo", 35.68, 139.76, "ja"],
+    ["Sapporo", 43.06, 141.35, "ja"],
+    ["Fukuoka", 33.59, 130.4, "ja"],
+    ["Tsushima", 34.2, 129.29, "ja"],
+    ["Naha", 26.21, 127.68, "ja"],
+    ["Taipei", 25.03, 121.56, "zh-TW"],
+    ["Hong Kong", 22.28, 114.16, "zh-TW"],
+    ["Macau", 22.19, 113.54, "zh-TW"],
+    ["Shanghai", 31.23, 121.47, "zh"],
+    ["Shenzhen", 22.54, 114.06, "zh"],
+    ["Seoul", 37.57, 126.98, "zh"],
+    ["Busan", 35.1, 129.04, "zh"],
+    ["Jeju", 33.5, 126.53, "zh"],
+  ])("reads a Han-only name in %s as %s", (_city, lat, lng, language) => {
+    expect(nameLanguage("金閣寺", { lat, lng })).toBe(language)
   })
 })
 
@@ -223,6 +277,54 @@ describe("createGooglePlaceDetails", () => {
     expect(await createGooglePlaceDetails(KEY, google.fetchImpl)({ placeId: PALACE_ID })).toBeNull()
   })
 
+  it("never looks a closed place up again by name: that finds a neighbour", async () => {
+    const google = fakeGoogle({ details: { ...palace, businessStatus: "CLOSED_PERMANENTLY" } })
+    const lookup = createGooglePlaceDetails(KEY, google.fetchImpl)
+    const query = { placeId: PALACE_ID, fallback: { name: "Gyeongbokgung", near: { lat: 37.5796, lng: 126.977 } } }
+    expect(await lookup(query)).toBeNull()
+    // From the cache too.
+    expect(await lookup(query)).toBeNull()
+    expect(google.calls.some((call) => call.url.endsWith("places:searchText"))).toBe(false)
+    expect(google.calls).toHaveLength(1)
+  })
+
+  it("follows a closed place to where it moved, once", async () => {
+    const OLD = "ChIJoldClosedPlace0001"
+    const NEW = "ChIJnewHomeOfPlace0001"
+    const calls: string[] = []
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      if (url.includes(`/places/${OLD}?`)) return Response.json({ id: OLD, displayName: { text: "Old" }, businessStatus: "CLOSED_PERMANENTLY", movedPlaceId: NEW })
+      if (url.includes(`/places/${NEW}?`)) return Response.json({ ...palace, id: NEW, photos: undefined })
+      return new Response("unexpected", { status: 500 })
+    }) as typeof fetch
+    const lookup = createGooglePlaceDetails(KEY, fetchImpl)
+    expect((await lookup({ placeId: OLD }))?.placeId).toBe(NEW)
+    expect((await lookup({ placeId: OLD }))?.placeId).toBe(NEW)
+    expect(calls).toHaveLength(2)
+    expect(DETAILS_FIELDS.split(",")).toContain("movedPlaceId")
+  })
+
+  it("does not chase a second move", async () => {
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const id = String(input).match(/places\/([^?]+)\?/)![1]!
+      return Response.json({ id, displayName: { text: "Gone" }, businessStatus: "CLOSED_PERMANENTLY", movedPlaceId: `${id}x` })
+    }) as typeof fetch
+    expect(await createGooglePlaceDetails(KEY, fetchImpl)({ placeId: PALACE_ID })).toBeNull()
+  })
+
+  it("asks only for fields it shows", () => {
+    expect(DETAILS_FIELDS.split(",")).not.toContain("location")
+  })
+
+  it("refuses redirects on every call that carries the key", async () => {
+    const google = fakeGoogle()
+    await createGooglePlaceDetails(KEY, google.fetchImpl)({ name: "Gyeongbokgung", near: { lat: 37.5796, lng: 126.977 } })
+    expect(google.calls.length).toBeGreaterThan(2)
+    for (const call of google.calls) expect(call.init.redirect).toBe("error")
+  })
+
   it("throws the status alone when Google refuses, quoting neither body nor key", async () => {
     const google = fakeGoogle({ detailsStatus: 403 })
     const lookup = createGooglePlaceDetails(KEY, google.fetchImpl)
@@ -281,6 +383,15 @@ describe("createGooglePlaceDetails", () => {
     expect(place?.placeId).toBe(PALACE_ID)
   })
 
+  it.each([
+    ["no longer valid", { code: 400, message: "The provided Place ID is no longer valid. Please refresh cached Place IDs.", status: "INVALID_ARGUMENT" }],
+    ["invalid place id", { code: 400, message: "Invalid place ID.", status: "INVALID_ARGUMENT" }],
+    ["NOT_FOUND", { code: 400, message: "Requested entity was not found.", status: "NOT_FOUND" }],
+  ])("reads the %s wording as an unknown id", async (_wording, error) => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ error }), { status: 400 })) as typeof fetch
+    expect(await createGooglePlaceDetails(KEY, fetchImpl)({ placeId: PALACE_ID })).toBeNull()
+  })
+
   it("keeps a field-mask 400 a failure", async () => {
     const fetchImpl = (async () =>
       new Response(JSON.stringify({ error: { code: 400, message: "Request contains an invalid argument.", details: [{ fieldViolations: [{ field: "id,notAField" }] }] } }), { status: 400 })) as typeof fetch
@@ -331,6 +442,16 @@ describe("createGooglePlaceDetails", () => {
       expect(await createGooglePlaceDetails(KEY, cafe.fetchImpl)({ name: "Cafe Onion", near: park })).toBeNull()
     })
 
+    it.each([
+      // A city is not a park, and containment is not the same name (measured distances).
+      ["Seoul Forest", { lat: 37.5444, lng: 127.0374 }, { id: "ChIJSeoulCityPlaceId01", displayName: { text: "Seoul" }, location: { latitude: 37.5503, longitude: 126.9971 }, primaryType: "locality" }],
+      ["Hangang Park", { lat: 37.5172, lng: 126.9938 }, { id: "ChIJYeouidoHangangPark1", displayName: { text: "Yeouido Hangang Park" }, location: { latitude: 37.5284, longitude: 126.9326 }, primaryType: "park" }],
+    ])("never takes %s for a bigger area kilometres off", async (name, at, hit) => {
+      const google = fakeGoogle({ search: [hit as RawDetails] })
+      expect(await createGooglePlaceDetails(KEY, google.fetchImpl)({ name, near: at })).toBeNull()
+      expect(google.calls).toHaveLength(1)
+    })
+
     it("answers null when the top hit is close but another place", async () => {
       const google = fakeGoogle({
         search: [{ id: "ChIJotherPlaceNearby01", displayName: { text: "Gwanghwamun Gate" }, location: { latitude: 37.5797, longitude: 126.9771 } }],
@@ -353,6 +474,56 @@ describe("createGooglePlaceDetails", () => {
     it("answers null when nothing is found", async () => {
       const google = fakeGoogle({ search: [] })
       expect(await createGooglePlaceDetails(KEY, google.fetchImpl)({ name: "Gyeongbokgung Palace", near })).toBeNull()
+    })
+  })
+
+  describe("deadlines", () => {
+    const timeouts = { totalMs: 120, stepMs: 80, photoMs: 50, reserveMs: 10 }
+    /** Never answers; rejects when its signal aborts, as fetch does. */
+    const hang = (init: RequestInit = {}) =>
+      new Promise<Response>((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }))
+
+    it("gives up on the whole lookup at its deadline, however many calls it takes", async () => {
+      // Each call takes just under its own step limit: an unknown id, then search, then details would run past the total.
+      const slow = (ms: number, answer: () => Response) => (init: RequestInit = {}) =>
+        new Promise<Response>((resolve, reject) => {
+          const timer = setTimeout(() => resolve(answer()), ms)
+          init.signal?.addEventListener("abort", () => (clearTimeout(timer), reject(init.signal!.reason)), { once: true })
+        })
+      const base = fakeGoogle()
+      const dead = "ChIJdeadPlaceIdentifier"
+      const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes(`/places/${dead}?`)) return slow(50, () => new Response("", { status: 404 }))(init)
+        return slow(50, () => new Response(null))(init).then(() => base.fetchImpl(input, init))
+      }) as typeof fetch
+      const err = await createGooglePlaceDetails(KEY, fetchImpl, { timeouts })({
+        placeId: dead,
+        fallback: { name: "Gyeongbokgung", near: { lat: 37.5796, lng: 126.977 } },
+      }).catch((e: unknown) => e)
+      expect((err as Error).name).toBe("TimeoutError")
+    })
+
+    it("answers without the photos that do not arrive in time", async () => {
+      const base = fakeGoogle()
+      const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input).includes("/media?") ? hang(init) : base.fetchImpl(input, init)) as typeof fetch
+      const place = await createGooglePlaceDetails(KEY, fetchImpl, { timeouts })({ placeId: PALACE_ID })
+      expect(place?.name).toBe("Gyeongbokgung Palace")
+      expect(place?.photos).toEqual([])
+    })
+
+    it("stops when the caller hangs up, and keeps nothing", async () => {
+      const controller = new AbortController()
+      const base = fakeGoogle()
+      let hung = true
+      const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) => (hung ? hang(init) : base.fetchImpl(input, init))) as typeof fetch
+      const lookup = createGooglePlaceDetails(KEY, fetchImpl, { timeouts: { ...timeouts, totalMs: 5_000, stepMs: 5_000 } })
+      const pending = lookup({ placeId: PALACE_ID }, controller.signal)
+      controller.abort()
+      expect(((await pending.catch((e: unknown) => e)) as Error).name).toBe("AbortError")
+      hung = false
+      expect((await lookup({ placeId: PALACE_ID }))?.name).toBe("Gyeongbokgung Palace")
     })
   })
 

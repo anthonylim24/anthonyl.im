@@ -194,6 +194,35 @@ describe("GET /api/places/details", () => {
     expect(warnings).toContain("upstream 403")
   })
 
+  it("neither logs nor fails a lookup the client hung up on", async () => {
+    const controller = new AbortController()
+    const app = createPlaceSearchRouter({
+      verifyAuth,
+      search: null,
+      details: (_query, signal) => {
+        // The popover closes while Google is still answering.
+        queueMicrotask(() => controller.abort())
+        return new Promise((_, reject) => signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true }))
+      },
+    })
+    const { result: res, warnings } = await withWarnings(() => app.request(`/details?placeId=${PLACE_ID}`, { ...auth, signal: controller.signal }))
+    expect(res.status).toBe(499)
+    expect(warnings).toBe("")
+  })
+
+  it("still reports a lookup that ran out of time", async () => {
+    const app = createPlaceSearchRouter({
+      verifyAuth,
+      search: null,
+      details: async () => {
+        throw new DOMException("timed out", "TimeoutError")
+      },
+    })
+    const { result: res, warnings } = await withWarnings(() => app.request(`/details?placeId=${PLACE_ID}`, auth))
+    expect(res.status).toBe(502)
+    expect(warnings).toContain("TimeoutError")
+  })
+
   it("never lets the key out: not in an answer, an error, or a log line", async () => {
     // A real lookup over a fake Google whose network error quotes a URL with the key in it.
     const google = (async (input: RequestInfo | URL) => {
