@@ -25,7 +25,7 @@ import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
-import { AtlasMap } from "./map/AtlasMap"
+import { AtlasMap, canRenderMap, loadMapEngine } from "./map/AtlasMap"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
@@ -65,7 +65,6 @@ import { share, ws as s } from "./workspace.stylex"
 
 const PhotorealOverlay = lazyRetry(() => import("./photoreal/PhotorealOverlay"))
 
-const PHOTOREAL_READY = photorealAvailable()
 const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => ({ default: m.BudgetPanel })))
 const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
 const IdeasPanel = lazyRetry(() => import("./workspace/IdeasPanel").then((m) => ({ default: m.IdeasPanel })))
@@ -93,6 +92,24 @@ function useWide(): boolean {
     return () => query.removeEventListener("change", sync)
   }, [])
   return wide
+}
+
+/**
+ * True once the page has painted and the browser is idle. Work nobody needs
+ * for the first paint waits for it: probing WebGL for the 3D view, and on a
+ * phone fetching the map engine before the Map tab is tapped.
+ */
+function useIdle(): boolean {
+  const [idle, setIdle] = useState(false)
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => setIdle(true), { timeout: 3000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const timer = setTimeout(() => setIdle(true), 1000)
+    return () => clearTimeout(timer)
+  }, [])
+  return idle
 }
 
 function typing(target: EventTarget | null): boolean {
@@ -181,6 +198,12 @@ function Workspace() {
   const location = useLocation()
   const viewer = useViewer()
   const wide = useWide()
+  const idle = useIdle()
+  // Probing for the 3D view creates a WebGL context: never on the way to first paint.
+  const photorealReady = idle && photorealAvailable()
+  useEffect(() => {
+    if (idle && !wide && canRenderMap()) void loadMapEngine().catch(() => undefined)
+  }, [idle, wide])
   const [view, setView] = useState<"list" | "map">("list")
   const [dialog, setDialog] = useState<Dialog>(null)
   const [hotId, setHotId] = useState<string | null>(null)
@@ -905,7 +928,7 @@ function Workspace() {
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
             onStopAi={editor.stopAi}
-            onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
+            onPhotoreal={photorealReady ? () => setPhotoreal(true) : undefined}
             onInstagram={openInstagram}
             sky={daySky(day, forecast)}
             holidays={holidays.get(day.id)}
@@ -1081,7 +1104,7 @@ function Workspace() {
                   .join(" · ")}
               </span>
             </p>
-            {day && PHOTOREAL_READY && pins.length > 0 && (
+            {day && photorealReady && pins.length > 0 && (
               <button type="button" {...sx(s.flyBtn)} onClick={() => setPhotoreal(true)} title="Fly through this day in photoreal 3D">
                 <Orbit size={15} strokeWidth={1.75} aria-hidden />
                 Fly in 3D

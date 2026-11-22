@@ -220,3 +220,47 @@ export function projectToBox(
     y: height / 2 + (ys[i]! - cy) * usable,
   }))
 }
+
+/** A pin where the camera puts it on screen, with its place in the day (its number). */
+export interface ScreenPin {
+  id: string
+  x: number
+  y: number
+  /** The pin's number; pins that share a spot line up in this order. */
+  rank: number
+}
+
+/**
+ * Sideways offsets that keep pins from covering each other. Pins closer than
+ * `width` × `height` px form a row, numbered left to right in their own order
+ * ("1 2 3 4", never "2 3 4 1"), and centred on where they stand, so a row
+ * stays inside the frame the camera fitted to the points.
+ */
+export function spreadPins(pins: readonly ScreenPin[], width = 30, height = 26): Map<string, number> {
+  const placed: Array<{ pin: ScreenPin; x: number; row: number }> = []
+  let rows = 0
+  for (const pin of [...pins].sort((a, b) => a.x - b.x || a.rank - b.rank)) {
+    let x = pin.x
+    let row = -1
+    for (let pass = 0; pass < 6; pass++) {
+      // Half a pixel of slack: a pin moved to exactly `width` past another
+      // can measure 29.999… away in floating point and be "hit" by it again,
+      // which stacked the fourth pin of a crowd on the third.
+      const hit = placed.find((p) => Math.abs(p.x - x) < width - 0.5 && Math.abs(p.pin.y - pin.y) < height)
+      if (!hit) break
+      x = hit.x + width
+      row = hit.row
+    }
+    placed.push({ pin, x, row: row >= 0 ? row : rows++ })
+  }
+  const offsets = new Map<string, number>()
+  for (let r = 0; r < rows; r++) {
+    const members = placed.filter((p) => p.row === r)
+    const slots = members.map((p) => p.x).sort((a, b) => a - b)
+    const byRank = [...members].sort((a, b) => a.pin.rank - b.pin.rank || a.pin.x - b.pin.x)
+    // Move the row so its middle sits over the middle of the pins it holds.
+    const shift = (members.reduce((sum, p) => sum + p.pin.x, 0) - slots.reduce((sum, x) => sum + x, 0)) / members.length
+    byRank.forEach((p, i) => offsets.set(p.pin.id, Math.round(slots[i]! + shift - p.pin.x)))
+  }
+  return offsets
+}
