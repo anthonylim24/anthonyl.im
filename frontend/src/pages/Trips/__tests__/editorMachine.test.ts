@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   HISTORY_LIMIT,
   canEdit,
+  canResume,
   draftOutcome,
   editorReducer,
   initialEditor,
@@ -423,7 +424,7 @@ describe("someone else's changes", () => {
 describe("AI runs", () => {
   it("lock editing while running, and flush unsaved edits first", () => {
     const state = run([rename("Mine"), { type: "AI_START", run: "trip" }], loaded()) as Ready
-    expect(state.ai).toEqual({ k: "running", run: "trip" })
+    expect(state.ai).toEqual({ k: "running", run: "trip", live: null })
     expect(state.sync.k).toBe("saving")
     expect(canEdit(state)).toBe(false)
     expect(editorReducer(state, rename("Blocked"))).toBe(state)
@@ -473,6 +474,84 @@ describe("AI runs", () => {
     expect(editorReducer(state, { type: "AI_FAILED" })).toBe(state)
     const review = run([{ type: "AI_START", run: "trip" }, { type: "AI_DONE", run: enhancement }], state)
     expect((editorReducer(review, { type: "DISMISS_RUN" }) as Ready).ai.k).toBe("idle")
+  })
+
+  it("hold the server's word on a review while it runs, naming what is really under review", () => {
+    const queued: EnhancementRun = { ...enhancement, status: "running", queue: { state: "queued", attempt: 0, maxAttempts: 3 } }
+    const started = run([{ type: "AI_START", run: { day: "day-1" } }, { type: "AI_PROGRESS", live: queued }], loaded()) as Ready
+    // A 409 handed over the whole-trip review already going.
+    expect(started.ai).toEqual({ k: "running", run: "trip", live: queued })
+    const retrying: EnhancementRun = { ...queued, scope: "day", dayId: "day-2", queue: { state: "queued", attempt: 1, maxAttempts: 3 } }
+    expect((editorReducer(started, { type: "AI_PROGRESS", live: retrying }) as Ready).ai).toEqual({ k: "running", run: { day: "day-2" }, live: retrying })
+    const done = editorReducer(started, { type: "AI_DONE", run: enhancement }) as Ready
+    expect(done.ai).toEqual({ k: "review", run: enhancement })
+  })
+
+  it("ignore progress for a draft, or once the wait is over", () => {
+    const live: EnhancementRun = { ...enhancement, status: "running", queue: { state: "working", attempt: 1, maxAttempts: 3 } }
+    const drafting = run([{ type: "AI_START", run: "draft" }], loaded())
+    expect(editorReducer(drafting, { type: "AI_PROGRESS", live })).toBe(drafting)
+    const stopped = run([{ type: "AI_START", run: "trip" }, { type: "AI_FAILED" }], loaded())
+    expect(editorReducer(stopped, { type: "AI_PROGRESS", live })).toBe(stopped)
+  })
+
+  it("take up a review running on the server only when nothing else is going and nothing is unsaved", () => {
+    const live: EnhancementRun = { ...enhancement, status: "running", scope: "day", dayId: "day-2", queue: { state: "working", attempt: 1, maxAttempts: 3 } }
+    const resumed = editorReducer(loaded(), { type: "AI_RESUME", live }) as Ready
+    expect(resumed.ai).toEqual({ k: "running", run: { day: "day-2" }, live })
+    expect(resumed.sync.k).toBe("clean")
+    expect(canEdit(resumed)).toBe(false)
+    expect(canResume(resumed)).toBe(false)
+    expect(editorReducer(resumed, { type: "AI_RESUME", live })).toBe(resumed)
+
+    const dirty = run([rename("Mine")], loaded())
+    expect(canResume(dirty)).toBe(false)
+    expect(editorReducer(dirty, { type: "AI_RESUME", live })).toBe(dirty)
+    const reading = run([{ type: "AI_START", run: "trip" }, { type: "AI_DONE", run: enhancement }], loaded())
+    expect(editorReducer(reading, { type: "AI_RESUME", live })).toBe(reading)
+    const viewer = loaded(trip(), "view")
+    expect(editorReducer(viewer, { type: "AI_RESUME", live })).toBe(viewer)
+
+    // It lands like a run started here.
+    const landed = editorReducer(resumed, { type: "AI_DONE", trip: trip({ updatedAt: T1, name: "Reviewed" }), run: enhancement }) as Ready
+    expect(landed.doc.name).toBe("Reviewed")
+    expect(landed.ai).toEqual({ k: "review", run: enhancement })
+  })
+
+  it("take a scheduled wishlist idea off the wishlist for good: Undo of an edit to it doesn't bring it back", () => {
+    const idea = makeItem({ id: "idea", title: "Sintra" })
+    const start = loaded(trip({ ideas: [idea, makeItem({ id: "other", title: "Cascais" })] }))
+    const edited = editorReducer(start, {
+      type: "EDIT",
+      fn: (doc) => ({ ...doc, ideas: doc.ideas!.map((i) => (i.id === "idea" ? { ...i, notes: "Go early" } : i)) }),
+      undo: { label: "Edited Sintra" },
+    }) as Ready
+    const saved = run([{ type: "DEBOUNCE_ELAPSED" }], edited) as Ready
+    const sent = saved.sync.k === "saving" ? saved.sync.sent : edited.doc
+    const clean = editorReducer(saved, { type: "SAVE_OK", sent, saved: { ...sent, updatedAt: T1 } }) as Ready
+
+    const scheduled = makeItem({ id: "sintra-stop", title: "Sintra" })
+    const reviewed: EnhancementRun = {
+      ...enhancement,
+      suggestions: [{ id: "s1", kind: "add", dayId: "day-1", title: "Sintra", detail: "", confidence: "high", proposedItem: scheduled, fromIdeaId: "idea" }],
+      appliedSuggestionIds: ["s1"],
+    }
+    const fromServer = trip({
+      updatedAt: T2,
+      ideas: [makeItem({ id: "other", title: "Cascais" })],
+      days: [
+        { id: "day-1", date: "2026-07-10", items: [market, scheduled] },
+        { id: "day-2", date: "2026-07-11", items: [museum] },
+      ],
+    })
+    const landed = run([{ type: "AI_START", run: "trip" }, { type: "AI_DONE", trip: fromServer, run: reviewed }], clean) as Ready
+    expect(landed.doc.ideas?.map((i) => i.id)).toEqual(["other"])
+
+    const undone = editorReducer(landed, { type: "UNDO" }) as Ready
+    expect(undone.doc.ideas?.map((i) => i.id)).toEqual(["other"])
+    expect(itemIds(undone, 0)).toEqual(["market", "sintra-stop"])
+    const redone = editorReducer(undone, { type: "REDO" }) as Ready
+    expect(redone.doc.ideas?.map((i) => i.id)).toEqual(["other"])
   })
 
   it("make “replace my itinerary” undoable", () => {
