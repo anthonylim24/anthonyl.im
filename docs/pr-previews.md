@@ -44,9 +44,12 @@ Korea and Trips still require a Clerk session on this origin. Previews
 never bake `VITE_DEV_BEARER`. Agents mint a session for a **dedicated
 screenshot identity** via
 [Clerk Agent Tasks](https://clerk.com/docs/guides/development/testing/agent-tasks)
-— see below. That user is not a personal production login. It can view
-and edit the shared `korea-2026` seed trip (`sharedWithAllUsers`). Do
-not sign in to production `/trips` or `/trips/korea-2026` for screenshots.
+— see below. That user is `screenshots@anthonyl.im` on the **production**
+Clerk instance (`DEFAULT_CLERK_AGENT_USER_ID`; no password, sessions only
+come from agent tasks), because previews sign in with production Clerk.
+It is not a personal production login. It can view and edit the shared
+`korea-2026` seed trip (`sharedWithAllUsers`). Do not sign in to
+production `/trips` or `/trips/korea-2026` for screenshots.
 
 ## Agent workflow (screenshots)
 
