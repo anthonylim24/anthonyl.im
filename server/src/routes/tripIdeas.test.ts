@@ -83,11 +83,28 @@ describe("POST /api/trips/:id/ideas/suggest-days", () => {
     expect(body.picks.length).toBeLessThanOrEqual(3)
   })
 
-  test("answers the model's picks, tagged ai", async () => {
-    const app = makeApp({}, async () => JSON.stringify({ picks: [{ dayId: "day-3", reason: "A free day for the alleys" }] }))
+  test("answers the model's picks, tagged ai, as the trip's own day ids", async () => {
+    let keys: string[] = []
+    const app = makeApp({}, async (prompt) => {
+      keys = prompt.dayIds
+      return JSON.stringify({ picks: [{ dayId: "d3", reason: "A free day for the alleys" }] })
+    })
     const id = await makeTrip(app)
     const body = (await (await suggest(app, id, { idea })).json()) as { picks: Array<{ dayId: string; reason: string }>; source: string }
+    expect(keys).toEqual(["d1", "d2", "d3"])
     expect(body).toEqual({ source: "ai", picks: [{ dayId: "day-3", reason: "A free day for the alleys" }] })
+  })
+
+  test("sends the model none of the booking codes or contact details in the idea's notes", async () => {
+    let user = ""
+    const app = makeApp({}, async (prompt) => {
+      user = prompt.user
+      return JSON.stringify({ picks: [] })
+    })
+    const id = await makeTrip(app)
+    await suggest(app, id, { idea: { ...idea, notes: "Confirmation K9X2Q7, host jin@example.com, +82 10 9876 5432" } })
+    expect(user).toContain("Ikseon-dong")
+    for (const secret of ["K9X2Q7", "jin@example.com", "9876 5432"]) expect(user).not.toContain(secret)
   })
 
   test("still answers when the model fails, and logs none of the idea", async () => {

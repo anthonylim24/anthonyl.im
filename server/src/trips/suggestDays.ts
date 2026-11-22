@@ -4,6 +4,7 @@ import { fetchGeminiWithTransientRetry } from "../geminiTools"
 import { GEMINI_BASE, geminiThinking } from "../igPlaces/gemini"
 import { extractModelJson } from "./ai"
 import { baseByDay } from "./lodging"
+import { redactPrivate } from "./privateText"
 import { ITEM_THEMES, type ItineraryItem, type Trip } from "./types"
 
 // "Add to day" for a wishlist idea: which days it fits best. Facts about
@@ -13,8 +14,11 @@ import { ITEM_THEMES, type ItineraryItem, type Trip } from "./types"
 // no usable day) the traveller gets the distance ranking instead, so the
 // picker always has something to show. Everything sent to the model that a
 // traveller wrote (the idea, day titles, stop names) sits inside one
-// nonce-marked data block, and nothing here logs it: only reasons like
-// "timeout" or "gemini 500" reach the log.
+// nonce-marked data block; their free text (notes, a day's theme line, an
+// address) loses booking codes, emails and phone numbers first
+// (`redactPrivate`); days are named by opaque keys ("d3"), never by ids an
+// editor chose; and nothing here logs any of it: only reasons like "timeout"
+// or "gemini 500" reach the log.
 
 /** Pinned on purpose: `GEMINI_MODEL` (Neon) is for the heavy planning calls. */
 export const SUGGEST_DAYS_MODEL = "gemini-4-hydrogen"
@@ -49,7 +53,6 @@ export const suggestDaysRequestSchema = z.object({
         lat: z.number().min(-90).max(90).optional(),
         lng: z.number().min(-180).max(180).optional(),
         category: z.string().max(40).optional(),
-        placeId: z.string().max(256).optional(),
       })
       .optional(),
   }),
@@ -137,6 +140,29 @@ function mealOf(item: ItineraryItem): Meal | undefined {
   return undefined
 }
 
+/**
+ * The middle of `points` on the globe: the mean of their unit vectors, so a
+ * day either side of the antimeridian (Fiji, 179.95 and -179.95) centres on
+ * it, not on Greenwich. Null when they cancel out (antipodes).
+ */
+export function centreOf(points: ReadonlyArray<{ lat: number; lng: number }>): { lat: number; lng: number } | null {
+  let x = 0
+  let y = 0
+  let z = 0
+  for (const { lat, lng } of points) {
+    const phi = (lat * Math.PI) / 180
+    const lambda = (lng * Math.PI) / 180
+    x += Math.cos(phi) * Math.cos(lambda)
+    y += Math.cos(phi) * Math.sin(lambda)
+    z += Math.sin(phi)
+  }
+  if (Math.hypot(x, y, z) < 1e-9 * Math.max(1, points.length)) return null
+  return { lat: (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI, lng: (Math.atan2(y, x) * 180) / Math.PI }
+}
+
+/** What the traveller wrote, without booking codes, emails or phone numbers, as one clipped line. Redacted before clipping, so a cut never leaves half a code. */
+const privateLine = (value: string | undefined, max: number) => oneLine(value ? redactPrivate(value) : value, max)
+
 /** One line of user text, safe to show and to send: no control or direction characters, single spaces. */
 function oneLine(value: string | undefined, max: number): string | undefined {
   if (!value) return undefined
@@ -167,11 +193,8 @@ export function dayFacts(trip: Pick<Trip, "days" | "timezone">, idea: SuggestIde
         const km = kmBetween(ideaPoint, point)
         if (!nearest || km < nearest.km) nearest = { name: oneLine(item.location?.name || item.title, 80) ?? "a stop", km, meal: mealOf(item) }
       }
-      const centre = {
-        lat: located.reduce((sum, { point }) => sum + point.lat, 0) / located.length,
-        lng: located.reduce((sum, { point }) => sum + point.lng, 0) / located.length,
-      }
-      centreKm = kmBetween(ideaPoint, centre)
+      const centre = centreOf(located.map(({ point }) => point))
+      if (centre) centreKm = kmBetween(ideaPoint, centre)
     }
     const times = onRoute.map((item) => item.time).filter((time): time is string => typeof time === "string" && /^\d{2}:\d{2}$/.test(time))
     const sorted = [...times].sort()
@@ -183,7 +206,7 @@ export function dayFacts(trip: Pick<Trip, "days" | "timezone">, idea: SuggestIde
       weekday: weekdayOf(day.date),
       city: oneLine(day.city, 80),
       title: oneLine(day.title, 120),
-      theme: oneLine(day.notes, 200),
+      theme: privateLine(day.notes, 200),
       neighborhoods: (day.neighborhoods ?? []).flatMap((n) => oneLine(n, 60) ?? []).slice(0, 8),
       stops: stops.length,
       located: located.length,
@@ -350,9 +373,16 @@ function nearbyReason(day: DayFacts, match: PlaceMatch | null, cityLoads: Map<st
 export interface DayPrompt {
   system: string
   user: string
-  /** The only ids the answer may use (the structured output's enum). */
+  /** The only day keys the answer may use (the structured output's enum): `dayKey`s, never day ids. */
   dayIds: string[]
 }
+
+/**
+ * How the prompt names a day: "d" and its number in the trip. Day ids are
+ * the trip's own and an editor can set them, and the structured output's enum
+ * sits outside the nonce-marked data block, so they never go to the model.
+ */
+export const dayKey = (day: Pick<DayFacts, "index">) => `d${day.index}`
 
 /** One model behind the suggester: the prompt in, raw text out. Injected in tests. */
 export type DayModel = (prompt: DayPrompt, signal: AbortSignal) => Promise<string>
@@ -393,11 +423,11 @@ export function suggestDaysPrompt(
       kind: idea.theme,
       category: oneLine(idea.location?.category, 40),
       place: oneLine(idea.location?.name, 120),
-      address: oneLine(idea.location?.address, 200),
-      notes: oneLine(idea.notes, 500),
+      address: privateLine(idea.location?.address, 200),
+      notes: privateLine(idea.notes, 500),
     },
     days: args.days.map((day) => ({
-      id: day.dayId,
+      id: dayKey(day),
       day: day.index,
       date: day.date,
       weekday: day.weekday,
@@ -422,7 +452,7 @@ export function suggestDaysPrompt(
       `===== TRIP DATA ${nonce} ENDS =====`,
       'Pick up to 3 days for the idea from "days".',
     ].join("\n"),
-    dayIds: args.days.map((day) => day.dayId),
+    dayIds: args.days.map(dayKey),
   }
 }
 
@@ -470,12 +500,12 @@ export function readModelPicks(raw: string, eligible: readonly DayFacts[], ranke
   }
   const answer = answerSchema.safeParse(json)
   if (!answer.success) throw new SuggestDaysError("model output had no picks")
-  const byId = new Map(eligible.map((day) => [day.dayId, day]))
+  const byKey = new Map(eligible.map((day) => [dayKey(day), day]))
   const out: DayPick[] = []
   for (const entry of answer.data.picks) {
     if (out.length >= MAX_PICKS) break
     const shaped = pickSchema.safeParse(entry)
-    const day = shaped.success ? byId.get(shaped.data.dayId.trim()) : undefined
+    const day = shaped.success ? byKey.get(shaped.data.dayId.trim()) : undefined
     if (!shaped.success || !day || out.some((pick) => pick.dayId === day.dayId)) continue
     const reason = cleanReason(shaped.data.reason) || ranked.find((pick) => pick.dayId === day.dayId)?.reason || stopsSoFar(day.stops)
     out.push(toPick(day, reason))
@@ -504,6 +534,8 @@ export function createHydrogenDayModel(apiKey: string, fetchImpl: typeof fetch =
           },
         }),
         signal,
+        // The key is in a header, and fetch would carry it along a redirect.
+        redirect: "error",
       },
       fetchImpl,
     )

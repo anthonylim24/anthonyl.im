@@ -64,6 +64,14 @@ export function parseDetailsQuery(
   return "lat and lng must be a point on the globe"
 }
 
+/**
+ * The client hung up (a popover closed, a newer keystroke): not a failure,
+ * so nothing is logged and the answer, which nobody reads, is not a 5xx.
+ * Checked on the request's own signal, not the error's name: a timeout is a
+ * real failure and still answers 502.
+ */
+const clientGone = () => new Response(null, { status: 499 })
+
 export function createPlaceSearchRouter(deps: PlaceSearchRouterDeps) {
   const places = new Hono()
 
@@ -85,6 +93,7 @@ export function createPlaceSearchRouter(deps: PlaceSearchRouterDeps) {
     try {
       return c.json({ places: await deps.search({ query, near, signal: c.req.raw.signal }) })
     } catch (err) {
+      if (c.req.raw.signal.aborted) return clientGone()
       console.warn("[places] search failed:", err instanceof Error ? err.message : err)
       return c.json({ error: "place search failed" }, 502)
     }
@@ -97,6 +106,7 @@ export function createPlaceSearchRouter(deps: PlaceSearchRouterDeps) {
     try {
       return c.json({ place: await deps.details(query, c.req.raw.signal) })
     } catch (err) {
+      if (c.req.raw.signal.aborted) return clientGone()
       // The status alone: an error from fetch can quote the URL it was sent to.
       const reason = err instanceof PlaceDetailsUpstreamError ? `upstream ${err.status}` : err instanceof Error ? err.name : "unknown"
       console.warn("[places] details failed:", reason)

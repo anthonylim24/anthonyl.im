@@ -1,5 +1,5 @@
 import { haversineMeters } from "../data/koreaPlaces"
-import { sameVenue, type LatLng } from "./conciergeTools"
+import type { LatLng } from "./conciergeTools"
 
 // What the wishlist's details popover shows for one place: photos, a summary,
 // rating, price, hours and links, from Google Places (New) Place Details.
@@ -9,7 +9,9 @@ import { sameVenue, type LatLng } from "./conciergeTools"
 // header (Place Details and photo media both accept it there), so no URL this
 // module builds carries it, and photo media is asked for with
 // `skipHttpRedirect=true`, which answers a keyless `photoUri` on
-// lh3.googleusercontent.com that goes straight into an <img>.
+// lh3.googleusercontent.com that goes straight into an <img>. Every call
+// refuses redirects (`redirect: "error"`): fetch would carry the key header
+// to wherever a redirect points, another origin included.
 
 /** Mirrors `PlaceDetails` in `frontend/src/pages/Trips/ideas/contract.ts`. */
 export interface PlacePhoto {
@@ -64,22 +66,38 @@ export class PlaceDetailsUpstreamError extends Error {
 /**
  * Google answers an id it does not know (a place that moved or merged, or
  * one that was never Google's) with a 400 "The provided Place ID: … is not
- * valid." A broken field mask is a 400 too, so the body tells them apart.
+ * valid." (measured), and documents NOT_FOUND for it too. A broken field mask
+ * is a 400 "Request contains an invalid argument.", so the message must be
+ * about the place id, not merely say "invalid".
  */
-const UNKNOWN_ID = /place id\b[^"]*\bis not valid/i
+const UNKNOWN_ID_MESSAGE = /\bplace ?id\b[\s\S]{0,300}?\b(?:is not valid|is no longer valid|is invalid|not found)\b|\b(?:invalid|not a valid|unknown) place ?id\b/i
+
+/** Whether an error answer says the id itself is unknown. Reads the body only to decide; nothing of it leaves. */
+async function saysUnknownId(res: Response): Promise<boolean> {
+  if (res.status === 404) return true
+  if (res.status !== 400) return false
+  let error: { status?: unknown; message?: unknown } | undefined
+  try {
+    error = ((await res.json()) as { error?: { status?: unknown; message?: unknown } } | null)?.error
+  } catch {
+    return false
+  }
+  if (error?.status === "NOT_FOUND") return true
+  return typeof error?.message === "string" && UNKNOWN_ID_MESSAGE.test(error.message)
+}
 
 /**
  * Every field the popover shows, by its Place Details (New) name (no
- * `places.` prefix on this endpoint). An unknown name fails the whole request
- * with a 400, so each one here was checked against Google's field list and a
- * live call. `editorialSummary` bills at Enterprise + Atmosphere, the rest at
- * Enterprise or below.
+ * `places.` prefix on this endpoint), plus `businessStatus` and
+ * `movedPlaceId` to tell a closed or moved place. An unknown name fails the
+ * whole request with a 400, so each one here was checked against Google's
+ * field list and a live call. `editorialSummary` bills at Enterprise +
+ * Atmosphere, the rest at Enterprise or below (`movedPlaceId` at IDs Only).
  */
 export const DETAILS_FIELDS = [
   "id",
   "displayName",
   "formattedAddress",
-  "location",
   "editorialSummary",
   "rating",
   "userRatingCount",
@@ -90,6 +108,7 @@ export const DETAILS_FIELDS = [
   "googleMapsUri",
   "primaryTypeDisplayName",
   "businessStatus",
+  "movedPlaceId",
   "photos",
 ].join(",")
 
@@ -101,18 +120,33 @@ export const MATCH_RADIUS_M = 300
 /**
  * Parks, mountains and neighbourhoods are kilometres across: an idea pinned
  * anywhere in Bukhansan sits far from Google's point for it (4.7 km, measured).
- * Such a hit may be this far away, but only when its name is the idea's own.
+ * Such a hit may be this far away, but only when its name is the idea's own
+ * (`sameName`). A city is not on the list: "Seoul Forest" is never "Seoul".
  */
 export const AREA_MATCH_RADIUS_M = 10_000
 const AREA_TYPES = new Set([
   "national_park", "state_park", "park", "hiking_area", "natural_feature", "mountain_peak", "beach", "island",
-  "lake", "river", "neighborhood", "sublocality", "sublocality_level_1", "sublocality_level_2", "locality",
+  "lake", "river", "neighborhood", "sublocality", "sublocality_level_1", "sublocality_level_2",
   "botanical_garden", "garden", "zoo", "campground", "ski_resort", "historical_place", "cultural_landmark",
 ])
 export const MAX_PHOTOS = 6
 const PHOTO_WIDTH_PX = 1200
-const TIMEOUT_MS = 5_000
-const PHOTO_TIMEOUT_MS = 3_500
+
+/**
+ * How long a lookup may take. The client gives up at 15 s; the worst path
+ * (an id Google has lost, Text Search, Place Details, photos) is four calls
+ * in a row, so the whole lookup has one deadline that answers well before
+ * the client's, and each call its own shorter one. Photos get what is left
+ * (less `reserveMs` to answer in): past the deadline the popover opens with
+ * fewer photos rather than none at all.
+ */
+export interface PlaceDetailsTimeouts {
+  totalMs: number
+  stepMs: number
+  photoMs: number
+  reserveMs: number
+}
+export const DETAILS_TIMEOUTS: PlaceDetailsTimeouts = { totalMs: 11_000, stepMs: 4_000, photoMs: 3_000, reserveMs: 250 }
 
 /**
  * A place id goes into a URL path, so only Google's own alphabet passes.
@@ -133,6 +167,7 @@ export interface RawDetails {
   id?: string
   displayName?: { text?: string }
   formattedAddress?: string
+  /** Text Search only: Place Details does not ask for it. */
   location?: { latitude?: number; longitude?: number }
   editorialSummary?: { text?: string }
   rating?: number
@@ -145,6 +180,8 @@ export interface RawDetails {
   primaryTypeDisplayName?: { text?: string }
   primaryType?: string
   businessStatus?: string
+  /** A bare place id: where a permanently closed place moved to. */
+  movedPlaceId?: string
   photos?: Array<{
     name?: string
     widthPx?: number
@@ -197,61 +234,136 @@ export function toPlaceDetails(raw: RawDetails, photos: PlacePhoto[]): PlaceDeta
   return details
 }
 
-const norm = (value: string) =>
+// ── Is Google's top hit the idea? ──────────────────────────────────────────
+
+/**
+ * A name folded for comparing: lower case, compatibility forms unified,
+ * Latin accents dropped ("Café" is "cafe"), punctuation as word breaks.
+ * Only the accents in U+0300–036F go. Other combining marks are part of the
+ * letter: kana voicing marks tell バ from ハ and プ from フ, and Thai vowel
+ * and tone marks sit inside words, so they recompose (NFC) and stay.
+ */
+export const foldName = (value: string) =>
   value
-    .toLowerCase()
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/[\u0300-\u036f]/g, "")
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
     .trim()
 
-/** Words that say what kind of place it is, not which one ("Cafe Onion" vs "Onion Bakery"). */
-const GENERIC = new Set(["the", "a", "of", "and", "cafe", "coffee", "restaurant", "bar", "hotel", "shop", "store", "market", "palace", "museum", "park", "temple", "station", "street", "branch"])
+const foldedSet = (lists: readonly string[]) => new Set(lists.join(" ").split(" ").map(foldName))
+
+/**
+ * Words that say what kind of place it is or what it serves, not which one
+ * ("Sushi Saito" vs "Sushi Sho"). They never count as the name, and when
+ * both names have some, they must share one: "Sushi Saito" is not "Ramen
+ * Saito", "Gyeongbokgung Station" not "Gyeongbokgung Palace".
+ */
+const KIND = foldedSet([
+  // Kinds of place.
+  "cafe coffee roasters roastery tea restaurant eatery diner dining kitchen bistro brasserie grill bar pub izakaya brewery " +
+    "bakery hotel hostel inn shop store market palace museum gallery park temple shrine station street",
+  // What it serves.
+  "food cuisine ramen sushi udon soba tempura yakitori curry pizza pizzeria chicken bibimbap fish seafood noodle noodles bbq barbecue " +
+    "burger burgers steak steakhouse dumpling dumplings mandu naengmyeon galbi bulgogi tteokbokki kimbap gukbap hotpot pho taco tacos " +
+    "bagel bagels donut donuts dessert beer wine cocktail korean japanese chinese thai italian french",
+  // The same in the scripts these trips use most.
+  "카페 커피 식당 カフェ ラーメン 寿司 すし レストラン 食堂 居酒屋 喫茶 店 餐厅 咖啡 咖啡厅 ร้าน ร้านกาแฟ ร้านอาหาร คาเฟ่",
+])
+
+/** Words that name nothing: filler, and which branch of a place it is. */
+const GENERIC = new Set([
+  ...KIND,
+  ...foldedSet(["the a an of and at in on de la le du branch main official flagship 본점 지점 本店 支店"]),
+])
+
+/** Han, kana and Hangul pack a name into few characters: two can name a place ("一蘭"). */
+const DENSE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+const longEnough = (word: string) => Array.from(word).length >= (DENSE.test(word) ? 2 : 4)
 
 /**
  * Whether Google's name for the top hit plausibly names the idea: the same
- * after folding case and accents, one inside the other as whole words
- * ("Gyeongbokgung" / "Gyeongbokgung Palace", via `sameVenue`), or most of the
- * idea's distinctive words present ("Onion Anguk" / "Cafe Onion Anguk").
+ * once folded (`sameName`), or most of the idea's distinctive words (the
+ * `GENERIC` ones left out) found among Google's, its head word included.
+ *
+ * - The head word (the first distinctive one) is the name: "Pizza Hut
+ *   Itaewon" is not "Pizza Express Itaewon", "Ramen Nagi Shinjuku" is not
+ *   "Ramen Fuunji Shinjuku".
+ * - At least 60% must be shared, so a two-word name needs both: "Myeongdong
+ *   Kyoja" is not "Myeongdong Hamheung", and a district both names share
+ *   never carries a match on its own.
+ * - A one-word name must be long enough to stake a venue on ("Bo" is not).
+ * - When both say what kind of place they are (`KIND`), they agree on it.
+ *
+ * Misses are cheap (the popover falls back to Wikipedia or the idea's own
+ * notes) and a wrong venue is not, so this errs strict: "Ichiran Shibuya"
+ * does not match a top hit named just "Ichiran".
  */
 export function plausibleName(wanted: string, found: string): boolean {
-  const a = norm(wanted)
-  const b = norm(found)
-  if (!a || !b) return false
   if (sameName(wanted, found)) return true
-  // A lone short word ("Bo") says too little to stake a venue on.
-  const words = a.split(" ").filter((word) => word.length >= 2 && !GENERIC.has(word))
-  if (words.length === 0 || (words.length === 1 && words[0]!.length < 4)) return false
-  const theirs = new Set(b.split(" "))
-  const shared = words.filter((word) => theirs.has(word)).length
-  if (shared / words.length >= 0.6) return true
-  // Half is enough when the shared half is the name's own head word
-  // ("Jagalchi Fish Market" / "Jagalchi Market"), not a district both
-  // happen to be in ("Onion Anguk" / "London Bagel Museum Anguk").
-  const head = words[0]!
-  return shared / words.length >= 0.5 && head.length >= 4 && theirs.has(head)
+  const all = foldName(wanted).split(" ")
+  const theirs = new Set(foldName(found).split(" "))
+  const ourKinds = all.filter((word) => KIND.has(word))
+  const theirKinds = [...theirs].filter((word) => KIND.has(word))
+  if (ourKinds.length > 0 && theirKinds.length > 0 && !ourKinds.some((word) => theirs.has(word))) return false
+  const words = all.filter((word) => word && !GENERIC.has(word))
+  const head = words[0]
+  if (!head || (words.length === 1 && !longEnough(head))) return false
+  if (!theirs.has(head)) return false
+  return words.filter((word) => theirs.has(word)).length / words.length >= 0.6
 }
 
-/** The same name, folded, or one inside the other as whole words: strong enough to match from further off. */
+/**
+ * The same name once folded: the only match trusted from kilometres off. Not
+ * containment, which takes "Seoul Forest" for the city of Seoul and "Hangang
+ * Park" for "Yeouido Hangang Park".
+ */
 export function sameName(wanted: string, found: string): boolean {
-  const a = norm(wanted)
-  const b = norm(found)
-  return Boolean(a && b) && (a === b || sameVenue(wanted, found))
+  const a = foldName(wanted)
+  return a !== "" && a === foldName(found)
 }
+
+type Box = readonly [south: number, north: number, west: number, east: number]
+const inBox = ({ lat, lng }: LatLng, [south, north, west, east]: Box) => lat >= south && lat <= north && lng >= west && lng <= east
+
+/**
+ * Rough boxes, drawn to keep Korea and the mainland out: Honshu to Kyushu
+ * east of Busan's longitude, Tsushima, the Ryukyus; Taiwan; Hong Kong and
+ * Macau. A miss only means Google is asked in Chinese.
+ */
+const JAPAN: readonly Box[] = [
+  [31, 45.6, 129.5, 146],
+  [32.5, 34.75, 128.75, 129.5],
+  [24, 31, 122.9, 131.5],
+]
+const TRADITIONAL_CHINESE: readonly Box[] = [
+  [21.8, 25.4, 119.3, 122.1],
+  [22.15, 22.5, 113.83, 114.45],
+  [22.1, 22.22, 113.52, 113.6],
+]
 
 /**
  * The language to ask Text Search for names in when matching: the one the
  * idea's name is written in, read from its script, for the scripts that
- * name one language well enough; English otherwise.
+ * name one language well enough; English otherwise. A name in Han alone is
+ * Japanese in Japan ("金閣寺"), traditional Chinese in Taiwan and Hong Kong,
+ * and Chinese elsewhere, so the point decides.
  */
-export function nameLanguage(name: string): string {
+export function nameLanguage(name: string, near?: LatLng): string {
   if (/\p{Script=Hangul}/u.test(name)) return "ko"
   if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(name)) return "ja"
-  if (/\p{Script=Han}/u.test(name)) return "zh"
+  if (/\p{Script=Han}/u.test(name)) {
+    if (near && JAPAN.some((box) => inBox(near, box))) return "ja"
+    if (near && TRADITIONAL_CHINESE.some((box) => inBox(near, box))) return "zh-TW"
+    return "zh"
+  }
   if (/\p{Script=Thai}/u.test(name)) return "th"
   if (/\p{Script=Greek}/u.test(name)) return "el"
   return "en"
 }
+
+// ── The lookup ─────────────────────────────────────────────────────────────
 
 /** A bounded map whose entries lapse; the oldest goes first when full. */
 function lapsingMap<T>(maxEntries: number, now: () => number) {
@@ -280,6 +392,24 @@ function lapsingMap<T>(maxEntries: number, now: () => number) {
 /** An answer missing a photo that timed out is kept only briefly, so the next open can fill it in. */
 const PARTIAL_TTL_MS = 2 * 60_000
 
+/**
+ * What one place id turned out to be. Only `unknown` lets the caller try
+ * the name and point instead: a place that closed for good is an answer
+ * (nothing), and finding "it" again by name would find a neighbour.
+ */
+type IdOutcome =
+  | { kind: "place"; details: PlaceDetails }
+  | { kind: "moved"; to: string }
+  | { kind: "closed" }
+  | { kind: "unknown" }
+
+/** One lookup's clock: the caller's signal, and the deadline every call inside it shares. */
+interface Budget {
+  caller?: AbortSignal
+  signal: AbortSignal
+  until: number
+}
+
 export interface PlaceDetailsOptions {
   /**
    * How long an answer is reused. Photo URIs carry no documented lifetime
@@ -290,36 +420,34 @@ export interface PlaceDetailsOptions {
   ttlMs?: number
   maxEntries?: number
   now?: () => number
+  timeouts?: Partial<PlaceDetailsTimeouts>
 }
 
 /** Google Places (New) Place Details, with Text Search to find the place when there is no id. */
 export function createGooglePlaceDetails(
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
-  { ttlMs = 30 * 60_000, maxEntries = 300, now = Date.now }: PlaceDetailsOptions = {},
+  { ttlMs = 30 * 60_000, maxEntries = 300, now = Date.now, timeouts: given = {} }: PlaceDetailsOptions = {},
 ): PlaceDetailsLookup {
-  /** Answers by place id. */
-  const answers = lapsingMap<PlaceDetails | null>(maxEntries, now)
+  const timeouts = { ...DETAILS_TIMEOUTS, ...given }
+  /** What each place id turned out to be. */
+  const answers = lapsingMap<IdOutcome>(maxEntries, now)
   /** Which place id a name at a point turned out to be (null: none we trust). */
   const matches = lapsingMap<string | null>(maxEntries, now)
 
-  const call = async (url: string, init: RequestInit, signal: AbortSignal | undefined, timeoutMs = TIMEOUT_MS) => {
-    const deadline = AbortSignal.timeout(timeoutMs)
+  const call = async (url: string, init: RequestInit, budget: Budget, stepMs: number) => {
     const res = await fetchImpl(url, {
       ...init,
       headers: { ...(init.headers as Record<string, string>), "X-Goog-Api-Key": apiKey },
-      signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+      redirect: "error",
+      signal: AbortSignal.any([budget.signal, AbortSignal.timeout(stepMs)]),
     })
-    if (!res.ok) {
-      // Read only to classify; the body never leaves this function.
-      const unknownId = res.status === 400 && UNKNOWN_ID.test(await res.text().catch(() => ""))
-      throw new PlaceDetailsUpstreamError(res.status, unknownId)
-    }
+    if (!res.ok) throw new PlaceDetailsUpstreamError(res.status, await saysUnknownId(res).catch(() => false))
     return res
   }
 
   /** The top Text Search hit, when it is close to the pin and plausibly the same name. */
-  const findId = async (name: string, near: LatLng, signal?: AbortSignal): Promise<string | null> => {
+  const findId = async (name: string, near: LatLng, budget: Budget): Promise<string | null> => {
     const res = await call(
       "https://places.googleapis.com/v1/places:searchText",
       {
@@ -330,12 +458,13 @@ export function createGooglePlaceDetails(
           pageSize: 1,
           // Google's name comes back in this language, so a name written in
           // Hangul is compared with the Hangul name, not the English one.
-          languageCode: nameLanguage(name),
+          languageCode: nameLanguage(name, near),
           // A bias only ranks; the distance check below is what keeps it local.
           locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 1_000 } },
         }),
       },
-      signal,
+      budget,
+      timeouts.stepMs,
     )
     const json = (await res.json()) as { places?: RawDetails[] }
     const top = json.places?.[0]
@@ -350,14 +479,14 @@ export function createGooglePlaceDetails(
   }
 
   /** One photo's keyless URI, or null when it fails, is slow, or is not what we expect. */
-  const photoUri = async (photoName: string, signal?: AbortSignal): Promise<string | null> => {
+  const photoUri = async (photoName: string, budget: Budget, photoMs: number): Promise<string | null> => {
     if (!PHOTO_NAME.test(photoName)) return null
     try {
       const res = await call(
         `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${PHOTO_WIDTH_PX}&skipHttpRedirect=true`,
         { method: "GET" },
-        signal,
-        PHOTO_TIMEOUT_MS,
+        budget,
+        photoMs,
       )
       const json = (await res.json()) as { photoUri?: string }
       const uri = json.photoUri
@@ -369,10 +498,13 @@ export function createGooglePlaceDetails(
     }
   }
 
-  /** The first photos with a working URI; `complete` is false when one of them failed. */
-  const photosOf = async (raw: RawDetails, signal?: AbortSignal): Promise<{ photos: PlacePhoto[]; complete: boolean }> => {
+  /** The first photos with a working URI, within what is left of the budget; `complete` is false when one of them is missing. */
+  const photosOf = async (raw: RawDetails, budget: Budget): Promise<{ photos: PlacePhoto[]; complete: boolean }> => {
     const wanted = (raw.photos ?? []).filter((photo) => photo.name).slice(0, MAX_PHOTOS)
-    const uris = await Promise.all(wanted.map((photo) => photoUri(photo.name!, signal)))
+    const photoMs = Math.min(timeouts.photoMs, budget.until - Date.now() - timeouts.reserveMs)
+    if (wanted.length === 0) return { photos: [], complete: true }
+    if (photoMs <= 0) return { photos: [], complete: false }
+    const uris = await Promise.all(wanted.map((photo) => photoUri(photo.name!, budget, photoMs)))
     const photos: PlacePhoto[] = []
     wanted.forEach((photo, index) => {
       const url = uris[index]
@@ -395,51 +527,70 @@ export function createGooglePlaceDetails(
     return { photos, complete: photos.length === wanted.length }
   }
 
-  const byId = async (placeId: string, signal?: AbortSignal): Promise<PlaceDetails | null> => {
-    const hit = answers.get(placeId)
-    if (hit) return hit.value
+  const fetchId = async (placeId: string, budget: Budget): Promise<IdOutcome> => {
     let res: Response
     try {
       res = await call(
         `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=en`,
         { method: "GET", headers: { "X-Goog-FieldMask": DETAILS_FIELDS } },
-        signal,
+        budget,
+        timeouts.stepMs,
       )
     } catch (err) {
       // An id Google no longer knows (places move and merge) is an answer: nothing.
       // Any other 400 stays a failure, so a broken field mask is never mistaken for an empty place.
-      if (err instanceof PlaceDetailsUpstreamError && (err.status === 404 || err.unknownId)) {
-        answers.set(placeId, null, ttlMs)
-        return null
+      if (err instanceof PlaceDetailsUpstreamError && err.unknownId) {
+        answers.set(placeId, { kind: "unknown" }, ttlMs)
+        return { kind: "unknown" }
       }
       throw err
     }
     const raw = (await res.json()) as RawDetails
     if (raw.businessStatus === "CLOSED_PERMANENTLY") {
-      answers.set(placeId, null, ttlMs)
-      return null
+      const to = raw.movedPlaceId
+      const outcome: IdOutcome = to && to !== placeId && PLACE_ID.test(to) ? { kind: "moved", to } : { kind: "closed" }
+      answers.set(placeId, outcome, ttlMs)
+      return outcome
     }
-    const { photos, complete } = await photosOf(raw, signal)
+    const { photos, complete } = await photosOf(raw, budget)
     // Photos cut short by the caller hanging up are not an answer to keep.
-    if (signal?.aborted) throw new DOMException("aborted", "AbortError")
+    if (budget.caller?.aborted) throw new DOMException("aborted", "AbortError")
     const details = toPlaceDetails(raw, photos)
-    answers.set(placeId, details, complete ? ttlMs : Math.min(ttlMs, PARTIAL_TTL_MS))
-    return details
+    const outcome: IdOutcome = details ? { kind: "place", details } : { kind: "unknown" }
+    answers.set(placeId, outcome, complete ? ttlMs : Math.min(ttlMs, PARTIAL_TTL_MS))
+    return outcome
   }
 
-  const byName = async ({ name, near }: NamedPoint, signal?: AbortSignal): Promise<PlaceDetails | null> => {
-    const key = `${norm(name)}|${near.lat.toFixed(4)},${near.lng.toFixed(4)}`
+  /** What `placeId` is, following a move once (Google gives the first new home, and a second hop is a chain we do not chase). */
+  const byId = async (placeId: string, budget: Budget): Promise<IdOutcome> => {
+    const outcome = answers.get(placeId)?.value ?? (await fetchId(placeId, budget))
+    if (outcome.kind !== "moved") return outcome
+    const next = answers.get(outcome.to)?.value ?? (await fetchId(outcome.to, budget))
+    return next.kind === "moved" ? { kind: "closed" } : next
+  }
+
+  const byName = async ({ name, near }: NamedPoint, budget: Budget): Promise<PlaceDetails | null> => {
+    const key = `${foldName(name)}|${near.lat.toFixed(4)},${near.lng.toFixed(4)}`
     let match = matches.get(key)
     if (!match) {
-      match = { value: await findId(name, near, signal) }
+      match = { value: await findId(name, near, budget) }
       matches.set(key, match.value, ttlMs)
     }
-    return match.value ? byId(match.value, signal) : null
+    if (!match.value) return null
+    const outcome = await byId(match.value, budget)
+    return outcome.kind === "place" ? outcome.details : null
   }
 
   return async (query, signal) => {
-    if (!("placeId" in query)) return byName(query, signal)
-    const found = PLACE_ID.test(query.placeId) ? await byId(query.placeId, signal) : null
-    return found ?? (query.fallback ? byName(query.fallback, signal) : null)
+    const deadline = AbortSignal.timeout(timeouts.totalMs)
+    const budget: Budget = {
+      caller: signal,
+      signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+      until: Date.now() + timeouts.totalMs,
+    }
+    if (!("placeId" in query)) return byName(query, budget)
+    const outcome: IdOutcome = PLACE_ID.test(query.placeId) ? await byId(query.placeId, budget) : { kind: "unknown" }
+    if (outcome.kind === "place") return outcome.details
+    return outcome.kind === "unknown" && query.fallback ? byName(query.fallback, budget) : null
   }
 }
