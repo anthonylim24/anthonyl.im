@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Presence, useClosing } from "../components/presence"
 import { dayFull, ideaToDay, removeIdea } from "../tripEdits"
@@ -14,11 +14,6 @@ import { ThemeMenu } from "./ThemeMenu"
 // a time: the picker replaces the details (and Cancel goes back to them
 // when they opened it). TripWorkspace mounts this once inside a Presence
 // keyed on `?idea`, so a list row and a map pin open the same thing.
-
-interface View {
-  idea: ItineraryItem
-  mode: "details" | "add"
-}
 
 const ideaName = (idea: ItineraryItem) => idea.title || idea.location?.name || "Untitled place"
 
@@ -38,13 +33,6 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
   const ideaId = params.get(IDEA_PARAM)
   const idea = ideaId ? (trip.ideas?.find((i) => i.id === ideaId) ?? null) : null
   const adding = params.get(IDEA_ADD_PARAM) === "1" && editable && !locked
-
-  // What is on screen, held while it leaves: once `?idea` is cleared (or the
-  // idea is scheduled elsewhere) there is nothing left to read it from.
-  const [held, setHeld] = useState<View | null>(null)
-  const live: View | null = idea ? { idea, mode: adding ? "add" : "details" } : null
-  if (live && (live.idea !== held?.idea || live.mode !== held?.mode)) setHeld(live)
-  const view = live ?? held
 
   /** The picker was opened from the details, so Cancel goes back to them. */
   const addFromDetails = useRef<string | null>(null)
@@ -114,11 +102,13 @@ export function IdeaOverlay({ trip, editable, locked, getToken, onEdit }: IdeaOv
     close()
   }
 
-  // Each piece leaves through its own Presence, so going from the details to
-  // the picker animates one out and the other in. When the whole overlay is
-  // closing, both are let go.
-  const details = !closing && view?.mode === "details" ? view.idea : null
-  const picking = !closing && view?.mode === "add" ? view.idea : null
+  // Each piece leaves through its own Presence, which keeps showing the idea
+  // it last had: going from the details to the picker animates one out and
+  // the other in, and once `?idea` is cleared (or the idea is gone before the
+  // URL catches up) both leave with what they showed.
+  const current = closing ? null : idea
+  const details = current && !adding ? current : null
+  const picking = current && adding ? current : null
 
   return (
     <>
