@@ -674,7 +674,28 @@ function normalizeSuggestion(rawSug: unknown): unknown {
   else delete s.fromIdeaId
   if (s.proposedItem != null) s.proposedItem = normalizeAiItem(s.proposedItem)
   if (s.proposedChanges != null) s.proposedChanges = normalizeAiItem(s.proposedChanges)
+  // A wishlist add needs nothing from the model but the link: the saved
+  // place fills every blank. So a null, an empty string or a location with
+  // no name is a gap to fill, not a malformed stop.
+  if (s.fromIdeaId) {
+    if (s.proposedItem === null) delete s.proposedItem
+    else if (s.proposedItem && typeof s.proposedItem === "object" && !Array.isArray(s.proposedItem)) {
+      s.proposedItem = withoutBlanks(s.proposedItem as Record<string, unknown>)
+    }
+  }
   return s
+}
+
+function withoutBlanks(item: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(item)) {
+    if (value == null || (typeof value === "string" && !value.trim())) continue
+    out[key] = value
+  }
+  const loc = out.location
+  const named = loc && typeof loc === "object" && typeof (loc as { name?: unknown }).name === "string" && (loc as { name: string }).name.trim()
+  if (!named) delete out.location
+  return out
 }
 
 export function salvageSuggestions(raw: string): {
@@ -1183,7 +1204,7 @@ function describeMoney(trip: Trip): string | undefined {
 
 /** The trip's own context: what it is for, who is going, the money and the
  *  open to-dos. The model treats it as the traveller's preferences. */
-export function describeTripContext(trip: Trip): string[] {
+function describeTripContext(trip: Trip): string[] {
   const lines: string[] = []
   if (trip.description?.trim()) lines.push(`  Description: ${quote(trip.description, 600)}`)
   const tags = trip.tags.filter((tag) => tag.trim())
@@ -1225,7 +1246,7 @@ const MAX_WISHLIST = 40
 /** Saved places that are not on any day yet, with the id the model echoes
  *  in `fromIdeaId`. With `near` (a single-day review), the places closest
  *  to that day come first and say how far they are. */
-export function describeWishlist(trip: Trip, near?: { lat: number; lng: number }): string | undefined {
+function describeWishlist(trip: Trip, near?: { lat: number; lng: number }): string | undefined {
   const ideas = trip.ideas ?? []
   if (ideas.length === 0) return undefined
   const onDays = new Set(trip.days.flatMap((d) => d.items.map(venueKey)).filter(Boolean))

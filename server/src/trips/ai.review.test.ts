@@ -360,6 +360,34 @@ describe("review: wishlist adds", () => {
     expect(parsed.suggestions.map((s) => s.fromIdeaId)).toEqual([undefined, undefined, "idea-lx"])
   })
 
+  test("blanks in a wishlist add are gaps the saved place fills, not a malformed stop", async () => {
+    const blanks = [
+      null,
+      { title: "", time: "11:00" },
+      { title: null, time: "11:00" },
+      { time: "11:00", location: null },
+      { time: "11:00", location: {} },
+      { time: "11:00", location: { lat: 1, lng: 2 } },
+      { time: null, notes: "  " },
+    ]
+    const parsed = salvageSuggestions(
+      JSON.stringify({ suggestions: blanks.map((proposedItem) => addSuggestion({ fromIdeaId: "idea-lx", proposedItem })) }),
+    )
+    expect(parsed.dropped).toBe(0)
+    expect(parsed.suggestions).toHaveLength(blanks.length)
+
+    const run = await review(makeTrip({ ideas: wishlist() }), [
+      addSuggestion({ fromIdeaId: "idea-lx", proposedItem: { title: null, time: "11:00", location: null } }),
+    ])
+    expect(run.suggestions[0]!.proposedItem).toMatchObject({
+      id: "idea-lx",
+      title: "LX Factory",
+      time: "11:00",
+      notes: "Sunday market",
+      location: { name: "LX Factory" },
+    })
+  })
+
   test("a plain add without a title is still refused", () => {
     const parsed = salvageSuggestions(
       JSON.stringify({ suggestions: [{ kind: "add", dayId: "day-2", title: "Add", detail: "", proposedItem: { time: "11:00" } }] }),
@@ -485,6 +513,19 @@ describe("deadline: the caller's signal", () => {
     expect((err as Error).message).toBe("The AI took too long to answer.")
     expect(((err as Error).cause as Error).message).toBe("attempt deadline")
     expect(calls).toBe(1)
+  })
+
+  test("one request timing out, with budget left, still steps down to the next mode", async () => {
+    const controller = new AbortController()
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      if (calls === 1) throw new DOMException("The operation timed out.", "TimeoutError")
+      return ok()
+    }) as typeof fetch
+    const text = await createGeminiLlm("k", fetchImpl)({ system: "s", user: "u", signal: controller.signal })
+    expect(text).toBe("{}")
+    expect(calls).toBe(2)
   })
 
   test("an aborted signal sends no request at all", async () => {
