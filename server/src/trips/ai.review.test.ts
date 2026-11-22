@@ -396,6 +396,27 @@ describe("review: wishlist adds", () => {
     expect(run.suggestions.filter((s) => s.kind === "add")).toHaveLength(1)
   })
 
+  test("a note the model wrote from a placeholder never replaces the traveller's own", async () => {
+    const trip = makeTrip({ ideas: [place("idea-lx", "LX Factory", { notes: "Tickets: confirmation 88123456" })] })
+    trip.days[0]!.items[1]!.notes = "Booked, call +351 21 123 4567 if late"
+    const run = await review(trip, [
+      addSuggestion({ fromIdeaId: "idea-lx", proposedItem: { time: "15:00", notes: "Tickets: confirmation [code]" } }),
+      {
+        kind: "edit",
+        dayId: "day-1",
+        itemId: "it-lunch",
+        title: "Earlier lunch",
+        detail: "",
+        confidence: "high",
+        proposedChanges: { time: "12:30", notes: "Booked, call [number] if late" },
+      },
+    ])
+    const add = run.suggestions.find((s) => s.kind === "add")!
+    expect(add.proposedItem!.notes).toBe("Tickets: confirmation 88123456")
+    const update = run.suggestions.find((s) => s.kind === "edit")!
+    expect(update.proposedChanges).toEqual({ time: "12:30" })
+  })
+
   test("a stray null, an empty string or a link inside the stop never costs the suggestion", () => {
     const parsed = salvageSuggestions(
       JSON.stringify({

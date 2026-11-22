@@ -41,6 +41,18 @@ function hasLetterAndDigit(token: string): boolean {
   return /\p{L}/u.test(token) && /\d/.test(token)
 }
 
+const PLACEHOLDER = /\[(?:code|email|number)\]/
+
+/**
+ * Text a model wrote that repeats a placeholder. It stands for something the
+ * traveller wrote and the model never saw, so it must never be saved over
+ * their text (a note the model echoes back would lose the real booking code):
+ * such text is dropped and the traveller's own stays.
+ */
+export function fromModel(text: string | undefined): string | undefined {
+  return text !== undefined && PLACEHOLDER.test(text) ? undefined : text
+}
+
 export const REDACTED_CODE = "[code]"
 export const REDACTED_EMAIL = "[email]"
 export const REDACTED_NUMBER = "[number]"

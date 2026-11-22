@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { redactPrivate } from "./privateText"
+import { fromModel, redactPrivate } from "./privateText"
 
 describe("redactPrivate", () => {
   test("a booking code in brackets after the flights is hidden; the flight numbers stay", () => {
@@ -47,5 +47,15 @@ describe("redactPrivate", () => {
     ]) {
       expect(redactPrivate(text)).toBe(text)
     }
+  })
+})
+
+describe("fromModel", () => {
+  test("drops model text that repeats a placeholder, keeps the rest", () => {
+    expect(fromModel("Show [code] at the desk")).toBeUndefined()
+    expect(fromModel("Email [email] for the key")).toBeUndefined()
+    expect(fromModel("Order the [number] set")).toBeUndefined()
+    expect(fromModel("Order the lunch set [A]")).toBe("Order the lunch set [A]")
+    expect(fromModel(undefined)).toBeUndefined()
   })
 })

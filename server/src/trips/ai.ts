@@ -14,7 +14,7 @@ import { tripLatLngHint } from "./latLngHint"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import { sameVenue, venueSet } from "./sameVenue"
-import { redactPrivate } from "./privateText"
+import { fromModel, redactPrivate } from "./privateText"
 import { ENHANCEMENT_SYSTEM, GENERATION_SYSTEM, OUTLINE_SYSTEM } from "./prompts"
 import { repairTruncatedJson } from "./jsonRepair"
 import { baseByDay, describeBases, isFixed, isLodging } from "./lodging"
@@ -799,7 +799,7 @@ function toTripItems(items: AiDay["items"]): ItineraryItem[] {
     title: item.title,
     time: item.time,
     endTime: item.endTime,
-    notes: item.notes,
+    notes: fromModel(item.notes),
     status: item.status ?? "none",
     location: item.location
       ? {
@@ -975,7 +975,7 @@ export async function generateItinerary(args: {
       title: aiDay?.title,
       emoji: aiDay?.emoji,
       city: aiDay?.city,
-      notes: aiDay?.notes,
+      notes: fromModel(aiDay?.notes),
       neighborhoods: aiDay?.neighborhoods,
       items,
     }
@@ -1398,7 +1398,7 @@ function proposedStop(p: AiProposedItem & { title: string }, confidence: Confide
     title: p.title,
     time: p.time,
     endTime: p.endTime,
-    notes: p.notes,
+    notes: fromModel(p.notes),
     status: p.status ?? "needs_review",
     location: p.location ? { ...p.location, source: "ai", confidence } : undefined,
     createdBy: "ai",
@@ -1439,7 +1439,7 @@ function scheduledIdea(
     title: idea.title.trim() || proposed?.title || "Saved place",
     time: proposed?.time,
     endTime: proposed?.endTime,
-    notes: proposed?.notes?.trim() ? proposed.notes : idea.notes,
+    notes: fromModel(proposed?.notes)?.trim() ? proposed!.notes : idea.notes,
     links: idea.links ? [...idea.links] : undefined,
     // A booked idea stays booked; otherwise it is an AI-placed stop like any other.
     status: idea.status !== "none" ? idea.status : (proposed?.status ?? "needs_review"),
@@ -1490,7 +1490,9 @@ function acceptedSuggestions(args: {
           ...(s.proposedChanges.title != null ? { title: s.proposedChanges.title } : {}),
           ...(s.proposedChanges.time != null ? { time: s.proposedChanges.time } : {}),
           ...(s.proposedChanges.endTime != null ? { endTime: s.proposedChanges.endTime } : {}),
-          ...(s.proposedChanges.notes != null ? { notes: s.proposedChanges.notes } : {}),
+          ...(s.proposedChanges.notes != null && fromModel(s.proposedChanges.notes) !== undefined
+            ? { notes: s.proposedChanges.notes }
+            : {}),
           ...(s.proposedChanges.status != null ? { status: s.proposedChanges.status } : {}),
           ...(s.proposedChanges.location != null
             ? { location: { ...s.proposedChanges.location, source: "ai" as const, confidence: s.confidence } }
