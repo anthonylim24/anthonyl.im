@@ -60,6 +60,16 @@ function device(overrides: Partial<TripsDevice> = {}): TripsDevice & { store: Re
 
 const editor = () => seen.editor!
 
+/** Settles once the editor sends its next save to the server. */
+function nextSave(): Promise<void> {
+  return new Promise((resolve) => {
+    mockUpdateTrip.mockImplementationOnce(async (_t: unknown, _id: string, patch: Partial<Trip>) => {
+      resolve()
+      return later({ ...server, ...patch })
+    })
+  })
+}
+
 describe("the editor and this device", () => {
   beforeEach(() => {
     mockGetTrip.mockReset()
@@ -111,11 +121,20 @@ describe("the editor and this device", () => {
   })
 
   it("brings back edits that never reached the server, and saves them", async () => {
+    // The replay goes out after the 900 ms save debounce. Jump past it rather
+    // than racing it in real time; the clock still runs on its own, so a
+    // timer set late only makes this slower, never wrong.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     const d = device()
     await keepDraft(d.store, "u1", { doc: { ...server, name: "Lisbon and Porto" }, base: server, savedAt: 2000 })
     mockGetTrip.mockResolvedValue({ trip: server, access: "owner" })
+    const sent = nextSave()
     open(d)
-    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledWith(expect.any(Function), "t1", expect.objectContaining({ name: "Lisbon and Porto" })))
+    await waitFor(() => expect(editor().trip?.name).toBe("Lisbon and Porto"))
+    expect(editor().notice).toBe("Brought back edits made on this device that hadn’t been saved. Saving them now.")
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    await act(() => sent)
+    expect(mockUpdateTrip).toHaveBeenCalledWith(expect.any(Function), "t1", expect.objectContaining({ name: "Lisbon and Porto" }))
     await waitFor(() => expect(editor().sync.k).toBe("clean"))
     // Saved: the notice says so, no longer "Saving them now".
     await waitFor(() => expect(editor().notice).toBe("Saved the edits brought back from this device."))
