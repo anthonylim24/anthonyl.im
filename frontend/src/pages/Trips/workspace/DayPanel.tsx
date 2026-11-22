@@ -1,5 +1,6 @@
 import { TonightLine } from "../bookings/TonightLine"
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { flushSync } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
 import {
@@ -54,7 +55,7 @@ import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview } from "./AiPanels"
 import { ItemCard, type CardConflict, type ItemCardProps } from "./ItemCard"
-import { dayList, type Leg } from "./dayList"
+import { sameDayList, type Leg } from "./dayList"
 import type { Holiday } from "../holidays"
 import { Parts } from "./Parts"
 import { rainBrief, stopAlerts } from "./stopAlerts"
@@ -103,7 +104,15 @@ export interface DayPanelProps {
   holidays?: readonly Holiday[]
 }
 
-type SortableProps = ItemCardProps & { leg: Leg | null; legWet: number | null }
+type SortableProps = ItemCardProps & {
+  leg: Leg | null
+  legWet: number | null
+  /** This stop's grip is held: only then can it be dragged. */
+  held: boolean
+  /** Changes whenever the rows can have moved (`layoutKey` in DayPanel). */
+  layoutKey: string
+  onHold: (id: string | null) => void
+}
 
 /** Rebuilt with every edit to the day, so compared by their words, not by identity. */
 const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict"])
@@ -112,15 +121,42 @@ const sameProps = (prev: SortableProps, next: SortableProps) =>
     (key) => Object.is(prev[key], next[key]) || (BY_VALUE.has(key) && JSON.stringify(prev[key]) === JSON.stringify(next[key])),
   )
 
-/** Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable. */
+/**
+ * Memoised: typing in one stop re-renders that stop, not the whole day. Every prop must be stable.
+ *
+ * Motion measures a `Reorder.Item` (two forced layouts) on every render while
+ * it is draggable or has no `layoutDependency`, and every item renders with
+ * the group, so each keystroke anywhere on the day measured every stop. So an
+ * item is draggable only while its grip is held, and measures only when
+ * `layoutKey` says the rows can have moved: a reorder, an add or a delete,
+ * the fold, a grip pressed or let go.
+ */
 const Sortable = memo(function Sortable(props: SortableProps) {
   const controls = useDragControls()
-  const { leg, legWet, ...card } = props
-  const onGrip = useCallback((event: ReactPointerEvent) => controls.start(event), [controls])
+  const { leg, legWet, held, layoutKey, onHold, ...card } = props
+  const id = props.item.id
+  const onGrip = useCallback(
+    (event: ReactPointerEvent) => {
+      // Motion reads `drag` when the pointer first moves: commit it before the gesture starts.
+      flushSync(() => onHold(id))
+      controls.start(event)
+      // Added after the gesture's own listeners, so the drag has ended when this runs.
+      const release = () => {
+        window.removeEventListener("pointerup", release)
+        window.removeEventListener("pointercancel", release)
+        onHold(null)
+      }
+      window.addEventListener("pointerup", release)
+      window.addEventListener("pointercancel", release)
+    },
+    [controls, onHold, id],
+  )
   return (
     <Reorder.Item
       as="li"
-      value={props.item}
+      value={id}
+      drag={held ? "y" : false}
+      layoutDependency={layoutKey}
       dragListener={false}
       dragControls={controls}
       style={{ position: "relative", listStyle: "none" }}
@@ -222,8 +258,7 @@ export function DayPanel({
   const dayClock = aroundToday ? dayNow(trip, day, now) : null
   const isToday = dayClock !== null
   const clock = dayClock === null ? null : clockText(dayClock)
-  // Left to the React Compiler to memoise: it keys on `day` and the clock.
-  const list = dayList(day, dayClock)
+  const list = sameDayList(day, dayClock)
   const slot = isToday ? nowSlot(day, trip, now) : null
   const nowLine = slot === null || clock === null ? null : <NowLine key="now-line" time={formatClock(clock)} />
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
@@ -296,7 +331,14 @@ export function DayPanel({
   }
   const toggleFold = () => setFoldOpen((open) => !open)
   const hidden = list.done && !foldOpen ? list.done.length : 0
-  const shown = hidden > 0 ? day.items.slice(hidden) : day.items
+  const shown = useMemo(() => (hidden > 0 ? day.items.slice(hidden) : day.items), [day.items, hidden])
+  // The list reorders ids, not stops: an edited stop is a new object, and
+  // Motion drops a value it no longer finds until that row is measured again.
+  const shownIds = useMemo(() => shown.map((item) => item.id), [shown])
+  const [held, setHeld] = useState<string | null>(null)
+  // When Motion must measure the rows again (see `Sortable`). Pressing a grip
+  // re-measures every row, so a drag starts from where they are now.
+  const layoutKey = `${held ?? ""}|${hidden}|${slot ?? ""}|${list.anytimeAt ?? ""}|${shownIds.join(",")}`
 
   const rework = useLatestCallback((spell: WetSpell) => onAskAi(rainBrief(spell)))
   // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
@@ -581,9 +623,11 @@ export function DayPanel({
           <Reorder.Group
             as="ol"
             axis="y"
-            values={shown}
+            values={shownIds}
             // The folded head keeps its place: only what is shown can be dragged.
-            onReorder={(items) => !locked && patchDay({ items: [...day.items.slice(0, hidden), ...items] }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })}
+            onReorder={(ids) =>
+              !locked && patchDay({ items: [...day.items.slice(0, hidden), ...byIds(shown, ids)] }, { label: `Reordered day ${dayIndex + 1}`, key: `reorder:${day.id}` })
+            }
             onFocus={(event) => setFocused(event.target.closest<HTMLElement>("[id^='item-']")?.id.slice(5) ?? null)}
             onBlur={() => setFocused(null)}
             {...sx(s.timeline)}
@@ -642,6 +686,9 @@ export function DayPanel({
                   onHover={onHover}
                   onLocate={onLocate}
                   onAnnounce={setSpoken}
+                  held={held === item.id}
+                  layoutKey={layoutKey}
+                  onHold={setHeld}
                 />,
               ]
             })}
@@ -717,6 +764,12 @@ export function DayPanel({
       </nav>
     </div>
   )
+}
+
+/** `items` in the order of `ids`. */
+function byIds(items: readonly ItineraryItem[], ids: readonly string[]): ItineraryItem[] {
+  const byId = new Map(items.map((item) => [item.id, item]))
+  return ids.flatMap((id) => byId.get(id) ?? [])
 }
 
 /** "Its 5 stops and notes go with it." */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { dayPins, TO_SCHEDULE } from "../map/geo"
 import type { ItineraryItem, TripDay } from "../types"
-import { dayList } from "../workspace/dayList"
+import { dayList, sameDayList } from "../workspace/dayList"
 import { makeItem } from "./tripFixtures"
 
 const KYOTO = { lat: 35.0, lng: 135.77 }
@@ -179,5 +179,24 @@ describe("dayList done", () => {
   it("takes the headings and notes among the finished stops with them", () => {
     const sections = day([heading("Morning"), stop("Temple", "09:00", "10:00"), note("Bring cash"), stop("Lunch", "11:00", "12:00"), heading("Afternoon"), stop("Garden", "13:00", "14:00")])
     expect(dayList(sections, min("12:30")).done).toMatchObject({ length: 4, stops: ["Temple", "Lunch"] })
+  })
+})
+
+describe("sameDayList", () => {
+  const plan = day([stop("Temple", "09:00", "10:00"), stop("Lunch", "11:00", "12:00")])
+
+  it("hands back the same list while the day and the clock are the same", () => {
+    expect(sameDayList(plan, min("10:30"))).toBe(sameDayList(plan, min("10:30")))
+    expect(sameDayList(plan, null)).toBe(sameDayList(plan, null))
+  })
+
+  it("works the list out again for a new clock or an edited day", () => {
+    const at = sameDayList(plan, min("10:30"))
+    const later = sameDayList(plan, min("12:30"))
+    expect(later).not.toBe(at)
+    expect(later.past).toEqual(new Set(["Temple", "Lunch"]))
+    const edited = { ...plan, items: [...plan.items] }
+    expect(sameDayList(edited, min("12:30"))).not.toBe(later)
+    expect(sameDayList(edited, min("12:30"))).toEqual(dayList(edited, min("12:30")))
   })
 })
