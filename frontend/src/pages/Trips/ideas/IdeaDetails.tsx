@@ -310,13 +310,11 @@ function DetailsContent({
 
   const location = idea.location
   const address = details?.address ?? location?.address
-  const maps = externalMapsLink({
-    name: location?.name || idea.title,
-    address,
-    lat: location?.lat,
-    lng: location?.lng,
-    mapsUrl: details?.mapsUrl,
-  })
+  // Only for a place: a note's sentence is not something to search a map for.
+  const maps =
+    location || details
+      ? externalMapsLink({ name: location?.name || idea.title, address, lat: location?.lat, lng: location?.lng, mapsUrl: details?.mapsUrl })
+      : undefined
   const notes = idea.notes?.trim()
   const links = [...new Set((idea.links ?? []).map((link) => webUrl(link)).filter((link): link is string => Boolean(link)))]
 

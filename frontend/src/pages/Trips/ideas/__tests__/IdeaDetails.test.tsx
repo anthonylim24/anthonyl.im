@@ -169,6 +169,8 @@ describe("IdeaDetails", () => {
     const dialog = screen.getByRole("dialog", { name: "Hotteok somewhere" })
     expect(within(dialog).getByText("Go early, before the tour buses.")).toBeInTheDocument()
     expect(within(dialog).queryByRole("status")).toBeEmptyDOMElement()
+    // A note is not a place: no map search for its sentence.
+    expect(within(dialog).queryByRole("link", { name: /maps/i })).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
