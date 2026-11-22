@@ -391,7 +391,7 @@ app.get("/chatbot/", (c) => c.redirect("/", 301));
 app.get("/korea", (c) => c.redirect("/trips/korea-2026", 301));
 app.get("/korea/", (c) => c.redirect("/trips/korea-2026", 301));
 app.get("/korea/places", (c) => c.redirect("/trips/korea-2026", 301));
-app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026", 301));
+app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026?ingest=1", 301));
 app.get("/korea/day/:slug", (c) => c.redirect(`/trips/korea-2026/day/${c.req.param("slug")}`, 301));
 app.get("/korea/*", (c) => c.redirect("/trips/korea-2026", 301));
 
