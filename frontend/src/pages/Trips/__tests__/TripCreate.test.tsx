@@ -334,9 +334,9 @@ describe("TripCreate", () => {
     expect(screen.getAllByText("Drafting the itinerary · 0 s").length).toBeGreaterThan(0)
 
     act(() => vi.advanceTimersByTime(48_000))
-    expect(screen.getAllByText("Still drafting · 48 s · long trips can take two minutes").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Still drafting · 48 s · long trips can take a few minutes").length).toBeGreaterThan(0)
     // The live region speaks the change once, not every second.
-    expect(screen.getByRole("status")).toHaveTextContent("Still drafting. Long trips can take two minutes.")
+    expect(screen.getByRole("status")).toHaveTextContent("Still drafting. Long trips can take a few minutes.")
 
     const signal = mockGenerateItinerary.mock.calls[0]![3] as AbortSignal
     fireEvent.click(stop)
