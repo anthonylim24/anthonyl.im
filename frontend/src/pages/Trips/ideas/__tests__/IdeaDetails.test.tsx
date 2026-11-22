@@ -367,6 +367,27 @@ describe("IdeaDetails", () => {
     expect(document.activeElement).toBe(select)
   })
 
+  it("stays clamped to a short window when placed again, instead of growing and shrinking every frame", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))
+    const natural = window.innerHeight + 40
+    // As a browser reports it: a card held to a max height scrolls inside, so its scrollHeight is the clamp.
+    vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(function (this: Element) {
+      if (this.getAttribute("role") !== "dialog") return 0
+      const max = parseFloat((this as HTMLElement).style.maxHeight)
+      return Number.isNaN(max) ? natural : Math.min(natural, max)
+    })
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360)
+    openDetails()
+    const dialog = screen.getByRole("dialog", { name: "Gyeongbokgung" })
+    const clamp = `${window.innerHeight - 16}px`
+    expect(dialog.style.maxHeight).toBe(clamp)
+
+    fireEvent.scroll(window)
+    expect(dialog.style.maxHeight, "placed again, still taller than the window").toBe(clamp)
+    fireEvent.scroll(window)
+    expect(dialog.style.maxHeight).toBe(clamp)
+  })
+
   it("leaves at once, inert, so nothing in it can be pressed on the way out", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))
     openDetails()
