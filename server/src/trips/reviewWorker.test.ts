@@ -432,6 +432,25 @@ describe("review worker: restarts, leases and fencing", () => {
   })
 })
 
+describe("review worker: draining", () => {
+  test("a claim that comes back after drain began is handed back before drain returns", async () => {
+    const { store, runId, run } = await setup()
+    const claim = store.claimReview.bind(store)
+    const slowNetwork = deferred<void>()
+    store.claimReview = async (...args) => {
+      const claimed = await claim(...args)
+      await slowNetwork.promise
+      return claimed
+    }
+    const { w } = worker(store, untilAborted)
+    w.kick(runId)
+    const draining = w.drain(1_000)
+    slowNetwork.resolve()
+    await draining
+    expect(await run()).toMatchObject({ status: "running", queue: { state: "queued", attempt: 0 } })
+  })
+})
+
 describe("review worker: slots", () => {
   test("overlapping sweeps and kicks never take more than the free slots; a kicked run takes the next free one", async () => {
     const { store, runIds } = await setup(["trip-1", "trip-2", "trip-3"])

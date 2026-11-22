@@ -95,9 +95,10 @@ const COMPLETE_TRIES = 5
  *  millisecond early, and the run is due on the store's clock, not ours. */
 const RETRY_KICK_SLACK_MS = 25
 
-// The run's `error` is shown to travellers.
+// The run's `error` is shown to travellers, and may be the last word (the
+// final attempt's), so none promises another try.
 const TRIP_DELETED = "This trip was deleted."
-const TRIP_BUSY = "The trip kept changing while the AI review was saving, so it will try again."
+const TRIP_BUSY = "The trip kept changing while the AI review was saving its changes."
 const TIMED_OUT = "The AI review took too long."
 
 /** Unique per process and per worker, so a log line names its owner. */
@@ -195,7 +196,7 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
   /** Attempts in progress: what drain aborts and hands back. Not keyed by
    *  run: a stalled attempt and its own re-claim can briefly share one. */
   const attempts = new Set<{ claim: ReviewClaim; abort: AbortController }>()
-  /** Everything drain waits for: attempts and hand-backs. */
+  /** Everything drain waits for: claims being made, attempts, hand-backs. */
   const work = new Set<Promise<void>>()
   /** Run ids kicked while every slot was busy. */
   const waiting = new Set<string>()
@@ -279,9 +280,9 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
     for (const runId of [...waiting]) {
       if (reserved >= concurrency) break
       waiting.delete(runId)
-      void claimOne(runId)
+      kick(runId)
     }
-    if (sweepTimer) void sweep()
+    if (sweepTimer) kick()
   }
 
   async function sweep() {
@@ -297,8 +298,8 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
   }
 
   function kick(runId?: string) {
-    if (runId === undefined) void sweep()
-    else void claimOne(runId)
+    // Tracked, so a drain also waits for a claim still on its way back.
+    track(runId === undefined ? sweep() : claimOne(runId).then(() => {}))
   }
 
   /** Renew the lease until stopped. A renewal that finds the claim gone
@@ -427,9 +428,9 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
     sweep,
     start(intervalMs) {
       if (stopped || sweepTimer) return
-      sweepTimer = setInterval(() => void sweep(), intervalMs)
+      sweepTimer = setInterval(() => kick(), intervalMs)
       sweepTimer.unref?.()
-      void sweep()
+      kick()
     },
     stop,
     async drain(timeoutMs) {
@@ -445,12 +446,15 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
         )
       }
       let timer: ReturnType<typeof setTimeout> | undefined
-      await Promise.race([
-        Promise.allSettled([...work]),
-        new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, timeoutMs)
-        }),
-      ])
+      let timedOut = false
+      const timeout = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs)
+      }).then(() => {
+        timedOut = true
+      })
+      // Settling work can add more (a claim that returns now hands its run
+      // back), so wait until nothing is left.
+      while (!timedOut && work.size > 0) await Promise.race([Promise.allSettled([...work]), timeout])
       clearTimeout(timer)
     },
     inflight: () => reserved,
