@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { CalendarDays } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
@@ -22,17 +23,21 @@ export function DayPicker({
   title,
   description,
   choices,
+  lead,
   onPick,
   onClose,
 }: {
   title: string
   description?: string
   choices: readonly DayChoice[]
+  /** Shown above the day list, inside the sheet (the wishlist's recommended days). */
+  lead?: ReactNode
   onPick: (dayId: string) => void
   onClose: () => void
 }) {
   return (
     <Modal open onClose={onClose} title={title} description={description}>
+      {lead}
       <ul {...sx(s.pickList)}>
         {choices.map((choice) => (
           <li key={choice.id}>

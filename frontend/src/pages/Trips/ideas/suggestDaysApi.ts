@@ -1,0 +1,70 @@
+import { Effect } from "effect"
+import { requestJson, type GetToken } from "../../../effect/http"
+import { runPromise } from "../../../effect/runtime"
+import type { ItineraryItem } from "../types"
+import type { DayPick, DaySuggestions, SuggestDaysRequest } from "./contract"
+
+// Client for POST /api/trips/:id/ideas/suggest-days: the days an idea fits
+// best. The server always answers something it can (the distance ranking
+// when its model can't), so a failure here is the network or the session;
+// the picker then just shows every day.
+
+/** The server waits on its model for 8 s; past this the answer is not coming. */
+const SUGGEST_TIMEOUT_MS = 12_000
+
+const clip = (value: string | undefined, max: number) => (value === undefined ? undefined : value.slice(0, max))
+const finite = (value: number | undefined) => (typeof value === "number" && Number.isFinite(value) ? value : undefined)
+
+/** The idea as the request carries it, within the server's limits (the item schema's own). */
+export function suggestRequest(idea: ItineraryItem): SuggestDaysRequest {
+  const where = idea.location
+  return {
+    idea: {
+      title: idea.title.slice(0, 300),
+      notes: clip(idea.notes, 8000),
+      theme: idea.theme,
+      location: where
+        ? {
+            name: where.name.slice(0, 200),
+            address: clip(where.address, 400),
+            lat: finite(where.lat),
+            lng: finite(where.lng),
+            category: clip(where.category, 40),
+            placeId: clip(where.placeId, 256),
+          }
+        : undefined,
+    },
+  }
+}
+
+const isPick = (value: unknown): value is DayPick => {
+  const pick = value as DayPick | null
+  return typeof pick?.dayId === "string" && typeof pick.reason === "string" && (pick.nearestKm === undefined || Number.isFinite(pick.nearestKm))
+}
+
+const suggestDaysEffect = Effect.fn("TripsService.suggestDays")(function* (
+  getToken: GetToken,
+  tripId: string,
+  idea: ItineraryItem,
+  signal?: AbortSignal,
+) {
+  const body = yield* requestJson<{ picks?: unknown; source?: unknown }>(
+    getToken,
+    `/api/trips/${encodeURIComponent(tripId)}/ideas/suggest-days`,
+    { method: "POST", body: JSON.stringify(suggestRequest(idea)), signal },
+    { timeoutMs: SUGGEST_TIMEOUT_MS },
+  )
+  const picks = Array.isArray(body.picks) ? body.picks.filter(isPick).slice(0, 3) : []
+  return { picks, source: body.source === "ai" ? "ai" : "nearby" } satisfies DaySuggestions
+})
+
+export function suggestDays(getToken: GetToken, tripId: string, idea: ItineraryItem, signal?: AbortSignal): Promise<DaySuggestions> {
+  return runPromise(suggestDaysEffect(getToken, tripId, idea, signal))
+}
+
+/** "650 m", "1.2 km", "14 km" (the server's `formatKm`). */
+export function formatKm(km: number): string {
+  const meters = Math.round((km * 1000) / 50) * 50
+  if (meters < 1000) return `${Math.max(50, meters)} m`
+  return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`
+}
