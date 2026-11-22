@@ -219,50 +219,63 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
       setStatus("failed")
     }
     const openedAt = performance.now()
-    PhotorealScene.create(
-      {
-        host,
-        pinLayer,
-        tokens: root,
-        anchor,
-        apiKey: tilesKey(),
-        reducedMotion,
-        timezone: trip.timezone,
-        date: day.date,
-        insets: measure(),
-        initialStopId: first.selectedId,
-        onSelect: (id) => pick(id),
-        onReady: () => {
-          // Hold the veil long enough to read as a moment, never a flash.
-          const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - openedAt))
-          revealTimer = window.setTimeout(() => setStatus((s) => (s === "loading" ? "ready" : s)), wait)
+    const build = () => {
+      if (cancelled) return
+      PhotorealScene.create(
+        {
+          host,
+          pinLayer,
+          tokens: root,
+          anchor,
+          apiKey: tilesKey(),
+          reducedMotion,
+          timezone: trip.timezone,
+          date: day.date,
+          insets: measure(),
+          initialStopId: first.selectedId,
+          onSelect: (id) => pick(id),
+          onReady: () => {
+            // Hold the veil long enough to read as a moment, never a flash.
+            const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - openedAt))
+            revealTimer = window.setTimeout(() => setStatus((s) => (s === "loading" ? "ready" : s)), wait)
+          },
+          onError: fail,
+          onYaw: (bearing) => {
+            needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
+          },
+          onTilt: setTilted,
+          onAttribution: setCredit,
+          onInteract: () => setTouring(false),
+          onProgress: (progress) => {
+            if (progressRef.current) progressRef.current.style.transform = `scaleX(${Math.max(0.06, progress).toFixed(3)})`
+          },
+          onRefining: setRefining,
         },
-        onError: fail,
-        onYaw: (bearing) => {
-          needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
-        },
-        onTilt: setTilted,
-        onAttribution: setCredit,
-        onInteract: () => setTouring(false),
-        onProgress: (progress) => {
-          if (progressRef.current) progressRef.current.style.transform = `scaleX(${Math.max(0.06, progress).toFixed(3)})`
-        },
-        onRefining: setRefining,
-      },
-      first.sceneStops,
-    )
-      .then((created) => {
-        if (cancelled) return created.dispose()
-        scene = created
-        sceneRef.current = created
-        const now = latest.current
-        if (now.sceneStops !== first.sceneStops) created.setStops(now.sceneStops)
-        if (now.selectedId !== first.selectedId) created.select(now.selectedId)
-        created.setInsets(measure())
-      })
-      .catch(() => fail(""))
+        first.sceneStops,
+      )
+        .then((created) => {
+          if (cancelled) return created.dispose()
+          scene = created
+          sceneRef.current = created
+          const now = latest.current
+          if (now.sceneStops !== first.sceneStops) created.setStops(now.sceneStops)
+          if (now.selectedId !== first.selectedId) created.select(now.selectedId)
+          created.setInsets(measure())
+        })
+        .catch(() => fail(""))
+    }
+    // Paint the veil first. Creating the WebGL context and the scene is one
+    // long task; run inside the click that opened the view, it held the
+    // dialog's first frame back by as long. A timeout queued from a frame
+    // callback runs after that frame has painted.
+    let buildTimer = 0
+    const buildFrame = requestAnimationFrame(() => {
+      buildTimer = window.setTimeout(build, 0)
+    })
     return () => {
       cancelled = true
+      cancelAnimationFrame(buildFrame)
+      window.clearTimeout(buildTimer)
       window.clearTimeout(revealTimer)
       scene?.dispose()
       sceneRef.current = null
