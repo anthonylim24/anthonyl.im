@@ -87,13 +87,19 @@ function usePlaceDetails(target: DetailsTarget | null, getToken: IdeaDetailsProp
       },
     )
     return () => controller.abort()
-    // `requestKey` names the place and the attempt; `target` is rebuilt on every edit to the idea.
-    // `cached` turning false (an answer lapsing while open) asks again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `requestKey` names the place and the attempt; `target` is rebuilt on every edit to the idea, and `cached` turning false (an answer lapsing while open) asks again
   }, [requestKey, getToken, cached])
 
-  const load: DetailsLoad =
+  const asked: DetailsLoad =
     known !== undefined ? { status: "ready", details: known } : answer?.key === requestKey ? answer.load : { status: "loading" }
+  // While an answer that lapsed is asked for again, the card keeps showing it
+  // (no skeleton, the carousel stays where it was).
+  const [shown, setShown] = useState<{ key: string; details: PlaceDetails | null } | null>(null)
+  const placeKey = target?.key ?? ""
+  if (asked.status === "ready" && (shown?.key !== placeKey || shown.details !== asked.details)) {
+    setShown({ key: placeKey, details: asked.details })
+  }
+  const load: DetailsLoad = asked.status === "loading" && shown?.key === placeKey ? { status: "ready", details: shown.details } : asked
   return { load, retry: () => setAttempt((n) => n + 1) }
 }
 
@@ -115,8 +121,7 @@ export function IdeaDetails({ trip, idea, from, editable, locked, getToken, them
     // Before the first paint, so the card never shows as one thing and then the other.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- measured once from the DOM, which render may not read
     setAnchor(opener === "row" ? rowInView(idea.id) : null)
-    // Once per opening: the details are keyed by idea, and the decision must not follow later renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening: the details are keyed by idea, and the decision must not follow later renders
   }, [])
 
   const content = (title: ReactNode) => (
@@ -352,10 +357,12 @@ function Popover({
   }
 
   // Focus moved somewhere else on the page (not by a press, which its click
-  // settles; not into another Trips portal such as a toast): it is done.
+  // settles; not into another Trips portal such as a toast; not to its own
+  // row, which a press on it focuses in Chrome and leaves this open): it is done.
   const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget as Element | null
     if (!next || pressing.current || handing.current || ref.current?.contains(next) || next.closest?.(".trips-portal")) return
+    if (liveRow(row, anchorId)?.contains(next)) return
     close()
   }
 

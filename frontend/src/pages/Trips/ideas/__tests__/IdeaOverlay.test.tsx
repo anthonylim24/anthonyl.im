@@ -100,11 +100,31 @@ function renderOverlay(
     state.navigate = (to) => (typeof to === "number" ? navigate(to) : navigate(to))
     return null
   }
-  /** What opens an idea in the workspace: a list row's name, its Add to day, a map pin. */
+  /** What opens an idea in the workspace: a list row's name, its Add to day, a map pin; and an overview tab. */
   function Openers() {
     const nav = useIdeaNav()
+    const [, setParams] = useSearchParams()
     return (
       <>
+        <button
+          type="button"
+          onClick={() =>
+            // As the workspace's tabs do: replace, keeping every other param.
+            setParams(
+              (prev) => {
+                const next = new URLSearchParams(prev)
+                next.set("tab", "budget")
+                return next
+              },
+              { replace: true },
+            )
+          }
+        >
+          Tab: Budget
+        </button>
+        <button type="button" onClick={() => nav.open("idea-other", "row")}>
+          Row: Other
+        </button>
         <button type="button" onClick={() => nav.open("idea-tram", "row")}>
           Row: Tram 28
         </button>
@@ -260,6 +280,35 @@ describe("IdeaOverlay", () => {
       expect(state.search).toBe("?tab=wishlist")
       act(() => state.navigate(-1))
       expect(state.pathname).toBe("/trips")
+    })
+
+    describe("a close while the browser is already on an entry not yet shown", () => {
+      /** As BrowserRouter leaves it between a navigation and its commit: history.state names another entry. */
+      const pending = () => window.history.replaceState({ key: "not-yet-shown" }, "")
+      afterEach(() => window.history.replaceState(null, ""))
+
+      it("still closes once that entry shows the same place (a tab that kept ?idea)", () => {
+        const state = renderOverlay(twoDays(), fromTrips)
+        fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+        pending()
+        fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+        expect(params(state).get("idea")).toBe("idea-tram")
+        window.history.replaceState(null, "")
+        fireEvent.click(screen.getByRole("button", { name: "Tab: Budget" }))
+        expect(params(state).get("tab")).toBe("budget")
+        expect(params(state).has("idea")).toBe(false)
+      })
+
+      it("lapses when that entry opens another place", () => {
+        const state = renderOverlay(makeTrip({ ...twoDays(), ideas: [tram, makeItem({ id: "idea-other", title: "Other" })] }), fromTrips)
+        fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+        pending()
+        fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+        window.history.replaceState(null, "")
+        fireEvent.click(screen.getByRole("button", { name: "Row: Other" }))
+        expect(params(state).get("idea")).toBe("idea-other")
+        expect(screen.getByRole("dialog", { name: "Details: Other" })).toBeInTheDocument()
+      })
     })
 
     it("replaces a pasted link's entry rather than going back past it", () => {

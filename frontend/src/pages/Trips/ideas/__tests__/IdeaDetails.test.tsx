@@ -256,6 +256,46 @@ describe("IdeaDetails", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
   })
 
+  it("stays open when a press on its own row moves focus there, as Chrome does on mousedown", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))
+    const { opener } = openDetails()
+    const dialog = screen.getByRole("dialog", { name: "Gyeongbokgung" })
+    within(dialog).getByRole("button", { name: "Remove" }).focus()
+    fireEvent.pointerDown(opener)
+    act(() => opener.focus())
+    fireEvent.pointerUp(opener)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+    expect(screen.getByRole("dialog", { name: "Gyeongbokgung" })).toBeInTheDocument()
+  })
+
+  it("keeps showing a lapsed answer while it asks again", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json({ place: palace }))
+    const { opener, rerender } = openDetails()
+    await waitFor(() => expect(screen.getByText(palace.summary!)).toBeInTheDocument())
+    // Closed and opened again: this time the answer comes from the cache.
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+    // Gone, not just on its way out (inert, it no longer counts as a dialog).
+    await waitFor(() => expect(screen.queryByText(palace.summary!)).toBeNull())
+    fireEvent.click(opener)
+    const dialog = screen.getByRole("dialog", { name: "Gyeongbokgung" })
+    expect(within(dialog).getByText(palace.summary!)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // Two photos is a short answer, kept for minutes: later, an edit re-renders the card and it asks again.
+    const now = Date.now()
+    vi.spyOn(Date, "now").mockReturnValue(now + 60 * 60_000)
+    let answer: ((response: Response) => void) | null = null
+    fetchMock.mockImplementation(() => new Promise<Response>((resolve) => (answer = resolve)))
+    rerender({ item: idea({ notes: "Go at opening time." }) })
+    await waitFor(() => expect(answer).not.toBeNull())
+    expect(within(dialog).getByText(palace.summary!)).toBeInTheDocument()
+    expect(within(dialog).getByText("1 / 2")).toBeInTheDocument()
+    expect(dialog.querySelector('[aria-busy="true"]')).toBeNull()
+
+    answer!(json({ place: { ...palace, summary: "A royal palace, newly described." } }))
+    await waitFor(() => expect(within(dialog).getByText("A royal palace, newly described.")).toBeInTheDocument())
+  })
+
   it("opens as a sheet on a phone", async () => {
     stubMatchMedia(false)
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))

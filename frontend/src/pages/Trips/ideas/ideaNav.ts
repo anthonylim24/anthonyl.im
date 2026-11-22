@@ -46,9 +46,11 @@ export function useIdeaNav() {
    * the idea gone) must not go back twice and leave the trip.
    */
   const backFrom = useRef<string | null>(null)
-  useEffect(() => {
-    if (backFrom.current !== location.key) backFrom.current = null
-  }, [location.key])
+  /**
+   * A close asked for while the browser was already on an entry React had yet
+   * to show, and what was open then. Settled once the next entry shows.
+   */
+  const deferred = useRef<{ idea: string | null; add: string | null } | null>(null)
 
   /** Open `ideaId`'s details (or, with `add`, its day picker). Nothing happens when they are already open. */
   const open = useLatestCallback((ideaId: string, from: IdeaOpener, add?: boolean) => {
@@ -73,8 +75,13 @@ export function useIdeaNav() {
     // router commits navigations in a transition): a press outside that opened
     // another idea, or a Back on its way. What is open is about to change, and
     // closing it now would undo that navigation.
+    // Once it shows, the close still stands if the same thing is open there (a
+    // tab that kept `?idea`), and lapses if not.
     const live = (window.history.state as { key?: unknown } | null)?.key
-    if (typeof live === "string" && live !== location.key) return
+    if (typeof live === "string" && live !== location.key) {
+      deferred.current = { idea: params.get(IDEA_PARAM), add: params.get(IDEA_ADD_PARAM) }
+      return
+    }
     if (markOf(location.state)?.pushed) {
       if (backFrom.current === location.key) return
       backFrom.current = location.key
@@ -83,6 +90,15 @@ export function useIdeaNav() {
     }
     setParams((prev) => withIdea(prev, null), { replace: true })
   })
+
+  const settle = useLatestCallback(() => {
+    if (backFrom.current !== location.key) backFrom.current = null
+    const wanted = deferred.current
+    if (!wanted) return
+    deferred.current = null
+    if (params.get(IDEA_PARAM) === wanted.idea && params.get(IDEA_ADD_PARAM) === wanted.add) close()
+  })
+  useEffect(() => settle(), [location.key, settle])
 
   return { open, show, close }
 }
