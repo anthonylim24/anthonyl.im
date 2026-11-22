@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import type { PlaceResult } from "../geocode"
 import type { AtlasMapProps } from "../map/AtlasMap"
 import type { EnhanceTripResult } from "../tripsApi"
@@ -62,12 +62,17 @@ vi.mock("../photoreal/available", () => ({ photorealAvailable: () => false }))
 vi.mock("../map/AtlasMap", () => ({
   useIsDark: () => false,
   canRenderMap: () => false,
-  AtlasMap: ({ pins, dots, routes, label, onSelect, children }: AtlasMapProps) => (
-    <div role="region" aria-label={label}>
+  AtlasMap: ({ pins, dots, routes, label, onSelect, ideaPins, onSelectIdea, frameKey, framePoints, children }: AtlasMapProps) => (
+    <div role="region" aria-label={label} data-frame-key={frameKey} data-frame-points={JSON.stringify(framePoints ?? null)}>
       <p>{`${dots?.length ?? 0} dots, ${routes?.length ?? 0} routes`}</p>
       {pins.map((pin) => (
         <button key={pin.id} type="button" onClick={() => onSelect?.(pin.id)}>
           {`Pin ${pin.label}: ${pin.title}`}
+        </button>
+      ))}
+      {ideaPins?.map((pin) => (
+        <button key={pin.id} type="button" onClick={() => onSelectIdea?.(pin.id)}>
+          {`Idea ${pin.variant}: ${pin.title}`}
         </button>
       ))}
       {children}
@@ -1070,6 +1075,86 @@ describe("TripWorkspace", () => {
       expect(screen.queryByRole("combobox", { name: "Add a place, note or booking" })).toBeNull()
       // The map falls back to the whole trip.
       expect(screen.getByRole("region", { name: "Map of the whole trip with 1 pinned place" })).toBeInTheDocument()
+    })
+  })
+
+  describe("wishlist places on the map", () => {
+    const ideas = [
+      makeItem({ id: "idea-pasteis", title: "Pastéis de Belém", location: { name: "Pastéis de Belém", lat: 38.6975, lng: -9.2032, source: "user" } }),
+      makeItem({ id: "idea-unpinned", title: "That bar Sam mentioned" }),
+      makeItem({ id: "idea-lx", title: "LX Factory", location: { name: "LX Factory", lat: 38.7033, lng: -9.1786, source: "user" } }),
+    ]
+
+    /** The map's frame, as the stub saw it. */
+    const frameOf = (map: HTMLElement) => [map.dataset.frameKey, map.dataset.framePoints]
+
+    /** Where the router is: the stand-in for the address bar. */
+    function Address() {
+      const location = useLocation()
+      return <output aria-label="Address">{location.pathname + location.search}</output>
+    }
+
+    function Back() {
+      const navigate = useNavigate()
+      return (
+        <button type="button" onClick={() => navigate(-1)}>
+          Back
+        </button>
+      )
+    }
+
+    it("pins located ideas apart from the stops: the frame, the stop count and the chip stay as they were", async () => {
+      const { unmount } = renderWorkspace("/trips/lisbon")
+      const plain = await screen.findByRole("region", { name: "Map of the whole trip with 1 pinned place" })
+      const before = { frame: frameOf(plain), chip: within(plain).getByText(/^All days/).textContent }
+      unmount()
+
+      renderWorkspace("/trips/lisbon", planned({ ideas }))
+      const map = await screen.findByRole("region", { name: "Map of the whole trip with 1 pinned place and 2 wishlist places" })
+      expect(within(map).getAllByRole("button").map((b) => b.textContent)).toEqual([
+        "Pin 1: Day 1, Arrival: 2 pinned stops",
+        "Idea idea: Pastéis de Belém",
+        "Idea idea: LX Factory",
+      ])
+      expect(frameOf(map)).toEqual(before.frame)
+      expect(within(map).getByText(/^All days/).textContent).toBe(before.chip)
+    })
+
+    it("shows them on a day too, without touching the day's stops, chip or frame", async () => {
+      const { unmount } = renderWorkspace("/trips/lisbon/day/day-1")
+      const plain = await screen.findByRole("region", { name: "Map of day 1 with 2 pinned stops" })
+      const before = { frame: frameOf(plain), chip: within(plain).getByText(/^Day 1/).textContent }
+      unmount()
+
+      renderWorkspace("/trips/lisbon/day/day-1", planned({ ideas }))
+      const map = await screen.findByRole("region", { name: "Map of day 1 with 2 pinned stops and 2 wishlist places" })
+      expect(within(map).getAllByRole("button", { name: /^Pin / }).map((b) => b.textContent)).toEqual([
+        "Pin 1: Time Out Market",
+        "Pin 2: Fado dinner",
+      ])
+      expect(within(map).getAllByRole("button", { name: /^Idea / })).toHaveLength(2)
+      expect(frameOf(map)).toEqual(before.frame)
+      expect(within(map).getByText(/^Day 1/).textContent).toBe(before.chip)
+    })
+
+    it("opens the idea from its pin through the address, and Back closes it", async () => {
+      mockGetTrip.mockResolvedValue({ trip: planned({ ideas }), access: "owner" })
+      render(
+        <MemoryRouter initialEntries={["/trips/lisbon/day/day-1?tab=plan"]}>
+          <Address />
+          <Back />
+          <Routes>
+            <Route path="/trips/:tripId/day/:dayId" element={<TripWorkspace />} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      fireEvent.click(await screen.findByRole("button", { name: "Idea idea: LX Factory" }))
+      expect(screen.getByRole("status", { name: "Address" })).toHaveTextContent("/trips/lisbon/day/day-1?tab=plan&idea=idea-lx")
+      // Picking a wishlist place is not picking a stop.
+      expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
+
+      fireEvent.click(screen.getByRole("button", { name: "Back" }))
+      expect(screen.getByRole("status", { name: "Address" })).toHaveTextContent(/^\/trips\/lisbon\/day\/day-1\?tab=plan$/)
     })
   })
 

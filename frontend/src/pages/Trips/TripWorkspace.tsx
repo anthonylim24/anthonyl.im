@@ -35,7 +35,7 @@ import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
-import { centroid, corePoints, searchCenter, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
+import { centroid, corePoints, searchCenter, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, ideaPins, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry } from "./editorMachine"
 import { SaveIndicator } from "./offline/SaveIndicator"
@@ -432,6 +432,10 @@ function Workspace() {
   const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
+  // Wishlist places ride their own prop, on the overview and on a day (what is
+  // near the day). Never in `pins`: they must not frame, count or tour.
+  const ideas = trip?.ideas
+  const wishPins = useMemo(() => ideaPins({ ideas }), [ideas])
   const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
   const cardCovers = !wide && focusPin !== undefined && cardInset > MAP_PADDING_NARROW.bottom
   const mapPadding = wide ? MAP_PADDING : cardCovers ? { ...MAP_PADDING_NARROW, bottom: cardInset } : MAP_PADDING_NARROW
@@ -1106,10 +1110,14 @@ function Workspace() {
               setActiveId(id)
               setFocusId(null)
             }}
+            ideaPins={wishPins}
+            // Pushed, not replaced: Back closes the wishlist place again.
+            onSelectIdea={(ideaId) => setSearchParams((prev) => withIdea(prev, ideaId))}
             label={
-              day
+              (day
                 ? `Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`
-                : `Map of the whole trip with ${plural(pins.length, "pinned place")}`
+                : `Map of the whole trip with ${plural(pins.length, "pinned place")}`) +
+              (wishPins.length > 0 ? ` and ${plural(wishPins.length, "wishlist place")}` : "")
             }
           >
             <p {...sx(s.mapChip, "trips-glass-pill")}>
