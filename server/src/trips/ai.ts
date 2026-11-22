@@ -1,6 +1,7 @@
 import Groq from "groq-sdk"
 import { textFromGeminiParts, type GeminiPart } from "../geminiStream"
 import {
+  delay,
   fetchGeminiWithTransientRetry,
   GEMINI_TOOLS_MAPS,
   GEMINI_TOOLS_SEARCH,
@@ -29,13 +30,17 @@ import {
   nowIso,
   tripDates,
   type CompleteEnhancementRun,
+  type ConfidenceLevel,
+  type DayWeather,
   type EnhancementOutcome,
   type EnhancementRunBase,
   type EnhancementSuggestion,
   type FailedEnhancementRun,
   type ItineraryItem,
+  type ItineraryReservation,
   type Trip,
   type TripDay,
+  type TripLocation,
 } from "./types"
 import { z } from "zod"
 
@@ -54,12 +59,18 @@ export type LlmCall = (args: {
   signal?: AbortSignal
 }) => Promise<string>
 
-export type Geocoder = (query: string) => Promise<{ lat: number; lng: number; address?: string; placeId?: string } | null>
+/** `signal` is the caller's budget; a geocoder that ignores it still works,
+ *  the caller just stops waiting for it. */
+export type Geocoder = (
+  query: string,
+  opts?: { signal?: AbortSignal },
+) => Promise<{ lat: number; lng: number; address?: string; placeId?: string } | null>
 
 export type WeatherFetcher = (args: {
   lat: number
   lng: number
   dates: string[]
+  signal?: AbortSignal
 }) => Promise<Array<{ date: string; highC: number; lowC: number; precipitationChance: number }>>
 
 const GROQ_MODEL = "openai/gpt-oss-120b"
@@ -72,6 +83,35 @@ export const GROQ_DEFAULT_MAX_TOKENS = 2048
 
 const TRAVELER_REVIEW_ERROR = "The review did not finish. Try again in a moment."
 const TRAVELER_PARSE_ERROR = "The review came back in a form we could not use. Try again."
+const TRAVELER_TIMEOUT_ERROR = "The review took too long to finish. Try again in a moment."
+const TRAVELER_BUSY_ERROR = "The AI is busy right now. Try again in a moment."
+const TRAVELER_BLOCKED_ERROR = "The AI declined to review this plan as written. Nothing in your itinerary changed."
+const TRAVELER_TOO_LONG_ERROR = "This plan is too long for the AI to review in one go. Review one day at a time instead."
+
+/** Our own refusal when a prompt cannot fit Groq's on-demand budget. */
+const GROQ_TOO_LONG = "groq prompt exceeds on-demand token budget"
+
+// ── Cancellation ─────────────────────────────────────────────────────────
+
+/** The caller's signal ended an LLM call. Named like the platform's abort
+ *  error so `name === "AbortError"` checks see it; the message is safe to
+ *  show a traveller, and the signal's reason is kept as `cause`. */
+export class LlmAbortError extends Error {
+  override name = "AbortError"
+  constructor(reason?: unknown) {
+    super("The AI took too long to answer.", { cause: reason })
+  }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new LlmAbortError(signal.reason)
+}
+
+/** One request's own timeout, inside the caller's whole budget when there is one. */
+function requestSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
+}
 
 // Maps and Search grounding cannot share a request on current models
 // (400 "cannot be combined"), so the ladder starts at Maps alone.
@@ -84,9 +124,25 @@ function toolsForGeminiMode(mode: GeminiMode): GeminiToolList | undefined {
   return undefined
 }
 
+const rawMessage = (err: unknown) => (err instanceof Error ? err.message : String(err))
+
 function isGeminiQuotaError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err)
-  return /\bgemini 429\b/.test(msg)
+  return /\bgemini 429\b/.test(rawMessage(err))
+}
+
+/** The prompt itself was refused by the safety filter: no tool mode, model
+ *  or retry will answer it differently. */
+function isGeminiBlocked(err: unknown): boolean {
+  return /\bgemini blocked:/.test(rawMessage(err))
+}
+
+/** Failures another attempt with the same trip cannot fix. */
+function isTerminalLlmError(err: unknown): boolean {
+  return isGeminiBlocked(err) || rawMessage(err) === GROQ_TOO_LONG
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")
 }
 
 /** Cheap char/4 estimate — enough to know whether Groq's 8k TPM can accept the call. */
@@ -107,18 +163,58 @@ export function groqFitsTpm(args: { system: string; user: string; maxTokens?: nu
 
 /** Strip provider TPM / billing dumps so travelers never see Groq or Gemini internals. */
 export function travelerFacingLlmError(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err)
+  if (err instanceof ReviewAttemptError) return err.message
+  if (isAbortError(err)) return TRAVELER_TIMEOUT_ERROR
+  const raw = rawMessage(err)
   if (raw === "day not found") return raw
+  if (isGeminiBlocked(err)) return TRAVELER_BLOCKED_ERROR
+  if (raw === GROQ_TOO_LONG) return TRAVELER_TOO_LONG_ERROR
+  if (isGeminiQuotaError(err)) return TRAVELER_BUSY_ERROR
   if (/no JSON object found|failed validation/i.test(raw)) return TRAVELER_PARSE_ERROR
   return TRAVELER_REVIEW_ERROR
 }
 
+// ── Review attempt failures ──────────────────────────────────────────────
+//
+// A review runs as attempts in a durable queue. An attempt that could go
+// differently next time (a model or network failure, a quota, a timeout, a
+// reply we could not read) throws a ReviewAttemptError, and the queue
+// retries it. One that cannot (the day is gone, the prompt is refused)
+// returns a failed run instead.
+
+/** Why a review attempt stopped. The message is what the traveller sees;
+ *  the provider's own error is kept as `cause` for the log. */
+export class ReviewAttemptError extends Error {
+  override name = "ReviewAttemptError"
+  readonly retryable: boolean
+  constructor(message: string, opts: { retryable: boolean; cause?: unknown }) {
+    super(message, { cause: opts.cause })
+    this.retryable = opts.retryable
+  }
+}
+
+/** Whether another attempt at the review could succeed. Anything not known
+ *  to be final counts as retryable: the queue caps attempts, so a wrong
+ *  guess costs a retry, while the opposite one loses the review to a blip. */
+export function isRetryableReviewError(err: unknown): boolean {
+  if (err instanceof ReviewAttemptError) return err.retryable
+  return !isTerminalLlmError(err)
+}
+
+function toReviewAttemptError(err: unknown, signal: AbortSignal | undefined): ReviewAttemptError {
+  if (err instanceof ReviewAttemptError) return err
+  // The deadline decides, whatever the error looks like by the time it got here.
+  if (signal?.aborted) return new ReviewAttemptError(TRAVELER_TIMEOUT_ERROR, { retryable: true, cause: err })
+  return new ReviewAttemptError(travelerFacingLlmError(err), { retryable: isRetryableReviewError(err), cause: err })
+}
+
 export function createGroqLlm(apiKey: string): LlmCall {
   const groq = new Groq({ apiKey })
-  return async ({ system, user, maxTokens }) => {
+  return async ({ system, user, maxTokens, signal }) => {
+    throwIfAborted(signal)
     const max_tokens = groqSafeMaxTokens({ system, user, maxTokens })
     if (max_tokens < 256) {
-      throw new Error("groq prompt exceeds on-demand token budget")
+      throw new Error(GROQ_TOO_LONG)
     }
     // Same JSON-mode + reasoning_effort pattern as routes/entity.ts: gpt-oss
     // is a reasoning model whose thinking tokens count against max_tokens.
@@ -133,9 +229,16 @@ export function createGroqLlm(apiKey: string): LlmCall {
       max_tokens,
       reasoning_effort: "low",
     }
-    const completion = (await groq.chat.completions.create(
-      createParams as unknown as Parameters<typeof groq.chat.completions.create>[0] & { stream?: false },
-    )) as Awaited<ReturnType<typeof groq.chat.completions.create>>
+    let completion: Awaited<ReturnType<typeof groq.chat.completions.create>>
+    try {
+      completion = (await groq.chat.completions.create(
+        createParams as unknown as Parameters<typeof groq.chat.completions.create>[0] & { stream?: false },
+        { signal },
+      )) as Awaited<ReturnType<typeof groq.chat.completions.create>>
+    } catch (err) {
+      if (signal?.aborted) throw new LlmAbortError(signal.reason)
+      throw err
+    }
     if (!("choices" in completion)) throw new Error("unexpected streaming response")
     return completion.choices[0]?.message?.content ?? ""
   }
@@ -148,7 +251,11 @@ export function createGroqLlm(apiKey: string): LlmCall {
  * the old path treated that as a total Gemini failure.
  *
  * 429 is retried once on the same request, then thrown (stepping down tools
- * does not fix quota). Empty / 400 responses step down the ladder.
+ * does not fix quota), as is a prompt the safety filter blocked. Empty /
+ * 400 responses and a request's own timeout step down the ladder.
+ *
+ * `signal` bounds the whole call: each request times out on its own clock
+ * inside it, and once it aborts no further mode is tried.
  */
 export function createGeminiLlm(
   apiKey: string,
@@ -156,7 +263,8 @@ export function createGeminiLlm(
   opts?: { model?: string },
 ): LlmCall {
   const model = opts?.model ?? GEMINI_MODEL
-  return async ({ system, user, maxTokens, latLng, effort }) => {
+  return async ({ system, user, maxTokens, latLng, effort, signal }) => {
+    const perRequestMs = effort && effort !== "low" ? 150_000 : 90_000
     const toolConfig = mapsRetrievalConfig(latLng)
     const run = async (mode: GeminiMode): Promise<string> => {
       const generationConfig: Record<string, unknown> = {
@@ -182,7 +290,7 @@ export function createGeminiLlm(
               ...(toolConfig && toolsIncludeMaps(tools) ? { toolConfig } : {}),
               generationConfig,
             }),
-            signal: AbortSignal.timeout(effort && effort !== "low" ? 150_000 : 90_000),
+            signal: requestSignal(signal, perRequestMs),
           },
           fetchImpl,
         )
@@ -192,7 +300,7 @@ export function createGeminiLlm(
         await res.text().catch(() => {})
         const raw = Number(res.headers.get("retry-after"))
         const waitMs = Number.isFinite(raw) && raw > 0 ? Math.min(raw * 1000, 4_000) : 200
-        await new Promise((r) => setTimeout(r, waitMs))
+        await delay(waitMs, signal)
         res = await requestOnce()
       }
       if (!res.ok) {
@@ -218,14 +326,18 @@ export function createGeminiLlm(
       return text
     }
 
+    throwIfAborted(signal)
     let lastErr: Error | null = null
     for (const mode of GEMINI_MODES) {
       try {
         return await run(mode)
       } catch (err) {
+        // The caller's budget is spent (whatever the error says by now):
+        // no further mode could answer in time.
+        if (signal?.aborted) throw new LlmAbortError(signal.reason)
         lastErr = err instanceof Error ? err : new Error(String(err))
-        if (isGeminiQuotaError(lastErr)) {
-          console.warn(`[trips/ai] Gemini ${mode} hit 429; not stepping down tools`)
+        if (isGeminiQuotaError(lastErr) || isGeminiBlocked(lastErr)) {
+          console.warn(`[trips/ai] Gemini ${mode} failed (${lastErr.message}); not stepping down tools`)
           throw lastErr
         }
         console.warn(`[trips/ai] Gemini ${mode} failed (${lastErr.message}); trying next`)
@@ -245,6 +357,8 @@ export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
     try {
       return await primary(opts)
     } catch (err) {
+      // The caller stopped the call: a second model would run past its budget.
+      if (opts.signal?.aborted) throw err
       const msg = err instanceof Error ? err.message : String(err)
       if (!groqFitsTpm(opts)) {
         console.warn(`[trips/ai] primary LLM failed; skipping Groq (prompt exceeds Groq TPM) (${msg})`)
@@ -291,9 +405,9 @@ function cachedGeocoder(lookup: Geocoder): Geocoder {
 }
 
 export function createGoogleGeocoder(apiKey: string): Geocoder {
-  return cachedGeocoder(async (query) => {
+  return cachedGeocoder(async (query, opts) => {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) })
+    const res = await fetch(url, { signal: requestSignal(opts?.signal, 8_000) })
     if (!res.ok) return null
     const body = (await res.json()) as {
       results?: Array<{ geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string; place_id?: string }>
@@ -311,14 +425,15 @@ export function createGoogleGeocoder(apiKey: string): Geocoder {
 
 /** Keyless fallback geocoder (Photon / OpenStreetMap). Same contract as the
  *  Google geocoder: null on a miss. Never throws — a failed lookup just
- *  leaves the place without coordinates. */
+ *  leaves the place without coordinates — except when the caller's signal
+ *  stopped it, so an abandoned lookup is not remembered as a miss. */
 export function createPhotonGeocoder(fetchImpl: typeof fetch = fetch): Geocoder {
-  return cachedGeocoder(async (query) => {
+  return cachedGeocoder(async (query, opts) => {
     const q = query.trim()
     if (!q) return null
     try {
       const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=en`
-      const res = await fetchImpl(url, { signal: AbortSignal.timeout(5_000) })
+      const res = await fetchImpl(url, { signal: requestSignal(opts?.signal, 5_000) })
       if (!res.ok) return null
       const body = (await res.json()) as {
         features?: Array<{
@@ -340,7 +455,8 @@ export function createPhotonGeocoder(fetchImpl: typeof fetch = fetch): Geocoder 
         (part, i, all): part is string => !!part && all.indexOf(part) === i,
       )
       return { lat, lng, address: parts.length ? parts.join(", ") : undefined }
-    } catch {
+    } catch (err) {
+      if (opts?.signal?.aborted) throw err
       return null
     }
   })
@@ -348,7 +464,7 @@ export function createPhotonGeocoder(fetchImpl: typeof fetch = fetch): Geocoder 
 
 /** Open-Meteo daily forecast — free, no API key. Returns [] outside the
  *  ~16-day forecast window or on any failure (weather is best-effort). */
-export const fetchOpenMeteoWeather: WeatherFetcher = async ({ lat, lng, dates }) => {
+export const fetchOpenMeteoWeather: WeatherFetcher = async ({ lat, lng, dates, signal }) => {
   try {
     const start = dates[0]
     const end = dates[dates.length - 1]
@@ -356,7 +472,7 @@ export const fetchOpenMeteoWeather: WeatherFetcher = async ({ lat, lng, dates })
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
       `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
       `&timezone=auto&start_date=${start}&end_date=${end}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) })
+    const res = await fetch(url, { signal: requestSignal(signal, 8_000) })
     if (!res.ok) return []
     const body = (await res.json()) as {
       daily?: { time: string[]; temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_probability_max: number[] }
@@ -432,7 +548,21 @@ function parseModelJson<T>(raw: string, schema: z.ZodType<T>): T {
 // logs) instead of 502ing the request.
 
 type AiDay = z.infer<typeof aiItinerarySchema>["days"][number]
-type AiSuggestion = z.infer<typeof aiSuggestionSchema>
+
+/** A review suggestion as the model writes it: the shared schema plus the
+ *  wishlist link. An add that schedules a saved place may leave out the
+ *  stop's title, since the saved place supplies it; any other add must
+ *  name its stop. */
+const reviewSuggestionSchema = aiSuggestionSchema
+  .extend({
+    fromIdeaId: z.string().min(1).max(64).optional(),
+    proposedItem: aiItemSchema.partial({ title: true }).optional(),
+  })
+  .refine((s) => s.fromIdeaId || !s.proposedItem || s.proposedItem.title, {
+    message: "Required",
+    path: ["proposedItem", "title"],
+  })
+type AiSuggestion = z.infer<typeof reviewSuggestionSchema>
 
 const looseDaySchema = z.object({
   title: z.string().max(200).optional(),
@@ -536,9 +666,36 @@ function normalizeSuggestion(rawSug: unknown): unknown {
     }
   }
   if (typeof s.detail !== "string") s.detail = ""
+  // The wishlist id sometimes lands inside the stop, or arrives as null or
+  // "": a bad link must not cost the whole suggestion.
+  const nested = s.proposedItem && typeof s.proposedItem === "object" ? (s.proposedItem as Record<string, unknown>).fromIdeaId : undefined
+  const ideaId = typeof s.fromIdeaId === "string" && s.fromIdeaId.trim() ? s.fromIdeaId : nested
+  if (typeof ideaId === "string" && ideaId.trim()) s.fromIdeaId = ideaId.trim()
+  else delete s.fromIdeaId
   if (s.proposedItem != null) s.proposedItem = normalizeAiItem(s.proposedItem)
   if (s.proposedChanges != null) s.proposedChanges = normalizeAiItem(s.proposedChanges)
+  // A wishlist add needs nothing from the model but the link: the saved
+  // place fills every blank. So a null, an empty string or a location with
+  // no name is a gap to fill, not a malformed stop.
+  if (s.fromIdeaId) {
+    if (s.proposedItem === null) delete s.proposedItem
+    else if (s.proposedItem && typeof s.proposedItem === "object" && !Array.isArray(s.proposedItem)) {
+      s.proposedItem = withoutBlanks(s.proposedItem as Record<string, unknown>)
+    }
+  }
   return s
+}
+
+function withoutBlanks(item: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(item)) {
+    if (value == null || (typeof value === "string" && !value.trim())) continue
+    out[key] = value
+  }
+  const loc = out.location
+  const named = loc && typeof loc === "object" && typeof (loc as { name?: unknown }).name === "string" && (loc as { name: string }).name.trim()
+  if (!named) delete out.location
+  return out
 }
 
 export function salvageSuggestions(raw: string): {
@@ -546,6 +703,8 @@ export function salvageSuggestions(raw: string): {
   outcome?: EnhancementOutcome
   outcomeReason?: string
   suggestions: AiSuggestion[]
+  /** Suggestions the model sent that failed validation. */
+  dropped: number
 } {
   const loose = parseModelJson(
     raw,
@@ -560,7 +719,7 @@ export function salvageSuggestions(raw: string): {
   let why: string | undefined
   const suggestions: AiSuggestion[] = []
   for (const rawSug of loose.suggestions) {
-    const r = aiSuggestionSchema.safeParse(normalizeSuggestion(rawSug))
+    const r = reviewSuggestionSchema.safeParse(normalizeSuggestion(rawSug))
     if (r.success) suggestions.push(r.data)
     else {
       dropped++
@@ -574,7 +733,21 @@ export function salvageSuggestions(raw: string): {
     outcome: loose.outcome,
     outcomeReason: loose.outcomeReason,
     suggestions,
+    dropped,
   }
+}
+
+/**
+ * Whether a parsed review says anything we can act on or explain. It does
+ * not when nothing survived and either the model sent suggestions that all
+ * failed validation (its answer was lost, not empty), or it sent no
+ * summary and no outcome either (an empty object). Another attempt can
+ * fix both; a review that genuinely changes nothing still says so.
+ */
+export function reviewReplyIsUsable(parsed: ReturnType<typeof salvageSuggestions>): boolean {
+  if (parsed.suggestions.length > 0) return true
+  if (parsed.dropped > 0) return false
+  return Boolean(parsed.summary?.trim() || parsed.outcome || parsed.outcomeReason?.trim())
 }
 
 // ── Itinerary generation ─────────────────────────────────────────────────
@@ -842,28 +1015,34 @@ async function draftOutline(args: {
 
 /** Best-effort geocoding for AI places missing coordinates, so every
  *  AI-added place lands in Map Mode rather than existing only as text.
- *  Parallel batches keep long trips under the client/proxy timeout. */
+ *  Parallel batches keep long trips under the client/proxy timeout; the
+ *  pass stops at its own 12 s budget or when `signal` aborts, whichever
+ *  comes first, and a lookup that answers after that changes nothing. */
 export async function fillMissingCoordinates(
   items: ItineraryItem[],
   geocode: Geocoder,
   destination?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   const pending = items
     .filter((i) => i.location && (i.location.lat == null || i.location.lng == null))
     .slice(0, 40)
+  if (pending.length === 0) return
   const CONCURRENCY = 6
-  const deadline = Date.now() + 12_000
-  for (let i = 0; i < pending.length; i += CONCURRENCY) {
-    if (Date.now() >= deadline) break
+  const stop = requestSignal(signal, 12_000)
+  const stopped = new Promise<void>((resolve) => {
+    if (stop.aborted) resolve()
+    else stop.addEventListener("abort", () => resolve(), { once: true })
+  })
+  for (let i = 0; i < pending.length && !stop.aborted; i += CONCURRENCY) {
     const batch = pending.slice(i, i + CONCURRENCY)
-    const remaining = Math.max(1, deadline - Date.now())
     await Promise.race([
       Promise.all(
         batch.map(async (item) => {
           const loc = item.location!
           try {
-            const hit = await geocode([loc.name, loc.address, destination].filter(Boolean).join(", "))
-            if (hit) {
+            const hit = await geocode([loc.name, loc.address, destination].filter(Boolean).join(", "), { signal: stop })
+            if (hit && !stop.aborted) {
               loc.lat = hit.lat
               loc.lng = hit.lng
               loc.address = loc.address ?? hit.address
@@ -875,7 +1054,7 @@ export async function fillMissingCoordinates(
           }
         }),
       ),
-      new Promise<void>((resolve) => setTimeout(resolve, remaining)),
+      stopped,
     ])
   }
 }
@@ -917,37 +1096,446 @@ export function computeTravelLegs(days: TripDay[]): TravelLeg[] {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text)
+/** The traveller's own words on one line, clipped and quoted. */
+const quote = (text: string, max: number) => JSON.stringify(clip(text.trim().replace(/\s+/g, " "), max))
+const hasPoint = (loc: TripLocation | undefined): loc is TripLocation & { lat: number; lng: number } =>
+  loc?.lat != null && loc.lng != null
+const fmtPoint = (loc: TripLocation) => (hasPoint(loc) ? `(${loc.lat.toFixed(5)},${loc.lng.toFixed(5)})` : "(no coordinates)")
+const fmtMoney = (amount: number, currency: string) => `${Math.round(amount * 100) / 100} ${currency}`
 
-/** A day as the reviewing model sees it: every item with its id, clock,
- *  place and the traveller's own notes, then the computed facts. */
-export function describeDay(day: TripDay): string {
-  const items = day.items
-    .map((i) => {
-      const loc = i.location
-      const parts = [
-        `    - id=${i.id} kind=${i.kind} title=${JSON.stringify(i.title)}`,
-        i.time ? `time=${i.time}${i.endTime ? `-${i.endTime}` : ""}` : "time=none",
-        i.status !== "none" ? `status=${i.status}` : "",
-        loc
-          ? `place=${JSON.stringify(loc.name)}${loc.category ? ` [${loc.category}]` : ""}${
-              loc.lat != null && loc.lng != null ? ` (${loc.lat.toFixed(5)},${loc.lng.toFixed(5)})` : " (no coordinates)"
-            }`
-          : "",
-        i.notes?.trim() ? `notes=${JSON.stringify(clip(i.notes.trim().replace(/\s+/g, " "), 140))}` : "",
-      ]
-      return parts.filter(Boolean).join(" ")
-    })
-    .join("\n")
+/** Sums by currency, largest first ("1200 KRW + 40 USD"). The server has no
+ *  exchange rates, so different currencies are never added together.
+ *  (chat.ts keeps its own copy for the concierge.) */
+function fmtTotals(rows: readonly { amount: number; currency: string }[]): string {
+  const sums = new Map<string, number>()
+  for (const r of rows) sums.set(r.currency, (sums.get(r.currency) ?? 0) + r.amount)
+  return [...sums.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .map(([currency, amount]) => fmtMoney(amount, currency))
+    .join(" + ")
+}
+
+/** What the model needs of a booking to plan around it. Confirmation codes,
+ *  contacts, seats and links stay out: they change nothing in a plan. */
+function describeBooking(r: ItineraryReservation): string {
+  const carrier = [r.provider && clip(r.provider, 60), r.number].filter(Boolean).join(" ")
+  return [
+    r.type,
+    r.status,
+    carrier,
+    r.from || r.to ? `${clip(r.from ?? "?", 60)} → ${clip(r.to ?? "?", 60)}` : "",
+    r.endDate ? `until ${r.endDate}${r.endTimezone ? ` (${r.endTimezone})` : ""}` : "",
+    r.terminal ? `terminal ${r.terminal}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ")
+}
+
+/** A place line: the name only when it differs from the title it follows. */
+function describePlace(loc: TripLocation, title: string): string {
+  const name = loc.name === title ? "(as title)" : JSON.stringify(loc.name)
+  return `place=${name}${loc.category ? ` [${loc.category}]` : ""} ${fmtPoint(loc)}`
+}
+
+function describeItem(i: ItineraryItem): string {
+  return [
+    // FIXED: a booking, a booked or finished stop, or where they sleep.
+    `    - id=${i.id} kind=${i.kind}${isFixed(i) ? " FIXED" : ""} title=${JSON.stringify(i.title)}`,
+    i.time ? `time=${i.time}${i.endTime ? `-${i.endTime}` : ""}` : "time=none",
+    i.status !== "none" ? `status=${i.status}` : "",
+    i.highlight ? "loved" : "",
+    i.reservation ? `booking=${JSON.stringify(describeBooking(i.reservation))}` : "",
+    i.location ? describePlace(i.location, i.title) : "",
+    i.cost ? `cost=${fmtMoney(i.cost.amount, i.cost.currency)}` : "",
+    i.notes?.trim() ? `notes=${quote(i.notes, 140)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+const MAX_CALLOUTS = 4
+
+/** A day as the reviewing model sees it: what the traveller wrote about it,
+ *  every item with its id, clock, place, booking and cost, then the
+ *  computed facts. The day's own time zone is named only when it differs
+ *  from the trip's; its saved weather only when no live forecast covers it. */
+export function describeDay(day: TripDay, opts: { tripTimezone?: string; liveWeather?: boolean } = {}): string {
   const head =
     `  dayId=${day.id} ${weekday(day.date)} ${day.date}` +
     (day.city ? ` city=${day.city}` : "") +
     (day.title ? ` title=${JSON.stringify(day.title)}` : "") +
-    (day.neighborhoods?.length ? ` areas=${day.neighborhoods.join(", ")}` : "")
-  return `${head}\n${items || "    (no items)"}\n${describeSignals(analyseDay(day))}`
+    (day.neighborhoods?.length ? ` areas=${day.neighborhoods.join(", ")}` : "") +
+    (day.timezone && day.timezone !== opts.tripTimezone ? ` timezone=${day.timezone}` : "")
+  const about = [
+    day.notes?.trim() ? `    theme: ${quote(day.notes, 200)}` : "",
+    ...(day.callouts ?? [])
+      .filter((c) => c.body.trim())
+      .slice(0, MAX_CALLOUTS)
+      .map((c) => `    callout (${c.tone}): ${quote(c.body, 160)}`),
+    day.weather && !opts.liveWeather
+      ? `    saved weather: ${clip(day.weather.condition, 40)}, ${day.weather.lowC}–${day.weather.highC}°C`
+      : "",
+    day.journal?.trim() ? `    journal: ${quote(day.journal, 200)}` : "",
+  ].filter(Boolean)
+  const items = day.items.map(describeItem).join("\n")
+  return [head, ...about, items || "    (no items)", describeSignals(analyseDay(day))].join("\n")
+}
+
+const MAX_PARTY_NAMES = 12
+const MAX_OPEN_TODOS = 8
+
+/** Planned stop costs (on days only, as the Budget tab counts them) and
+ *  logged spend, against the budget when there is one. */
+function describeMoney(trip: Trip): string | undefined {
+  const costs = trip.days.flatMap((d) => d.items.flatMap((i) => (i.cost ? [i.cost] : [])))
+  const expenses = trip.expenses ?? []
+  const budget = trip.budget
+  const parts = [
+    budget
+      ? budget.total !== undefined
+        ? `budget ${fmtMoney(budget.total, budget.currency)} for the whole trip`
+        : `budget kept in ${budget.currency}, no limit set`
+      : "",
+    costs.length ? `planned stop costs ${fmtTotals(costs)} over ${costs.length} stop${costs.length === 1 ? "" : "s"}` : "",
+    expenses.length ? `spent so far ${fmtTotals(expenses)}` : "",
+  ].filter(Boolean)
+  return parts.length ? parts.join("; ") : undefined
+}
+
+/** The trip's own context: what it is for, who is going, the money and the
+ *  open to-dos. The model treats it as the traveller's preferences. */
+function describeTripContext(trip: Trip): string[] {
+  const lines: string[] = []
+  if (trip.description?.trim()) lines.push(`  Description: ${quote(trip.description, 600)}`)
+  const tags = trip.tags.filter((tag) => tag.trim())
+  if (tags.length) lines.push(`  Tags: ${tags.map((tag) => clip(tag.trim(), 40)).join(", ")}`)
+  const party = (trip.party ?? []).filter((p) => p.name.trim())
+  if (party.length) {
+    const names = party.slice(0, MAX_PARTY_NAMES).map((p) => clip(p.name.trim(), 40))
+    const more = party.length - names.length
+    lines.push(
+      `  Travelling: ${party.length} ${party.length === 1 ? "person" : "people"} (${names.join(", ")}${more > 0 ? `, +${more} more` : ""})`,
+    )
+  }
+  const money = describeMoney(trip)
+  if (money) lines.push(`  Money: ${money}`)
+  // To-dos only: packing and documents change nothing in a day's plan.
+  const todos = (trip.checklist ?? []).filter((c) => c.group === "todo" && !c.done && c.text.trim())
+  if (todos.length) {
+    const shown = todos.slice(0, MAX_OPEN_TODOS).map((c) => clip(c.text.trim(), 80))
+    const more = todos.length - shown.length
+    lines.push(`  Open to-dos: ${shown.join("; ")}${more > 0 ? ` (+${more} more)` : ""}`)
+  }
+  return lines.length ? ["About this trip (the traveller's preferences):", ...lines] : []
 }
 
 function placeKey(name: string): string {
   return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
+}
+
+/** The venue an item stands for, comparable across days and the wishlist:
+ *  its place's name, or its title when it has none. Empty for notes and
+ *  headings, which are not venues. */
+function venueKey(item: { kind?: ItineraryItem["kind"]; title?: string; location?: { name?: string } }): string {
+  if (item.kind === "note" || item.kind === "section") return ""
+  return placeKey(item.location?.name || item.title || "")
+}
+
+const MAX_WISHLIST = 40
+
+/** Saved places that are not on any day yet, with the id the model echoes
+ *  in `fromIdeaId`. With `near` (a single-day review), the places closest
+ *  to that day come first and say how far they are. */
+function describeWishlist(trip: Trip, near?: { lat: number; lng: number }): string | undefined {
+  const ideas = trip.ideas ?? []
+  if (ideas.length === 0) return undefined
+  const onDays = new Set(trip.days.flatMap((d) => d.items.map(venueKey)).filter(Boolean))
+  const open = ideas.filter((idea) => !onDays.has(venueKey(idea)))
+  const scheduled = ideas.length - open.length
+  if (open.length === 0) return `Wishlist: all ${ideas.length} saved place${ideas.length === 1 ? " is" : "s are"} already on a day.`
+  const km = (idea: ItineraryItem) =>
+    near && hasPoint(idea.location) ? haversineMeters(near, idea.location) / 1000 : Number.POSITIVE_INFINITY
+  const ordered = near ? [...open].sort((a, b) => km(a) - km(b)) : open
+  const shown = ordered.slice(0, MAX_WISHLIST)
+  const lines = shown.map((idea) => {
+    const loc = idea.location
+    const away = km(idea)
+    return [
+      `  - ideaId=${idea.id}${idea.kind === "place" ? "" : ` kind=${idea.kind}`} title=${JSON.stringify(idea.title)}`,
+      loc ? describePlace(loc, idea.title) : "",
+      loc && !hasPoint(loc) && loc.address?.trim() ? `address=${quote(loc.address, 80)}` : "",
+      Number.isFinite(away) ? `${Math.round(away * 10) / 10} km from this day's stops` : "",
+      idea.cost ? `cost=${fmtMoney(idea.cost.amount, idea.cost.currency)}` : "",
+      idea.notes?.trim() ? `notes=${quote(idea.notes, 120)}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+  })
+  const left = [
+    open.length > shown.length ? `${open.length - shown.length} more not shown` : "",
+    scheduled > 0 ? `${scheduled} already on a day, not shown` : "",
+  ].filter(Boolean)
+  return [
+    `Wishlist: places the traveller saved but has not put on any day. Each ideaId is a wishlist id: schedule one with an "add" whose "fromIdeaId" is that id.`,
+    ...lines,
+    ...(left.length ? [`  (${left.join("; ")})`] : []),
+  ].join("\n")
+}
+
+/** Where a single-day review is centred: the middle of its located stops,
+ *  or where the traveller sleeps that night when none are located. */
+function dayCentre(trip: Trip, day: TripDay): { lat: number; lng: number } | undefined {
+  const points = day.items.flatMap((i) => (hasPoint(i.location) ? [i.location] : []))
+  if (points.length > 0) {
+    return {
+      lat: points.reduce((sum, p) => sum + p.lat, 0) / points.length,
+      lng: points.reduce((sum, p) => sum + p.lng, 0) / points.length,
+    }
+  }
+  const base = baseByDay(trip).get(day.id)
+  return base?.lat != null && base.lng != null ? { lat: base.lat, lng: base.lng } : undefined
+}
+
+/** The live forecast for the reviewed days, read at their middle stop: the
+ *  prompt's weather lines and `run.weatherByDate`. Best-effort: a forecast
+ *  that fails reads as unavailable, never as a failed review. */
+async function reviewForecast(
+  days: readonly TripDay[],
+  fetchWeather: WeatherFetcher | undefined,
+  signal: AbortSignal | undefined,
+): Promise<{ lines: string; byDate?: Record<string, DayWeather> }> {
+  const coords = days.flatMap((d) => d.items).flatMap((i) => (hasPoint(i.location) ? [i.location] : []))
+  if (coords.length === 0 || !fetchWeather) return { lines: "unavailable" }
+  const mid = coords[Math.floor(coords.length / 2)]!
+  let forecast: Awaited<ReturnType<WeatherFetcher>>
+  try {
+    forecast = await fetchWeather({ lat: mid.lat, lng: mid.lng, dates: days.map((d) => d.date), signal })
+  } catch (err) {
+    if (signal?.aborted) throw err
+    console.warn(`[trips/ai] review forecast failed: ${rawMessage(err)}`)
+    return { lines: "unavailable" }
+  }
+  if (forecast.length === 0) return { lines: "unavailable" }
+  return {
+    // Persisted onto day.weather with the run, so trip pages' weather chips
+    // stay live without a manual edit.
+    byDate: Object.fromEntries(
+      forecast.map((w) => [
+        w.date,
+        { highC: Math.round(w.highC), lowC: Math.round(w.lowC), condition: `${w.precipitationChance}% rain` },
+      ]),
+    ),
+    lines: forecast.map((w) => `${w.date}: ${w.lowC}–${w.highC}°C, ${w.precipitationChance}% rain chance`).join("\n"),
+  }
+}
+
+/** Everything the reviewing model is told about the trip, for either scope. */
+function reviewPrompt(args: {
+  trip: Trip
+  scope: "day" | "trip"
+  dayId?: string
+  days: readonly TripDay[]
+  focus?: string
+  weather: { lines: string; byDate?: Record<string, DayWeather> }
+}): string {
+  const { trip, scope, dayId, days } = args
+  const legs = computeTravelLegs([...days])
+  const lodgingLines = describeBases(trip, days)
+  // One line per other day, so a single-day review knows what the rest of
+  // the trip already covers and where it is based.
+  const elsewhere =
+    scope === "day"
+      ? trip.days
+          .filter((d) => d.id !== dayId && d.items.some((i) => i.location))
+          .map(
+            (d) =>
+              `  ${d.date}${d.city ? ` (${d.city})` : ""}: ${d.items
+                .flatMap((i) => (i.location ? [i.location.name] : []))
+                .slice(0, 12)
+                .join("; ")}`,
+          )
+      : []
+  const reviewed = scope === "day" ? days[0] : undefined
+  return [
+    `Trip: ${trip.name} (${trip.destinations.join(", ")}), ${trip.startDate} to ${trip.endDate}, timezone ${trip.timezone}.`,
+    ...describeTripContext(trip),
+    scope === "day" ? `Scope: ONE day, ${dayId}. Every suggestion must be for ${dayId}.` : "Scope: the whole trip.",
+    args.focus?.trim() ? `Traveler's focus for this review (prioritize this): ${args.focus.trim()}` : undefined,
+    lodgingLines ? `Where they sleep, and how each day sits against it:\n${lodgingLines}` : undefined,
+    scope === "day" ? "The day under review:" : "Itinerary:",
+    ...days.map((day) =>
+      describeDay(day, { tripTimezone: trip.timezone, liveWeather: Boolean(args.weather.byDate?.[day.date]) }),
+    ),
+    elsewhere.length ? `Already on other days of this trip (do not repeat these venues):\n${elsewhere.join("\n")}` : undefined,
+    describeWishlist(trip, reviewed ? dayCentre(trip, reviewed) : undefined),
+    `Computed distances between consecutive located stops:`,
+    legs.length
+      ? legs.map((l) => `  ${l.dayId}: ${l.from} → ${l.to}: ${l.distanceKm} km`).join("\n")
+      : "  (none — items lack coordinates)",
+    `Weather forecast near the itinerary:`,
+    args.weather.lines,
+  ]
+    .filter((line): line is string => line !== undefined)
+    .join("\n")
+}
+
+type AiProposedItem = NonNullable<AiSuggestion["proposedItem"]>
+
+/** A stop the model proposed, as an AI-made item. */
+function proposedStop(p: AiProposedItem & { title: string }, confidence: ConfidenceLevel): ItineraryItem {
+  return {
+    id: newId("it"),
+    kind: p.kind ?? "place",
+    title: p.title,
+    time: p.time,
+    endTime: p.endTime,
+    notes: p.notes,
+    status: p.status ?? "needs_review",
+    location: p.location ? { ...p.location, source: "ai", confidence } : undefined,
+    createdBy: "ai",
+  }
+}
+
+/** The traveller's saved pin stands; the model only fills what it lacks. */
+function savedLocation(
+  saved: TripLocation | undefined,
+  proposed: AiProposedItem["location"],
+  confidence: ConfidenceLevel,
+): TripLocation | undefined {
+  if (!saved) return proposed ? { ...proposed, source: "ai", confidence } : undefined
+  if (hasPoint(saved)) {
+    return { ...saved, address: saved.address ?? proposed?.address, category: saved.category ?? proposed?.category }
+  }
+  const point = proposed?.lat != null && proposed.lng != null ? { lat: proposed.lat, lng: proposed.lng, confidence } : {}
+  return { ...saved, address: saved.address ?? proposed?.address, category: saved.category ?? proposed?.category, ...point }
+}
+
+/**
+ * A wishlist idea as a stop on a day: the place as the traveller saved it
+ * (title, pin, cost, links, booking), at the model's time, with the
+ * model's note where it wrote one. Mirrors the client's `ideaToDay`, which
+ * moves the idea itself, id included, so "already scheduled" is the same
+ * test on both sides; `idTaken` gives it a fresh id when a day item
+ * already has that one.
+ */
+function scheduledIdea(
+  idea: ItineraryItem,
+  proposed: AiProposedItem | undefined,
+  confidence: ConfidenceLevel,
+  idTaken: boolean,
+): ItineraryItem {
+  return {
+    id: idTaken ? newId("it") : idea.id,
+    kind: idea.kind,
+    title: idea.title.trim() || proposed?.title || "Saved place",
+    time: proposed?.time,
+    endTime: proposed?.endTime,
+    notes: proposed?.notes?.trim() ? proposed.notes : idea.notes,
+    links: idea.links ? [...idea.links] : undefined,
+    // A booked idea stays booked; otherwise it is an AI-placed stop like any other.
+    status: idea.status !== "none" ? idea.status : (proposed?.status ?? "needs_review"),
+    location: savedLocation(idea.location, proposed?.location, confidence),
+    reservation: idea.reservation ? { ...idea.reservation } : undefined,
+    cost: idea.cost ? { ...idea.cost } : undefined,
+    createdBy: "ai",
+  }
+}
+
+/**
+ * The model's suggestions, kept only where they name real days and items.
+ * Every add is checked against the trip and the wishlist in one pass, in
+ * the model's order: an add of a saved place schedules that idea (by its
+ * `fromIdeaId`, or by name when the model forgot the link), filled in from
+ * it and used once; and no venue already on the trip, or added earlier in
+ * this review, is added again.
+ */
+function acceptedSuggestions(args: {
+  trip: Trip
+  scope: "day" | "trip"
+  dayId?: string
+  days: readonly TripDay[]
+  suggestions: readonly AiSuggestion[]
+}): EnhancementSuggestion[] {
+  const { trip, scope, dayId, days } = args
+  const validDayIds = new Set(days.map((d) => d.id))
+  const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
+  const tripDayIds = new Set(trip.days.map((d) => d.id))
+  const tripItemIds = new Set(trip.days.flatMap((d) => d.items.map((i) => i.id)))
+  const taken = new Set(trip.days.flatMap((d) => d.items.map(venueKey)).filter(Boolean))
+  const ideas = trip.ideas ?? []
+  const used = new Set<string>()
+  const freeIdea = (id: string | undefined) => (id && !used.has(id) ? ideas.find((idea) => idea.id === id) : undefined)
+  const ideaNamed = (key: string) => (key ? ideas.find((idea) => !used.has(idea.id) && venueKey(idea) === key) : undefined)
+
+  const base = (s: AiSuggestion): EnhancementSuggestion => ({
+    id: newId("sug"),
+    kind: s.kind,
+    dayId: s.dayId,
+    itemId: s.itemId,
+    toDayId: s.toDayId,
+    title: s.title,
+    detail: s.detail,
+    confidence: s.confidence,
+    proposedChanges: s.proposedChanges
+      ? {
+          ...(s.proposedChanges.title != null ? { title: s.proposedChanges.title } : {}),
+          ...(s.proposedChanges.time != null ? { time: s.proposedChanges.time } : {}),
+          ...(s.proposedChanges.endTime != null ? { endTime: s.proposedChanges.endTime } : {}),
+          ...(s.proposedChanges.notes != null ? { notes: s.proposedChanges.notes } : {}),
+          ...(s.proposedChanges.status != null ? { status: s.proposedChanges.status } : {}),
+          ...(s.proposedChanges.location != null
+            ? { location: { ...s.proposedChanges.location, source: "ai" as const, confidence: s.confidence } }
+            : {}),
+        }
+      : undefined,
+    proposedOrder: s.proposedOrder,
+  })
+
+  const add = (s: AiSuggestion): EnhancementSuggestion | null => {
+    if (!s.dayId || !validDayIds.has(s.dayId)) return null
+    const p = s.proposedItem
+    const idea = freeIdea(s.fromIdeaId) ?? (p ? ideaNamed(venueKey(p)) : undefined)
+    const item = idea
+      ? scheduledIdea(idea, p, s.confidence, tripItemIds.has(idea.id))
+      : p?.title
+        ? proposedStop({ ...p, title: p.title }, s.confidence)
+        : null
+    if (!item) return null
+    const key = venueKey(item)
+    if (key && taken.has(key)) return null
+    if (key) taken.add(key)
+    if (idea) used.add(idea.id)
+    return { ...base(s), proposedItem: item, ...(idea ? { fromIdeaId: idea.id } : {}) }
+  }
+
+  const accepted: EnhancementSuggestion[] = []
+  for (const raw of args.suggestions) {
+    // A single-day review can only be about that day: models often omit the
+    // day id (or invent one) when the day is empty, which used to drop every
+    // suggested stop.
+    const s = scope === "day" && dayId && (!raw.dayId || !validDayIds.has(raw.dayId)) ? { ...raw, dayId } : raw
+    if (s.dayId && !validDayIds.has(s.dayId)) continue
+    switch (s.kind) {
+      case "add": {
+        const kept = add(s)
+        if (kept) accepted.push(kept)
+        continue
+      }
+      case "edit":
+      case "remove":
+        if (!s.itemId || !validItemIds.has(s.itemId)) continue
+        break
+      // Moves and day swaps reach across days, so the target may be any day of the trip.
+      case "move":
+        if (!s.itemId || !validItemIds.has(s.itemId) || !s.toDayId || !tripDayIds.has(s.toDayId)) continue
+        break
+      case "swap_days":
+        if (!s.dayId || !s.toDayId || s.toDayId === s.dayId || !tripDayIds.has(s.dayId) || !tripDayIds.has(s.toDayId)) continue
+        break
+    }
+    accepted.push(base(s))
+  }
+  return accepted
 }
 
 export async function enhanceTrip(args: {
@@ -962,7 +1550,7 @@ export async function enhanceTrip(args: {
   /** The attempt's deadline. Aborting it stops the review. */
   signal?: AbortSignal
 }): Promise<CompleteEnhancementRun | FailedEnhancementRun> {
-  const { trip, scope, dayId, llm } = args
+  const { trip, scope, dayId, llm, signal } = args
   const days = scope === "day" ? trip.days.filter((d) => d.id === dayId) : trip.days
   // Filled in as the review goes; `finishRun` stamps the end state once.
   const run: EnhancementRunBase = {
@@ -983,149 +1571,31 @@ export async function enhanceTrip(args: {
     })
   }
 
-  const legs = computeTravelLegs(days)
-  const lodgingLines = describeBases(trip, days)
-  // One line per other day, so a single-day review knows what the rest of
-  // the trip already covers and where it is based.
-  const elsewhere =
-    scope === "day"
-      ? trip.days
-          .filter((d) => d.id !== dayId && d.items.some((i) => i.location))
-          .map(
-            (d) =>
-              `  ${d.date}${d.city ? ` (${d.city})` : ""}: ${d.items
-                .flatMap((i) => (i.location ? [i.location.name] : []))
-                .slice(0, 12)
-                .join("; ")}`,
-          )
-      : []
-  const coords = days
-    .flatMap((d) => d.items)
-    .map((i) => i.location)
-    .filter((l): l is NonNullable<typeof l> => l?.lat != null && l?.lng != null)
-  let weatherLines = "unavailable"
-  if (coords.length > 0 && args.fetchWeather) {
-    const mid = coords[Math.floor(coords.length / 2)]!
-    const forecast = await args.fetchWeather({
-      lat: mid.lat!,
-      lng: mid.lng!,
-      dates: days.map((d) => d.date),
-    })
-    if (forecast.length > 0) {
-      // Persisted by the route onto day.weather — keeps trip pages' weather
-      // chips live without a manual edit.
-      run.weatherByDate = Object.fromEntries(
-        forecast.map((w) => [
-          w.date,
-          { highC: Math.round(w.highC), lowC: Math.round(w.lowC), condition: `${w.precipitationChance}% rain` },
-        ]),
-      )
-      weatherLines = forecast
-        .map((w) => `${w.date}: ${w.lowC}–${w.highC}°C, ${w.precipitationChance}% rain chance`)
-        .join("\n")
-    }
-  }
-
-  const user = [
-    `Trip: ${trip.name} (${trip.destinations.join(", ")}), ${trip.startDate} to ${trip.endDate}, timezone ${trip.timezone}.`,
-    scope === "day"
-      ? `Scope: ONE day, ${dayId}. Every suggestion must be for ${dayId}.`
-      : "Scope: the whole trip.",
-    args.prompt?.trim()
-      ? `Traveler's focus for this review (prioritize this): ${args.prompt.trim()}`
-      : undefined,
-    lodgingLines ? `Where they sleep, and how each day sits against it:\n${lodgingLines}` : undefined,
-    scope === "day" ? "The day under review:" : "Itinerary:",
-    ...days.map(describeDay),
-    elsewhere.length ? `Already on other days of this trip (do not repeat these venues):\n${elsewhere.join("\n")}` : undefined,
-    `Computed distances between consecutive located stops:`,
-    legs.length
-      ? legs.map((l) => `  ${l.dayId}: ${l.from} → ${l.to}: ${l.distanceKm} km`).join("\n")
-      : "  (none — items lack coordinates)",
-    `Weather forecast near the itinerary:`,
-    weatherLines,
-  ]
-    .filter((line): line is string => line !== undefined)
-    .join("\n")
-
+  // Every await below can outlast the deadline (an injected fake, or a
+  // fetcher that swallows its abort), so the signal is checked after each.
   try {
+    throwIfAborted(signal)
+    const weather = await reviewForecast(days, args.fetchWeather, signal)
+    throwIfAborted(signal)
+    if (weather.byDate) run.weatherByDate = weather.byDate
+
     const raw = await llm({
       system: ENHANCEMENT_SYSTEM,
-      user,
+      user: reviewPrompt({ trip, scope, dayId, days, focus: args.prompt, weather }),
       latLng: tripLatLngHint(trip, scope === "day" ? dayId : undefined) ?? undefined,
       effort: "medium",
+      signal,
     })
+    throwIfAborted(signal)
     const parsed = salvageSuggestions(raw)
-    run.summary = parsed.summary
-    const validDayIds = new Set(days.map((d) => d.id))
-    const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
-    const tripDayIds = new Set(trip.days.map((d) => d.id))
-    // A single-day review can only be about that day: models often omit the
-    // day id (or invent one) when the day is empty, which used to drop every
-    // suggested stop.
-    const scoped = parsed.suggestions.map((s) =>
-      scope === "day" && dayId && (!s.dayId || !validDayIds.has(s.dayId)) ? { ...s, dayId } : s,
-    )
-    // Venues already on the trip (any day) are never re-added, and the model
-    // cannot add the same venue twice in one review.
-    const taken = new Set(
-      trip.days.flatMap((d) => d.items.flatMap((i) => (i.location?.name ? [placeKey(i.location.name)] : []))),
-    )
-    const isFresh = (name: string | undefined) => {
-      const key = name ? placeKey(name) : ""
-      if (!key) return true
-      if (taken.has(key)) return false
-      taken.add(key)
-      return true
+    if (!reviewReplyIsUsable(parsed)) {
+      throw new ReviewAttemptError(TRAVELER_PARSE_ERROR, {
+        retryable: true,
+        cause: new Error(`review reply had nothing usable (${parsed.dropped} malformed suggestion(s))`),
+      })
     }
-    run.suggestions = scoped
-      .filter((s) => !s.dayId || validDayIds.has(s.dayId))
-      .filter((s) => s.kind !== "add" || isFresh(s.proposedItem?.location?.name))
-      .filter((s) => s.kind !== "add" || (s.dayId && validDayIds.has(s.dayId) && s.proposedItem))
-      .filter((s) => !(s.kind === "edit" || s.kind === "remove") || (s.itemId && validItemIds.has(s.itemId)))
-      // Moves and day swaps reach across days, so the target may be any day of the trip.
-      .filter((s) => s.kind !== "move" || (s.itemId && validItemIds.has(s.itemId) && s.toDayId && tripDayIds.has(s.toDayId)))
-      .filter((s) => s.kind !== "swap_days" || (s.dayId && s.toDayId && s.toDayId !== s.dayId && tripDayIds.has(s.dayId) && tripDayIds.has(s.toDayId)))
-      .map(
-        (s): EnhancementSuggestion => ({
-          id: newId("sug"),
-          kind: s.kind,
-          dayId: s.dayId,
-          itemId: s.itemId,
-          toDayId: s.toDayId,
-          title: s.title,
-          detail: s.detail,
-          confidence: s.confidence,
-          proposedItem: s.proposedItem
-            ? {
-                id: newId("it"),
-                kind: s.proposedItem.kind ?? "place",
-                title: s.proposedItem.title ?? "Suggested item",
-                time: s.proposedItem.time,
-                endTime: s.proposedItem.endTime,
-                notes: s.proposedItem.notes,
-                status: s.proposedItem.status ?? "needs_review",
-                location: s.proposedItem.location
-                  ? { ...s.proposedItem.location, source: "ai", confidence: s.confidence }
-                  : undefined,
-                createdBy: "ai",
-              }
-            : undefined,
-          proposedChanges: s.proposedChanges
-            ? {
-                ...(s.proposedChanges.title != null ? { title: s.proposedChanges.title } : {}),
-                ...(s.proposedChanges.time != null ? { time: s.proposedChanges.time } : {}),
-                ...(s.proposedChanges.endTime != null ? { endTime: s.proposedChanges.endTime } : {}),
-                ...(s.proposedChanges.notes != null ? { notes: s.proposedChanges.notes } : {}),
-                ...(s.proposedChanges.status != null ? { status: s.proposedChanges.status } : {}),
-                ...(s.proposedChanges.location != null
-                  ? { location: { ...s.proposedChanges.location, source: "ai" as const, confidence: s.confidence } }
-                  : {}),
-              }
-            : undefined,
-          proposedOrder: s.proposedOrder,
-        }),
-      )
+    run.summary = parsed.summary
+    run.suggestions = acceptedSuggestions({ trip, scope, dayId, days, suggestions: parsed.suggestions })
     // A shorter walking order needs no model: offer it when the review did
     // not already propose a reorder for that day.
     for (const day of days) {
@@ -1147,20 +1617,24 @@ export async function enhanceTrip(args: {
         run.suggestions.flatMap((s) => (s.proposedItem ? [s.proposedItem] : [])),
         args.geocode,
         trip.destinations[0],
+        signal,
       )
+      throwIfAborted(signal)
     }
-    const addableCount = addableSuggestionIds(run).length
     const resolved = resolveEnhancementOutcome({
       suggestions: run.suggestions,
       summary: parsed.summary,
       modelOutcome: parsed.outcome,
       modelReason: parsed.outcomeReason,
-      // Route auto-applies these next; stamp the outcome the traveler will see.
-      appliedAddCount: addableCount,
+      // The adds are auto-applied next; stamp the outcome the traveler will see.
+      appliedAddCount: addableSuggestionIds(run).length,
     })
     return finishRun(run, { status: "complete", ...resolved })
   } catch (err) {
-    return finishRun(run, { status: "error", error: travelerFacingLlmError(err) })
+    const failure = toReviewAttemptError(err, signal)
+    console.warn(`[trips/ai] review attempt failed (${failure.retryable ? "retryable" : "final"}): ${rawMessage(failure.cause ?? err)}`)
+    if (failure.retryable) throw failure
+    return finishRun(run, { status: "error", error: failure.message })
   }
 }
 
@@ -1262,6 +1736,9 @@ export function applySuggestions(
   const applied: string[] = []
   const skipped: string[] = []
   const days = trip.days.map((d) => ({ ...d, items: [...d.items] }))
+  // Written back only when an add took an idea off it, so a trip without a
+  // wishlist does not grow an empty one.
+  let ideas = trip.ideas
 
   for (const id of suggestionIds) {
     const s = run.suggestions.find((x) => x.id === id)
@@ -1272,15 +1749,35 @@ export function applySuggestions(
     const day = s.dayId ? days.find((d) => d.id === s.dayId) : undefined
     let ok = false
     switch (s.kind) {
-      case "add":
+      case "add": {
         // The proposed item keeps its id when it lands, so finding it on the
-        // trip means this add already happened (a retried or repeated apply).
-        if (s.proposedItem && day && !days.some((d) => d.items.some((i) => i.id === s.proposedItem!.id))) {
-          // Timed adds land where the clock says, not at the bottom.
-          day.items = insertByTime(day.items, structuredClone(s.proposedItem))
-          ok = true
+        // trip means this add already happened (a retried or repeated apply,
+        // or, for a saved place, the traveller scheduling it meanwhile).
+        if (!s.proposedItem || !day || days.some((d) => d.items.some((i) => i.id === s.proposedItem!.id))) break
+        let item = structuredClone(s.proposedItem)
+        if (s.fromIdeaId) {
+          // A saved place lands once: not when its venue is on a day already.
+          const key = venueKey(item)
+          if (key && days.some((d) => d.items.some((i) => venueKey(i) === key))) break
+          // It leaves the wishlist in the same change, bringing what the stop
+          // lacks (the idea may have been edited since the review). If it is
+          // already gone, the stop still lands as proposed.
+          const idea = ideas?.find((i) => i.id === s.fromIdeaId)
+          if (idea) {
+            item = {
+              ...item,
+              notes: item.notes ?? idea.notes,
+              links: item.links ?? (idea.links ? [...idea.links] : undefined),
+              cost: item.cost ?? (idea.cost ? { ...idea.cost } : undefined),
+            }
+            ideas = ideas!.filter((i) => i.id !== s.fromIdeaId)
+          }
         }
+        // Timed adds land where the clock says, not at the bottom.
+        day.items = insertByTime(day.items, item)
+        ok = true
         break
+      }
       case "edit": {
         for (const d of days) {
           const idx = d.items.findIndex((i) => i.id === s.itemId)
@@ -1348,5 +1845,5 @@ export function applySuggestions(
     else skipped.push(id)
   }
 
-  return { trip: { ...trip, days, updatedAt: nowIso() }, applied, skipped }
+  return { trip: { ...trip, days, ...(ideas !== trip.ideas ? { ideas } : {}), updatedAt: nowIso() }, applied, skipped }
 }
