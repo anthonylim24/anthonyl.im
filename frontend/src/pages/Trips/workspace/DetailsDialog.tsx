@@ -189,6 +189,17 @@ function DetailsDialogView({
   const [session, setSession] = useState(() => startSession(trip))
   const formId = useId()
 
+  // The zone list is built while the page is idle, not in the click that opens the dialog.
+  useEffect(() => {
+    if (supportedZones) return
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => supportedZoneOptions(), { timeout: 5000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const timer = setTimeout(supportedZoneOptions, 2000)
+    return () => clearTimeout(timer)
+  }, [])
+
   // Re-seed only when the dialog opens; live saves must not clobber typing.
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
