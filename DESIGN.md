@@ -155,6 +155,8 @@ All three add `saturate(1.9)` and a brightness lift (1.06 light, 0.9 dark), the 
 
 **Preferences**: `prefers-reduced-transparency` → solid (`--trips-glass-solid`), no wallpaper; `prefers-contrast: more` → solid plus 1px `--trips-line-strong` edges; `prefers-reduced-motion` → light at rest, no press squish.
 
+**Cost** (`trips-jank.mjs`, 4× CPU, against the atlas): scrolling, map drag and typing are at parity. The first ⌘K or dialog opened on a page takes about 25 ms more (one long frame, 38 vs 3 ms of long-frame time for the palette): the system face in the mono role (`--trips-mono`) is set up and laid out for the first time. Later opens are under the long-frame threshold in both looks. Selector matching is not the cost: splitting every `:is()` list changed nothing.
+
 ## Motion
 
 Spring (`--trips-spring`) on pins and buttons, fly-to camera moves, a drop-in for newly added pins (`.atlas-pin--fresh`), staggered card rise. All gated on `prefers-reduced-motion`: the map uses `jumpTo` and the index globe does not spin.
