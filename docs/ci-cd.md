@@ -16,7 +16,8 @@ PR → .github/workflows/pr.yml
         └─ pr-gate (aggregate)      ← starts immediately; ONLY required context
 
 PR → .github/workflows/preview.yml   (NOT a merge gate)
-        ├─ vite build with VITE_BASE + VITE_API_BASE=/preview/pr/<n>/ (FRONTEND_ENV, SW off)
+        ├─ vite build with VITE_BASE + VITE_API_BASE=/preview/pr/<n>/ (production Clerk + Supabase values, SW off)
+        ├─ fail if the bundle holds a pk_test_ key or lacks the production one
         ├─ stamp preview.json + HTML chrome
         ├─ SCP frontend + server/src tarballs → droplet ~/previews/<n>/
         ├─ optional loopback preview API (cap 1) proxied at /preview/pr/<n>/api/*
@@ -25,7 +26,7 @@ PR → .github/workflows/preview.yml   (NOT a merge gate)
 
 merge to main → .github/workflows/deploy.yml
         ├─ server tests (frozen lockfile)
-        ├─ frontend build (FRONTEND_ENV secret)
+        ├─ frontend build (FRONTEND_ENV + deploy/write-frontend-env.sh)
         ├─ SSH: stage ~/anthonyl.im.next (shallow clone + bun install)
         ├─ SCP dist → anthonyl.im.next/frontend/dist
         ├─ SSH: atomic swap next→live, PM2 restart, rollback on failure
@@ -96,7 +97,7 @@ cd frontend && bun run lint && bun run build && bun run test:run
 
 **Disk preflight.** The stage step prints free space on the droplet, clears only re-creatable caches (the previous `~/anthonyl.im.next`, Bun's install cache, day-old temp archives) when under 800 MB, and fails early with a `du` breakdown when under 300 MB. A full disk otherwise shows up as `No space left on device` in the clone or an scp `exit status 1`. It never deletes logs or live data: if the breakdown points at PM2 logs or worker files, clear those on the droplet by hand.
 
-Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBLISHABLE_KEY` (production Clerk key; the deploy drops any copy in `FRONTEND_ENV` and appends this one. Previews keep `FRONTEND_ENV`'s key). Droplet runtime secrets live in `~/.env` (copied into the staged tree each deploy). Details: `deploy/README.md`.
+Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBLISHABLE_KEY` (production Clerk key; `deploy/write-frontend-env.sh` drops any copy in `FRONTEND_ENV` and appends this one, with the `VITE_CLERK_PROXY_URL` and `VITE_SUPABASE_ANON_KEY` variables. Deploys and previews both use it: the preview API sidecar verifies tokens with the production `CLERK_SECRET_KEY`, so a preview on another Clerk instance cannot sign in). Droplet runtime secrets live in `~/.env` (copied into the staged tree each deploy). Details: `deploy/README.md`.
 
 ## Known failure modes (and where they are caught)
 
