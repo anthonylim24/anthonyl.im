@@ -9,7 +9,7 @@ import {
   parseBreathFlowImportData,
   replaceBreathFlowStorageData,
 } from '@/lib/dataExport'
-import { sx } from '@/styles/merge'
+import { stylex, sx } from '@/styles/merge'
 import { layout } from '@/styles/common.stylex'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { DAILY_GOAL_OPTIONS, usePracticeStore } from '@/stores/practiceStore'
@@ -69,7 +69,7 @@ function Toggle({
         role="switch"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        {...sx(layout.srOnly, 'peer')}
+        {...sx(layout.srOnly, stylex.defaultMarker())}
       />
       <span
         aria-hidden="true"

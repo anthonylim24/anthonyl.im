@@ -49,6 +49,25 @@ describe("zones", () => {
     expect(validZone("Mars/Base")).toBeUndefined()
   })
 
+  it("checks each zone once, and keeps the same answer", () => {
+    const real = Intl.DateTimeFormat
+    let built = 0
+    const counting = function (this: unknown, ...args: ConstructorParameters<typeof Intl.DateTimeFormat>) {
+      built += 1
+      return new real(...args)
+    } as unknown as typeof Intl.DateTimeFormat
+    Intl.DateTimeFormat = counting
+    try {
+      for (let i = 0; i < 5; i++) {
+        expect(validZone("America/Lima")).toBe("America/Lima")
+        expect(validZone("Atlantis/Lost")).toBeUndefined()
+      }
+    } finally {
+      Intl.DateTimeFormat = real
+    }
+    expect(built).toBe(2)
+  })
+
   it("turns a wall time into the right instant, across daylight saving", () => {
     // Lisbon: WET (UTC+0) in winter, WEST (UTC+1) in summer; clocks went back on 2026-10-25.
     expect(new Date(zonedEpoch("2026-10-24", 600, "Europe/Lisbon")).toISOString()).toBe("2026-10-24T09:00:00.000Z")

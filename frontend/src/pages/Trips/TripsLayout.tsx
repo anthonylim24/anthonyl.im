@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { Suspense, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { MotionConfig } from "motion/react"
 import { ArrowLeft, Lock, Plus, RotateCw } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useClerk } from "@clerk/clerk-react"
-import { sx } from "@/styles/merge"
+import { stylex, sx } from "@/styles/merge"
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { syncManifest } from "@/lib/routeMetadata"
 import { useAuthStall, type StallCause } from "@/lib/authStall"
@@ -22,6 +22,15 @@ import { TripsDeviceContext, type CopyShown } from "./offline/tripsDevice"
 import { copyBannerText, leftUnsavedText } from "./offline/bannerText"
 import { OfflineBanner } from "./offline/OfflineBanner"
 import { useOnline } from "./offline/network"
+import { lazyRetry } from "@/lib/lazyRetry"
+import { OverlayBoundary } from "@/components/OverlayBoundary"
+import { applyLook, clearLook, useLook } from "./glass/look"
+import { LookToggle } from "./glass/LookToggle"
+import "./glass/glass.css"
+
+const GlassLayer = lazyRetry(() => import("./glass/GlassLayer"))
+/** Without its layer the look still applies; the page only loses the wallpaper. */
+const ignoreGlassFailure = () => {}
 
 const DEV_BEARER: string | null =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
@@ -234,6 +243,13 @@ export function TripsLayout() {
     applyTheme(getInitialTheme())
   }, [])
 
+  // Before the first paint, so a glass page never flashes the atlas.
+  const look = useLook()
+  useLayoutEffect(() => {
+    applyLook(look)
+  }, [look])
+  useEffect(() => clearLook, [])
+
   // Installing from here gets the app for where the traveller is (Trips, or the Korea trip).
   useEffect(() => {
     syncManifest(window.location.pathname)
@@ -253,14 +269,21 @@ export function TripsLayout() {
       <a href="#trips-main" {...sx(s.skip)}>
         Skip to content
       </a>
-      <header {...sx(s.header)}>
+      {look === "glass" && (
+        <OverlayBoundary onError={ignoreGlassFailure}>
+          <Suspense fallback={null}>
+            <GlassLayer />
+          </Suspense>
+        </OverlayBoundary>
+      )}
+      <header {...sx(s.header, "trips-glass-bar")}>
         <div {...sx(s.headerSide)}>
           {!atIndex && (
             <Link to="/trips" {...sx(a.iconBtn)} aria-label="Back to all trips">
               <ArrowLeft size={18} strokeWidth={1.75} aria-hidden />
             </Link>
           )}
-          <Link to="/trips" {...sx("group", s.brand)} aria-label="Trips home">
+          <Link to="/trips" {...sx(stylex.defaultMarker(), s.brand)} aria-label="Trips home">
             <CompassMark style={s.brandMark} />
             Trips
           </Link>
@@ -273,6 +296,7 @@ export function TripsLayout() {
             </Link>
           )}
           <CommandButton />
+          <LookToggle />
           <span {...sx("trip-tap-44")}>
             <ThemeToggle style={s.themeToggle} />
           </span>

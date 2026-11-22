@@ -55,15 +55,27 @@ export function dayZone(trip: Pick<Trip, "timezone">, day?: Pick<TripDay, "timez
   return validZone(day?.timezone) ?? validZone(trip.timezone) ?? "UTC"
 }
 
+/**
+ * Zones already checked. Building a formatter to test one costs about a
+ * millisecond on a phone, and `dayZone` runs for every day on every render of
+ * the live card, the palette and the day view.
+ */
+const knownZones = new Map<string, boolean>()
+
 /** The zone when the runtime knows it, else undefined. */
 export function validZone(zone: string | undefined | null): string | undefined {
   if (!zone) return undefined
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone })
-    return zone
-  } catch {
-    return undefined
+  let known = knownZones.get(zone)
+  if (known === undefined) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: zone })
+      known = true
+    } catch {
+      known = false
+    }
+    knownZones.set(zone, known)
   }
+  return known ? zone : undefined
 }
 
 const offsetFormats = new Map<string, Intl.DateTimeFormat>()

@@ -30,6 +30,28 @@ describe("Menu", () => {
     expect(screen.getByRole("button", { name: "Trip actions" })).toHaveAttribute("aria-expanded", "false")
   })
 
+  it("floats on <body> in the Trips token scope, so no pane can clip it", () => {
+    render(
+      <div style={{ overflow: "hidden" }} data-testid="pane">
+        <Menu label="Trip actions" trigger="…" items={[{ label: "Duplicate trip", onSelect: () => {} }]} />
+      </div>,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Trip actions" }))
+    const menu = screen.getByRole("menu")
+    expect(screen.getByTestId("pane")).not.toContainElement(menu)
+    expect(menu.parentElement).toHaveClass("trips", "trips-portal")
+    expect(menu.style.position).toBe("fixed")
+  })
+
+  it("closes on Tab from its button, so focus moves on in page order", () => {
+    renderMenu()
+    const button = screen.getByRole("button", { name: "Trip actions" })
+    fireEvent.click(button)
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Duplicate trip" }), { key: "Tab" })
+    expect(screen.queryByRole("menu")).toBeNull()
+    expect(button).toHaveFocus()
+  })
+
   it("stays open through a blur with no target, so a pressed item still runs", () => {
     const { onSelect } = renderMenu()
     fireEvent.click(screen.getByRole("button", { name: "Trip actions" }))

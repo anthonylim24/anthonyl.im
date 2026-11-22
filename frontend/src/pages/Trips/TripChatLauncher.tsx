@@ -5,7 +5,6 @@ import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { lazyRetry } from "@/lib/lazyRetry"
 import { sx } from "@/styles/merge"
 import { useTripChatRoute } from "./tripChatRoute"
-import { runTripsViewTransition } from "./viewTransition"
 import { c } from "./chat.stylex"
 
 // The concierge's button lives in the Trips layout chunk so it shows at
@@ -30,7 +29,7 @@ export function TripChatLauncher() {
   const want = useCallback(() => setWanted(true), [])
   const handleOpen = useCallback(() => {
     setWanted(true)
-    runTripsViewTransition(() => setOpen(true))
+    setOpen(true)
   }, [])
 
   if (failed) return null
@@ -52,12 +51,7 @@ export function TripChatLauncher() {
           whileHover={reduce || shown ? undefined : { scale: 1.06 }}
           whileTap={reduce || shown ? undefined : { scale: 0.94 }}
           transition={reduce ? { duration: 0.15 } : FAB_SPRING}
-          {...sx(c.fab, shown ? c.fabHidden : undefined)}
-          style={{
-            // Shared morph with the panel. Name clears while open so the new
-            // View Transition snapshot never has two `trips-concierge` nodes.
-            viewTransitionName: shown || reduce ? "none" : "trips-concierge",
-          }}
+          {...sx(c.fab, shown ? c.fabHidden : undefined, "trips-glass-pill")}
         >
           <MessageCircle {...sx(c.icon22)} strokeWidth={1.75} aria-hidden />
         </motion.button>

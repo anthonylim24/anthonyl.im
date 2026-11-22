@@ -20,6 +20,7 @@ import { isApplePlatform } from "./keys"
 import { commandsSignature, createCommandRegistry, type CommandRegistry } from "./registry"
 import { ShortcutsDialog } from "./ShortcutsDialog"
 import { chooseTheme, followSystemTheme } from "./theme"
+import { chooseLook, useLook } from "../glass/look"
 
 // The palette's home: a registry screens add their commands to, the two
 // overlays (palette, shortcuts sheet), and the keys that open them from
@@ -63,6 +64,7 @@ export function CommandProvider({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const look = useLook()
   const [apple] = useState(() => isApplePlatform())
   /** The overlay as of the last transition, for handlers that outlive a render. */
   const overlayRef = useRef<Overlay>(null)
@@ -149,10 +151,10 @@ export function CommandProvider({ children }: { children: ReactNode }) {
   // reads overlay refs when it runs (never during render).
   const showShortcuts = useLatestCallback(openShortcuts)
   const commands = useMemo(() => {
-    const builtIns = builtInCommands({ navigate, showShortcuts, theme, setTheme: pickTheme, atIndex })
+    const builtIns = builtInCommands({ navigate, showShortcuts, theme, setTheme: pickTheme, look, setLook: chooseLook, atIndex })
     const taken = new Set(registered.map((command) => command.id))
     return [...registered, ...builtIns.filter((command) => !taken.has(command.id))]
-  }, [registered, navigate, showShortcuts, theme, pickTheme, atIndex])
+  }, [registered, navigate, showShortcuts, theme, pickTheme, look, atIndex])
 
   const controls = useMemo<CommandPaletteControls>(
     () => ({ open: overlay === "palette", setOpen, openShortcuts }),

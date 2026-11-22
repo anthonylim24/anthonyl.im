@@ -6,6 +6,7 @@ import { routerBasename } from './lib/routerBasename'
 import { notifyRouteChange } from './lib/serviceWorker'
 import { sx } from './lib/utils'
 import { routeFallback } from './styles/chatbot.stylex'
+import { tripsPageAt } from './pages/Trips/routePages'
 
 // Every route is lazy: the entry holds only the router, the boundaries and
 // the fallbacks, so no app's code or vendor groups load with another app.
@@ -146,6 +147,19 @@ export function Guarded({
   )
 }
 
+const tripsPages = { index: TripsIndex, create: TripCreate, join: TripJoin, trip: TripWorkspace } as const
+
+// TripsLayout renders its page only once the sign-in gate (Clerk, then
+// `claimDevice`) has answered. The page's chunk downloads meanwhile, next to
+// the layout's, instead of after it. Who sees what is still the gate's call.
+function TripsPagePreload() {
+  const page = tripsPageAt(useLocation().pathname)
+  useEffect(() => {
+    if (page) tripsPages[page].preload()
+  }, [page])
+  return null
+}
+
 // A route change is a page change already, so a waiting app update reloads
 // into the new route then (lib/serviceWorker.ts) instead of interrupting one.
 function RouteChangeSignal() {
@@ -241,9 +255,12 @@ export function AppRoutes() {
         <Route
           path="/trips"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
-              <TripsLayout />
-            </Guarded>
+            <>
+              <TripsPagePreload />
+              <Guarded app="trips" fallback={<TripsShellFallback />}>
+                <TripsLayout />
+              </Guarded>
+            </>
           }
         >
           <Route index element={<TripsIndex />} />

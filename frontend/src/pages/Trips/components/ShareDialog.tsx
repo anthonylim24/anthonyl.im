@@ -187,7 +187,7 @@ export function ShareDialog({
 
           {owner && (
             <section {...sx(a.stack)} aria-label="Invite link">
-              <div {...sx(s.segment)} role="radiogroup" aria-label="What the link allows" onKeyDown={onRoleKey}>
+              <div {...sx(s.segment, "trips-glass-segment")} role="radiogroup" aria-label="What the link allows" onKeyDown={onRoleKey}>
                 {ROLES.map((r) => (
                   <button
                     key={r}

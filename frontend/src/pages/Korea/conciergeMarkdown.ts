@@ -17,6 +17,50 @@ const HTML_ANCHOR = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
 const HTML_NOISE = /<\/?(?:span|div|u|small|font)\b[^>]*>/gi
 const UNICODE_BULLET = /^(\s*)(?:[•‣∙·○●▪▫–—])(\s+)/gm
 
+const FENCE = /^\s{0,3}(`{3,}|~{3,})/
+const LIST_ITEM = /^\s{0,3}(?:[-*+]|\d{1,9}[.)])\s/
+
+/** Cut markdown into top-level blocks that parse the same alone as together,
+ *  so a streamed reply re-parses only its last block per frame and the
+ *  finished ones stay rendered. A block ends at a blank line followed by an
+ *  unindented line, except inside a code fence and except between items of
+ *  one list (a loose list stays one list). Reference-style link definitions
+ *  only resolve within their block; the concierge writes inline links. */
+export function splitMarkdownBlocks(text: string): string[] {
+  const blocks: string[] = []
+  let lines: string[] = []
+  let fence: string | null = null
+  let afterBlank = false
+  let inList = false
+  const flush = () => {
+    while (lines.length && lines[lines.length - 1]!.trim() === "") lines.pop()
+    if (lines.length) blocks.push(lines.join("\n"))
+    lines = []
+    inList = false
+  }
+  for (const line of text.split("\n")) {
+    if (fence) {
+      lines.push(line)
+      if (line.trimStart().startsWith(fence)) fence = null
+      continue
+    }
+    if (line.trim() === "") {
+      if (lines.length) afterBlank = true
+      if (lines.length) lines.push(line)
+      continue
+    }
+    const item = LIST_ITEM.test(line)
+    if (afterBlank && !/^\s/.test(line) && !(item && inList)) flush()
+    afterBlank = false
+    if (item) inList = true
+    const open = FENCE.exec(line)
+    if (open) fence = open[1]!.slice(0, 3)
+    lines.push(line)
+  }
+  flush()
+  return blocks
+}
+
 export function normalizeGeminiMarkdown(raw: string): string {
   let text = raw.replace(/\r\n/g, "\n")
   text = text.replace(THINK_BLOCK, "")

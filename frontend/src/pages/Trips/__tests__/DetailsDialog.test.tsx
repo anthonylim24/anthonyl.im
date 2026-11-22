@@ -156,4 +156,24 @@ describe("DetailsDialog", () => {
     fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
     expect(onSave.mock.calls[0]![0]).toMatchObject({ name: "June", days: trip.days })
   })
+
+  it("opens on the trip as it is when it opens, however many times it was drawn closed", () => {
+    const props = { onClose: vi.fn(), onApply: vi.fn() }
+    const view = render(<DetailsDialog trip={trip} open={false} {...props} />)
+    expect(screen.queryByRole("combobox", { name: "Time zone" })).toBeNull()
+    view.rerender(<DetailsDialog trip={{ ...trip, name: "Lisbon in June" }} open={false} {...props} />)
+    view.rerender(<DetailsDialog trip={{ ...trip, name: "Lisbon and Sintra", timezone: "Europe/Madrid" }} open {...props} />)
+    const dialog = within(screen.getByRole("dialog", { name: "Trip details" }))
+    expect(dialog.getByRole("textbox", { name: "Name" })).toHaveValue("Lisbon and Sintra")
+    const zone = dialog.getByRole("combobox", { name: "Time zone" })
+    expect(zone).toHaveValue("Europe/Madrid")
+    expect(within(zone).getAllByRole("option").length).toBeGreaterThan(1)
+  })
+
+  it("lists a zone the runtime doesn't know first, then every zone it does", () => {
+    const { dialog } = renderDialog({ ...trip, timezone: "Mars/Olympus_Mons" })
+    const options = within(dialog.getByRole("combobox", { name: "Time zone" })).getAllByRole("option")
+    expect(options[0]).toHaveTextContent("Mars/Olympus Mons")
+    expect(options.map((option) => option.getAttribute("value"))).toContain("Europe/Lisbon")
+  })
 })

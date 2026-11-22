@@ -228,6 +228,20 @@ describe("formatTripDate", () => {
     expect(formatTripDate("2026-07-10", "UTC", { year: "numeric" })).toBe("Fri, Jul 10, 2026")
   })
 
+  it("keeps each mix of parts apart, however often each is asked for", () => {
+    const asks = [
+      [undefined, "Fri, Jul 10"],
+      [{ weekday: undefined }, "Jul 10"],
+      [{ weekday: "long" }, "Friday, Jul 10"],
+      [{ weekday: "long", month: "long" }, "Friday, July 10"],
+      [{ weekday: undefined, month: "short", day: undefined }, "Jul"],
+      [{ year: "numeric" }, "Fri, Jul 10, 2026"],
+    ] as const
+    for (let round = 0; round < 2; round++) {
+      for (const [opts, words] of asks) expect(formatTripDate("2026-07-10", "UTC", opts)).toBe(words)
+    }
+  })
+
   it("falls back to the calendar day when the time zone is not one", () => {
     expect(formatTripDate("2026-07-10", "Mars/Olympus_Mons")).toBe("Fri, Jul 10")
     expect(formatTripDate("2026-07-10", "")).toBe("Fri, Jul 10")

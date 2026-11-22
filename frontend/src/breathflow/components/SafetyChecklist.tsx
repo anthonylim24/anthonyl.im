@@ -1,6 +1,6 @@
 import { motion } from 'motion/react'
 import { Check } from 'lucide-react'
-import { sx } from '@/styles/merge'
+import { stylex, sx } from '@/styles/merge'
 import { layout } from '@/styles/common.stylex'
 import { pressSpring } from '../motion/tokens'
 import { useReducedMotion } from '../platform/useReducedMotion'
@@ -55,7 +55,7 @@ export function SafetyChecklist({ protocol, checkedItems, onToggle }: SafetyChec
                 type="checkbox"
                 checked={checked}
                 onChange={() => onToggle(index)}
-                {...sx(layout.srOnly, 'peer')}
+                {...sx(layout.srOnly, stylex.defaultMarker())}
               />
               <span
                 aria-hidden="true"

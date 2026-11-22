@@ -368,8 +368,6 @@ export const a = stylex.create({
     transformOrigin: "top right",
     [REDUCE]: { animationName: "none" },
   },
-  menuUp: { top: "auto", bottom: "calc(100% + 0.375rem)", transformOrigin: "bottom right" },
-  menuLeft: { right: "auto", left: 0, transformOrigin: "top left" },
   menuItem: {
     display: "flex",
     alignItems: "center",
@@ -485,7 +483,9 @@ export const a = stylex.create({
     borderTopWidth: "1px",
     borderTopStyle: "solid",
     borderTopColor: "var(--trips-line)",
-    [PHONE]: { flexDirection: "column-reverse" },
+    // Phones: side by side in thumb reach (the buttons share the row, in
+    // index.css), wrapping the primary under Cancel when its label is long.
+    [PHONE]: { flexWrap: "wrap", paddingBlock: "0.75rem" },
   },
 
   // ── Layout helpers ────────────────────────────────────

@@ -10,6 +10,7 @@ import {
   routeMeters,
   spanMeters,
   splitDay,
+  spreadPins,
   DAY_PIN,
   tripDots,
   tripPins,
@@ -234,5 +235,41 @@ describe("splitDay with odd documents", () => {
     const untitled = { id: "s", kind: "section", status: "none", createdBy: "user" } as unknown as ItineraryItem
     const items = [item("a", "A", { lat: 1, lng: 1 }), untitled, item("b", "B", { lat: 2, lng: 2 })]
     expect(splitDay({ items })).toEqual({ planned: items, parked: [] })
+  })
+})
+
+describe("spreadPins", () => {
+  const pin = (id: string, x: number, y: number, rank: number) => ({ id, x, y, rank })
+
+  it("leaves pins that do not touch where they are", () => {
+    const offsets = spreadPins([pin("a", 0, 0, 1), pin("b", 100, 0, 2), pin("c", 10, 80, 3)])
+    expect([...offsets.values()]).toEqual([0, 0, 0])
+  })
+
+  it("lines pins on one spot up in their own order, centred on the spot", () => {
+    // Days 2, 3 and 4 a few px left of day 1: the row still reads 1 2 3 4.
+    const offsets = spreadPins([pin("d1", 203, 50, 1), pin("d2", 200, 50, 2), pin("d3", 201, 51, 3), pin("d4", 202, 49, 4)])
+    const at = (id: string, x: number) => x + offsets.get(id)!
+    const xs = [at("d1", 203), at("d2", 200), at("d3", 201), at("d4", 202)]
+    expect(xs).toEqual([...xs].sort((a, b) => a - b))
+    expect(xs[1]! - xs[0]!).toBe(30)
+    // Centred: the row spans 90 px around the spot, not 90 px to its right.
+    const middle = (xs[0]! + xs[3]!) / 2
+    expect(Math.abs(middle - 201.5)).toBeLessThanOrEqual(1)
+  })
+
+  it("never stacks two pins of a crowd (floating-point spacing)", () => {
+    // Four days centred on the same point in Osaka, as the overview projects them.
+    const x = 76.80041582425476
+    const offsets = spreadPins([1, 2, 3, 4].map((n) => pin(`d${n}`, x, 446.88632418662615, n)))
+    const xs = [1, 2, 3, 4].map((n) => Math.round(x + offsets.get(`d${n}`)!))
+    expect(new Set(xs).size).toBe(4)
+    expect(xs.slice(1).map((v, i) => v - xs[i]!)).toEqual([30, 30, 30])
+  })
+
+  it("keeps separate crowds apart", () => {
+    const offsets = spreadPins([pin("a", 0, 0, 1), pin("b", 2, 0, 2), pin("c", 500, 0, 3), pin("d", 501, 0, 4)])
+    expect([offsets.get("a"), offsets.get("b")]).toEqual([-14, 14])
+    expect(501 + offsets.get("d")! - (500 + offsets.get("c")!)).toBe(30)
   })
 })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { createPortal } from "react-dom"
 import { Box, ChevronLeft, ChevronRight, ExternalLink, Footprints, LocateFixed, Pause, Pencil, Play, Route, Scan, Square, X } from "lucide-react"
-import { sx } from "@/styles/merge"
+import { stylex, sx } from "@/styles/merge"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
@@ -13,6 +13,7 @@ import { formatClock, formatTripDate, itemIcon, plural, resolveAccent, titleCase
 import type { Trip, TripDay } from "../types"
 import { tilesKey } from "./available"
 import { useStopPhoto, type PhotoState } from "../stopPhoto"
+import "./photoreal.css"
 import { p } from "./photoreal.stylex"
 import { PhotorealScene, type Insets, type SceneStop } from "./scene"
 import {
@@ -219,50 +220,63 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
       setStatus("failed")
     }
     const openedAt = performance.now()
-    PhotorealScene.create(
-      {
-        host,
-        pinLayer,
-        tokens: root,
-        anchor,
-        apiKey: tilesKey(),
-        reducedMotion,
-        timezone: trip.timezone,
-        date: day.date,
-        insets: measure(),
-        initialStopId: first.selectedId,
-        onSelect: (id) => pick(id),
-        onReady: () => {
-          // Hold the veil long enough to read as a moment, never a flash.
-          const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - openedAt))
-          revealTimer = window.setTimeout(() => setStatus((s) => (s === "loading" ? "ready" : s)), wait)
+    const build = () => {
+      if (cancelled) return
+      PhotorealScene.create(
+        {
+          host,
+          pinLayer,
+          tokens: root,
+          anchor,
+          apiKey: tilesKey(),
+          reducedMotion,
+          timezone: trip.timezone,
+          date: day.date,
+          insets: measure(),
+          initialStopId: first.selectedId,
+          onSelect: (id) => pick(id),
+          onReady: () => {
+            // Hold the veil long enough to read as a moment, never a flash.
+            const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - openedAt))
+            revealTimer = window.setTimeout(() => setStatus((s) => (s === "loading" ? "ready" : s)), wait)
+          },
+          onError: fail,
+          onYaw: (bearing) => {
+            needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
+          },
+          onTilt: setTilted,
+          onAttribution: setCredit,
+          onInteract: () => setTouring(false),
+          onProgress: (progress) => {
+            if (progressRef.current) progressRef.current.style.transform = `scaleX(${Math.max(0.06, progress).toFixed(3)})`
+          },
+          onRefining: setRefining,
         },
-        onError: fail,
-        onYaw: (bearing) => {
-          needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
-        },
-        onTilt: setTilted,
-        onAttribution: setCredit,
-        onInteract: () => setTouring(false),
-        onProgress: (progress) => {
-          if (progressRef.current) progressRef.current.style.transform = `scaleX(${Math.max(0.06, progress).toFixed(3)})`
-        },
-        onRefining: setRefining,
-      },
-      first.sceneStops,
-    )
-      .then((created) => {
-        if (cancelled) return created.dispose()
-        scene = created
-        sceneRef.current = created
-        const now = latest.current
-        if (now.sceneStops !== first.sceneStops) created.setStops(now.sceneStops)
-        if (now.selectedId !== first.selectedId) created.select(now.selectedId)
-        created.setInsets(measure())
-      })
-      .catch(() => fail(""))
+        first.sceneStops,
+      )
+        .then((created) => {
+          if (cancelled) return created.dispose()
+          scene = created
+          sceneRef.current = created
+          const now = latest.current
+          if (now.sceneStops !== first.sceneStops) created.setStops(now.sceneStops)
+          if (now.selectedId !== first.selectedId) created.select(now.selectedId)
+          created.setInsets(measure())
+        })
+        .catch(() => fail(""))
+    }
+    // Paint the veil first. Creating the WebGL context and the scene is one
+    // long task; run inside the click that opened the view, it held the
+    // dialog's first frame back by as long. A timeout queued from a frame
+    // callback runs after that frame has painted.
+    let buildTimer = 0
+    const buildFrame = requestAnimationFrame(() => {
+      buildTimer = window.setTimeout(build, 0)
+    })
     return () => {
       cancelled = true
+      cancelAnimationFrame(buildFrame)
+      window.clearTimeout(buildTimer)
       window.clearTimeout(revealTimer)
       scene?.dispose()
       sceneRef.current = null
@@ -441,7 +455,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
 
   const controls = !failed && (
     <div {...sx(p.controls)} role="group" aria-label="Map controls">
-      <button type="button" {...sx(p.control, "group")} aria-label="Point north up" title="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
+      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
         <svg {...sx(p.compass)} width="24" height="24" viewBox="0 0 24 24" aria-hidden>
           <circle cx="12" cy="12" r="10.5" {...sx(p.compassRing)} />
           <g ref={needleRef}>
@@ -456,10 +470,9 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
       </button>
       <button
         type="button"
-        {...sx(p.control, !tilted && p.controlOn, "group")}
+        {...sx(p.control, !tilted && p.controlOn, stylex.defaultMarker())}
         aria-label="Top-down view"
         aria-pressed={!tilted}
-        title={tilted ? "Look straight down" : "Tilt the view"}
         onClick={() => setTilted(sceneRef.current?.toggleTilt() ?? tilted)}
       >
         {tilted ? <Box size={18} strokeWidth={1.75} aria-hidden /> : <Square size={17} strokeWidth={1.75} aria-hidden />}
@@ -470,9 +483,8 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
       <span {...sx(p.controlRule)} aria-hidden />
       <button
         type="button"
-        {...sx(p.control, hasUser && p.controlOn, "group")}
+        {...sx(p.control, hasUser && p.controlOn, stylex.defaultMarker())}
         aria-label={hasUser ? "Go to my location" : "Show my location"}
-        title={hasUser ? "Go to my location" : "Show my location"}
         disabled={locating}
         onClick={onLocate}
       >
@@ -481,10 +493,10 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
           My location
         </span>
       </button>
-      <button type="button" {...sx(p.control, "group")} aria-label="Fit all stops" title="Fit all stops (F)" onClick={fitAll}>
+      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Fit all stops" aria-keyshortcuts="F" onClick={fitAll}>
         <Scan size={18} strokeWidth={1.75} aria-hidden />
         <span {...sx(p.tip)} aria-hidden>
-          Fit all
+          Fit all (F)
         </span>
       </button>
     </div>
@@ -497,7 +509,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   )
 
   return createPortal(
-    <div className="trips trips-portal" data-trip-accent={accent}>
+    <div className="trips trips-portal photoreal-portal trips-glass-off" data-trip-accent={accent}>
       <div
         ref={rootRef}
         role="dialog"

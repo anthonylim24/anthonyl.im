@@ -23,6 +23,8 @@ Source of truth: `frontend/vite.config.ts`.
 | `markdown` | react-markdown + remark | Chatbot + trip concierge |
 | `photoreal` | `pages/Trips/photoreal/` except `available.ts` | Photoreal 3D view, opened from a Trips day menu. `tiles3d` loads behind it only when there is a tiles key |
 
+Not named in `codeSplitting`, but kept lazy on purpose: `GlassLayer` (`pages/Trips/glass/`, ≈ 16 kB / 7 kB gzip) holds the Liquid Glass look's refraction engine, light and WebGL2 wallpaper. `TripsLayout` loads it through `lazyRetry` only while the look is on, so the atlas never downloads it; no route entry module may import from `glass/` except `look.ts`, `LookToggle.tsx` and `glass.css`.
+
 Chunk size warning ceiling is 1100 kB (intentional — `maplibre` is the largest chunk at ≈ 1.07 MB; it and `three` are lazily loaded and cached by SW).
 
 ## The entry

@@ -455,8 +455,8 @@ describe("TripCreate", () => {
     fireEvent.click(dates())
     const calendar = within(screen.getByRole("dialog", { name: "Choose dates" }))
     fireEvent.click(calendar.getByRole("button", { name: "Friday, December 4, 2026" }))
-    fireEvent.click(calendar.getByRole("button", { name: "Later months" }))
-    fireEvent.click(calendar.getByRole("button", { name: "Later months" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Next month" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Next month" }))
     fireEvent.click(calendar.getByRole("button", { name: "Sunday, February 28, 2027" }))
 
     expect(screen.getByRole("alert")).toHaveTextContent("Trips can run up to 60 days. Shorten the range, or split it into two trips.")

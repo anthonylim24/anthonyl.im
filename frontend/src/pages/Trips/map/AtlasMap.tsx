@@ -54,13 +54,38 @@ export function useIsDark(): boolean {
   return dark
 }
 
+let webgl2: boolean | null = null
+
+/**
+ * Whether this browser can draw the map. Probed once: each probe creates a
+ * WebGL context (a few milliseconds, and a context the page holds until GC),
+ * and the answer cannot change while the page is open.
+ */
 export function canRenderMap(): boolean {
+  if (webgl2 !== null) return webgl2
   if (typeof window === "undefined" || typeof WebGL2RenderingContext === "undefined") return false
   try {
-    return Boolean(document.createElement("canvas").getContext("webgl2"))
+    const gl = document.createElement("canvas").getContext("webgl2")
+    webgl2 = Boolean(gl)
+    gl?.getExtension("WEBGL_lose_context")?.loseContext()
   } catch {
-    return false
+    webgl2 = false
   }
+  return webgl2
+}
+
+let engine: Promise<typeof import("./engine")> | null = null
+
+/**
+ * The MapLibre engine chunk, fetched once. Call it ahead of need (a phone
+ * warms it at idle) so the first map does not wait on the download.
+ */
+export function loadMapEngine(): Promise<typeof import("./engine")> {
+  engine ??= import("./engine").catch((error: unknown) => {
+    engine = null
+    throw error
+  })
+  return engine
 }
 
 export function AtlasMap({
@@ -113,7 +138,21 @@ export function AtlasMap({
     let cancelled = false
     let handle: AtlasMapHandle | null = null
     let observer: ResizeObserver | null = null
-    void import("./engine")
+    let raf = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    void loadMapEngine()
+      // The chunk's evaluation, the map's construction and MapLibre's first
+      // render each take a frame's worth of a phone's time. Building the map
+      // just after the next paint gives each its own frame, and lets the tap
+      // that showed the map paint first, instead of one long frame.
+      .then(
+        (mod) =>
+          new Promise<typeof mod>((resolve) => {
+            raf = requestAnimationFrame(() => {
+              timer = setTimeout(() => resolve(mod), 0)
+            })
+          }),
+      )
       .then(({ createAtlasMap }) => {
         if (cancelled) return
         const now = latest.current
@@ -142,7 +181,12 @@ export function AtlasMap({
         frame(false)
         framedRef.current = true
         if (ambient) handle.setSpin(true)
-        observer = new ResizeObserver(() => handle?.resize())
+        // A hidden map (a phone on the itinerary) has no size: nothing to
+        // redraw until it is shown again, which fires this once more.
+        observer = new ResizeObserver(([entry]) => {
+          if (entry && (entry.contentRect.width === 0 || entry.contentRect.height === 0)) return
+          handle?.resize()
+        })
         observer.observe(host)
       })
       .catch(() => {
@@ -150,6 +194,8 @@ export function AtlasMap({
       })
     return () => {
       cancelled = true
+      cancelAnimationFrame(raf)
+      clearTimeout(timer)
       observer?.disconnect()
       handle?.destroy()
       handleRef.current = null
@@ -193,7 +239,7 @@ export function AtlasMap({
       {status !== "ready" && !(ambient && status === "loading") && <StaticChart pins={pins} loading={status === "loading"} />}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
       {status === "ready" && !ambient && !bare && (
-        <div {...sx(s.controls)}>
+        <div {...sx(s.controls, "trips-glass-pill")}>
           <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>
             <Plus size={16} strokeWidth={1.75} aria-hidden />
           </button>

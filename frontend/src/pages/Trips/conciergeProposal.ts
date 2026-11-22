@@ -7,18 +7,31 @@ export { insertByTime }
 // Applying what the concierge proposed. Pure: every function returns new
 // arrays, so the caller can diff, save and undo.
 
+// One formatter each, built once: `toLocaleDateString` with options builds a
+// new Intl.DateTimeFormat per call, and every place card's day picker asks
+// for every day on each render (it was most of the main thread while a
+// reply streamed under a long conversation). Built on first use, not on
+// import: this module loads with the workspace, and the page's first date
+// format costs some 30 ms on a slow phone (the runtime loading its locale
+// data), which on import was a long task of its own.
+let short: Intl.DateTimeFormat | null = null
+let weekday: Intl.DateTimeFormat | null = null
+
+function formatDate(format: Intl.DateTimeFormat, iso: string): string {
+  const date = new Date(`${iso}T12:00:00Z`)
+  return Number.isNaN(date.getTime()) ? iso : format.format(date)
+}
+
 /** "Sat 14 Nov" for a day, from its calendar date (no timezone drift). */
 export function dayShort(day: Pick<TripDay, "date">): string {
-  const date = new Date(`${day.date}T12:00:00Z`)
-  if (Number.isNaN(date.getTime())) return day.date
-  return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+  short ??= new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+  return formatDate(short, day.date)
 }
 
 /** "Saturday" for a day. */
 export function dayWeekday(day: Pick<TripDay, "date">): string {
-  const date = new Date(`${day.date}T12:00:00Z`)
-  if (Number.isNaN(date.getTime())) return day.date
-  return date.toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" })
+  weekday ??= new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" })
+  return formatDate(weekday, day.date)
 }
 
 export function dayLabel(day: TripDay, index: number): string {

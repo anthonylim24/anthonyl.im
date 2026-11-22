@@ -128,7 +128,10 @@ export function clockRange(from: number, to: number, style: "card" | "lane" | "p
   const [timeA, halfA] = trim(a).split(" ")
   const [timeB, halfB] = trim(b).split(" ")
   if (bare) return `${timeA}–${timeB}`
-  return halfA === halfB ? `${timeA}–${timeB} ${halfB}` : `${timeA} ${halfA}–${timeB} ${halfB}`
+  // One AM or PM for both ends only inside one half of one day: a span that
+  // runs to midnight (9:30 AM–12:00 AM) or past it keeps both, or it reads backwards.
+  const sameHalf = halfA === halfB && Math.floor(from / (DAY / 2)) === Math.floor(to / (DAY / 2))
+  return sameHalf ? `${timeA}–${timeB} ${halfB}` : `${timeA} ${halfA}–${timeB} ${halfB}`
 }
 
 /** How long a stop with no end time probably takes. Booking type wins over the place's category. */

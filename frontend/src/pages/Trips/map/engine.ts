@@ -3,7 +3,7 @@ import type { FeatureCollection } from "geojson"
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { buildMapStyle } from "./mapStyle"
-import { centroid, distanceMeters, spanMeters, type AtlasPin, type LngLat } from "./geo"
+import { centroid, distanceMeters, spanMeters, spreadPins, type AtlasPin, type LngLat } from "./geo"
 
 // Imperative MapLibre wrapper. Lazy-imported by AtlasMap so the map library
 // stays out of the initial Trips chunk. Pins are DOM markers (real buttons:
@@ -57,6 +57,8 @@ export interface AtlasMapHandle {
 const ROUTE_SOURCE = "atlas-route"
 const DOTS_SOURCE = "atlas-dots"
 const GUARD_SOURCE = "atlas-guard"
+/** The ambient globe's spin step (see `spinStep`). */
+const SPIN_STEP_MS = 66
 
 interface PinEntry {
   pin: AtlasPin
@@ -143,6 +145,13 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     dragPan: !ambient || window.matchMedia?.("(pointer: fine)").matches !== false,
     dragRotate: !ambient,
     fadeDuration: reducedMotion ? 0 : 250,
+    // A 3x phone would draw 2.25 times the pixels of 2x for a difference
+    // nobody sees on a moving map with antialiased lines; past 2 it costs frames.
+    pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    // The host (AtlasMap) watches the container and calls `resize()`, which
+    // also re-frames; MapLibre's own observer would redraw a second time, and
+    // redraw a hidden map at a placeholder size.
+    trackResize: false,
     canvasContextAttributes: { antialias: true },
   })
 
@@ -307,15 +316,24 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
 
   // Trip chips sit to the right of their dot, or to the left once the dot is
   // on the right half of the globe, so a label never hangs off the sphere.
+  // Runs on every `move`, after MapLibre has written each marker's transform:
+  // reading the container's size here would force a style and layout pass
+  // per frame. The workspace maps have no chips at all, so they skip it.
+  let chips = 0
+  // Measured when the map is made and on each resize, where layout is already clean.
+  let mid = container.clientWidth / 2
+  map.on("resize", () => {
+    mid = container.clientWidth / 2
+  })
   const placeLabels = () => {
-    const mid = container.clientWidth / 2
+    if (chips === 0) return
+    const centre = map.getCenter()
     for (const entry of pins.values()) {
       if (entry.pin.variant !== "trip") continue
       const flip = map.project([entry.pin.lng, entry.pin.lat]).x > mid
       entry.el.classList.toggle("atlas-pin--flip", flip)
       entry.el.classList.toggle("atlas-pin--flip-keep", flip)
       // Near the limb a chip would hang off the sphere: keep just the dot.
-      const centre = map.getCenter()
       const away = distanceMeters({ lat: centre.lat, lng: centre.lng }, entry.pin)
       entry.el.classList.toggle("atlas-pin--far", ambient && away > 6_200_000)
       entry.el.classList.toggle("atlas-pin--edge", ambient && away > 8_600_000)
@@ -326,20 +344,17 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   // Stops that land on top of each other are nudged apart sideways so every
   // number stays readable (and clickable) at the current zoom.
   const declutter = () => {
-    const placed: Array<{ x: number; y: number }> = []
     const stops = [...pins.values()].filter((entry) => entry.pin.variant === "stop")
-    const projected = stops
-      .map((entry) => ({ entry, at: map.project([entry.pin.lng, entry.pin.lat]) }))
-      .sort((a, b) => a.at.x - b.at.x)
-    for (const { entry, at } of projected) {
-      let x = at.x
-      for (let pass = 0; pass < 6; pass++) {
-        const hit = placed.find((p) => Math.abs(p.x - x) < 30 && Math.abs(p.y - at.y) < 26)
-        if (!hit) break
-        x = hit.x + 30
-      }
-      placed.push({ x, y: at.y })
-      entry.marker.setOffset([Math.round(x - at.x), 0])
+    const offsets = spreadPins(
+      stops.map(({ pin }, i) => {
+        const at = map.project([pin.lng, pin.lat])
+        const rank = Number(pin.label)
+        return { id: pin.id, x: at.x, y: at.y, rank: Number.isFinite(rank) ? rank : i }
+      }),
+    )
+    for (const entry of stops) {
+      const dx = offsets.get(entry.pin.id) ?? 0
+      if (entry.marker.getOffset().x !== dx) entry.marker.setOffset([dx, 0])
     }
   }
   map.on("moveend", declutter)
@@ -369,8 +384,16 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   const spinStep = (now: number) => {
     spinFrame = 0
     if (destroyed || !spin) return
+    // One revolution every four minutes moves the globe's face about a third
+    // of a pixel in 66 ms. Redrawing the whole globe every frame for a tenth
+    // of a pixel kept the index's main thread busy for good, so the spin
+    // steps at ~15 fps: it still reads as a smooth turn.
+    if (lastSpin && now - lastSpin < SPIN_STEP_MS) {
+      spinFrame = requestAnimationFrame(spinStep)
+      return
+    }
     if (!userBusy && !map.isMoving() && document.visibilityState === "visible") {
-      const dt = lastSpin ? Math.min(now - lastSpin, 80) : 16
+      const dt = lastSpin ? Math.min(now - lastSpin, 120) : 16
       const center = map.getCenter()
       // One revolution every four minutes: readable, never dizzy.
       map.jumpTo({ center: [center.lng + (360 / 240_000) * dt, center.lat] })
@@ -437,6 +460,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         entry.marker.remove()
         pins.delete(id)
       }
+      chips = 0
+      for (const entry of pins.values()) if (entry.pin.variant === "trip") chips++
       placeLabels()
       declutter()
       ;(map.getSource(GUARD_SOURCE) as GeoJSONSource | undefined)?.setData(guardData())
@@ -609,6 +634,8 @@ export function renderStills(
   host.style.cssText = `position:fixed;left:-10000px;top:0;width:${STILL_W}px;height:${STILL_H}px;pointer-events:none;visibility:hidden`
   document.body.appendChild(host)
   let cancelled = false
+  /** The map is gone (drained or cancelled); pictures already taken still arrive unless cancelled. */
+  let finished = false
   const map = new MapLibre({
     container: host,
     // No basemap labels on covers: the card title names the place, and dots
@@ -621,9 +648,25 @@ export function renderStills(
     canvasContextAttributes: { antialias: true, preserveDrawingBuffer: true },
   })
   const finish = () => {
-    cancelled = true
+    finished = true
     map.remove()
     host.remove()
+  }
+  // toBlob copies the pixels at once and encodes off the main thread, where
+  // toDataURL encoded on it (about 15 ms a still: a dropped frame each).
+  const deliver = (key: string) => {
+    map.getCanvas().toBlob(
+      (blob) => {
+        if (!blob || cancelled) return
+        const reader = new FileReader()
+        reader.onload = () => {
+          if (!cancelled && typeof reader.result === "string") onStill(key, reader.result)
+        }
+        reader.readAsDataURL(blob)
+      },
+      "image/webp",
+      0.82,
+    )
   }
   const settled = () =>
     new Promise<void>((resolve) => {
@@ -739,15 +782,16 @@ export function renderStills(
         await settled()
         if (cancelled) return
         try {
-          onStill(request.key, map.getCanvas().toDataURL("image/webp", 0.82))
+          deliver(request.key)
         } catch {
           /* A tainted or lost canvas just leaves the chart cover in place. */
         }
       }
-      if (!cancelled) finish()
+      if (!finished) finish()
     })()
   })
   return () => {
-    if (!cancelled) finish()
+    cancelled = true
+    if (!finished) finish()
   }
 }

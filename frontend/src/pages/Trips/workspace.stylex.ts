@@ -866,10 +866,11 @@ export const ws = stylex.create({
     [HOVER]: { ":hover": { color: "var(--trips-ink)", backgroundColor: "var(--trips-sunken)" } },
   },
   // The mode's glyph, then the words; "Leave by" on a second line under the words.
+  // The glyph sits on the first line, not halfway down a leg that wraps.
   leg: {
     display: "grid",
     gridTemplateColumns: "auto minmax(0, 1fr)",
-    alignItems: "center",
+    alignItems: "start",
     columnGap: "0.375rem",
     margin: 0,
     paddingBlock: "0.125rem",
@@ -879,6 +880,7 @@ export const ws = stylex.create({
     letterSpacing: "0.03em",
     color: "var(--trips-ink-tertiary)",
   },
+  legGlyph: { display: "flex", alignItems: "center", height: "1rem" },
   legLeave: { gridColumn: 2, color: "var(--trips-ink-secondary)" },
   legWet: { display: "inline", verticalAlign: "-0.125rem" },
   // Today's finished stops, folded: in the cards' column, spaced like a card.

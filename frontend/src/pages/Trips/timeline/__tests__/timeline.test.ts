@@ -365,6 +365,15 @@ describe("clockRange", () => {
     expect(clockRange(11 * 60 + 30, 13 * 60)).toBe("11:30 AM–1:00 PM")
   })
 
+  it("keeps both halves on a span that runs to or past midnight", () => {
+    // A day done by midnight read "9:30–12:00 AM", which runs backwards.
+    expect(clockRange(9 * 60 + 30, 24 * 60)).toBe("9:30 AM–12:00 AM")
+    expect(clockRange(22 * 60, 25 * 60 + 30)).toBe("10:00 PM–1:30 AM")
+    expect(clockRange(1 * 60, 13 * 60 + 30)).toBe("1:00 AM–1:30 PM")
+    // Late at night after midnight, both in the small hours: still one half.
+    expect(clockRange(24 * 60 + 30, 25 * 60 + 30)).toBe("12:30–1:30 AM")
+  })
+
   it("keeps the minutes on a card, so a list of times lines up", () => {
     expect(clockRange(11 * 60, 12 * 60)).toBe("11:00 AM–12:00 PM")
   })

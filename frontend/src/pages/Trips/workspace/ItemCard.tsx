@@ -29,6 +29,7 @@ import type { LngLat } from "../map/geo"
 import { LIMITS } from "../limits"
 import { duplicateItem, moveItem, moveItemToDay, setItemTime, toggledStatus, unparkDay, updateItem } from "../tripEdits"
 import { Menu, type MenuItem } from "../components/kit"
+import { Presence } from "../components/presence"
 import { DayPicker } from "./DayPicker"
 import { composing } from "../ime"
 import { normalizeLink, stopLink, withLink } from "./stopLinks"
@@ -428,7 +429,7 @@ export const ItemCard = memo(function ItemCard({
           </div>
         )}
 
-        {picking && (
+        <Presence when={picking}>{() => (
           <DayPicker
             title={`Move ${name}`}
             description="It goes last on that day’s route."
@@ -436,7 +437,7 @@ export const ItemCard = memo(function ItemCard({
             onPick={moveTo}
             onClose={() => setPicking(false)}
           />
-        )}
+        )}</Presence>
 
         {open && (
           <div id={panelId} {...sx(s.editor)}>
