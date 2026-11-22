@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { useEffect } from "react"
 import { act, render } from "@testing-library/react"
 import { liveValue, useHolds, useLiveValue, type LiveValue } from "../workspace/liveValue"
 
@@ -47,5 +48,40 @@ describe("liveValue", () => {
     expect(view.queryByText("open")).toBeNull()
     act(() => fly.set(true))
     expect(view.getByText("open")).toBeInTheDocument()
+  })
+
+  it("reads a replacement source at once, and follows it", () => {
+    function Overlay({ source }: { source: LiveValue<boolean> }) {
+      return useLiveValue(source) ? <p>open</p> : null
+    }
+    const first = liveValue(true)
+    const view = render(<Overlay source={first} />)
+    expect(view.getByText("open")).toBeInTheDocument()
+    const next = liveValue(false)
+    view.rerender(<Overlay source={next} />)
+    expect(view.queryByText("open")).toBeNull()
+    act(() => first.set(false))
+    act(() => next.set(true))
+    expect(view.getByText("open")).toBeInTheDocument()
+  })
+
+  it("catches a write made before it subscribed", () => {
+    const hot = liveValue<string | null>(null)
+    function Card() {
+      const on = useHolds(hot, "a")
+      // A sibling's render runs before this card's effect subscribes.
+      return <span data-testid="a">{on ? "hot" : "cold"}</span>
+    }
+    function Writer() {
+      useEffect(() => hot.set("a"), [])
+      return null
+    }
+    const view = render(
+      <>
+        <Writer />
+        <Card />
+      </>,
+    )
+    expect(view.getByTestId("a")).toHaveTextContent("hot")
   })
 })
