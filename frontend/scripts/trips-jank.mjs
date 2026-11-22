@@ -595,6 +595,72 @@ const SCENARIOS = {
       await page.waitForTimeout(3000)
     },
   },
+  // Typing in a stop's editor on the day page. A stop's edits save as they
+  // are typed, so every write to the API is refused here: nothing reaches
+  // the target, and the context closes before a retry.
+  "stop-edit-typing": {
+    device: DESKTOP,
+    async run(page, url, ids) {
+      await page.route("**/api/trips/**", (route) => (route.request().method() === "GET" ? route.continue() : route.abort()))
+      await page.goto(`${url}/trips/${ids.japan}/day/day-1`)
+      await ready(page)
+      await page.waitForTimeout(2500)
+      await page.locator("li [data-card-row]").first().click()
+      const field = page.getByPlaceholder("Name this stop").first()
+      await field.click()
+      await page.keyboard.press("End")
+      await page.waitForTimeout(400)
+      await rec(page, true)
+      await page.keyboard.type(" and the long walk back up", { delay: 40 })
+      await page.waitForTimeout(600)
+      await rec(page, false)
+      await page.keyboard.press("Escape")
+    },
+  },
+  // The pointer down the day's cards, then across its pins: each card and
+  // pin it crosses lights the other.
+  "day-hover": {
+    device: DESKTOP,
+    async run(page, url, ids) {
+      await page.goto(`${url}/trips/${ids.japan}/day/day-2`)
+      await ready(page)
+      await page.waitForTimeout(3000)
+      const boxes = async (selector) => {
+        const all = page.locator(selector)
+        return (await Promise.all(Array.from({ length: await all.count() }, (_, i) => all.nth(i).boundingBox()))).filter(Boolean)
+      }
+      const cards = await boxes("li .trips-card")
+      const pins = await boxes(".atlas-pin")
+      await rec(page, true)
+      for (const box of [...cards, ...pins]) {
+        await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 14), { steps: 4 })
+        await page.waitForTimeout(80)
+      }
+      await page.mouse.move(4, 4)
+      await page.waitForTimeout(300)
+    },
+  },
+  // Opening and closing the 3D view, twice, after a first open has loaded
+  // its code. Dev builds only, like fly-open.
+  "fly-toggle": {
+    device: DESKTOP,
+    async run(page, url, ids) {
+      await page.goto(`${url}/trips/${ids.japan}/day/day-2`)
+      await ready(page)
+      await page.waitForTimeout(2500)
+      await openFly(page)
+      await flyReady(page)
+      await closeFly(page)
+      await page.waitForTimeout(800)
+      await rec(page, true)
+      for (let i = 0; i < 2; i++) {
+        await openFly(page)
+        await page.waitForTimeout(400)
+        await closeFly(page)
+        await page.waitForTimeout(400)
+      }
+    },
+  },
 }
 
 function measure(j) {

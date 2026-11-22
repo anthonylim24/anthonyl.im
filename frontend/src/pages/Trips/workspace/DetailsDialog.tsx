@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { memo, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from "react"
 import { sx } from "@/styles/merge"
 import { exactCity, placeKey } from "../cityMatch"
 import { validZone } from "../dayClock"
@@ -40,11 +40,36 @@ const STATUS_COPY: Record<TripStatus, string> = {
 /** A geocoder that has not answered by then counts as "not found": Save must not wait on it for long. */
 const LOOKUP_MS = 4000
 
-function timezones(...current: string[]): string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] }
-  const supported = intl.supportedValuesOf?.("timeZone") ?? []
-  const extra = [...new Set(current)].filter((zone) => !supported.includes(zone))
-  return [...extra, ...supported]
+const zoneOption = (zone: string) => (
+  <option key={zone} value={zone}>
+    {zone.replace(/_/g, " ")}
+  </option>
+)
+
+let supportedZones: { known: ReadonlySet<string>; options: ReactElement[] } | null = null
+
+/**
+ * Every zone the runtime knows, as `<option>`s: some 420 of them, so built
+ * once, on the first open, and the same elements handed back after that.
+ */
+function supportedZoneOptions() {
+  if (!supportedZones) {
+    const intl = Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] }
+    const zones = intl.supportedValuesOf?.("timeZone") ?? []
+    supportedZones = { known: new Set(zones), options: zones.map(zoneOption) }
+  }
+  return supportedZones
+}
+
+/** The zone select's options: `current` zones the runtime doesn't list first, then every zone it does. */
+function ZoneOptions({ current }: { current: string[] }) {
+  const { known, options } = supportedZoneOptions()
+  return (
+    <>
+      {[...new Set(current)].filter((zone) => !known.has(zone)).map(zoneOption)}
+      {options}
+    </>
+  )
 }
 
 /** The editable fields, as the dialog shows them. */
@@ -145,7 +170,7 @@ function Choices<T extends string>({
   )
 }
 
-export function DetailsDialog({
+function DetailsDialogView({
   trip,
   open,
   onClose,
@@ -163,6 +188,17 @@ export function DetailsDialog({
 }) {
   const [session, setSession] = useState(() => startSession(trip))
   const formId = useId()
+
+  // The zone list is built while the page is idle, not in the click that opens the dialog.
+  useEffect(() => {
+    if (supportedZones) return
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => supportedZoneOptions(), { timeout: 5000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const timer = setTimeout(supportedZoneOptions, 2000)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Re-seed only when the dialog opens; live saves must not clobber typing.
   const [wasOpen, setWasOpen] = useState(open)
@@ -204,7 +240,6 @@ export function DetailsDialog({
   const firstCity = known ?? null
   const cityZone = validZone(firstCity?.timezone)
   const timezone = session.zonePicked ?? cityZone ?? base.timezone
-  const zones = useMemo(() => timezones(timezone, base.timezone), [timezone, base.timezone])
 
   // ── When: new dates, and what happens to the plans on them ──
   const badRange = form.endDate < form.startDate
@@ -295,189 +330,196 @@ export function DetailsDialog({
         </>
       }
     >
-      <form
-        id={formId}
-        {...sx(a.stack)}
-        style={{ gap: "1.125rem" }}
-        onSubmit={(event) => {
-          event.preventDefault()
-          save()
-        }}
-        onKeyDown={(event) => {
-          // Enter that confirms an IME composition must not save the dialog.
-          if (event.key === "Enter" && composing(event)) event.preventDefault()
-        }}
-      >
-        <label>
-          <span {...sx(a.label)}>Name</span>
-          <input
-            value={form.name}
-            maxLength={LIMITS.tripName}
-            required
-            {...sx(a.field)}
-            onChange={(event) => setForm({ name: event.target.value })}
-          />
-        </label>
-        <div>
-          <label htmlFor={`${formId}-where`} {...sx(a.label)}>
-            Where
-          </label>
-          <CityField
-            id={`${formId}-where`}
-            values={form.destinations}
-            invalid={form.destinations.length === 0}
-            onAdd={(name, city) =>
-              setSession((current) => ({
-                ...current,
-                form: { ...current.form, destinations: [...current.form.destinations, name] },
-                cities: city ? { ...current.cities, [placeKey(name)]: city } : current.cities,
-              }))
-            }
-            onRemove={(index) => setForm({ destinations: form.destinations.filter((_, i) => i !== index) })}
-          />
-          {form.destinations.length === 0 && <p {...sx(a.errorText)}>Add at least one place.</p>}
-          {/* Mounted while the dialog is, so the change is announced. */}
-          <p {...sx(whereNote ? a.hint : a.srOnly)} role="status">
-            {whereNote}
-          </p>
-        </div>
-        <div>
-          <span {...sx(a.label)}>Dates</span>
-          <DateRange
-            start={form.startDate}
-            end={form.endDate}
-            invalid={tooLong}
-            onChange={(startDate, endDate) => setForm({ startDate, endDate })}
-          />
-          {badRange ? (
-            <p {...sx(a.errorText)} role="alert">
-              The last day is before the first. Pick a later date.
-            </p>
-          ) : tooLong ? (
-            <p {...sx(a.errorText)} role="alert">
-              Trips can run up to {LIMITS.days} days. Shorten the range, or split it into two trips.
-            </p>
-          ) : (
-            <p {...sx(a.hint)}>{plural(nextCount, "day")}.</p>
-          )}
-          {choosing && (
-            <Choices
-              label="What happens to your plans"
-              value={session.plan}
-              onChange={(next) => setSession((current) => ({ ...current, plan: next }))}
-              options={[
-                {
-                  value: "shift",
-                  title: "Move my plans with the dates",
-                  hint: `Day 1 moves to ${dayLabel(form.startDate)}, and every stop and booking moves with its day.`,
-                },
-                {
-                  value: "keep",
-                  title: "Keep plans on their dates",
-                  hint:
-                    keepDrops > 0
-                      ? `Stops stay on the days they’re on. ${plural(keepDrops, "day")} with plans fall outside the new dates.`
-                      : "Stops stay on the days they’re on; the new days start empty.",
-                },
-              ]}
-            />
-          )}
-          {waiting && <p {...sx(a.hint)}>Choose what happens to your plans to save the new dates.</p>}
-          {lostDays.length > 0 && (
-            <div {...sx(d.outside)} role="group" aria-labelledby={`${formId}-lost`}>
-              <p id={`${formId}-lost`} {...sx(a.body, a.ink)} style={{ margin: 0, fontWeight: 600 }}>
-                {lostDays.length === 1 ? "This day falls" : `These ${lostDays.length} days fall`} outside the new dates
-              </p>
-              <ul {...sx(d.lostList)}>
-                {lostDays.map((day) => {
-                  const stops = dayStops(day).length
-                  const number = trip.days.indexOf(day) + 1
-                  return (
-                    <li key={day.id} {...sx(d.lostDay)}>
-                      <span>{[`Day ${number}`, dayLabel(day.date), day.title?.trim()].filter(Boolean).join(" · ")}</span>
-                      <span {...sx(d.lostCount)}>{stops > 0 ? plural(stops, "stop") : "No stops"}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-              {lostStops > 0 && (
-                <Choices
-                  label="Their stops"
-                  value={outside}
-                  onChange={(next) => setSession((current) => ({ ...current, outside: next }))}
-                  options={[
-                    {
-                      value: "ideas",
-                      title: `Save ${lostStops === 1 ? "its stop" : `their ${plural(lostStops, "stop")}`} to the wishlist`,
-                      hint: ideasFit
-                        ? "They wait on the trip’s wishlist until you put them on a day."
-                        : `The wishlist holds ${LIMITS.ideas} places and doesn’t have room for these.`,
-                      disabled: !ideasFit,
-                    },
-                    { value: "delete", title: lostStops === 1 ? "Remove it" : "Remove them", hint: "You can undo this right after saving." },
-                  ]}
-                />
-              )}
-              {lostWords && <p {...sx(d.note)}>Day notes and journal entries on {lostDays.length === 1 ? "this day" : "these days"} go with them.</p>}
-            </div>
-          )}
-        </div>
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend {...sx(a.label)}>Colour</legend>
-          <div {...sx(s.swatches)} role="radiogroup" aria-label="Trip colour">
-            {TRIP_ACCENTS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={accent === option}
-                aria-label={ACCENT_LABEL[option]}
-                title={ACCENT_LABEL[option]}
-                data-trip-accent={option}
-                {...sx(s.swatch, accent === option && s.swatchOn)}
-                onClick={() => setForm({ accent: option })}
-              />
-            ))}
-          </div>
-        </fieldset>
-        <label>
-          <span {...sx(a.label)}>About this trip</span>
-          <textarea
-            rows={2}
-            maxLength={LIMITS.description}
-            value={form.description}
-            placeholder="Who’s going, what it’s for, anything worth remembering"
-            {...sx(a.field, a.textarea)}
-            onChange={(event) => setForm({ description: event.target.value })}
-          />
-        </label>
-        <div {...sx(s.twoCol)}>
+      {open && (
+        <form
+          id={formId}
+          {...sx(a.stack)}
+          style={{ gap: "1.125rem" }}
+          onSubmit={(event) => {
+            event.preventDefault()
+            save()
+          }}
+          onKeyDown={(event) => {
+            // Enter that confirms an IME composition must not save the dialog.
+            if (event.key === "Enter" && composing(event)) event.preventDefault()
+          }}
+        >
           <label>
-            <span {...sx(a.label)}>Status</span>
-            <select value={form.status} {...sx(a.field)} onChange={(event) => setForm({ status: event.target.value as TripStatus })}>
-              {(Object.keys(STATUS_COPY) as TripStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_COPY[status]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span {...sx(a.label)}>Time zone</span>
-            <select
-              value={timezone}
+            <span {...sx(a.label)}>Name</span>
+            <input
+              value={form.name}
+              maxLength={LIMITS.tripName}
+              required
               {...sx(a.field)}
-              onChange={(event) => setSession((current) => ({ ...current, zonePicked: event.target.value }))}
-            >
-              {zones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+              onChange={(event) => setForm({ name: event.target.value })}
+            />
           </label>
-        </div>
-      </form>
+          <div>
+            <label htmlFor={`${formId}-where`} {...sx(a.label)}>
+              Where
+            </label>
+            <CityField
+              id={`${formId}-where`}
+              values={form.destinations}
+              invalid={form.destinations.length === 0}
+              onAdd={(name, city) =>
+                setSession((current) => ({
+                  ...current,
+                  form: { ...current.form, destinations: [...current.form.destinations, name] },
+                  cities: city ? { ...current.cities, [placeKey(name)]: city } : current.cities,
+                }))
+              }
+              onRemove={(index) => setForm({ destinations: form.destinations.filter((_, i) => i !== index) })}
+            />
+            {form.destinations.length === 0 && <p {...sx(a.errorText)}>Add at least one place.</p>}
+            {/* Mounted while the dialog is, so the change is announced. */}
+            <p {...sx(whereNote ? a.hint : a.srOnly)} role="status">
+              {whereNote}
+            </p>
+          </div>
+          <div>
+            <span {...sx(a.label)}>Dates</span>
+            <DateRange
+              start={form.startDate}
+              end={form.endDate}
+              invalid={tooLong}
+              onChange={(startDate, endDate) => setForm({ startDate, endDate })}
+            />
+            {badRange ? (
+              <p {...sx(a.errorText)} role="alert">
+                The last day is before the first. Pick a later date.
+              </p>
+            ) : tooLong ? (
+              <p {...sx(a.errorText)} role="alert">
+                Trips can run up to {LIMITS.days} days. Shorten the range, or split it into two trips.
+              </p>
+            ) : (
+              <p {...sx(a.hint)}>{plural(nextCount, "day")}.</p>
+            )}
+            {choosing && (
+              <Choices
+                label="What happens to your plans"
+                value={session.plan}
+                onChange={(next) => setSession((current) => ({ ...current, plan: next }))}
+                options={[
+                  {
+                    value: "shift",
+                    title: "Move my plans with the dates",
+                    hint: `Day 1 moves to ${dayLabel(form.startDate)}, and every stop and booking moves with its day.`,
+                  },
+                  {
+                    value: "keep",
+                    title: "Keep plans on their dates",
+                    hint:
+                      keepDrops > 0
+                        ? `Stops stay on the days they’re on. ${plural(keepDrops, "day")} with plans fall outside the new dates.`
+                        : "Stops stay on the days they’re on; the new days start empty.",
+                  },
+                ]}
+              />
+            )}
+            {waiting && <p {...sx(a.hint)}>Choose what happens to your plans to save the new dates.</p>}
+            {lostDays.length > 0 && (
+              <div {...sx(d.outside)} role="group" aria-labelledby={`${formId}-lost`}>
+                <p id={`${formId}-lost`} {...sx(a.body, a.ink)} style={{ margin: 0, fontWeight: 600 }}>
+                  {lostDays.length === 1 ? "This day falls" : `These ${lostDays.length} days fall`} outside the new dates
+                </p>
+                <ul {...sx(d.lostList)}>
+                  {lostDays.map((day) => {
+                    const stops = dayStops(day).length
+                    const number = trip.days.indexOf(day) + 1
+                    return (
+                      <li key={day.id} {...sx(d.lostDay)}>
+                        <span>{[`Day ${number}`, dayLabel(day.date), day.title?.trim()].filter(Boolean).join(" · ")}</span>
+                        <span {...sx(d.lostCount)}>{stops > 0 ? plural(stops, "stop") : "No stops"}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {lostStops > 0 && (
+                  <Choices
+                    label="Their stops"
+                    value={outside}
+                    onChange={(next) => setSession((current) => ({ ...current, outside: next }))}
+                    options={[
+                      {
+                        value: "ideas",
+                        title: `Save ${lostStops === 1 ? "its stop" : `their ${plural(lostStops, "stop")}`} to the wishlist`,
+                        hint: ideasFit
+                          ? "They wait on the trip’s wishlist until you put them on a day."
+                          : `The wishlist holds ${LIMITS.ideas} places and doesn’t have room for these.`,
+                        disabled: !ideasFit,
+                      },
+                      { value: "delete", title: lostStops === 1 ? "Remove it" : "Remove them", hint: "You can undo this right after saving." },
+                    ]}
+                  />
+                )}
+                {lostWords && <p {...sx(d.note)}>Day notes and journal entries on {lostDays.length === 1 ? "this day" : "these days"} go with them.</p>}
+              </div>
+            )}
+          </div>
+          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend {...sx(a.label)}>Colour</legend>
+            <div {...sx(s.swatches)} role="radiogroup" aria-label="Trip colour">
+              {TRIP_ACCENTS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={accent === option}
+                  aria-label={ACCENT_LABEL[option]}
+                  title={ACCENT_LABEL[option]}
+                  data-trip-accent={option}
+                  {...sx(s.swatch, accent === option && s.swatchOn)}
+                  onClick={() => setForm({ accent: option })}
+                />
+              ))}
+            </div>
+          </fieldset>
+          <label>
+            <span {...sx(a.label)}>About this trip</span>
+            <textarea
+              rows={2}
+              maxLength={LIMITS.description}
+              value={form.description}
+              placeholder="Who’s going, what it’s for, anything worth remembering"
+              {...sx(a.field, a.textarea)}
+              onChange={(event) => setForm({ description: event.target.value })}
+            />
+          </label>
+          <div {...sx(s.twoCol)}>
+            <label>
+              <span {...sx(a.label)}>Status</span>
+              <select value={form.status} {...sx(a.field)} onChange={(event) => setForm({ status: event.target.value as TripStatus })}>
+                {(Object.keys(STATUS_COPY) as TripStatus[]).map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_COPY[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span {...sx(a.label)}>Time zone</span>
+              <select
+                value={timezone}
+                {...sx(a.field)}
+                onChange={(event) => setSession((current) => ({ ...current, zonePicked: event.target.value }))}
+              >
+                <ZoneOptions current={[timezone, base.timezone]} />
+              </select>
+            </label>
+          </div>
+        </form>
+      )}
     </Modal>
   )
 }
+
+/**
+ * Closed, the dialog draws nothing, and its next open starts again from the
+ * trip as it is then. So it skips renders while it stays closed: the
+ * workspace renders it on every keystroke. Its last open render stays on
+ * screen while it animates out (the kit Modal freezes it), so the closed
+ * render leaves the form out.
+ */
+export const DetailsDialog = memo(DetailsDialogView, (prev, next) => !prev.open && !next.open)

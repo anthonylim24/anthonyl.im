@@ -67,6 +67,22 @@ export interface DayList {
 
 const isStop = (item: ItineraryItem) => item.kind !== "section" && item.kind !== "note"
 
+const lastList = new WeakMap<TripDay, { now: number | null; list: DayList }>()
+
+/**
+ * `dayList`, the same object again while neither the day nor the clock has
+ * changed: the day page renders on every hover and keystroke elsewhere, and
+ * the cards' conflict memo keys on it. (The page can't `useMemo` it: the
+ * compiler lint can't see that the clock is a number.)
+ */
+export function sameDayList(day: TripDay, now: number | null): DayList {
+  const last = lastList.get(day)
+  if (last && last.now === now) return last.list
+  const list = dayList(day, now)
+  lastList.set(day, { now, list })
+  return list
+}
+
 /**
  * `now` is minutes on the day's own clock, and only while the day is under
  * way (`dayNow` in `live/liveTrip.ts`): past 1440 in the small hours after it.

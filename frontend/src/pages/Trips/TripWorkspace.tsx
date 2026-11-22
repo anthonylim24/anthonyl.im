@@ -1,5 +1,5 @@
 import { applyDetailsPatch, detailsUndo } from "./workspace/tripDetails"
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   BookOpen,
@@ -25,7 +25,8 @@ import { externalMapsLink } from "@/lib/externalMaps"
 import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
-import { AtlasMap, canRenderMap, loadMapEngine } from "./map/AtlasMap"
+import { AtlasMap, canRenderMap, loadMapEngine, type AtlasMapProps } from "./map/AtlasMap"
+import { liveValue, useLiveValue, type LiveValue } from "./workspace/liveValue"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
@@ -207,7 +208,8 @@ function Workspace() {
   }, [idle, wide])
   const [view, setView] = useState<"list" | "map">("list")
   const [dialog, setDialog] = useState<Dialog>(null)
-  const [hotId, setHotId] = useState<string | null>(null)
+  /** The stop or day under the pointer, in the list or on the map. Read by the cards and pins it names, not by this page. */
+  const [hot, setHot] = useState(() => liveValue<string | null>(null))
   const [activeId, setActiveId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
   /** Below 1024px the place card spans the foot of the map: a stop flown to lands above it. */
@@ -227,7 +229,8 @@ function Workspace() {
   }, [])
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set())
   const [busy, setBusy] = useState<string | null>(null)
-  const [photoreal, setPhotoreal] = useState(false)
+  /** The 3D view is open. Opening and closing it redraws only the overlay, not the itinerary under it. */
+  const [fly, setFly] = useState(() => liveValue(false))
   /** An overlay failed to open. `stale`: its code is gone because a newer build is live. */
   const [overlayProblem, setOverlayProblem] = useState<{ text: string; stale: boolean } | null>(null)
   /** "Edit stop" from the map; `n` changes on every request so the same stop can be asked for twice. */
@@ -330,7 +333,7 @@ function Workspace() {
   const [shownDayId, setShownDayId] = useState(dayId)
   if (shownDayId !== dayId) {
     setShownDayId(dayId)
-    setPhotoreal(false)
+    setFly(liveValue(false))
     setEdit(null)
     if (dialog === "clear" || (typeof dialog === "object" && dialog !== null && dialog.ai === "day")) setDialog(null)
   }
@@ -347,7 +350,7 @@ function Workspace() {
     setSeenViewKey(viewKey)
     setActiveId(null)
     setFocusId(null)
-    setHotId(null)
+    setHot(liveValue<string | null>(null))
   }
   useEffect(() => {
     if (wide) paneRef.current?.scrollTo({ top: 0 })
@@ -914,7 +917,7 @@ function Workspace() {
             run={editor.activeRun && editor.activeRun.scope === "day" && editor.activeRun.dayId === day.id ? editor.activeRun : null}
             dayOptions={editor.dayOptions}
             recentIds={editor.recentIds}
-            hotId={hotId}
+            hot={hot}
             activeId={activeId}
             edit={edit}
             near={near}
@@ -922,14 +925,13 @@ function Workspace() {
             onEditTrip={editor.edit}
             onDelete={editor.deleteItem}
             onAdded={onAdded}
-            onHover={setHotId}
             onLocate={locate}
             onAskAi={(prompt) => setDialog({ ai: "day", prompt })}
             onClear={() => setDialog("clear")}
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
             onStopAi={editor.stopAi}
-            onPhotoreal={photorealReady ? () => setPhotoreal(true) : undefined}
+            onPhotoreal={photorealReady ? () => fly.set(true) : undefined}
             onInstagram={openInstagram}
             sky={daySky(day, forecast)}
             holidays={holidays.get(day.id)}
@@ -954,7 +956,7 @@ function Workspace() {
                   run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
                   dayOptions={editor.dayOptions}
                   onDraft={(brief) => void draft(brief)}
-                  onHoverDay={(id) => setHotId(id ? `${DAY_PIN}${id}` : null)}
+                  onHoverDay={(id) => hot.set(id ? `${DAY_PIN}${id}` : null)}
                   onApplyRun={editor.applyActiveRun}
                   onDismissRun={editor.dismissRun}
                   onStopAi={editor.stopAi}
@@ -1067,7 +1069,8 @@ function Workspace() {
 
       {(wide || mapOpened) && (
         <div {...sx(s.mapPane, "trips-glass-map")} hidden={!showMap}>
-          <AtlasMap
+          <HotMap
+            hot={hot}
             pins={pins}
             routes={routes}
             frameKey={frameKey}
@@ -1077,7 +1080,6 @@ function Workspace() {
             maxZoom={focusPin ? 16.2 : undefined}
             padding={mapPadding}
             activeId={activeId}
-            hotId={hotId}
             dots={dots}
             onSelect={(id) => {
               if (id.startsWith(DAY_PIN)) {
@@ -1087,7 +1089,6 @@ function Workspace() {
               setActiveId(id)
               setFocusId(null)
             }}
-            onHover={setHotId}
             label={
               day
                 ? `Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`
@@ -1106,7 +1107,7 @@ function Workspace() {
               </span>
             </p>
             {day && photorealReady && pins.length > 0 && (
-              <button type="button" {...sx(s.flyBtn)} onClick={() => setPhotoreal(true)} title="Fly through this day in photoreal 3D">
+              <button type="button" {...sx(s.flyBtn)} onClick={() => fly.set(true)} title="Fly through this day in photoreal 3D">
                 <Orbit size={15} strokeWidth={1.75} aria-hidden />
                 Fly in 3D
               </button>
@@ -1179,7 +1180,7 @@ function Workspace() {
                 </div>
               </aside>
             )}
-          </AtlasMap>
+          </HotMap>
         </div>
       )}
 
@@ -1341,31 +1342,43 @@ function Workspace() {
         {null}
       </Modal>
 
-      {photoreal && day && (
-        <OverlayBoundary onError={overlayFailed("The 3D view", () => setPhotoreal(false))}>
-        <Suspense fallback={null}>
-          <PhotorealOverlay
-            key={day.id}
-            trip={trip}
-            day={day}
-            dayNumber={dayIndex + 1}
-            initialStopId={activeId ?? undefined}
-            onClose={() => setPhotoreal(false)}
-            onEditStop={
-              editable
-                ? (itemId) => {
-                    setPhotoreal(false)
-                    requestEdit(itemId)
-                    setView("list")
-                  }
-                : undefined
-            }
-          />
-        </Suspense>
-        </OverlayBoundary>
+      {day && (
+        <WhenOn value={fly}>
+          <OverlayBoundary onError={overlayFailed("The 3D view", () => fly.set(false))}>
+            <Suspense fallback={null}>
+              <PhotorealOverlay
+                key={day.id}
+                trip={trip}
+                day={day}
+                dayNumber={dayIndex + 1}
+                initialStopId={activeId ?? undefined}
+                onClose={() => fly.set(false)}
+                onEditStop={
+                  editable
+                    ? (itemId) => {
+                        fly.set(false)
+                        requestEdit(itemId)
+                        setView("list")
+                      }
+                    : undefined
+                }
+              />
+            </Suspense>
+          </OverlayBoundary>
+        </WhenOn>
       )}
     </div>
   )
+}
+
+/** The map reads the hovered stop itself: a hover lights a pin without redrawing the page. */
+function HotMap({ hot, ...props }: Omit<AtlasMapProps, "hotId" | "onHover"> & { hot: LiveValue<string | null> }) {
+  return <AtlasMap {...props} hotId={useLiveValue(hot)} onHover={hot.set} />
+}
+
+/** `children` while `value` is on. Mounted and unmounted here, so the page that holds it doesn't redraw. */
+function WhenOn({ value, children }: { value: LiveValue<boolean>; children: ReactNode }) {
+  return useLiveValue(value) ? children : null
 }
 
 /** The count of unticked things beside Checklist, read as "3 left". */

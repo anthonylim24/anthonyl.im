@@ -12,6 +12,7 @@ import type { ItineraryItem, Trip, TripDay } from "../types"
 import { AddStop } from "../workspace/AddStop"
 import { DayPanel } from "../workspace/DayPanel"
 import { DayRail } from "../workspace/DayRail"
+import { liveValue } from "../workspace/liveValue"
 import { makeItem, makeTrip } from "./tripFixtures"
 
 afterEach(() => vi.clearAllMocks())
@@ -68,7 +69,7 @@ function renderDay(trip: Trip, dayId: string, { editable = true, locked = false,
         run={null}
         dayOptions={doc.days.map((d, i) => ({ id: d.id, label: `Day ${i + 1} · ${d.date}` }))}
         recentIds={new Set()}
-        hotId={null}
+        hot={liveValue<string | null>(null)}
         activeId={null}
         edit={null}
         near={null}
@@ -76,7 +77,6 @@ function renderDay(trip: Trip, dayId: string, { editable = true, locked = false,
         onEditTrip={wholeTrip ? (fn, mark) => commit(fn(state.trip), mark) : undefined}
         onDelete={noop}
         onAdded={noop}
-        onHover={noop}
         onLocate={noop}
         onAskAi={noop}
         onClear={noop}
