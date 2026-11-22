@@ -145,7 +145,7 @@ function LegRow({ leg, wet }: { leg: Leg; wet: number | null }) {
         <span {...sx(s.gutterLine)} />
       </div>
       <p {...sx(s.leg)}>
-        {leg.mode === "overlap" ? <TimerOff size={12} strokeWidth={2} aria-hidden /> : <ModeIcon mode={leg.mode} />}
+        <span {...sx(s.legGlyph)}>{leg.mode === "overlap" ? <TimerOff size={12} strokeWidth={2} aria-hidden /> : <ModeIcon mode={leg.mode} />}</span>
         <span>
           <Parts
             parts={[
