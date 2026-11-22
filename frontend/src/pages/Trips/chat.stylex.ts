@@ -91,7 +91,12 @@ export const c = stylex.create({
     height: "min(86dvh, 40rem)",
     [DESKTOP]: {
       bottom: "1.125rem",
-      height: "min(40rem, calc(100dvh - 2.25rem))",
+      // Its top stays below the map's control stack (zoom, tilt, fit all) in
+      // the top right corner, which ends ~15rem down the viewport: header
+      // 3.5rem, map and control insets 1.5rem, the stack ~10rem. 17rem is
+      // that, a gap and this panel's own 1.125rem off the bottom. Short
+      // windows keep 22rem of panel and let it overlap.
+      height: "min(40rem, max(22rem, calc(100dvh - 17rem)))",
       width: "min(26rem, calc(100vw - 2.25rem))",
     },
   },
@@ -142,6 +147,10 @@ export const c = stylex.create({
     display: "flex",
     flexDirection: "column",
     gap: "1.25rem",
+    // Text scrolling under the composer fades out instead of being sliced.
+    // A mask, not a painted gradient, so it works on paper and on glass. The
+    // fade is the bottom padding's height: at rest nothing readable is in it.
+    maskImage: "linear-gradient(to bottom, #000 calc(100% - 1.25rem), transparent)",
   },
   // Empty state: set like a page of the atlas, not a centred mascot.
   empty: {
