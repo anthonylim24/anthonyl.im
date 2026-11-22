@@ -54,21 +54,14 @@ export const c = stylex.create({
   fabHidden: { pointerEvents: "none", opacity: 0 },
 
   // ── Scrim ─────────────────────────────────────────────
+  // Only behind a modal panel (phone sheet, expanded). A tint, never a blur:
+  // blurring the whole page every frame of the fade cost frames on phones,
+  // and under a glass panel it would be glass over glass.
   scrim: {
     position: "fixed",
     inset: 0,
     zIndex: 55,
     backgroundColor: "var(--trips-scrim)",
-    backdropFilter: "blur(3px)",
-    [REDUCE]: { backdropFilter: "none" },
-  },
-  // Docked on desktop the panel floats beside the page: no scrim, no lock.
-  scrimDocked: {
-    [DESKTOP]: {
-      pointerEvents: "none",
-      backgroundColor: "transparent",
-      backdropFilter: "none",
-    },
   },
 
   // ── Panel ─────────────────────────────────────────────

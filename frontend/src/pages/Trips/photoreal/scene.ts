@@ -138,6 +138,8 @@ interface Pin {
   sy: number
   depth: number
   shown: boolean
+  /** What the button's inline style says now: written only when it changes. */
+  styled: { visible: boolean; z: number; transform: string }
 }
 
 interface Flight {
@@ -164,6 +166,8 @@ const VEIL_RANGE_M = 1400
 const ORBIT_RATE = 1.5 * DEG
 const ORBIT_SECONDS = 48
 const PIN_GAP_PX = 34
+/** Never hold the arrival longer than this for shaders; a slow driver compiles on first draw instead. */
+const WARM_MAX_MS = 2500
 
 function css(el: HTMLElement, name: string, fallback: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim() || fallback
@@ -267,6 +271,10 @@ export class PhotorealScene {
       stencil: false,
     })
     this.renderer.setPixelRatio(this.quality.dpr)
+    // Reading a program's info log waits for the GPU to finish compiling it,
+    // which undoes the parallel compile in `start`. Errors only matter while
+    // the shaders are being written.
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV
     this.renderer.toneMapping = NoToneMapping
     this.renderer.outputColorSpace = SRGBColorSpace
     this.renderer.transmissionResolutionScale = 0.4
@@ -396,6 +404,8 @@ export class PhotorealScene {
     this.scene.add(ground.group)
     this.applySun()
     this.setStops(stops)
+    await this.warmShaders()
+    if (this.disposed) return
 
     const first = this.opts.initialStopId && this.pins.some((p) => p.stop.id === this.opts.initialStopId) ? this.opts.initialStopId : null
     this.selectedId = first
@@ -407,6 +417,24 @@ export class PhotorealScene {
     this.applyPose(pose)
     this.arrival = { pose, deadline: performance.now() + ARRIVAL_DEADLINE_MS, contentAt: 0 }
     this.invalidate()
+  }
+
+  /** Compile every program the view will draw with before its first frame,
+   *  in parallel off the main thread (KHR_parallel_shader_compile). Drawn
+   *  cold, the first frame stalled on the compiles; the route's legs, built
+   *  only once their stops stand on the ground, stalled a later frame in the
+   *  middle of the arrival flight. A stand-in leg warms their program. */
+  private async warmShaders() {
+    const geo = new LineGeometry()
+    geo.setPositions([0, 0, 0, 1, 0, 0])
+    const leg = new Line2(geo, this.lineMats.main)
+    this.routeGroup.add(leg)
+    try {
+      await Promise.race([this.renderer.compileAsync(this.scene, this.camera), new Promise((resolve) => setTimeout(resolve, WARM_MAX_MS))])
+    } finally {
+      this.routeGroup.remove(leg)
+      geo.dispose()
+    }
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -460,6 +488,7 @@ export class PhotorealScene {
         sy: 0,
         depth: 0,
         shown: false,
+        styled: { visible: true, z: 0, transform: "" },
       }
     })
     if (this.selectedId && !this.pins.some((p) => p.stop.id === this.selectedId)) this.selectedId = null
@@ -941,11 +970,12 @@ export class PhotorealScene {
       const lift = Math.min(150, Math.max(5, distance * 0.05)) * small
       pin.head.set(pin.local.x, pin.floor + lift, pin.local.z)
       const radius = Math.min(60, Math.max(2.4, distance * 0.012)) * (pin.stop.id === this.selectedId ? 1.5 : small)
-      for (const mesh of [pin.ring, pin.disc]) {
-        mesh.position.set(pin.local.x, pin.floor + 0.7, pin.local.z)
-        mesh.scale.setScalar(radius)
-        mesh.visible = true
-      }
+      pin.ring.position.set(pin.local.x, pin.floor + 0.7, pin.local.z)
+      pin.ring.scale.setScalar(radius)
+      pin.ring.visible = true
+      pin.disc.position.copy(pin.ring.position)
+      pin.disc.scale.setScalar(radius)
+      pin.disc.visible = true
       if (positions) {
         positions[at++] = pin.local.x
         positions[at++] = pin.floor + 0.7
@@ -1020,12 +1050,26 @@ export class PhotorealScene {
         )
       }
       pin.button.classList.toggle("photoreal-pin--veiled", !selected && members.every((m) => m.veiled))
-      pin.button.style.zIndex = String(selected ? 999 : z--)
+      const layer = selected ? 999 : z--
+      if (pin.styled.z !== layer) {
+        pin.styled.z = layer
+        pin.button.style.zIndex = String(layer)
+      }
     }
+    // Every pin is its own compositor layer: rewriting an unchanged z-index or
+    // visibility each frame re-sorted and re-layerised all of them.
     for (const pin of this.pins) {
       const on = pin.shown && leaders.has(pin)
-      pin.button.style.visibility = on ? "visible" : "hidden"
-      if (on) pin.button.style.transform = `translate3d(${pin.sx.toFixed(1)}px, ${pin.sy.toFixed(1)}px, 0) translate(-50%, -100%)`
+      if (pin.styled.visible !== on) {
+        pin.styled.visible = on
+        pin.button.style.visibility = on ? "visible" : "hidden"
+      }
+      if (!on) continue
+      const transform = `translate3d(${pin.sx.toFixed(1)}px, ${pin.sy.toFixed(1)}px, 0) translate(-50%, -100%)`
+      if (pin.styled.transform !== transform) {
+        pin.styled.transform = transform
+        pin.button.style.transform = transform
+      }
     }
     if (this.youLabel && this.you) {
       const visible = this.you.group.visible
@@ -1087,6 +1131,8 @@ export class PhotorealScene {
   private readonly tick = (now: number) => {
     this.raf = 0
     if (this.disposed || document.visibilityState === "hidden") return
+    // Not started yet (shaders still compiling): a frame now would compile them on the spot.
+    if (!this.arrival && !this.ready) return
     const ground = this.ground
     const dt = Math.min(100, Math.max(0, now - (this.last || now)))
     const consecutive = now - this.last < 100

@@ -1,5 +1,37 @@
 import { describe, expect, it } from "vitest"
-import { normalizeGeminiMarkdown } from "../conciergeMarkdown"
+import { normalizeGeminiMarkdown, splitMarkdownBlocks } from "../conciergeMarkdown"
+
+describe("splitMarkdownBlocks", () => {
+  it("cuts paragraphs, headings and lists apart at blank lines", () => {
+    expect(splitMarkdownBlocks("**Fuunji** first.\n\n### Why\n\n- one\n- two\n\nAfter.")).toEqual([
+      "**Fuunji** first.",
+      "### Why",
+      "- one\n- two",
+      "After.",
+    ])
+  })
+
+  it("keeps a loose list and indented continuations in one block", () => {
+    expect(splitMarkdownBlocks("1. a\n\n2. b\n\n   more of b\n\nEnd")).toEqual(["1. a\n\n2. b\n\n   more of b", "End"])
+  })
+
+  it("never cuts inside a code fence", () => {
+    expect(splitMarkdownBlocks("```\nUA 123\n\nKE 17\n```\n\nNext")).toEqual(["```\nUA 123\n\nKE 17\n```", "Next"])
+    // Still open while streaming: everything after the fence stays with it.
+    expect(splitMarkdownBlocks("```\nUA 123\n\nKE")).toEqual(["```\nUA 123\n\nKE"])
+  })
+
+  it("drops leading and trailing blank lines, and keeps a table whole", () => {
+    expect(splitMarkdownBlocks("\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n")).toEqual(["| a | b |\n| - | - |\n| 1 | 2 |"])
+    expect(splitMarkdownBlocks("")).toEqual([])
+  })
+
+  it("gives a growing text stable leading blocks", () => {
+    const early = splitMarkdownBlocks("Para one.\n\nPara tw")
+    const later = splitMarkdownBlocks("Para one.\n\nPara two.\n\n- a")
+    expect(later[0]).toBe(early[0])
+  })
+})
 
 describe("normalizeGeminiMarkdown", () => {
   it("unwraps a whole-message markdown fence", () => {

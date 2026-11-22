@@ -24,7 +24,7 @@ import { lastMessageIdByRole } from "../../lib/transcriptAnchor"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTranscriptAnchor } from "@/hooks/useTranscriptAnchor"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
-import { AssistantMessage } from "./ConciergeMessage"
+import { AssistantMessage, type AssistantActions } from "./ConciergeMessage"
 import type { ProposalUndoState } from "./ConciergeProposalCard"
 import { ConciergePhotoViewer } from "./ConciergePhoto"
 import { applyProposal, dayShort, daysFingerprint, insertByTime, restoreSnapshot, snapshotDays, type DaySnapshot } from "./conciergeProposal"
@@ -40,12 +40,12 @@ import type { Trip, TripAccess } from "./types"
 import { a } from "./atlas.stylex"
 import { c } from "./chat.stylex"
 import { sx } from "@/styles/merge"
-import { runTripsViewTransition } from "./viewTransition"
-
 const EASE = [0.16, 1, 0.3, 1] as const
 
 /** The panel settles into place rather than sliding to a stop. */
 const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
+/** The phone sheet: no overshoot past its resting edge. */
+const SHEET_SPRING = { type: "spring", stiffness: 380, damping: 40, mass: 0.8 } as const
 
 const STARTER_ICON: Record<StarterKind, LucideIcon> = {
   today: Sun,
@@ -312,10 +312,8 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
 
   const handleClose = useCallback(() => {
     abortRef.current?.abort()
-    runTripsViewTransition(() => {
-      onOpenChange(false)
-      setExpanded(false)
-    })
+    onOpenChange(false)
+    setExpanded(false)
   }, [onOpenChange])
 
   const toggleExpanded = useCallback(() => {
@@ -419,6 +417,16 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
       setAnnounce("Concierge is working on it.")
       // Once the words are all here, a close is not a stop.
       let textDone = false
+      // Text deltas can arrive faster than frames; commit at most one per frame.
+      let pendingText: string | null = null
+      let textFrame = 0
+      const flushText = () => {
+        textFrame = 0
+        if (pendingText === null || !live()) return
+        const content = pendingText
+        pendingText = null
+        patchMessage(assistantId, (m) => ({ ...m, content }))
+      }
 
       try {
         let location: { lat: number; lng: number } | undefined
@@ -459,7 +467,8 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
           readToken,
           {
             onText: (content) => {
-              if (live()) patchMessage(assistantId, (m) => ({ ...m, content }))
+              pendingText = content
+              if (!textFrame) textFrame = requestAnimationFrame(flushText)
             },
             onStatus: (next) => {
               if (!live()) return
@@ -484,6 +493,9 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
           },
         )
         if (!live()) return
+        // The final patch carries the whole text.
+        cancelAnimationFrame(textFrame)
+        pendingText = null
         const empty = !result.content.trim() && !result.places?.length && !result.proposal
         patchMessage(assistantId, (m) => ({
           ...m,
@@ -498,6 +510,9 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
         setAnnounce(result.error ? `The concierge hit a problem: ${result.error}` : `Concierge: ${spoken(result.content)}`)
       } catch (err) {
         if (!live()) return
+        // Keep every word that arrived before the stop or the failure.
+        cancelAnimationFrame(textFrame)
+        flushText()
         if (controller.signal.aborted || (err as Error).name === "AbortError") {
           if (!textDone) {
             patchMessage(assistantId, (m) => ({ ...m, stopped: true }))
@@ -509,6 +524,7 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
           setAnnounce(`The concierge hit a problem: ${message}`)
         }
       } finally {
+        cancelAnimationFrame(textFrame)
         if (live()) {
           setRunState(IDLE)
           setStatus(null)
@@ -766,6 +782,24 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
     [trip],
   )
 
+  const latestActions = useLatestCallback(() => ({ addPlace, undoAdd, applyChanges, undoChanges, retry, send, goToDay, openPhotos }))
+  const actions = useMemo<AssistantActions>(
+    () => ({
+      add: (messageId, target, targetDayId) => void latestActions().addPlace(messageId, target, targetDayId),
+      undoAdd: (messageId, target) => void latestActions().undoAdd(messageId, target),
+      show: (added) => latestActions().goToDay(added.dayId, added.itemId),
+      photos: (target, url) => latestActions().openPhotos(target, url),
+      apply: (messageId, selected) => void latestActions().applyChanges(messageId, selected),
+      dismiss: (messageId) => patchMessage(messageId, (msg) => ({ ...msg, proposalState: "dismissed" })),
+      undo: (messageId) => void latestActions().undoChanges(messageId),
+      goToDay: (targetDay) => latestActions().goToDay(targetDay),
+      retry: (messageId) => latestActions().retry(messageId),
+      followup: (text) => latestActions().send(text),
+      dismissActionError: () => setActionError(null),
+    }),
+    [latestActions, patchMessage],
+  )
+
   const autoGrow = useCallback(() => {
     const el = inputRef.current
     if (!el) return
@@ -792,15 +826,25 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
     ...(expanded ? { ["--trip-chat-kb" as string]: viewport.inset > 0 ? `${viewport.inset}px` : "0px" } : {}),
   }
 
+  // Transform and opacity only. Docked on desktop the panel grows out of the
+  // corner the button sits in; on a phone it is a sheet that rises from the
+  // dock. Exits are a third quicker and never spring.
   const panelMotion =
     reduce || expanded
-      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.15 } }
-      : {
-          initial: { opacity: 0, y: 28, scale: 0.98 },
-          animate: { opacity: 1, y: 0, scale: 1 },
-          exit: { opacity: 0, y: 18, scale: 0.985 },
-          transition: ENTER_SPRING,
-        }
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0, transition: { duration: 0.1 } }, transition: { duration: 0.15 } }
+      : isDesktop
+        ? {
+            initial: { opacity: 0, scale: 0.9, y: 10 },
+            animate: { opacity: 1, scale: 1, y: 0 },
+            exit: { opacity: 0, scale: 0.94, y: 6, transition: { duration: 0.16, ease: EASE } },
+            transition: { ...ENTER_SPRING, opacity: { duration: 0.14, ease: EASE } },
+          }
+        : {
+            initial: { y: "100%" },
+            animate: { y: 0 },
+            exit: { y: "100%", transition: { duration: 0.22, ease: EASE } },
+            transition: SHEET_SPRING,
+          }
 
   return (
     <>
@@ -810,17 +854,21 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
             <AnimatePresence>
               {open && (
                 <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.18, ease: EASE }}
-                    onClick={handleClose}
-                    {...sx(c.scrim, expanded ? undefined : c.scrimDocked)}
-                    aria-hidden
-                  />
+                  {modal ? (
+                    <motion.div
+                      key="scrim"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0, transition: { duration: 0.14, ease: EASE } }}
+                      transition={{ duration: 0.2, ease: EASE }}
+                      onClick={handleClose}
+                      {...sx(c.scrim)}
+                      aria-hidden
+                    />
+                  ) : null}
 
                   <motion.div
+                    key="panel"
                     {...panelMotion}
                     ref={dialogRef}
                     role={modal ? "dialog" : "complementary"}
@@ -828,12 +876,7 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
                     aria-labelledby={titleId}
                     data-expanded={expanded ? "true" : "false"}
                     {...panelSx}
-                    style={{
-                      ...panelStyle,
-                      // Name only while open. On close, open flips first so the
-                      // exiting panel does not share the name with the restored FAB.
-                      viewTransitionName: open && !reduce ? "trips-concierge" : "none",
-                    }}
+                    style={{ ...panelStyle, transformOrigin: "100% 100%" }}
                   >
                     <header {...sx(c.header)}>
                       <div {...sx(c.headerBody)}>
@@ -911,24 +954,9 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
                               addingKey={mutation?.kind === "place" && mutation.messageId === m.id ? mutation.id : null}
                               proposalBusy={mutation?.kind === "proposal" && mutation.id === m.id}
                               actionError={actionError?.messageId === m.id ? actionError.text : null}
-                              onDismissActionError={() => setActionError(null)}
                               proposalUndo={proposalUndo(m.id)}
                               skipped={skipped[m.id]}
-                              onAdd={(target, targetDayId) => void addPlace(m.id, target, targetDayId)}
-                              onUndoAdd={(target) => void undoAdd(m.id, target)}
-                              onShow={(added) => goToDay(added.dayId, added.itemId)}
-                              onPhotos={openPhotos}
-                              onApply={(selected) => void applyChanges(m.id, selected)}
-                              onDismiss={() => patchMessage(m.id, (msg) => ({ ...msg, proposalState: "dismissed" }))}
-                              onUndo={() => void undoChanges(m.id)}
-                              onViewDay={(() => {
-                                const first = m.proposal?.changes[0]
-                                if (!first) return undefined
-                                const target = first.op === "move" ? first.toDayId : first.dayId
-                                return target === dayId ? undefined : () => goToDay(target)
-                              })()}
-                              onRetry={() => retry(m.id)}
-                              onFollowup={(text) => send(text)}
+                              actions={actions}
                             />
                           ),
                         )

@@ -65,7 +65,8 @@ const StreamedText = memo(function StreamedText({ text, streaming, smooth }: { t
   return (
     <div>
       <ConciergeText
-        text={streaming ? settleStreamingMarkdown(shown) : text}
+        text={shown}
+        settleTail={streaming ? settleStreamingMarkdown : undefined}
         bulletStyle={conciergeText.markerDotAccent}
         numberStyle={conciergeText.markerNumAccent}
       />
@@ -73,6 +74,23 @@ const StreamedText = memo(function StreamedText({ text, streaming, smooth }: { t
     </div>
   )
 })
+
+/** What a reply's controls do, keyed by the reply. The panel hands every
+ *  reply the same stable object, so a reply re-renders only when its own
+ *  props change: while one streams, the rest of the transcript stays put. */
+export interface AssistantActions {
+  add: (messageId: string, place: ConciergePlace, dayId: string) => void
+  undoAdd: (messageId: string, place: ConciergePlace) => void
+  show: (added: AddedPlace) => void
+  photos: (place: ConciergePlace, url: string | null) => void
+  apply: (messageId: string, selected: Set<string>) => void
+  dismiss: (messageId: string) => void
+  undo: (messageId: string) => void
+  goToDay: (dayId: string) => void
+  retry: (messageId: string) => void
+  followup: (text: string) => void
+  dismissActionError: () => void
+}
 
 export interface AssistantMessageProps {
   message: ChatMessage
@@ -92,23 +110,13 @@ export interface AssistantMessageProps {
   proposalBusy: boolean
   /** An Add / Apply / Undo on this reply failed. The reply itself is fine. */
   actionError?: string | null
-  onDismissActionError?: () => void
   /** Undo for an applied proposal: offered, unavailable because the days changed, or none. */
   proposalUndo: ProposalUndoState | null
   skipped?: Record<string, string>
-  onAdd: (place: ConciergePlace, dayId: string) => void
-  onUndoAdd: (place: ConciergePlace) => void
-  onShow: (added: AddedPlace) => void
-  onPhotos: (place: ConciergePlace, url: string | null) => void
-  onApply: (selected: Set<string>) => void
-  onDismiss: () => void
-  onUndo: () => void
-  onViewDay?: () => void
-  onRetry: () => void
-  onFollowup: (text: string) => void
+  actions: AssistantActions
 }
 
-export function AssistantMessage({
+export const AssistantMessage = memo(function AssistantMessage({
   message: m,
   trip,
   dayId,
@@ -121,24 +129,17 @@ export function AssistantMessage({
   addingKey,
   proposalBusy,
   actionError,
-  onDismissActionError,
   proposalUndo,
   skipped,
-  onAdd,
-  onUndoAdd,
-  onShow,
-  onPhotos,
-  onApply,
-  onDismiss,
-  onUndo,
-  onViewDay,
-  onRetry,
-  onFollowup,
+  actions,
 }: AssistantMessageProps) {
   const working = streaming && status?.kind !== "done"
   // Show the status until words arrive, and again whenever a tool runs
   // after some text (a second lookup, the change being prepared).
   const showStatus = working && (!m.content || (status != null && status.kind !== "writing"))
+  const firstChange = m.proposal?.changes[0]
+  const changedDay = firstChange ? (firstChange.op === "move" ? firstChange.toDayId : firstChange.dayId) : null
+  const onViewDay = changedDay && changedDay !== dayId ? () => actions.goToDay(changedDay) : undefined
 
   return (
     <div {...sx(c.assistantRow)}>
@@ -157,9 +158,9 @@ export function AssistantMessage({
             disabled={writing}
             canEdit={canEdit}
             undo={proposalUndo}
-            onApply={onApply}
-            onDismiss={onDismiss}
-            onUndo={onUndo}
+            onApply={(selected) => actions.apply(m.id, selected)}
+            onDismiss={() => actions.dismiss(m.id)}
+            onUndo={() => actions.undo(m.id)}
             onView={onViewDay}
           />
         ) : null}
@@ -174,10 +175,10 @@ export function AssistantMessage({
             addingKey={addingKey}
             disabled={writing}
             canEdit={canEdit}
-            onAdd={onAdd}
-            onUndo={onUndoAdd}
-            onPhotos={onPhotos}
-            onShow={onShow}
+            onAdd={(place, targetDayId) => actions.add(m.id, place, targetDayId)}
+            onUndo={(place) => actions.undoAdd(m.id, place)}
+            onPhotos={actions.photos}
+            onShow={actions.show}
           />
         ) : null}
 
@@ -189,7 +190,7 @@ export function AssistantMessage({
           <div {...sx(c.error)} role="alert">
             <TriangleAlert {...sx(c.errorIcon)} strokeWidth={1.75} aria-hidden />
             <span {...sx(c.errorText)}>{m.error}</span>
-            <button type="button" onClick={onRetry} {...sx(a.btn, a.btnSm, a.btnSecondary, c.action)}>
+            <button type="button" onClick={() => actions.retry(m.id)} {...sx(a.btn, a.btnSm, a.btnSecondary, c.action)}>
               <RotateCcw {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
               Try again
             </button>
@@ -200,7 +201,7 @@ export function AssistantMessage({
           <div {...sx(c.error)} role="alert" data-concierge-action-error="">
             <TriangleAlert {...sx(c.errorIcon)} strokeWidth={1.75} aria-hidden />
             <span {...sx(c.errorText)}>{actionError}</span>
-            <button type="button" onClick={onDismissActionError} {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}>
+            <button type="button" onClick={actions.dismissActionError} {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}>
               Dismiss
             </button>
           </div>
@@ -209,7 +210,7 @@ export function AssistantMessage({
         {latest && !working && !m.error && m.followups?.length ? (
           <div {...sx(c.followups)} role="group" aria-label="Suggested follow-ups">
             {m.followups.map((text) => (
-              <button key={text} type="button" onClick={() => onFollowup(text)} {...sx(a.pill, c.suggestion)}>
+              <button key={text} type="button" onClick={() => actions.followup(text)} {...sx(a.pill, c.suggestion)}>
                 {text}
               </button>
             ))}
@@ -218,4 +219,4 @@ export function AssistantMessage({
       </div>
     </div>
   )
-}
+})

@@ -4,7 +4,7 @@ import { conciergeText } from './ConciergeText.stylex'
 import { memo, useMemo, type ReactNode } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { normalizeGeminiMarkdown } from "./conciergeMarkdown"
+import { normalizeGeminiMarkdown, splitMarkdownBlocks } from "./conciergeMarkdown"
 
 const REMARK_PLUGINS = [remarkGfm]
 
@@ -128,23 +128,37 @@ const ConciergeMarkdown = memo(function ConciergeMarkdown({
   )
   return (
     <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
-      {normalizeGeminiMarkdown(text)}
+      {text}
     </ReactMarkdown>
   )
 })
 
+/** Markdown from the concierge. Each top-level block is parsed on its own
+ *  and memoised, so while a reply streams only the block being written is
+ *  parsed again; `settleTail` tidies that block's half-finished syntax. */
 export function ConciergeText({
   text,
+  settleTail,
   bulletStyle = conciergeText.markerDotAccent,
   numberStyle = conciergeText.markerNumAccent,
 }: {
   text: string
+  settleTail?: (block: string) => string
   bulletStyle?: StyleXStyles
   numberStyle?: StyleXStyles
 }) {
+  const blocks = useMemo(() => splitMarkdownBlocks(normalizeGeminiMarkdown(text)), [text])
   return (
     <div {...sx(conciergeText.sd79dc566, 'concierge-text')}>
-      <ConciergeMarkdown text={text} bulletStyle={bulletStyle} numberStyle={numberStyle} />
+      {blocks.map((block, i) => (
+        <ConciergeMarkdown
+          // A block keeps its index as the text grows, so finished ones never remount.
+          key={i}
+          text={settleTail && i === blocks.length - 1 ? settleTail(block) : block}
+          bulletStyle={bulletStyle}
+          numberStyle={numberStyle}
+        />
+      ))}
     </div>
   )
 }
