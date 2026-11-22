@@ -1310,6 +1310,54 @@ html.dark .trips .trips-sky-plate > .trips-sky-art,
   display: contents;
 }
 
+/* Kit dialogs leave the way they came, a third quicker: Radix keeps them
+   mounted until this animation ends. Unlayered, so it beats the StyleX
+   entrance only while closing. Opacity and transform only. */
+@keyframes trips-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes trips-dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+
+@keyframes trips-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.trips-portal .trips-scrim[data-state="closed"] {
+  animation: trips-fade-out 160ms var(--trips-ease-out) forwards;
+}
+
+.trips-portal .trips-dialog[data-state="closed"] {
+  animation: trips-dialog-out 150ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@media (max-width: 639.98px) {
+  .trips-portal .trips-dialog[data-state="closed"] {
+    animation: trips-sheet-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+
+  /* Cancel and the action share the row; a long action wraps under it. */
+  .trips-portal .trips-dialog-foot > * {
+    flex: 1 1 0;
+    min-width: fit-content;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trips-portal .trips-dialog[data-state="closed"] {
+    animation: trips-fade-out 120ms linear forwards;
+  }
+}
+
 /* MapLibre chrome, restyled to the atlas. */
 .trips .maplibregl-map {
   font-family: "Inter", system-ui, sans-serif;

@@ -184,9 +184,10 @@ export function Modal({
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogPrimitive.Portal>
         <div className="trips trips-portal" data-trip-accent={accent}>
-          <DialogPrimitive.Overlay {...sx(a.scrim)} />
+          {/* `trips-scrim` / `trips-dialog`: the closing animations in index.css. */}
+          <DialogPrimitive.Overlay {...sx(a.scrim, "trips-scrim")} />
           <DialogPrimitive.Content
-            {...sx(a.dialog, wide && a.dialogWide, "trips-glass-sheet")}
+            {...sx(a.dialog, wide && a.dialogWide, "trips-dialog", "trips-glass-sheet")}
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
@@ -210,7 +211,7 @@ export function Modal({
               </DialogPrimitive.Close>
             </div>
             <div {...sx(a.dialogBody)}>{children}</div>
-            {footer && <div {...sx(a.dialogFoot)}>{footer}</div>}
+            {footer && <div {...sx(a.dialogFoot, "trips-dialog-foot")}>{footer}</div>}
           </DialogPrimitive.Content>
         </div>
       </DialogPrimitive.Portal>

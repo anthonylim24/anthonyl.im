@@ -485,7 +485,9 @@ export const a = stylex.create({
     borderTopWidth: "1px",
     borderTopStyle: "solid",
     borderTopColor: "var(--trips-line)",
-    [PHONE]: { flexDirection: "column-reverse" },
+    // Phones: side by side in thumb reach (the buttons share the row, in
+    // index.css), wrapping the primary under Cancel when its label is long.
+    [PHONE]: { flexWrap: "wrap", paddingBlock: "0.75rem" },
   },
 
   // ── Layout helpers ────────────────────────────────────

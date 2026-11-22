@@ -310,16 +310,35 @@ export const idx = stylex.create({
     borderRadius: "var(--trips-radius-lg)",
     backgroundColor: "var(--trips-surface)",
     boxShadow: "var(--trips-shadow-1)",
-    transitionProperty: "transform, box-shadow",
+    transitionProperty: "transform",
     transitionDuration: "320ms",
     transitionTimingFunction: "var(--trips-ease-out)",
     animationName: riseIn,
     animationDuration: "600ms",
     animationTimingFunction: "var(--trips-ease-out)",
     animationFillMode: "both",
-    [HOVER]: { ":hover": { transform: "translateY(-4px)", boxShadow: "var(--trips-shadow-2)" } },
+    [HOVER]: { ":hover": { transform: "translateY(-4px)" } },
     [REDUCE]: { animationName: "none", transitionDuration: "0ms" },
   },
+  // The lifted shadow is a layer that fades in under a hovered card (the card
+  // carries `group`): animating box-shadow itself repaints the card on every
+  // frame of the hover.
+  cardLift: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "inherit",
+    boxShadow: "var(--trips-shadow-2)",
+    opacity: 0,
+    pointerEvents: "none",
+    transitionProperty: "opacity",
+    transitionDuration: "320ms",
+    transitionTimingFunction: "var(--trips-ease-out)",
+    [HOVER]: { ":is(.group:hover) &": { opacity: 1 } },
+    [REDUCE]: { transitionDuration: "0ms" },
+  },
+  nextUpSkeleton: { display: "block", height: "2.75rem", width: "min(20rem, 100%)", borderRadius: "999px" },
+  figuresSkeleton: { display: "block", height: "2.75rem", width: "min(19rem, 100%)", marginBottom: "0.25rem" },
+  searchSkeleton: { backgroundColor: "var(--trips-sunken)", boxShadow: "none" },
   cardLink: {
     position: "absolute",
     inset: 0,
@@ -597,8 +616,12 @@ export const create = stylex.create({
   },
 })
 
+// Two months side by side need 42rem; the calendar is sized by the field it
+// opens from, not the window, so it never spills out of a dialog or a column.
+const TWO_MONTHS = "@container (min-width: 42rem)"
+
 export const range = stylex.create({
-  wrap: { position: "relative" },
+  wrap: { position: "relative", containerType: "inline-size" },
   trigger: {
     display: "flex",
     alignItems: "center",
@@ -615,7 +638,9 @@ export const range = stylex.create({
     left: 0,
     zIndex: 30,
     width: "max-content",
-    maxWidth: "calc(100vw - 2rem)",
+    maxWidth: "min(100%, calc(100vw - 2rem))",
+    // Clear of the field's focus halo and anything below it while open.
+    scrollMarginBlock: "1rem",
     // 7 × 44 px + this stays under the 335 px a 375 px phone leaves the field.
     padding: { default: "0.75rem", [PHONE]: "0.5rem" },
     borderRadius: "var(--trips-radius-lg)",
@@ -627,7 +652,7 @@ export const range = stylex.create({
     [REDUCE]: { animationName: "none" },
   },
   months: { display: "flex", gap: "1.5rem", paddingInline: "0.25rem", paddingBottom: "0.25rem" },
-  second: { "@media (max-width: 719.98px)": { display: "none" } },
+  second: { display: { default: "none", [TWO_MONTHS]: "block" } },
   monthName: { margin: 0, marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 600, textAlign: "center", color: "var(--trips-ink)" },
   // 7 × 44 px days: a full touch target each, and still inside a 375 px phone.
   grid: { display: "grid", gridTemplateColumns: "repeat(7, 2.75rem)", rowGap: "0.125rem" },

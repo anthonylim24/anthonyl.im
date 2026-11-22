@@ -72,8 +72,13 @@ export function DateRange({
 
   useEffect(() => {
     if (!open) return
-    // Land on the first day so the arrow keys work straight away.
-    requestAnimationFrame(() => gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${start}"]`)?.focus())
+    // Bring the whole calendar into view (a dialog's body, or the page, may
+    // have it below the fold), then land on the first day so the arrow keys
+    // work straight away.
+    requestAnimationFrame(() => {
+      gridRef.current?.parentElement?.scrollIntoView?.({ block: "nearest" })
+      gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${start}"]`)?.focus({ preventScroll: true })
+    })
     const onPointer = (event: PointerEvent) => {
       if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -102,7 +107,9 @@ export function DateRange({
   }
 
   const focusDay = (iso: string) => {
-    if (monthOf(iso) !== month && monthOf(iso) !== shiftMonth(month, 1)) setMonth(monthOf(iso))
+    // The second month shows only when the field is wide enough for two.
+    const twoUp = (gridRef.current?.children[1]?.getClientRects().length ?? 0) > 0
+    if (monthOf(iso) !== month && !(twoUp && monthOf(iso) === shiftMonth(month, 1))) setMonth(monthOf(iso))
     requestAnimationFrame(() => gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${iso}"]`)?.focus())
   }
 

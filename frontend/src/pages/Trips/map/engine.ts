@@ -57,6 +57,8 @@ export interface AtlasMapHandle {
 const ROUTE_SOURCE = "atlas-route"
 const DOTS_SOURCE = "atlas-dots"
 const GUARD_SOURCE = "atlas-guard"
+/** The ambient globe's spin step (see `spinStep`). */
+const SPIN_STEP_MS = 66
 
 interface PinEntry {
   pin: AtlasPin
@@ -369,8 +371,16 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   const spinStep = (now: number) => {
     spinFrame = 0
     if (destroyed || !spin) return
+    // One revolution every four minutes moves the globe's face about a third
+    // of a pixel in 66 ms. Redrawing the whole globe every frame for a tenth
+    // of a pixel kept the index's main thread busy for good, so the spin
+    // steps at ~15 fps: it still reads as a smooth turn.
+    if (lastSpin && now - lastSpin < SPIN_STEP_MS) {
+      spinFrame = requestAnimationFrame(spinStep)
+      return
+    }
     if (!userBusy && !map.isMoving() && document.visibilityState === "visible") {
-      const dt = lastSpin ? Math.min(now - lastSpin, 80) : 16
+      const dt = lastSpin ? Math.min(now - lastSpin, 120) : 16
       const center = map.getCenter()
       // One revolution every four minutes: readable, never dizzy.
       map.jumpTo({ center: [center.lng + (360 / 240_000) * dt, center.lat] })
@@ -609,6 +619,8 @@ export function renderStills(
   host.style.cssText = `position:fixed;left:-10000px;top:0;width:${STILL_W}px;height:${STILL_H}px;pointer-events:none;visibility:hidden`
   document.body.appendChild(host)
   let cancelled = false
+  /** The map is gone (drained or cancelled); pictures already taken still arrive unless cancelled. */
+  let finished = false
   const map = new MapLibre({
     container: host,
     // No basemap labels on covers: the card title names the place, and dots
@@ -621,9 +633,25 @@ export function renderStills(
     canvasContextAttributes: { antialias: true, preserveDrawingBuffer: true },
   })
   const finish = () => {
-    cancelled = true
+    finished = true
     map.remove()
     host.remove()
+  }
+  // toBlob copies the pixels at once and encodes off the main thread, where
+  // toDataURL encoded on it (about 15 ms a still: a dropped frame each).
+  const deliver = (key: string) => {
+    map.getCanvas().toBlob(
+      (blob) => {
+        if (!blob || cancelled) return
+        const reader = new FileReader()
+        reader.onload = () => {
+          if (!cancelled && typeof reader.result === "string") onStill(key, reader.result)
+        }
+        reader.readAsDataURL(blob)
+      },
+      "image/webp",
+      0.82,
+    )
   }
   const settled = () =>
     new Promise<void>((resolve) => {
@@ -739,15 +767,16 @@ export function renderStills(
         await settled()
         if (cancelled) return
         try {
-          onStill(request.key, map.getCanvas().toDataURL("image/webp", 0.82))
+          deliver(request.key)
         } catch {
           /* A tainted or lost canvas just leaves the chart cover in place. */
         }
       }
-      if (!cancelled) finish()
+      if (!finished) finish()
     })()
   })
   return () => {
-    if (!cancelled) finish()
+    cancelled = true
+    if (!finished) finish()
   }
 }
