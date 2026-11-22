@@ -342,6 +342,17 @@ const SCENARIOS = {
       await page.waitForTimeout(700)
     },
   },
+  // The index on a phone: the globe, the next-trip link and the list settle
+  // in one column, so anything that arrives late pushes the rest down (cls).
+  "phone-index-load": {
+    device: PHONE,
+    fromStart: true,
+    async run(page, url) {
+      await page.goto(`${url}/trips`)
+      await page.getByText("Lisbon long weekend").first().waitFor({ timeout: 30_000 })
+      await page.waitForTimeout(3000)
+    },
+  },
 }
 
 function measure(j) {

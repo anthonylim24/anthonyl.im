@@ -615,12 +615,8 @@ export const create = stylex.create({
   },
 })
 
-// Two months side by side need 42rem; the calendar is sized by the field it
-// opens from, not the window, so it never spills out of a dialog or a column.
-const TWO_MONTHS = "@container (min-width: 42rem)"
-
 export const range = stylex.create({
-  wrap: { position: "relative", containerType: "inline-size" },
+  wrap: { position: "relative" },
   trigger: {
     display: "flex",
     alignItems: "center",
@@ -650,8 +646,9 @@ export const range = stylex.create({
     animationTimingFunction: "var(--trips-ease-out)",
     [REDUCE]: { animationName: "none" },
   },
-  months: { display: "flex", gap: "1.5rem", paddingInline: "0.25rem", paddingBottom: "0.25rem" },
-  second: { display: { default: "none", [TWO_MONTHS]: "block" } },
+  // One month: two side by side spilled out of the details dialog and under
+  // the create page's map.
+  months: { paddingInline: "0.25rem", paddingBottom: "0.25rem" },
   monthName: { margin: 0, marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 600, textAlign: "center", color: "var(--trips-ink)" },
   // 7 × 44 px days: a full touch target each, and still inside a 375 px phone.
   grid: { display: "grid", gridTemplateColumns: "repeat(7, 2.75rem)", rowGap: "0.125rem" },

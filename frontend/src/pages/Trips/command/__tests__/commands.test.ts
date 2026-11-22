@@ -90,6 +90,25 @@ describe("searchCommands ranking", () => {
   })
 })
 
+describe("searchCommands across keystrokes", () => {
+  it("ranks the same commands the same way on every search", () => {
+    const commands = [make("Skatepark"), make("Big park"), make("Parking garage"), make("Park"), make("Café Ébène", "Stops")]
+    const first = ["p", "pa", "par", "park", "cafe ebene"].map((query) => titles(commands, query))
+    const again = ["p", "pa", "par", "park", "cafe ebene"].map((query) => titles(commands, query))
+    expect(again).toEqual(first)
+    expect(first[3]).toEqual(["Park", "Parking garage", "Big park", "Skatepark"])
+    expect(first[4]).toEqual(["Café Ébène"])
+  })
+
+  it("matches a rebuilt command by its new text", () => {
+    const before = make("Day 1 · Tokyo", "Days")
+    expect(titles([before], "kyoto")).toEqual([])
+    const after = make("Day 1 · Kyoto", "Days")
+    expect(titles([after], "kyoto")).toEqual(["Day 1 · Kyoto"])
+    expect(titles([before], "tokyo")).toEqual(["Day 1 · Tokyo"])
+  })
+})
+
 describe("searchCommands grouping", () => {
   const commands = [
     make("Match the system theme", "Settings"),

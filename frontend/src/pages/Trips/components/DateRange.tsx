@@ -107,9 +107,7 @@ export function DateRange({
   }
 
   const focusDay = (iso: string) => {
-    // The second month shows only when the field is wide enough for two.
-    const twoUp = (gridRef.current?.children[1]?.getClientRects().length ?? 0) > 0
-    if (monthOf(iso) !== month && !(twoUp && monthOf(iso) === shiftMonth(month, 1))) setMonth(monthOf(iso))
+    if (monthOf(iso) !== month) setMonth(monthOf(iso))
     requestAnimationFrame(() => gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${iso}"]`)?.focus())
   }
 
@@ -130,9 +128,9 @@ export function DateRange({
   }
 
   // The calendar's single tab stop: the keyboard cursor if it is showing,
-  // otherwise the first day of the first visible month.
+  // otherwise the first day of the month showing.
   const wanted = hover ?? start
-  const cursor = monthOf(wanted) === month || monthOf(wanted) === shiftMonth(month, 1) ? wanted : `${month}-01`
+  const cursor = monthOf(wanted) === month ? wanted : `${month}-01`
   const count = dayCount(start, end)
   return (
     <div ref={wrapRef} {...sx(r.wrap)}>
@@ -154,56 +152,52 @@ export function DateRange({
       {open && (
         <div id={panelId} role="dialog" aria-label={`Choose ${label.toLowerCase()}`} {...sx(r.panel)} onKeyDown={onKeyDown}>
           <div {...sx(a.between)}>
-            <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Earlier months" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
+            <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
               <ChevronLeft size={18} strokeWidth={1.75} aria-hidden />
             </button>
             <p {...sx(a.small)} role="status" aria-live="polite">
               {anchor ? "Now pick the last day" : "Pick the first day"}
             </p>
-            <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Later months" onClick={() => setMonth((m) => shiftMonth(m, 1))}>
+            <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Next month" onClick={() => setMonth((m) => shiftMonth(m, 1))}>
               <ChevronRight size={18} strokeWidth={1.75} aria-hidden />
             </button>
           </div>
           <div ref={gridRef} {...sx(r.months)} onMouseLeave={() => setHover(anchor ?? start)}>
-            {[month, shiftMonth(month, 1)].map((m, index) => (
-              <div key={m} {...sx(index === 1 && r.second)}>
-                <p {...sx(r.monthName)}>{fmt(`${m}-01`, { month: "long", year: "numeric" })}</p>
-                <div {...sx(r.grid)} role="group" aria-label={fmt(`${m}-01`, { month: "long", year: "numeric" })}>
-                  {WEEKDAYS.map((d) => (
-                    <span key={d} {...sx(r.dow)} aria-hidden>
-                      {d}
-                    </span>
-                  ))}
-                  {monthDays(m).map((iso, i) =>
-                    iso ? (
-                      <button
-                        key={iso}
-                        type="button"
-                        data-day={iso}
-                        // One tab stop for the whole calendar; arrows move within it.
-                        tabIndex={iso === cursor ? 0 : -1}
-                        aria-label={fmt(iso, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-                        aria-pressed={iso === lo || iso === hi}
-                        {...sx(
-                          r.day,
-                          iso > lo && iso < hi && r.dayIn,
-                          iso === lo && lo !== hi && r.dayStart,
-                          iso === hi && lo !== hi && r.dayEnd,
-                          (iso === lo || iso === hi) && r.dayEdge,
-                        )}
-                        onMouseEnter={() => anchor && setHover(iso)}
-                        onFocus={() => setHover(iso)}
-                        onClick={() => pick(iso)}
-                      >
-                        <span {...sx(r.dayNum, (iso === lo || iso === hi) && r.dayNumEdge)}>{Number(iso.slice(8))}</span>
-                      </button>
-                    ) : (
-                      <span key={`blank-${i}`} aria-hidden />
-                    ),
-                  )}
-                </div>
-              </div>
-            ))}
+            <p {...sx(r.monthName)}>{fmt(`${month}-01`, { month: "long", year: "numeric" })}</p>
+            <div {...sx(r.grid)} role="group" aria-label={fmt(`${month}-01`, { month: "long", year: "numeric" })}>
+              {WEEKDAYS.map((d) => (
+                <span key={d} {...sx(r.dow)} aria-hidden>
+                  {d}
+                </span>
+              ))}
+              {monthDays(month).map((iso, i) =>
+                iso ? (
+                  <button
+                    key={iso}
+                    type="button"
+                    data-day={iso}
+                    // One tab stop for the whole calendar; arrows move within it.
+                    tabIndex={iso === cursor ? 0 : -1}
+                    aria-label={fmt(iso, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                    aria-pressed={iso === lo || iso === hi}
+                    {...sx(
+                      r.day,
+                      iso > lo && iso < hi && r.dayIn,
+                      iso === lo && lo !== hi && r.dayStart,
+                      iso === hi && lo !== hi && r.dayEnd,
+                      (iso === lo || iso === hi) && r.dayEdge,
+                    )}
+                    onMouseEnter={() => anchor && setHover(iso)}
+                    onFocus={() => setHover(iso)}
+                    onClick={() => pick(iso)}
+                  >
+                    <span {...sx(r.dayNum, (iso === lo || iso === hi) && r.dayNumEdge)}>{Number(iso.slice(8))}</span>
+                  </button>
+                ) : (
+                  <span key={`blank-${i}`} aria-hidden />
+                ),
+              )}
+            </div>
           </div>
         </div>
       )}
