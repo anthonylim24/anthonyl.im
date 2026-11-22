@@ -52,7 +52,7 @@ export function TripChatLauncher() {
           whileHover={reduce || shown ? undefined : { scale: 1.06 }}
           whileTap={reduce || shown ? undefined : { scale: 0.94 }}
           transition={reduce ? { duration: 0.15 } : FAB_SPRING}
-          {...sx(c.fab, shown ? c.fabHidden : undefined)}
+          {...sx(c.fab, shown ? c.fabHidden : undefined, "trips-glass-pill")}
           style={{
             // Shared morph with the panel. Name clears while open so the new
             // View Transition snapshot never has two `trips-concierge` nodes.

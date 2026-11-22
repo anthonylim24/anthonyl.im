@@ -199,7 +199,7 @@ describe("command palette", () => {
     expect(screen.getByRole("combobox")).toBeInTheDocument()
   })
 
-  it("offers built-ins on every page: new trip, all trips, shortcuts and themes", async () => {
+  it("offers built-ins on every page: new trip, all trips, shortcuts, themes and looks", async () => {
     renderPalette(null)
     pressModK()
     const input = await screen.findByRole("combobox")
@@ -210,6 +210,8 @@ describe("command palette", () => {
       "Use light theme",
       "Use dark theme",
       "Match the system themeIn use",
+      "Use the Liquid Glass look",
+      "Use the atlas lookIn use",
     ])
     fireEvent.change(input, { target: { value: "new trip" } })
     fireEvent.keyDown(input, { key: "Enter" })

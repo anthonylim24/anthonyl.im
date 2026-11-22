@@ -117,7 +117,7 @@ export function Menu({
         {trigger}
       </button>
       {open && (
-        <div id={menuId} role="menu" aria-label={label} {...sx(a.menu, align === "start" && a.menuLeft, side === "up" && a.menuUp)}>
+        <div id={menuId} role="menu" aria-label={label} {...sx(a.menu, align === "start" && a.menuLeft, side === "up" && a.menuUp, "trips-glass-sheet")}>
           {items.map((item) => (
             <div key={item.label} role="none">
               {item.separated && <div {...sx(a.menuRule)} role="separator" />}
@@ -186,7 +186,7 @@ export function Modal({
         <div className="trips trips-portal" data-trip-accent={accent}>
           <DialogPrimitive.Overlay {...sx(a.scrim)} />
           <DialogPrimitive.Content
-            {...sx(a.dialog, wide && a.dialogWide)}
+            {...sx(a.dialog, wide && a.dialogWide, "trips-glass-sheet")}
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.

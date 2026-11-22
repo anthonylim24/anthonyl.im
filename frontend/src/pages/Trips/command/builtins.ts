@@ -1,4 +1,5 @@
-import { Keyboard, LayoutGrid, Monitor, Moon, Plus, Sun } from "lucide-react"
+import { Droplet, Keyboard, LayoutGrid, Map as MapIcon, Monitor, Moon, Plus, Sun } from "lucide-react"
+import type { Look } from "../glass/look"
 import type { Theme } from "../../Korea/koreaUtils"
 import type { Command } from "./commands"
 
@@ -10,6 +11,9 @@ export interface BuiltInDeps {
   /** The stored theme choice when the palette opened. */
   theme: Theme
   setTheme: (theme: Theme) => void
+  /** The look in use: the atlas or Liquid Glass. */
+  look: Look
+  setLook: (look: Look) => void
   /** On the trips list, where `n` starts a new trip. */
   atIndex: boolean
 }
@@ -20,7 +24,12 @@ const THEMES: ReadonlyArray<{ theme: Theme; title: string; icon: Command["icon"]
   { theme: "system", title: "Match the system theme", icon: Monitor, keywords: ["theme", "appearance", "auto", "device", "os"] },
 ]
 
-export function builtInCommands({ navigate, showShortcuts, theme, setTheme, atIndex }: BuiltInDeps): Command[] {
+const LOOKS: ReadonlyArray<{ look: Look; title: string; icon: Command["icon"]; keywords: string[] }> = [
+  { look: "glass", title: "Use the Liquid Glass look", icon: Droplet, keywords: ["look", "appearance", "glass", "ios", "translucent", "style"] },
+  { look: "atlas", title: "Use the atlas look", icon: MapIcon, keywords: ["look", "appearance", "paper", "classic", "style"] },
+]
+
+export function builtInCommands({ navigate, showShortcuts, theme, setTheme, look, setLook, atIndex }: BuiltInDeps): Command[] {
   return [
     {
       id: "trips:new",
@@ -57,6 +66,17 @@ export function builtInCommands({ navigate, showShortcuts, theme, setTheme, atIn
         icon: option.icon,
         keywords: option.keywords,
         run: () => setTheme(option.theme),
+      }),
+    ),
+    ...LOOKS.map(
+      (option): Command => ({
+        id: `trips:look-${option.look}`,
+        title: option.title,
+        subtitle: option.look === look ? "In use" : undefined,
+        group: "Settings",
+        icon: option.icon,
+        keywords: option.keywords,
+        run: () => setLook(option.look),
       }),
     ),
   ]

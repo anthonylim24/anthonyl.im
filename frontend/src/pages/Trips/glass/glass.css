@@ -1,0 +1,110 @@
+/* ═══════════════════════════════════════════════════════
+   TRIPS — Liquid Glass (an opt-in look; the atlas stays the default)
+   Translucent material over a soft wallpaper. Everything here is scoped
+   to :root[data-trips-look="glass"], so the atlas pays nothing for it.
+   Unlayered on purpose: it must win over the layered StyleX it reskins.
+
+   Materials (class hooks on the elements, inert in the atlas):
+   - .trips-glass-bar    floating chrome bars (header, phone bottom bar)
+   - .trips-glass-pill   small floating controls (map controls, the FAB)
+   - .trips-glass-sheet  dialogs, menus, the palette, the place card
+   Cards and panels use no class: the surface tokens turn translucent.
+   Only bars, pills and sheets get a backdrop filter (a bounded set);
+   list rows and cards are tint only, so scrolling stays cheap.
+   ═══════════════════════════════════════════════════════ */
+
+:root[data-trips-look="glass"] .trips {
+  --trips-glass-base: #dfe6f0;
+  --trips-glass-tint: rgb(255 255 255 / 0.5);
+  --trips-glass-tint-strong: rgb(250 251 253 / 0.72);
+  --trips-glass-solid: #f6f7f9;
+  --trips-glass-rim: rgb(255 255 255 / 0.85);
+  --trips-glass-edge: rgb(255 255 255 / 0.35);
+  --trips-glass-shade: rgb(16 24 40 / 0.16);
+  --trips-glass-blur: 16px;
+  --trips-glass-saturate: 1.9;
+
+  --trips-canvas: var(--trips-glass-base);
+  --trips-surface: rgb(255 255 255 / 0.62);
+  --trips-raised: rgb(255 255 255 / 0.78);
+  --trips-sunken: rgb(118 118 128 / 0.12);
+  --trips-rail: rgb(118 118 128 / 0.12);
+  --trips-border: rgb(255 255 255 / 0.5);
+  --trips-line: rgb(60 60 67 / 0.14);
+  --trips-line-strong: rgb(60 60 67 / 0.26);
+  --trips-ink-tertiary: #5b6069;
+  --trips-radius: 1.25rem;
+  --trips-radius-sm: 0.875rem;
+  --trips-radius-lg: 1.75rem;
+  --trips-field-radius: 0.875rem;
+  --trips-display: -apple-system, "SF Pro Display", BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-family: -apple-system, "SF Pro Text", BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+}
+
+:root.dark[data-trips-look="glass"] .trips {
+  --trips-glass-base: #0e1420;
+  --trips-glass-tint: rgb(30 34 42 / 0.5);
+  --trips-glass-tint-strong: rgb(28 31 38 / 0.74);
+  --trips-glass-solid: #1c1f26;
+  --trips-glass-rim: rgb(255 255 255 / 0.22);
+  --trips-glass-edge: rgb(255 255 255 / 0.1);
+  --trips-glass-shade: rgb(0 0 0 / 0.45);
+
+  --trips-surface: rgb(36 40 48 / 0.62);
+  --trips-raised: rgb(44 48 58 / 0.78);
+  --trips-sunken: rgb(118 118 128 / 0.24);
+  --trips-rail: rgb(118 118 128 / 0.24);
+  --trips-border: rgb(255 255 255 / 0.12);
+  --trips-line: rgb(235 235 245 / 0.12);
+  --trips-line-strong: rgb(235 235 245 / 0.24);
+}
+
+/* The page sits on the wallpaper: isolate it so the wallpaper layer (z -1)
+   paints above the page background and below everything else. */
+:root[data-trips-look="glass"] .trips:not(.trips-portal) {
+  isolation: isolate;
+}
+
+:root[data-trips-look="glass"] .trips-glass-wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 12% 8%, color-mix(in srgb, var(--ta-fill) 42%, transparent), transparent 70%),
+    radial-gradient(50% 45% at 88% 18%, rgb(90 160 255 / 0.45), transparent 70%),
+    radial-gradient(55% 50% at 70% 92%, rgb(120 220 200 / 0.4), transparent 70%),
+    var(--trips-glass-base);
+}
+
+:root[data-trips-look="glass"] .trips-glass-bar,
+:root[data-trips-look="glass"] .trips-glass-pill,
+:root[data-trips-look="glass"] .trips-glass-sheet {
+  background-color: var(--trips-glass-tint);
+  -webkit-backdrop-filter: blur(var(--trips-glass-blur)) saturate(var(--trips-glass-saturate));
+  backdrop-filter: blur(var(--trips-glass-blur)) saturate(var(--trips-glass-saturate));
+  border-color: var(--trips-glass-edge);
+  box-shadow:
+    inset 0 1px 0 var(--trips-glass-rim),
+    inset 0 0 0 1px var(--trips-glass-edge),
+    0 10px 34px -10px var(--trips-glass-shade);
+}
+
+:root[data-trips-look="glass"] .trips-glass-sheet {
+  background-color: var(--trips-glass-tint-strong);
+}
+
+/* Reduce transparency: the same shapes, solid. */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-trips-look="glass"] .trips {
+    --trips-surface: var(--trips-glass-solid);
+    --trips-raised: var(--trips-glass-solid);
+  }
+  :root[data-trips-look="glass"] .trips-glass-bar,
+  :root[data-trips-look="glass"] .trips-glass-pill,
+  :root[data-trips-look="glass"] .trips-glass-sheet {
+    background-color: var(--trips-glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

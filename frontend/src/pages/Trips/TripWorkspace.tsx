@@ -1088,7 +1088,7 @@ function Workspace() {
               </button>
             )}
             {active && (
-              <aside ref={measureCard} {...sx(s.placeCard)} aria-label="Selected place">
+              <aside ref={measureCard} {...sx(s.placeCard, "trips-glass-sheet")} aria-label="Selected place">
                 <PlacePhoto key={active.item.id} item={active.item} city={active.day.city ?? trip.destinations[0] ?? ""} />
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
@@ -1159,7 +1159,7 @@ function Workspace() {
         </div>
       )}
 
-      <div {...sx(s.bar)}>
+      <div {...sx(s.bar, "trips-glass-bar")}>
         {!wide && saveLine("bar")}
         <div {...sx(share.segment, s.barSegment)} role="radiogroup" aria-label="View" onKeyDown={onViewKey}>
           <button

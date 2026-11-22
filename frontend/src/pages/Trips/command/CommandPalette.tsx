@@ -33,7 +33,7 @@ export function CommandPalette({ open, onOpenChange, commands, apple, onChoose, 
         <div className="trips trips-portal">
           <DialogPrimitive.Overlay {...sx(a.scrim)} />
           <DialogPrimitive.Content
-            {...sx(cmd.panel)}
+            {...sx(cmd.panel, "trips-glass-sheet")}
             onOpenAutoFocus={(event) => {
               event.preventDefault()
               inputRef.current?.focus()

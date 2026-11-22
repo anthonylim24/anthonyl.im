@@ -193,7 +193,7 @@ export function AtlasMap({
       {status !== "ready" && !(ambient && status === "loading") && <StaticChart pins={pins} loading={status === "loading"} />}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
       {status === "ready" && !ambient && !bare && (
-        <div {...sx(s.controls)}>
+        <div {...sx(s.controls, "trips-glass-pill")}>
           <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>
             <Plus size={16} strokeWidth={1.75} aria-hidden />
           </button>
