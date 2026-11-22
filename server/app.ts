@@ -8,6 +8,7 @@ import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
 import { createPlaceSearchRouter } from "./src/routes/placeSearch";
 import { createGooglePlaceTypeahead } from "./src/trips/placeSearch";
+import { createGooglePlaceDetails } from "./src/trips/placeDetails";
 import { getTripStore } from "./src/trips/store";
 import { createGoogleGeocoder, createPhotonGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createTripReviewWorker, REVIEW_SWEEP_MS } from "./src/trips/reviewWorker";
@@ -145,6 +146,10 @@ app.route(
   createPlaceSearchRouter({
     search: config.googleMapsApiKey ? createGooglePlaceTypeahead(config.googleMapsApiKey) : null,
     rateLimit: createRateLimit({ windowMs: 60_000, max: 120, keyPrefix: "places", key: userOrClientKey }),
+    // The wishlist's details popover: Place Details plus up to six photos per
+    // answer, so a tighter bucket than type-ahead.
+    details: config.googleMapsApiKey ? createGooglePlaceDetails(config.googleMapsApiKey) : null,
+    detailsRateLimit: createRateLimit({ windowMs: 10 * 60_000, max: 60, keyPrefix: "place-details", key: userOrClientKey }),
     verifyAuth: (authHeader) =>
       verifyClerkOptional(authHeader, {
         secretKey: config.clerkSecretKey,

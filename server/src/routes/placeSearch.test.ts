@@ -1,7 +1,14 @@
 import { describe, expect, it } from "bun:test"
 import { createRateLimit, userOrClientKey } from "../middleware/rateLimit"
+import {
+  createGooglePlaceDetails,
+  PlaceDetailsUpstreamError,
+  type PlaceDetails,
+  type PlaceDetailsLookup,
+  type PlaceDetailsQuery,
+} from "../trips/placeDetails"
 import type { PlaceTypeahead } from "../trips/placeSearch"
-import { createPlaceSearchRouter, parseNear } from "./placeSearch"
+import { createPlaceSearchRouter, parseDetailsQuery, parseNear } from "./placeSearch"
 
 const verifyAuth = async (header: string | undefined) => (header === "Bearer ok" ? "user-1" : null)
 const auth = { headers: { Authorization: "Bearer ok" } }
@@ -92,5 +99,144 @@ describe("parseNear", () => {
     expect(parseNear("", "")).toBe("invalid")
     expect(parseNear("0", "181")).toBe("invalid")
     expect(parseNear("Infinity", "0")).toBe("invalid")
+  })
+})
+
+describe("GET /api/places/details", () => {
+  const KEY = "test-maps-key-SECRET123"
+  const PLACE_ID = "ChIJod7tSseifDUR9hXHLFNGMIs"
+  const place: PlaceDetails = {
+    placeId: PLACE_ID,
+    name: "Gyeongbokgung Palace",
+    rating: 4.6,
+    photos: [{ url: "https://lh3.googleusercontent.com/p/abc=s1200", author: { name: "아삭" } }],
+  }
+
+  function recordingDetails(result: PlaceDetails | null = place) {
+    const calls: PlaceDetailsQuery[] = []
+    const details: PlaceDetailsLookup = async (query) => {
+      calls.push(query)
+      return result
+    }
+    return { details, calls }
+  }
+
+  /** Runs `fn` with console.warn captured. */
+  async function withWarnings<T>(fn: () => Promise<T>): Promise<{ result: T; warnings: string }> {
+    const original = console.warn
+    const lines: string[] = []
+    console.warn = (...args: unknown[]) => lines.push(args.map(String).join(" "))
+    try {
+      return { result: await fn(), warnings: lines.join("\n") }
+    } finally {
+      console.warn = original
+    }
+  }
+
+  it("needs a signed-in user", async () => {
+    const { details, calls } = recordingDetails()
+    const app = createPlaceSearchRouter({ verifyAuth, search: null, details })
+    expect((await app.request(`/details?placeId=${PLACE_ID}`)).status).toBe(401)
+    expect(calls).toHaveLength(0)
+  })
+
+  it("looks a place up by id", async () => {
+    const { details, calls } = recordingDetails()
+    const app = createPlaceSearchRouter({ verifyAuth, search: null, details })
+    const res = await app.request(`/details?placeId=${PLACE_ID}`, auth)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ place })
+    expect(calls[0]).toEqual({ placeId: PLACE_ID })
+  })
+
+  it("looks a place up by its name at a point", async () => {
+    const { details, calls } = recordingDetails(null)
+    const app = createPlaceSearchRouter({ verifyAuth, search: null, details })
+    const res = await app.request(`/details?name=${encodeURIComponent("  Tosokchon   Samgyetang ")}&lat=37.578&lng=126.971`, auth)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ place: null })
+    expect(calls[0]).toEqual({ name: "Tosokchon Samgyetang", near: { lat: 37.578, lng: 126.971 } })
+  })
+
+  it.each([
+    ["/details", "nothing"],
+    ["/details?placeId=../../places:searchText", "a path in the id"],
+    ["/details?placeId=short", "too short an id"],
+    ["/details?name=Tosokchon", "a name with no point"],
+    ["/details?name=T&lat=37&lng=126", "a one-letter name"],
+    [`/details?name=${"x".repeat(201)}&lat=37&lng=126`, "too long a name"],
+    ["/details?name=Tosokchon&lat=91&lng=0", "off the globe"],
+  ])("refuses %s (%s)", async (path) => {
+    const { details, calls } = recordingDetails()
+    const app = createPlaceSearchRouter({ verifyAuth, search: null, details })
+    expect((await app.request(path, auth)).status).toBe(400)
+    expect(calls).toHaveLength(0)
+  })
+
+  it("answers 503 without a Maps key", async () => {
+    const app = createPlaceSearchRouter({ verifyAuth, search: null, details: null })
+    const res = await app.request(`/details?placeId=${PLACE_ID}`, auth)
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: "place details unavailable" })
+  })
+
+  it("answers 502 when Google refuses, and logs only the status", async () => {
+    const app = createPlaceSearchRouter({
+      verifyAuth,
+      search: null,
+      details: async () => {
+        throw new PlaceDetailsUpstreamError(403)
+      },
+    })
+    const { result: res, warnings } = await withWarnings(() => app.request(`/details?placeId=${PLACE_ID}`, auth))
+    expect(res.status).toBe(502)
+    expect(await res.json()).toEqual({ error: "place details failed" })
+    expect(warnings).toContain("upstream 403")
+  })
+
+  it("never lets the key out: not in an answer, an error, or a log line", async () => {
+    // A real lookup over a fake Google whose network error quotes a URL with the key in it.
+    const google = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/media?")) return Response.json({ photoUri: "https://lh3.googleusercontent.com/p/abc=s1200" })
+      if (url.includes("/places/ChIJbroken")) throw new TypeError(`Unable to connect to ${url}&key=${KEY}`)
+      return Response.json({ id: PLACE_ID, displayName: { text: "Gyeongbokgung Palace" }, photos: [{ name: `places/${PLACE_ID}/photos/AV-0GLphoto0001` }] })
+    }) as typeof fetch
+    const app = createPlaceSearchRouter({ verifyAuth, search: null, details: createGooglePlaceDetails(KEY, google) })
+
+    const ok = await app.request(`/details?placeId=${PLACE_ID}`, auth)
+    expect(ok.status).toBe(200)
+    const okBody = await ok.text()
+    expect(okBody).toContain("lh3.googleusercontent.com")
+    expect(okBody).not.toContain(KEY)
+
+    const { result: failed, warnings } = await withWarnings(() => app.request("/details?placeId=ChIJbrokenPlaceId00", auth))
+    expect(failed.status).toBe(502)
+    expect(await failed.text()).not.toContain(KEY)
+    expect(warnings).toContain("[places] details failed")
+    expect(warnings).not.toContain(KEY)
+  })
+
+  it("has its own, tighter bucket, separate from search's", async () => {
+    const { details } = recordingDetails()
+    const { search } = recordingSearch()
+    const app = createPlaceSearchRouter({
+      verifyAuth,
+      search,
+      details,
+      rateLimit: createRateLimit({ windowMs: 60_000, max: 1, keyPrefix: `places-test-${crypto.randomUUID()}`, key: userOrClientKey }),
+      detailsRateLimit: createRateLimit({ windowMs: 600_000, max: 2, keyPrefix: `details-test-${crypto.randomUUID()}`, key: userOrClientKey }),
+    })
+    expect((await app.request("/search?q=aa", auth)).status).toBe(200)
+    expect((await app.request("/search?q=bb", auth)).status).toBe(429)
+    expect((await app.request(`/details?placeId=${PLACE_ID}`, auth)).status).toBe(200)
+    expect((await app.request(`/details?placeId=${PLACE_ID}`, auth)).status).toBe(200)
+    expect((await app.request(`/details?placeId=${PLACE_ID}`, auth)).status).toBe(429)
+  })
+})
+
+describe("parseDetailsQuery", () => {
+  it("prefers the place id", () => {
+    expect(parseDetailsQuery("ChIJod7tSseifDUR9hXHLFNGMIs", "Anything", "1", "2")).toEqual({ placeId: "ChIJod7tSseifDUR9hXHLFNGMIs" })
   })
 })
