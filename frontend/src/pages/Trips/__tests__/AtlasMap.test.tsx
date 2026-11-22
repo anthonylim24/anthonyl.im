@@ -52,6 +52,26 @@ describe("AtlasMap wishlist pins", () => {
     expect(screen.getAllByRole("button", { name: /on the wishlist$/ })).toHaveLength(2)
   })
 
+  it("draws no button for an idea in the band the chart crops off a wide box", () => {
+    // The chart's 4:3 viewBox fills an 800 × 300 box by cropping its top and bottom quarters.
+    class WideBox {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(node: Element) {
+        this.callback([{ target: node, contentRect: { width: 800, height: 300 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", WideBox)
+    try {
+      renderMap({ ideaPins: [...ideas, { id: "top", lat: 38.725, lng: -9.12, title: "Miradouro", variant: "idea" }] })
+      expect(screen.queryByRole("button", { name: "Miradouro, on the wishlist" })).toBeNull()
+      expect(screen.getByRole("button", { name: "Ramen Jiro, on the wishlist" })).toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("has no key and no idea pins when no wishlist place has a point", () => {
     renderMap()
     expect(legend()).toBeNull()
