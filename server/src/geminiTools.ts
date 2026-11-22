@@ -47,7 +47,8 @@ export async function fetchGeminiWithTransientRetry(
   return fetchGeminiModel(fetchImpl, url, init)
 }
 
-function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
+/** Wait `ms`, or reject with the signal's reason as soon as it aborts. */
+export function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError"))

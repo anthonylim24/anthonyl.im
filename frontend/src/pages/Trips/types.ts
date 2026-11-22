@@ -243,6 +243,24 @@ export interface EnhancementSuggestion {
   proposedOrder?: string[]
   /** "move": the day the item goes to. "swap_days": the day traded with `dayId`. */
   toDayId?: string
+  /** "add" only: the wishlist idea (`trip.ideas[].id`) this stop schedules.
+   *  Applying it takes the idea off the wishlist in the same write. */
+  fromIdeaId?: string
+}
+
+/** Where a run is in the server's review queue. Kept off `status` on
+ *  purpose: a run reads as finished only once `status` leaves "running".
+ *  "queued": waiting for a worker (first try or a retry). "working": a
+ *  worker has it. "done": the run reached complete or error. */
+export interface RunQueueInfo {
+  state: "queued" | "working" | "done"
+  /** Attempts started so far (0 while first queued). */
+  attempt: number
+  maxAttempts: number
+  /** When a queued run may next be claimed (ISO). */
+  nextAttemptAt?: string
+  /** Why the last attempt did not finish, when one failed. */
+  lastError?: string
 }
 
 export interface EnhancementRun {
@@ -257,6 +275,8 @@ export interface EnhancementRun {
   suggestions: EnhancementSuggestion[]
   appliedSuggestionIds: string[]
   weatherByDate?: Record<string, DayWeather>
+  /** Queue progress. Absent on runs made before the review queue. */
+  queue?: RunQueueInfo
   error?: string
   createdAt: string
 }

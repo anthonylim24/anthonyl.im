@@ -1,22 +1,15 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono"
 import { categoryColor, categoryIcon, formatDistance, haversineMeters, type PlaceCategory } from "../data/koreaPlaces"
-import {
-  applySuggestions,
-  autoApplyAddSuggestions,
-  enhanceTrip,
-  fetchOpenMeteoWeather,
-  generateItinerary,
-  type Geocoder,
-  type LlmCall,
-  type WeatherFetcher,
-} from "../trips/ai"
+import { applySuggestions, generateItinerary, type Geocoder, type LlmCall, type WeatherFetcher } from "../trips/ai"
 import { streamTripChat } from "../trips/chat"
 import { createBookingParserFromKeys, type BookingParser } from "../trips/bookingParse"
 import { config } from "../config"
 import { registerBookingRoutes } from "./tripBookings"
 import { collectCatalogPlaces, groupCatalogPlaces } from "../trips/placeCatalog"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
+import { createTripReviewWorker, type ReviewWorker } from "../trips/reviewWorker"
 import { isNotProvisionedError, type TripStore } from "../trips/store"
+import { mutateTrip, nextUpdatedAt, PERSIST_RETRIES } from "../trips/tripWrites"
 import {
   accessFor,
   applySuggestionsSchema,
@@ -28,17 +21,15 @@ import {
   generateRequestSchema,
   joinTripSchema,
   tripChatRequestSchema,
-  finishRun,
-  isLiveRun,
   newId,
   nowIso,
   emptyDays,
   RESERVED_SLUGS,
+  REVIEW_MAX_ATTEMPTS,
   settleStaleRun,
   slugify,
   updateTripSchema,
-  type CompleteEnhancementRun,
-  type FailedEnhancementRun,
+  type ReviewRequest,
   type RunningEnhancementRun,
   type Trip,
   type TripDay,
@@ -67,6 +58,11 @@ export interface TripsRouterDeps {
   rateLimit?: MiddlewareHandler
   /** Reads bookings out of a pasted confirmation. Undefined: built from the server's Gemini / Groq keys; null: not available (503). */
   parseBookings?: BookingParser | null
+  /** Runs queued AI reviews; `/enhance` kicks it with each new run. The
+   *  server passes the one worker it also sweeps with. Undefined: a worker
+   *  over `store` and `llm` that only takes the runs it is kicked with (and
+   *  their retries), never sweeping for other due runs. */
+  reviewWorker?: ReviewWorker
 }
 
 const MAX_SUMMARY_POINTS = 48
@@ -137,32 +133,6 @@ function asPlaceCategory(category: string | undefined): PlaceCategory {
   return category && category in categoryIcon ? (category as PlaceCategory) : FALLBACK_CATEGORY
 }
 
-const PERSIST_RETRIES = 3
-
-/** A new `updatedAt` strictly after `prev`, so two saves in the same
- *  millisecond still read as different versions to a compare-and-set. */
-function nextUpdatedAt(prev: string): string {
-  const now = Date.now()
-  const prevMs = Date.parse(prev)
-  return new Date(Number.isFinite(prevMs) && now <= prevMs ? prevMs + 1 : now).toISOString()
-}
-
-/** The only way the server rewrites a stored trip: re-read it, apply
- *  `change` to that fresh copy, and compare-and-set on `updatedAt`, so a
- *  concurrent save is merged into instead of overwritten. `change` returns
- *  the trip untouched when there is nothing to do. Null when the trip is gone. */
-async function mutateTrip(store: TripStore, tripId: string, change: (trip: Trip) => Trip): Promise<Trip | null> {
-  for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
-    const fresh = await store.get(tripId)
-    if (!fresh) return null
-    const changed = change(fresh)
-    if (changed === fresh) return fresh
-    const next = { ...changed, updatedAt: nextUpdatedAt(fresh.updatedAt) }
-    if (await store.updateIfUnchanged(next, fresh.updatedAt)) return next
-  }
-  throw new Error("Trip kept changing while saving")
-}
-
 /** Serialises async work per key inside this process (the server runs as
  *  one process), for read-check-write sequences the store cannot make
  *  atomic on its own. */
@@ -177,51 +147,6 @@ function createKeyedLock() {
     } finally {
       if (tails.get(key) === tail) tails.delete(key)
     }
-  }
-}
-
-function applyCompletedEnhancement(
-  trip: Trip,
-  run: CompleteEnhancementRun,
-): { trip: Trip; run: CompleteEnhancementRun } {
-  let next = trip
-  if (run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
-    next = {
-      ...next,
-      days: next.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
-    }
-  }
-  const appliedAdds = autoApplyAddSuggestions(next, run)
-  return { trip: appliedAdds.trip, run: appliedAdds.run }
-}
-
-/** Finish an enhancement off the request thread: apply weather + add
- *  suggestions onto the fresh trip, then persist the run. */
-async function persistEnhancementRun(args: {
-  store: TripStore
-  tripId: string
-  pending: RunningEnhancementRun
-  work: Promise<CompleteEnhancementRun | FailedEnhancementRun>
-}): Promise<void> {
-  try {
-    const finished = await args.work
-    const run = { ...finished, id: args.pending.id, createdAt: args.pending.createdAt }
-    if (run.status !== "complete") {
-      await args.store.saveRun(run)
-      return
-    }
-    let finalRun = run
-    const written = await mutateTrip(args.store, args.tripId, (fresh) => {
-      const applied = applyCompletedEnhancement(fresh, run)
-      finalRun = applied.run
-      return applied.trip
-    })
-    if (!written) throw new Error("Trip was deleted before enhancement completion")
-    await args.store.saveRun(finalRun)
-  } catch (err) {
-    await args.store.saveRun(
-      finishRun(args.pending, { status: "error", error: err instanceof Error ? err.message : String(err) }),
-    )
   }
 }
 
@@ -279,14 +204,16 @@ async function ensureSeeded(store: TripStore) {
 export function createTripsRouter(deps: TripsRouterDeps) {
   const trips = new Hono()
 
-  // A database that hasn't had supabase/schema.sql applied yet should fail
-  // loud-but-actionable, not as an opaque 500.
+  // A database that hasn't had supabase/schema.sql (or the review queue
+  // migration) applied yet should fail loud-but-actionable, not as an opaque 500.
   trips.onError((err, c) => {
     if (isNotProvisionedError(err)) {
       return c.json(
         {
           error: "trips_not_provisioned",
-          message: "The trips tables are missing — apply supabase/schema.sql to the database.",
+          message:
+            "The trips tables or the AI review queue are missing — apply supabase/schema.sql and " +
+            "supabase/migrations/20261121_trip_review_queue.sql to the database.",
         },
         503,
       )
@@ -307,6 +234,11 @@ export function createTripsRouter(deps: TripsRouterDeps) {
   const userIdOf = (c: Context) => c.get("userId" as never) as string
   const withLock = createKeyedLock()
   const mutate = (tripId: string, change: (trip: Trip) => Trip) => mutateTrip(deps.store, tripId, change)
+  const reviews =
+    deps.reviewWorker ??
+    (deps.llm
+      ? createTripReviewWorker({ store: deps.store, llm: deps.llm, fetchWeather: deps.fetchWeather, geocode: deps.geocode })
+      : null)
 
   /** Resolve a trip by id, falling back to its permalink slug. */
   async function resolveTrip(idOrSlug: string): Promise<Trip | null> {
@@ -666,10 +598,12 @@ export function createTripsRouter(deps: TripsRouterDeps) {
 
   // ── AI: enhancement (reviewable suggestions) ───────────────────────────
   //
-  // The LLM call (Gemini Maps + tool ladder) regularly exceeds reverse-
-  // proxy idle timeouts, which used to surface as a naked 502. Start the run
-  // immediately and finish it in the background; the editor polls GET
-  // /enhancements/:runId until status leaves "running".
+  // A review takes minutes (Gemini Maps + tool ladder), far past a reverse
+  // proxy's idle timeout, so it is never done on the request. POST queues a
+  // run in the store (the durable review queue) and kicks the review worker;
+  // the editor polls GET /enhancements/:runId until status leaves "running".
+  // The run survives a restart: another worker claims it when the lease
+  // lapses, and a failed attempt is retried (`run.queue` says where it is).
 
   trips.post("/:id/enhance", async (c) => {
     const result = await loadTrip(c, c.req.param("id"), true)
@@ -679,55 +613,36 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if (body.data.scope === "day" && !body.data.dayId) {
       return c.json({ error: "dayId required for day scope" }, 400)
     }
-    if (!deps.llm) return c.json({ error: "ai_not_configured", message: "GEMINI_API_KEY or GROQ_API_KEY missing" }, 503)
+    if (!deps.llm || !reviews) {
+      return c.json({ error: "ai_not_configured", message: "GEMINI_API_KEY or GROQ_API_KEY missing" }, 503)
+    }
 
-    const tripId = result.trip.id
-    // One review per trip at a time: two would each auto-apply their adds
-    // onto the same days. The check and the insert run under one lock.
-    const started = await withLock(`enhance:${tripId}`, async () => {
-      const live = (await deps.store.listRuns(tripId)).find((run) => isLiveRun(run))
-      if (live) return { live }
-      const pending: RunningEnhancementRun = {
-        id: newId("run"),
-        tripId,
-        scope: body.data.scope,
-        dayId: body.data.scope === "day" ? body.data.dayId : undefined,
-        status: "running",
-        suggestions: [],
-        appliedSuggestionIds: [],
-        createdAt: nowIso(),
-      }
-      await deps.store.saveRun(pending)
-      return { pending }
-    })
-    // The body carries the run in flight, so a client that polls on
-    // `run.status === "running"` simply follows the review already going.
-    if ("live" in started) {
+    const { scope, prompt } = body.data
+    const dayId = scope === "day" ? body.data.dayId : undefined
+    const pending: RunningEnhancementRun = {
+      id: newId("run"),
+      tripId: result.trip.id,
+      scope,
+      dayId,
+      status: "running",
+      suggestions: [],
+      appliedSuggestionIds: [],
+      createdAt: nowIso(),
+    }
+    const request: ReviewRequest = { scope, ...(dayId ? { dayId } : {}), ...(prompt ? { prompt } : {}) }
+    // One live review per trip, enforced by the store: two would each
+    // auto-apply their adds onto the same days. The body carries the run in
+    // flight, so a client that polls on `run.status === "running"` simply
+    // follows the review already going.
+    const queued = await deps.store.enqueueReview(pending, request, REVIEW_MAX_ATTEMPTS)
+    if (!queued.inserted) {
       return c.json(
-        { error: "enhancement_running", message: "An AI review of this trip is already running.", run: started.live },
+        { error: "enhancement_running", message: "An AI review of this trip is already running.", run: queued.live },
         409,
       )
     }
-
-    const pending = started.pending
-    void persistEnhancementRun({
-      store: deps.store,
-      tripId,
-      pending,
-      work: enhanceTrip({
-        trip: result.trip,
-        scope: body.data.scope,
-        dayId: body.data.dayId,
-        prompt: body.data.prompt,
-        llm: deps.llm,
-        fetchWeather: deps.fetchWeather ?? fetchOpenMeteoWeather,
-        geocode: deps.geocode,
-      }),
-    }).catch((err) => {
-      console.warn("[trips/enhance] background run failed:", err instanceof Error ? err.message : err)
-    })
-
-    return c.json({ run: pending }, 202)
+    reviews.kick(queued.run.id)
+    return c.json({ run: queued.run }, 202)
   })
 
   trips.get("/:id/enhancements", async (c) => {
@@ -743,8 +658,8 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     const stored = await deps.store.getRun(result.trip.id, c.req.param("runId"))
     if (!stored) return c.json({ error: "run not found" }, 404)
     const run = settleStaleRun(stored)
-    // Re-read after the run: persist may have finished between loadTrip and
-    // getRun, and the client stops polling on a terminal status.
+    // Re-read after the run: the review may have finished between loadTrip
+    // and getRun, and the client stops polling on a terminal status.
     const trip = (await deps.store.get(result.trip.id)) ?? result.trip
     return c.json({
       run,

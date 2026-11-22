@@ -15,7 +15,9 @@ import {
   groqSafeMaxTokens,
   GROQ_DEFAULT_MAX_TOKENS,
   GROQ_TPM_LIMIT,
+  isRetryableReviewError,
   normalizeAiItem,
+  ReviewAttemptError,
   normalizeTime,
   resolveEnhancementOutcome,
   salvageItinerary,
@@ -285,31 +287,31 @@ describe("enhanceTrip", () => {
     expect(run.outcomeReason).toMatch(/not on this trip/i)
   })
 
-  test("captures llm failure as an error run", async () => {
-    const run = await enhanceTrip({
+  test("a reply that is not JSON throws a retryable error the traveler can read", async () => {
+    const err = await enhanceTrip({
       trip: makeTrip(),
       scope: "trip",
       llm: async () => "not json at all",
-    })
-    expect(run.status).toBe("error")
-    expect(run.error).toBeTruthy()
-    expect(run.outcomeReason).toMatch(/failed before/i)
+    }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ReviewAttemptError)
+    expect(isRetryableReviewError(err)).toBe(true)
+    expect((err as Error).message).toMatch(/could not use/i)
   })
 
-  test("never stores Groq TPM dumps on the run the traveler sees", async () => {
+  test("never puts Groq TPM dumps in the error the traveler sees", async () => {
     const groqDump =
       '413 {"error":{"message":"Request too large for model `openai/gpt-oss-120b` in organization `org_01jjk64dq4ens807q9ak9yqwen` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Requested 9383, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing","type":"tokens","code":"rate_limit_exceeded"}}'
-    const run = await enhanceTrip({
+    const err = await enhanceTrip({
       trip: makeTrip(),
       scope: "day",
       dayId: "day-1",
       llm: async () => {
         throw new Error(groqDump)
       },
-    })
-    expect(run.status).toBe("error")
-    expect(run.error).not.toMatch(/gpt-oss|console\.groq|9383|org_/)
-    expect(run.error).toMatch(/try again/i)
+    }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ReviewAttemptError)
+    expect((err as Error).message).not.toMatch(/gpt-oss|console\.groq|9383|org_/)
+    expect((err as Error).message).toMatch(/try again/i)
   })
 })
 

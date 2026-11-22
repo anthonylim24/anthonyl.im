@@ -51,7 +51,11 @@ export type AiRun = "draft" | "trip" | { day: string }
 
 export type Ai =
   | { k: "idle" }
-  | { k: "running"; run: AiRun }
+  /**
+   * `live`: a review as the server last described it (its place in the
+   * queue); null until the server has answered, and always for a draft.
+   */
+  | { k: "running"; run: AiRun; live: EnhancementRun | null }
   | { k: "review"; run: EnhancementRun }
   | { k: "applying"; run: EnhancementRun }
 
@@ -128,6 +132,13 @@ export type EditorEvent =
   /** Server-owned fields (collaborators) changed: no save, no history. */
   | { type: "SERVER_FIELDS"; patch: Pick<Partial<Trip>, "collaborators"> }
   | { type: "AI_START"; run: AiRun }
+  /**
+   * A review already under way on the server (the page was reloaded, or it
+   * was started on another device): followed as if it had started here.
+   */
+  | { type: "AI_RESUME"; live: EnhancementRun }
+  /** The server's latest word on the review being followed. */
+  | { type: "AI_PROGRESS"; live: EnhancementRun }
   | { type: "AI_DONE"; trip?: Trip; run: EnhancementRun | null; undo?: UndoMark }
   | { type: "AI_FAILED" }
   | { type: "APPLY" }
@@ -149,6 +160,18 @@ export const canWrite = (access: TripAccess) => access === "edit" || access === 
 export function canEdit(state: Editor): state is Ready {
   return state.s === "ready" && canWrite(state.access) && (state.ai.k === "idle" || state.ai.k === "review")
 }
+
+/**
+ * A review found running on the server may be taken up: nothing else is
+ * going, no review is open to read, and nothing is unsaved (its landing
+ * puts the server's trip in place).
+ */
+export function canResume(state: Editor): state is Ready {
+  return canEdit(state) && state.ai.k === "idle" && state.sync.k === "clean"
+}
+
+/** The part of the trip a review covers, as the editor names a run. */
+export const reviewOf = (run: EnhancementRun): AiRun => (run.scope === "day" && run.dayId ? { day: run.dayId } : "trip")
 
 const plan = (trip: Trip): Plan => ({ days: trip.days, startDate: trip.startDate, endDate: trip.endDate, ideas: trip.ideas })
 const samePlanRefs = (a: Trip, b: Trip) =>
@@ -182,6 +205,22 @@ function record(history: History, prev: Trip, next: Trip, undo: UndoMark | undef
     toast: undo?.toast ?? false,
   }
   return { past: [...history.past, entry].slice(-HISTORY_LIMIT), future: [], seq: entry.id }
+}
+
+/**
+ * Wishlist ideas a review put on a day are off the server's wishlist once
+ * its trip lands. Undo steps from before the review still name them, and
+ * replaying one that edited an idea would bring it back (in a merge an edit
+ * beats a delete), so the history forgets them too.
+ */
+function forgetScheduled(history: History, run: EnhancementRun | null, landed: Trip): History {
+  if (!run) return history
+  const kept = new Set((landed.ideas ?? []).map((idea) => idea.id))
+  const gone = new Set(run.suggestions.flatMap((s) => (s.kind === "add" && s.fromIdeaId && !kept.has(s.fromIdeaId) ? [s.fromIdeaId] : [])))
+  if (gone.size === 0) return history
+  const strip = (p: Plan): Plan => (p.ideas?.some((idea) => gone.has(idea.id)) ? { ...p, ideas: p.ideas.filter((idea) => !gone.has(idea.id)) } : p)
+  const forget = (entry: HistoryEntry): HistoryEntry => ({ ...entry, before: strip(entry.before), after: strip(entry.after) })
+  return { ...history, past: history.past.map(forget), future: history.future.map(forget) }
 }
 
 /** Where saving goes after the document changed locally. */
@@ -366,7 +405,16 @@ export function editorReducer(state: Editor, event: EditorEvent): Editor {
     case "AI_START":
       if (!canEdit(state)) return state
       // The run reads the server's copy, so unsaved edits go first.
-      return flush({ ...state, ai: { k: "running", run: event.run } })
+      return flush({ ...state, ai: { k: "running", run: event.run, live: null } })
+
+    case "AI_RESUME":
+      if (!canResume(state)) return state
+      return { ...state, ai: { k: "running", run: reviewOf(event.live), live: event.live } }
+
+    case "AI_PROGRESS":
+      // A 409 may hand over a review of another part of the trip: name what is really running.
+      if (state.ai.k !== "running" || state.ai.run === "draft") return state
+      return { ...state, ai: { k: "running", run: reviewOf(event.live), live: event.live } }
 
     case "APPLY":
       if (state.ai.k !== "review" || !canWrite(state.access)) return state
@@ -377,8 +425,9 @@ export function editorReducer(state: Editor, event: EditorEvent): Editor {
       const ai: Ai = event.run ? { k: "review", run: event.run } : { k: "idle" }
       const trip = event.trip
       if (!trip || trip.id !== state.doc.id || trip.updatedAt < state.base.updatedAt) return { ...state, ai }
-      const history = event.undo ? record(state.history, state.doc, trip, event.undo) : state.history
-      return { ...state, ai, doc: trip, base: trip, sync: { k: "clean" }, history }
+      const recorded = event.undo ? record(state.history, state.doc, trip, event.undo) : state.history
+      const reviewed = event.run ?? (state.ai.k === "applying" ? state.ai.run : null)
+      return { ...state, ai, doc: trip, base: trip, sync: { k: "clean" }, history: forgetScheduled(recorded, reviewed, trip) }
     }
 
     case "AI_FAILED":

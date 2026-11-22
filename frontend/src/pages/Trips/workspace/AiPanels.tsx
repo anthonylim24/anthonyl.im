@@ -281,19 +281,55 @@ export function AiSheet({
   )
 }
 
-/** Progress for a long AI run: the copy steps forward so it never looks stuck. */
-/** An AI run in progress. `onStop` stops waiting for it and unlocks editing. */
-export function AiBusy({ steps, onStop }: { steps: readonly string[]; onStop?: () => void }) {
+/** A review's place in the server's queue, in words: one line, and a quieter hint after it. */
+export interface ReviewProgress {
+  line: string
+  hint: string | null
+}
+
+const FIRST_TRY_HINT = "This usually takes about a minute."
+const RETRY_HINT = "It keeps going if you leave this page."
+
+/**
+ * What the busy line says about a review. `live` is the run as the server
+ * last described it (null before it has answered); `subject` names what is
+ * reviewed ("your trip", "Day 3"). Undefined for a server without a queue,
+ * whose runs say nothing about progress: the line then steps through `steps`.
+ */
+export function reviewProgress(live: EnhancementRun | null, subject: string): ReviewProgress | undefined {
+  if (!live) return { line: "Starting the review…", hint: FIRST_TRY_HINT }
+  const queue = live.queue
+  if (!queue) return undefined
+  if (queue.state === "done") return { line: "Finishing the review…", hint: null }
+  if (queue.state === "queued") {
+    if (queue.attempt === 0) return { line: "Starting the review…", hint: FIRST_TRY_HINT }
+    const next = Math.min(queue.attempt + 1, queue.maxAttempts)
+    return { line: `The AI was slow, so it’s trying again (attempt ${next} of ${queue.maxAttempts})…`, hint: RETRY_HINT }
+  }
+  if (queue.attempt <= 1) return { line: `Reviewing ${subject}…`, hint: FIRST_TRY_HINT }
+  return { line: `Reviewing ${subject} (attempt ${queue.attempt} of ${queue.maxAttempts})…`, hint: RETRY_HINT }
+}
+
+/**
+ * An AI run in progress. `onStop` stops waiting for it and unlocks editing.
+ * With `progress` (a review on a server with a queue) the line says where
+ * the run really is; without it, the copy steps forward so it never looks stuck.
+ */
+export function AiBusy({ steps, progress, onStop }: { steps: readonly string[]; progress?: ReviewProgress; onStop?: () => void }) {
   const [at, setAt] = useState(0)
+  const stepping = !progress
   useEffect(() => {
+    if (!stepping) return
     const timer = setInterval(() => setAt((i) => Math.min(i + 1, steps.length - 1)), 7000)
     return () => clearInterval(timer)
-  }, [steps.length])
+  }, [stepping, steps.length])
+  const line = progress ? progress.line : steps[Math.min(at, steps.length - 1)]
+  const hint = progress ? progress.hint : FIRST_TRY_HINT
   return (
     <div {...sx(s.aiBusy)}>
       <Spinner />
       <span {...sx(a.grow)} role="status">
-        {steps[at]} <span {...sx(a.muted)}>This usually takes about a minute.</span>
+        {line} {hint && <span {...sx(a.muted)}>{hint}</span>}
       </span>
       {onStop && (
         <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} onClick={onStop}>
@@ -339,6 +375,7 @@ export function SuggestionsReview({
 }) {
   const applied = new Set(run.appliedSuggestionIds)
   const added = run.suggestions.filter((sg) => applied.has(sg.id))
+  const fromWishlist = added.filter((sg) => sg.fromIdeaId).length
   const pending = run.suggestions.filter((sg) => !applied.has(sg.id) && actionable(sg))
   const notes = run.suggestions.filter((sg) => !applied.has(sg.id) && !actionable(sg))
   const [picked, setPicked] = useState<Set<string>>(() => new Set(pending.map((sg) => sg.id)))
@@ -363,7 +400,10 @@ export function SuggestionsReview({
         </button>
       </div>
       {run.status === "error" ? (
-        <p {...sx(a.body)}>The review didn’t finish, so nothing changed. You can run it again.</p>
+        <p {...sx(a.body, a.wrap)}>
+          {run.outcomeReason ?? (run.error ? `The review didn’t finish (${run.error}).` : "The review didn’t finish.")} Nothing in your
+          itinerary changed, so you can run it again.
+        </p>
       ) : (
         <>
           {run.summary && <p {...sx(a.body, a.ink, a.wrap)}>{run.summary}</p>}
@@ -376,6 +416,8 @@ export function SuggestionsReview({
                 .slice(0, 6)
                 .join(", ")}
               {added.length > 6 ? "…" : "."}
+              {fromWishlist > 0 &&
+                ` ${fromWishlist === added.length ? (added.length === 1 ? "It" : "They") : fromWishlist} came from your wishlist.`}
             </p>
           )}
           {pending.length > 0 && (
@@ -405,6 +447,7 @@ export function SuggestionsReview({
                           {sg.toDayId && sg.toDayId !== sg.dayId && dayLabel(sg.toDayId) ? ` → ${dayLabel(sg.toDayId)}` : ""}
                         </span>
                       )}
+                      {sg.kind === "add" && sg.fromIdeaId && <span {...sx(a.mono, a.muted)}>From your wishlist</span>}
                     </span>
                     <span {...sx(a.body, a.ink, a.wrap)} style={{ fontWeight: 600 }}>
                       {sg.title}

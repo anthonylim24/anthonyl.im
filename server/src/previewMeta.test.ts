@@ -9,6 +9,7 @@ const built = existsSync(resolve(import.meta.dir, '../../frontend/dist/index.htm
 
 test.skipIf(!built)('each app shell gets its own preview metadata', async () => {
   process.env.IG_WORKER_ENABLED ||= 'false';
+  process.env.TRIPS_REVIEW_WORKER ||= 'false';
   const app = (await import('../app')).default;
   const cases: [string, string, string][] = [
     ['/lab', 'anthonyl.im — Applied intelligence lab', 'og-landing'],
@@ -30,6 +31,7 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
 
 test.skipIf(!built)('home and legal pages are plain HTML, and both homes link the policy', async () => {
   process.env.IG_WORKER_ENABLED ||= 'false';
+  process.env.TRIPS_REVIEW_WORKER ||= 'false';
   const app = (await import('../app')).default;
   for (const [path, title] of [
     ['/home', 'anthonyl.im · Anthony Lim'],
@@ -54,6 +56,7 @@ test.skipIf(!built)('home and legal pages are plain HTML, and both homes link th
 
 test.skipIf(!built)('a missing hashed asset is a 404, not the SPA shell', async () => {
   process.env.IG_WORKER_ENABLED ||= 'false';
+  process.env.TRIPS_REVIEW_WORKER ||= 'false';
   const app = (await import('../app')).default;
   const res = await app.fetch(new Request('http://localhost/assets/photoreal-GONE1234.js'));
   expect(res.status).toBe(404);

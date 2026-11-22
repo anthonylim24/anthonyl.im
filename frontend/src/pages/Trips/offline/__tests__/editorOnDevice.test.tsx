@@ -20,6 +20,7 @@ vi.mock("../../tripsApi", () => ({
   applySuggestions: vi.fn(),
   enhanceTrip: vi.fn(),
   generateItinerary: vi.fn(),
+  listEnhancements: async () => [],
 }))
 
 import { useTripEditor } from "../../useTripEditor"

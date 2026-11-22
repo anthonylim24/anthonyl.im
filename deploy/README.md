@@ -377,3 +377,5 @@ The deploy workflow does not run this script; run it by hand after changing thos
 
 SQL under `supabase/migrations/` is applied by hand (Supabase SQL editor or MCP `apply_migration`); `supabase/schema.sql` remains the full schema.
 
+Apply a migration **before** the code that needs it deploys. `20261121_trip_review_queue.sql` (the durable AI review queue) is additive and safe under the older server; without it the new server answers `503 trips_not_provisioned` on `/enhance`.
+

@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk';
 import { config } from '../config';
+import { onShutdown } from '../shutdown';
 import { createSupabaseClient } from './supabase';
 import { createQueue } from './queue';
 import { createFetchPost } from './fetchPost';
@@ -371,7 +372,9 @@ export function bootIgWorker() {
     pollInterval = setInterval(() => { void booted!.loop.tick(); }, config.igWorkerPollMs);
     console.log(`[ig-worker] started concurrency=${config.igWorkerConcurrency} poll=${config.igWorkerPollMs}ms`);
 
-    const shutdown = async () => {
+    // The shared handler exits once every worker has wound down; exiting
+    // here would cut the others short.
+    onShutdown('ig-worker', async () => {
       if (!booted) return;
       booted.loop.stop();
       if (pollInterval) clearInterval(pollInterval);
@@ -380,10 +383,7 @@ export function bootIgWorker() {
         await new Promise(r => setTimeout(r, 250));
       }
       console.log('[ig-worker] shutdown complete');
-      process.exit(0);
-    };
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
+    });
     return booted;
   } catch (err) {
     console.warn('[ig-worker] failed to boot:', err);

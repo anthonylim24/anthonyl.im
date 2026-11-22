@@ -253,6 +253,33 @@ export interface EnhancementSuggestion {
   proposedOrder?: string[] // for "reorder": full item-id order for the day
   /** "move": the day the item goes to. "swap_days": the day traded with `dayId`. */
   toDayId?: string
+  /** "add" only: the wishlist idea (`trip.ideas[].id`) this stop schedules.
+   *  Applying it takes the idea off the wishlist in the same write. */
+  fromIdeaId?: string
+}
+
+/** What a review was asked to do. Stored with the queued run, so every
+ *  attempt re-reads the trip and works from the same request. */
+export interface ReviewRequest {
+  scope: "day" | "trip"
+  dayId?: string
+  /** Optional traveler focus steering the review. */
+  prompt?: string
+}
+
+/** Where a run is in the durable review queue. Kept off `status` on
+ *  purpose: older clients treat any status but "running" as finished.
+ *  "queued": waiting for a worker (first try or a retry). "working": a
+ *  worker holds the lease. "done": the run reached complete or error. */
+export interface RunQueueInfo {
+  state: "queued" | "working" | "done"
+  /** Attempts started so far (0 while first queued). */
+  attempt: number
+  maxAttempts: number
+  /** When a queued run may next be claimed (ISO). */
+  nextAttemptAt?: string
+  /** Why the last attempt did not finish, when one failed. */
+  lastError?: string
 }
 
 /** What every run carries, whatever state it is in. The client reads
@@ -269,6 +296,9 @@ export interface EnhancementRunBase {
   /** Live forecast fetched during the run — auto-merged onto day.weather
    *  (trusted metadata sync, not a reviewable suggestion). */
   weatherByDate?: Record<string, DayWeather>
+  /** Queue progress, kept in step with the queue by the store. Absent on
+   *  runs made before the durable queue. */
+  queue?: RunQueueInfo
   createdAt: string
 }
 
@@ -300,9 +330,32 @@ export type EnhancementRunEnd =
 
 export const RUN_FAILED_REASON = "The AI review failed before it could add places."
 
-/** A run that is still `running` after this long was stranded by a process
- *  restart (the work lives in memory), so readers treat it as failed. */
+/** A run made before the durable queue that is still `running` after this
+ *  long was stranded by a process restart, so readers treat it as failed. */
 export const STALE_RUN_MS = 10 * 60_000
+
+// ── Durable review queue ─────────────────────────────────────────────────
+//
+// A review is a row in `trip_enhancement_runs` that a worker claims with a
+// lease. A crash or restart lets the lease lapse and another claim retries
+// it; a failed attempt is retried with backoff until `maxAttempts`.
+
+/** Attempts a review gets before it fails for good. */
+export const REVIEW_MAX_ATTEMPTS = 3
+/** How long one claim holds a run without a heartbeat. */
+export const REVIEW_LEASE_MS = 90_000
+/** How often a working run renews its lease. */
+export const REVIEW_HEARTBEAT_MS = 30_000
+/** One attempt's whole budget, across every model and tool it tries. */
+export const REVIEW_ATTEMPT_DEADLINE_MS = 4 * 60_000
+/** Backoff before retry n (1-based); the last entry repeats. Jittered by the worker. */
+export const REVIEW_RETRY_BACKOFF_MS = [5_000, 30_000] as const
+/** A queued run older than this reads as failed: no worker took it. */
+export const QUEUED_RUN_MAX_MS = 30 * 60_000
+/** No attempt starts on a run older than this, so every attempt ends (by its
+ *  deadline) before readers call the run failed: a run shown as failed never
+ *  writes the trip afterwards. Such a run is failed instead of claimed. */
+export const REVIEW_CLAIM_MAX_AGE_MS = QUEUED_RUN_MAX_MS - REVIEW_ATTEMPT_DEADLINE_MS - 60_000
 
 function runBase(run: EnhancementRunBase): EnhancementRunBase {
   return {
@@ -314,6 +367,7 @@ function runBase(run: EnhancementRunBase): EnhancementRunBase {
     suggestions: run.suggestions,
     appliedSuggestionIds: run.appliedSuggestionIds,
     ...(run.weatherByDate !== undefined ? { weatherByDate: run.weatherByDate } : {}),
+    ...(run.queue !== undefined ? { queue: run.queue } : {}),
     createdAt: run.createdAt,
   }
 }
@@ -338,7 +392,8 @@ export function finishRun(run: EnhancementRunBase, end: EnhancementRunEnd): Comp
 
 /** True for a run whose background work may still finish. */
 export function isLiveRun(run: EnhancementRun, now = Date.now()): run is RunningEnhancementRun {
-  return run.status === "running" && now - Date.parse(run.createdAt) < STALE_RUN_MS
+  const maxAge = run.queue ? QUEUED_RUN_MAX_MS : STALE_RUN_MS
+  return run.status === "running" && now - Date.parse(run.createdAt) < maxAge
 }
 
 /** The run as a reader should see it: a stranded `running` run reads as failed. */

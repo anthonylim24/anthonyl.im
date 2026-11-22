@@ -10,8 +10,10 @@ import { test, expect } from 'bun:test';
 
 test('server/app.ts loads without throwing — catches missing-export regressions', async () => {
   // The app reads env at import time; keep the IG worker from booting.
-  // Matches the CI env in .github/workflows/deploy.yml.
+  // Matches the CI env in .github/workflows/deploy.yml. The review sweep is
+  // off under `bun test` anyway (NODE_ENV=test); say so for any other runner.
   process.env.IG_WORKER_ENABLED ||= 'false';
+  process.env.TRIPS_REVIEW_WORKER ||= 'false';
 
   // Importing app.ts pulls in every route (including igPlaces.wire,
   // which transitively imports fetchBusyness + gemini). Any

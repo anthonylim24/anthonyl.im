@@ -47,7 +47,7 @@ import { useHolidays } from "./holidays"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { Presence } from "./components/presence"
 import { ShareDialog } from "./components/ShareDialog"
-import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
+import { AiSheet, briefToRequest, reviewProgress, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
 import { DayRail } from "./workspace/DayRail"
 import { Parts } from "./workspace/Parts"
@@ -709,6 +709,16 @@ function Workspace() {
   const showMap = wide || view === "map"
   const sync = editor.sync
   const running = ai.k === "running" ? ai.run : null
+  // A review shows on whichever panel is open, with Stop: one taken up after
+  // a reload, or started on another device, can be of any part of the trip.
+  const reviewRun = ai.k === "running" && ai.run !== "draft" ? ai.run : null
+  const reviewing =
+    ai.k === "running" && reviewRun
+      ? reviewProgress(
+          ai.live,
+          reviewRun === "trip" ? "your trip" : (editor.dayOptions.find((d) => d.id === reviewRun.day)?.label.split(" · ")[0] ?? "the day"),
+        )
+      : undefined
   /** Reading the copy kept on this device: nothing that needs the server. */
   const onDevice = editor.copy !== null
   /** One save line in the page: in the header from 1024px, in the bottom bar below. */
@@ -915,7 +925,8 @@ function Workspace() {
             basePath={basePath}
             editable={editable}
             locked={locked}
-            enhancing={typeof running === "object" && running?.day === day.id}
+            enhancing={reviewRun !== null}
+            progress={reviewing}
             applying={ai.k === "applying"}
             run={editor.activeRun && editor.activeRun.scope === "day" && editor.activeRun.dayId === day.id ? editor.activeRun : null}
             dayOptions={editor.dayOptions}
@@ -954,7 +965,8 @@ function Workspace() {
                   editable={editable}
                   locked={locked}
                   drafting={running === "draft"}
-                  enhancing={running === "trip"}
+                  enhancing={reviewRun !== null}
+                  progress={reviewing}
                   applying={ai.k === "applying"}
                   run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
                   dayOptions={editor.dayOptions}

@@ -55,7 +55,7 @@ import { stopTitle } from "../timeline/timeline"
 import { useDayView } from "./dayView"
 import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
-import { AiBusy, SuggestionsReview } from "./AiPanels"
+import { AiBusy, SuggestionsReview, type ReviewProgress } from "./AiPanels"
 import { ItemCard, type CardConflict, type ItemCardProps } from "./ItemCard"
 import { sameDayList, type Leg } from "./dayList"
 import type { Holiday } from "../holidays"
@@ -69,7 +69,10 @@ export interface DayPanelProps {
   basePath: string
   editable: boolean
   locked: boolean
+  /** A review is running, whichever part of the trip it covers. */
   enhancing: boolean
+  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line steps through its copy. */
+  progress?: ReviewProgress
   applying: boolean
   run: EnhancementRun | null
   dayOptions: DayOption[]
@@ -220,6 +223,7 @@ export function DayPanel({
   editable,
   locked,
   enhancing,
+  progress,
   applying,
   run,
   dayOptions,
@@ -589,7 +593,11 @@ export function DayPanel({
       ))}
 
       {enhancing && (
-        <AiBusy steps={["Reading what’s already planned…", "Scouting places near your route…", "Checking they fit the day…", "Pinning the best ones…"]} onStop={onStopAi} />
+        <AiBusy
+          steps={["Reading what’s already planned…", "Scouting places near your route…", "Checking they fit the day…", "Pinning the best ones…"]}
+          progress={progress}
+          onStop={onStopAi}
+        />
       )}
       {run && !enhancing && (
         <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
