@@ -790,7 +790,48 @@ export interface GeneratePreferences {
 const SINGLE_CALL_DAYS = 4
 /** Days per part when a long trip is drafted in parts. */
 const CHUNK_DAYS = 3
-const CHUNK_CONCURRENCY = 3
+/** Parts drafted at once: four covers a twelve-day trip in one round. */
+const CHUNK_CONCURRENCY = 4
+
+/**
+ * How long each step of a draft may take, across its attempts. Without
+ * these a 12-day draft ran almost 13 minutes on production: every call had
+ * its own timeout per tool mode, times two attempts, times two rounds of
+ * parts. Each budget is sized like a review attempt: the Maps-grounded try
+ * gets most of it and a quicker fallback the rest (`modeTimeoutMs`).
+ */
+export interface DraftBudgets {
+  /** The outline, both attempts. Without one the parts still draft. */
+  outlineMs: number
+  /** One part, or a short trip's single call, both attempts. */
+  partMs: number
+  /** The whole draft. A part that cannot get a third of `partMs` before it
+   *  ends is not started; its days are reported as incomplete. */
+  totalMs: number
+}
+
+export const DRAFT_BUDGETS: DraftBudgets = {
+  outlineMs: 2 * 60_000,
+  partMs: 4 * 60_000,
+  totalMs: 10 * 60_000,
+}
+
+/** A step's slice of the draft's time: its own budget, cut short by the
+ *  draft's end. A second attempt runs only with a third of it still left. */
+interface Slice {
+  deadlineAt: number
+  signal: AbortSignal
+  canRetry: () => boolean
+}
+
+function slice(budgetMs: number, endsAt: number): Slice {
+  const deadlineAt = Math.min(Date.now() + budgetMs, endsAt)
+  return {
+    deadlineAt,
+    signal: AbortSignal.timeout(Math.max(1, deadlineAt - Date.now())),
+    canRetry: () => deadlineAt - Date.now() >= budgetMs / 3,
+  }
+}
 
 function toTripItems(items: AiDay["items"]): ItineraryItem[] {
   return items.map((item): ItineraryItem => ({
@@ -814,8 +855,11 @@ function toTripItems(items: AiDay["items"]): ItineraryItem[] {
 
 const stopCount = (day: AiDay | undefined) => (day?.items ?? []).filter((item) => item.kind === "place").length
 
-/** Enough stops to be a plan rather than a fragment: fewer earns a retry. */
-const dayLooksDrafted = (day: AiDay | undefined) => stopCount(day) >= 2
+/** Enough stops to be a plan rather than a fragment: fewer earns a retry.
+ *  What the traveller already booked counts (a wedding, the flight home):
+ *  such a day is full with one more stop, and asking again would not change
+ *  that. Where they sleep does not count; it is no plan for the day. */
+const dayLooksDrafted = (day: AiDay | undefined, booked = 0) => stopCount(day) + booked >= 2
 
 /** Keep whichever attempt at a day has more in it. */
 const fuller = (a: AiDay | undefined, b: AiDay | undefined) => (stopCount(b) > stopCount(a) || !a ? (b ?? a) : a)
@@ -834,8 +878,11 @@ export async function generateItinerary(args: {
   preferences?: GeneratePreferences
   llm: LlmCall
   geocode?: Geocoder | null
+  budgets?: DraftBudgets
 }): Promise<GeneratedItinerary> {
   const { trip, preferences, llm, geocode } = args
+  const budgets = args.budgets ?? DRAFT_BUDGETS
+  const endsAt = Date.now() + budgets.totalMs
   const dates = tripDates(trip.startDate, trip.endDate)
   const prefLines = Object.entries(preferences ?? {})
     .filter(([, v]) => v)
@@ -849,6 +896,8 @@ export async function generateItinerary(args: {
     const fixed = day.items.filter(isFixed)
     if (fixed.length) fixedByDate.set(day.date, fixed)
   }
+  const bookedOn = dates.map((date) => (fixedByDate.get(date) ?? []).filter((item) => !isLodging(item)).length)
+  const drafted = (day: AiDay | undefined, dayIndex: number) => dayLooksDrafted(day, bookedOn[dayIndex])
   const fixedLines = dates.flatMap((date, i) =>
     (fixedByDate.get(date) ?? []).map((item) => {
       const loc = item.location
@@ -889,25 +938,31 @@ export async function generateItinerary(args: {
   let appearance: Trip["appearance"] | undefined
   let aiDays: Array<AiDay | undefined> = []
 
+  // The last failure, surfaced when nothing at all came back.
+  let lastErr: unknown
   if (dates.length <= SINGLE_CALL_DAYS) {
     // Short trips: one call, one retry if it comes back thin.
-    for (let attempt = 0; attempt < 2; attempt++) {
+    const time = slice(budgets.partMs, endsAt)
+    for (let attempt = 0; attempt < 2 && (attempt === 0 || time.canRetry()); attempt++) {
       try {
-        const parsed = salvageItinerary(await llm({ system: GENERATION_SYSTEM, user: header, latLng, effort: "medium" }))
+        const parsed = salvageItinerary(
+          await llm({ system: GENERATION_SYSTEM, user: header, latLng, effort: "medium", signal: time.signal, deadlineAt: time.deadlineAt }),
+        )
         summary ??= parsed.summary
         appearance ??= parsed.appearance
         aiDays = dates.map((_, i) => fuller(aiDays[i], parsed.days[i]))
-        if (aiDays.every(dayLooksDrafted)) break
+        if (aiDays.every(drafted)) break
       } catch (err) {
-        if (attempt === 1 && !aiDays.some((day) => day !== undefined)) throw err
-        console.warn(`[trips/ai] draft attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`)
+        lastErr = err
+        console.warn(`[trips/ai] draft attempt ${attempt + 1} failed: ${rawMessage(err)}`)
       }
     }
+    if (lastErr !== undefined && !aiDays.some((day) => day !== undefined)) throw lastErr
   } else {
     // Long trips: agree the shape of every day first, then draft a few days
     // at a time in parallel. No single answer is long enough to be cut off,
     // and one bad part costs three days, not the trip.
-    const outline = await draftOutline({ llm, header, dates, latLng })
+    const outline = await draftOutline({ llm, header, dates, latLng, time: slice(budgets.outlineMs, endsAt) })
     summary = outline.summary
     appearance = outline.appearance
     const plan = dates
@@ -933,15 +988,24 @@ export async function generateItinerary(args: {
         `The whole trip, day by day. This is settled; follow it:\n${plan}`,
         `For THIS request draft only day${indexes.length > 1 ? "s" : ""} ${first}${last !== first ? ` to ${last}` : ""}: "days" has exactly ${indexes.length} entr${indexes.length === 1 ? "y" : "ies"}, in that order. The other days are being drafted separately, so stay inside these days' areas and do not use venues that belong to another day's line above.`,
       ].join("\n\n")
-      for (let attempt = 0; attempt < 2; attempt++) {
+      // Too little of the draft's time is left for this part to answer.
+      if (endsAt - Date.now() < budgets.partMs / 3) {
+        console.warn(`[trips/ai] days ${first}-${last} not started: the draft is out of time`)
+        return
+      }
+      const time = slice(budgets.partMs, endsAt)
+      for (let attempt = 0; attempt < 2 && (attempt === 0 || time.canRetry()); attempt++) {
         try {
-          const parsed = salvageItinerary(await llm({ system: GENERATION_SYSTEM, user, latLng, effort: "medium" }))
+          const parsed = salvageItinerary(
+            await llm({ system: GENERATION_SYSTEM, user, latLng, effort: "medium", signal: time.signal, deadlineAt: time.deadlineAt }),
+          )
           indexes.forEach((dayIndex, k) => {
             aiDays[dayIndex] = fuller(aiDays[dayIndex], parsed.days[k])
           })
-          if (indexes.every((dayIndex) => dayLooksDrafted(aiDays[dayIndex]))) return
+          if (indexes.every((dayIndex) => drafted(aiDays[dayIndex], dayIndex))) return
         } catch (err) {
-          console.warn(`[trips/ai] days ${first}-${last} attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`)
+          lastErr = err
+          console.warn(`[trips/ai] days ${first}-${last} attempt ${attempt + 1} failed: ${rawMessage(err)}`)
         }
       }
     }
@@ -951,7 +1015,7 @@ export async function generateItinerary(args: {
         for (let next = queue.shift(); next; next = queue.shift()) await draftChunk(next)
       }),
     )
-    if (!aiDays.some((day) => stopCount(day) > 0)) throw new Error("the draft came back empty")
+    if (!aiDays.some((day) => stopCount(day) > 0)) throw lastErr ?? new Error("the draft came back empty")
     // A day whose part failed still gets its agreed title and areas.
     aiDays = aiDays.map((day, i) => day ?? { ...outline.days[i], items: [] })
   }
@@ -967,7 +1031,7 @@ export async function generateItinerary(args: {
       seen.add(item)
       return true
     })
-    if (!dayLooksDrafted(aiDay)) incompleteDays.push(i + 1)
+    if (!drafted(aiDay, i)) incompleteDays.push(i + 1)
     const items = (fixedByDate.get(date) ?? []).reduce((list, item) => insertByTime(list, item), fresh)
     return {
       id: `day-${i + 1}`,
@@ -1008,11 +1072,20 @@ async function draftOutline(args: {
   header: string
   dates: string[]
   latLng?: { latitude: number; longitude: number }
+  time: Slice
 }): Promise<{ summary?: string; appearance?: Trip["appearance"]; days: OutlineDay[] }> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const { time } = args
+  for (let attempt = 0; attempt < 2 && (attempt === 0 || time.canRetry()); attempt++) {
     try {
       const loose = parseModelJson(
-        await args.llm({ system: OUTLINE_SYSTEM, user: args.header, latLng: args.latLng, effort: "low" }),
+        await args.llm({
+          system: OUTLINE_SYSTEM,
+          user: args.header,
+          latLng: args.latLng,
+          effort: "low",
+          signal: time.signal,
+          deadlineAt: time.deadlineAt,
+        }),
         z.object({
           summary: z.string().max(2000).optional(),
           appearance: z.unknown().optional(),
@@ -1026,7 +1099,7 @@ async function draftOutline(args: {
       })
       if (days.length > 0) return { summary: loose.summary, appearance: appearance.success ? appearance.data : undefined, days }
     } catch (err) {
-      console.warn(`[trips/ai] outline attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`)
+      console.warn(`[trips/ai] outline attempt ${attempt + 1} failed: ${rawMessage(err)}`)
     }
   }
   // No outline is not fatal: the parts still know the dates and the brief.

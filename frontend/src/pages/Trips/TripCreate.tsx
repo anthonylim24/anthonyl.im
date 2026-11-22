@@ -175,14 +175,14 @@ export function TripCreate() {
         ? "Creating your trip…"
         : phase.k === "drafting"
           ? slow
-            ? "Still drafting. Long trips can take two minutes."
+            ? "Still drafting. Long trips can take a few minutes."
             : "Drafting the itinerary with AI…"
           : ""
   /** Shown: the same, with an honest running clock while the draft is out. */
   const shownText =
     phase.k === "drafting"
       ? slow
-        ? `Still drafting · ${elapsedText(elapsed)} · long trips can take two minutes`
+        ? `Still drafting · ${elapsedText(elapsed)} · long trips can take a few minutes`
         : `Drafting the itinerary · ${elapsedText(elapsed)}`
       : statusText
 

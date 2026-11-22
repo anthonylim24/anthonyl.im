@@ -22,7 +22,7 @@ import type { DayForecast } from "../forecast"
 import type { TypicalDay } from "../climate"
 import { ForecastChip } from "./ForecastChip"
 import { NowCard, type UpdateDay } from "../live/NowCard"
-import { AiBusy, BriefFields, EMPTY_BRIEF, SuggestionsReview, type DraftBrief, type ReviewProgress } from "./AiPanels"
+import { AiBusy, BriefFields, EMPTY_BRIEF, LONG_DRAFT_HINT, SuggestionsReview, type DraftBrief, type ReviewProgress } from "./AiPanels"
 
 /** The longest leg counted as walked. */
 const WALKABLE_M = 1_600
@@ -148,7 +148,11 @@ export function OverviewPanel({
       </dl>
 
       {drafting && (
-        <AiBusy steps={["Reading up on the area…", "Choosing places worth the detour…", "Arranging each day so the route flows…", "Pinning everything to the map…"]} onStop={onStopAi} />
+        <AiBusy
+          steps={["Reading up on the area…", "Choosing places worth the detour…", "Arranging each day so the route flows…", "Pinning everything to the map…"]}
+          hint={trip.days.length > 4 ? LONG_DRAFT_HINT : undefined}
+          onStop={onStopAi}
+        />
       )}
       {enhancing && (
         <AiBusy

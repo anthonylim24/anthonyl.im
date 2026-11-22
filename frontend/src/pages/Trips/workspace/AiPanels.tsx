@@ -288,6 +288,8 @@ export interface ReviewProgress {
 }
 
 const FIRST_TRY_HINT = "This usually takes about a minute."
+/** A draft of more than four days is outlined, then drafted in parts. */
+export const LONG_DRAFT_HINT = "A trip this long takes a few minutes."
 const RETRY_HINT = "It keeps going if you leave this page."
 
 /**
@@ -313,9 +315,20 @@ export function reviewProgress(live: EnhancementRun | null, subject: string): Re
 /**
  * An AI run in progress. `onStop` stops waiting for it and unlocks editing.
  * With `progress` (a review on a server with a queue) the line says where
- * the run really is; without it, the copy steps forward so it never looks stuck.
+ * the run really is; without it, the copy steps forward so it never looks stuck,
+ * with `hint` after it.
  */
-export function AiBusy({ steps, progress, onStop }: { steps: readonly string[]; progress?: ReviewProgress; onStop?: () => void }) {
+export function AiBusy({
+  steps,
+  progress,
+  hint: stepsHint = FIRST_TRY_HINT,
+  onStop,
+}: {
+  steps: readonly string[]
+  progress?: ReviewProgress
+  hint?: string
+  onStop?: () => void
+}) {
   const [at, setAt] = useState(0)
   const stepping = !progress
   useEffect(() => {
@@ -324,7 +337,7 @@ export function AiBusy({ steps, progress, onStop }: { steps: readonly string[]; 
     return () => clearInterval(timer)
   }, [stepping, steps.length])
   const line = progress ? progress.line : steps[Math.min(at, steps.length - 1)]
-  const hint = progress ? progress.hint : FIRST_TRY_HINT
+  const hint = progress ? progress.hint : stepsHint
   return (
     <div {...sx(s.aiBusy)}>
       <Spinner />
