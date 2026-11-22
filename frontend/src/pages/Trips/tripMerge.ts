@@ -21,7 +21,11 @@ import type { Trip, TripDay } from "./types"
 // - a day field (title, city, notes, …) both sides changed differently, or a
 //   change to the list of days on both sides, is a real conflict. Resolved,
 //   the chosen side's list of days wins together with its dates, so the days
-//   always match the trip's start and end.
+//   always match the trip's start and end;
+// - a stop is on a day or on the wishlist, never both: when the other side
+//   scheduled a wishlist idea the traveller was editing (an AI review that
+//   finished after they pressed Stop), the stop stays on its day and their
+//   edits to the idea move onto it.
 
 /** Structural equality for JSON documents; `undefined` properties count as absent. */
 export function sameJson(x: unknown, y: unknown): boolean {
@@ -229,7 +233,54 @@ function mergeTrip(base: Trip, mine: Trip, theirs: Trip, side?: Side): Trip | nu
     if (sameJson(ml, bl)) continue // theirs already
     out[field] = sameJson(tl, bl) ? ml : mergeItems(bl ?? [], ml ?? [], tl ?? [], side)
   }
-  return out as unknown as Trip
+  return scheduledOnce(base, mine, out as unknown as Trip)
+}
+
+/** Fields only a stop on a day has, which an edit to an idea never sets. */
+const DAY_ONLY = new Set(["id", "time", "endTime", "highlight"])
+
+/**
+ * Take off the wishlist every idea that is also on a day, carrying the
+ * traveller's edits to it (since `base`) onto that stop. In a merge an edit
+ * beats a delete, so without this an idea someone else scheduled comes back
+ * as soon as the traveller touches it, and the trip lists it twice.
+ */
+function scheduledOnce(base: Trip, mine: Trip, trip: Trip): Trip {
+  const ideas = trip.ideas ?? []
+  if (ideas.length === 0) return trip
+  const onDays = new Set(trip.days.flatMap((d) => d.items.map((i) => i.id)))
+  const twice = ideas.filter((idea) => onDays.has(idea.id))
+  if (twice.length === 0) return trip
+  const edits = new Map<string, Record<string, unknown>>()
+  for (const idea of twice) {
+    const before = base.ideas?.find((i) => i.id === idea.id) as Record<string, unknown> | undefined
+    const after = mine.ideas?.find((i) => i.id === idea.id) as Record<string, unknown> | undefined
+    if (!before || !after || sameJson(before, after)) continue
+    const changed: Record<string, unknown> = {}
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (!DAY_ONLY.has(key) && !sameJson(before[key], after[key])) changed[key] = after[key]
+    }
+    edits.set(idea.id, changed)
+  }
+  const gone = new Set(twice.map((idea) => idea.id))
+  const days =
+    edits.size === 0
+      ? trip.days
+      : trip.days.map((day) =>
+          day.items.some((i) => edits.has(i.id))
+            ? {
+                ...day,
+                items: day.items.map((item) => {
+                  const changed = edits.get(item.id)
+                  if (!changed) return item
+                  const next: Record<string, unknown> = { ...item, ...changed }
+                  for (const [key, value] of Object.entries(changed)) if (value === undefined) delete next[key]
+                  return next as unknown as typeof item
+                }),
+              }
+            : day,
+        )
+  return { ...trip, days, ideas: ideas.filter((idea) => !gone.has(idea.id)) }
 }
 
 /** `theirs` with the traveller's changes since `base` replayed on top, or null on a real conflict. */

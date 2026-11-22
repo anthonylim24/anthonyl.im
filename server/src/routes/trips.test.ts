@@ -159,6 +159,23 @@ describe("trips CRUD", () => {
     expect(updated.days[0]!.items.length).toBe(1)
   })
 
+  test("a save that lists a scheduled stop on the wishlist too keeps it on its day only", async () => {
+    const trip = await createTrip(app)
+    const stop = { id: "it-1", kind: "place", title: "Senso-ji", status: "none", createdBy: "user" }
+    const res = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [{ id: "day-1", date: "2026-07-10", items: [{ ...stop, time: "09:00" }] }],
+        ideas: [{ ...stop, notes: "edited on the wishlist" }, { ...stop, id: "idea-2", title: "Meiji Jingu" }],
+      }),
+    })
+    expect(res.status).toBe(200)
+    const { trip: saved } = (await res.json()) as { trip: { ideas: Array<{ id: string }>; days: Array<{ items: Array<{ id: string }> }> } }
+    expect(saved.ideas.map((i) => i.id)).toEqual(["idea-2"])
+    expect(saved.days[0]!.items.map((i) => i.id)).toEqual(["it-1"])
+  })
+
   test("a private trip reads as missing to other users, by id and by slug", async () => {
     const trip = (await createTrip(app)) as { id: string; slug: string }
     const other = { Authorization: "Bearer other-token", "Content-Type": "application/json" }
