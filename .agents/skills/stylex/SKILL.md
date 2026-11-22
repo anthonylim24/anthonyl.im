@@ -57,12 +57,12 @@ import { ws } from './workspace.stylex'
 | Do | Don't |
 |----|--------|
 | `{...sx(styles.foo, 'semantic-class')}` | Raw `className="tailwind utilities"` |
-| Pass semantic classes from `index.css` when a rule lives there (`trips-title-input`, `trips-day-title-input`, `trip-tap-44`, `group`, `peer`, animation utilities) | Assume StyleX styles replace semantic classes — **a title input without `'trips-title-input'` is pinned to 16px on phones** |
+| Pass semantic classes from `index.css` when a rule lives there (`trips-title-input`, `trips-day-title-input`, `trip-tap-44`, animation utilities) | Assume StyleX styles replace semantic classes — **a title input without `'trips-title-input'` is pinned to 16px on phones** |
 | `layout.srOnly` or `styles.srOnly` for visually hidden labels | Leave labels unstyled (empty StyleX rules render visible text) |
 | `borderWidth: '1px'` + `borderStyle: 'solid'` when setting `borderColor` | `borderColor` alone — Preflight sets `border: 0 solid` and invisible borders lose |
 | Keep route tokens in CSS (`--trips-*`, `--lim-*`, `--bf-*` in `index.css`; `--chat-*` in `chat/chat.css`) | `stylex.defineVars()` for shared tokens or import token maps into `stylex.create()` — Babel rejects cross-file / plain-object token imports |
 | Child-combinator layouts as **unlayered or `@layer utilities` classes** in `index.css` | `> * + *` or `:hover` on parent in StyleX when you need sibling spacing |
-| `:is(.group:hover) &` in StyleX + `'group'` marker on ancestor | Tailwind `group-hover:*` strings |
+| `stylex.when.ancestor(':hover')` (or `siblingBefore`, `'[open]'`) + `stylex.defaultMarker()` on that element | `':is(.group:hover) &'` (StyleX compiles `&` to `:scope`: it never matches) or Tailwind `group-hover:*` strings |
 | Honor `prefers-reduced-motion` in CSS **and** Motion props | Decorative-only animation |
 
 ### CSS layer contract

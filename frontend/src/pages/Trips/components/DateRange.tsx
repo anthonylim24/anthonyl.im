@@ -4,6 +4,7 @@ import { sx } from "@/styles/merge"
 import { addDays, dayCount, plural } from "../meta"
 import { a } from "../atlas.stylex"
 import { range as r } from "../index.stylex"
+import { useLeaving } from "./presence"
 
 // One field for the whole date range. It opens a calendar in place: first
 // click picks the first day, second click the last, and it closes itself.
@@ -52,6 +53,8 @@ export function DateRange({
   label?: string
 }) {
   const [open, setOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const leave = useLeaving(open, panelRef)
   const [month, setMonth] = useState(() => monthOf(start))
   /** First click of a new range; the next click completes it. */
   const [anchor, setAnchor] = useState<string | null>(null)
@@ -149,8 +152,17 @@ export function DateRange({
         <span {...sx(a.grow, a.truncate)}>{formatRangeLong(start, end)}</span>
         <span {...sx(a.small, a.noShrink)}>{plural(count, "day")}</span>
       </button>
-      {open && (
-        <div id={panelId} role="dialog" aria-label={`Choose ${label.toLowerCase()}`} {...sx(r.panel, "trips-glass-sheet")} onKeyDown={onKeyDown}>
+      {leave.present && (
+        <div
+          id={panelId}
+          role="dialog"
+          aria-label={`Choose ${label.toLowerCase()}`}
+          // `trips-pop`: the closing animation in index.css.
+          {...sx(r.panel, "trips-pop", "trips-glass-sheet")}
+          ref={panelRef}
+          {...leave.bind}
+          onKeyDown={onKeyDown}
+        >
           <div {...sx(a.between)}>
             <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
               <ChevronLeft size={18} strokeWidth={1.75} aria-hidden />

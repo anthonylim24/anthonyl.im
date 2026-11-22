@@ -71,7 +71,7 @@ import { PhaseStrip } from '../components/PhaseStrip'
 import { SafetyChecklist } from '../components/SafetyChecklist'
 import { SessionSummary } from '../components/SessionSummary'
 import { btn } from '../components/buttonStyles.stylex'
-import { sx } from '@/styles/merge'
+import { stylex, sx } from '@/styles/merge'
 import { bf } from '../styles/breathflow.stylex'
 import { ss } from '../styles/session.stylex'
 import { wc } from '../styles/watercolor.stylex'
@@ -555,7 +555,7 @@ function SessionSetup({
           </div>
 
           {/* Cadence */}
-          <details {...sx('group', bf.detailsGroup)}>
+          <details {...sx(stylex.defaultMarker(), bf.detailsGroup)}>
             <summary {...sx(bf.detailsSummary)}>
               Cadence
               <span {...sx(bf.flexItemsCenterGap2)}>
@@ -574,7 +574,7 @@ function SessionSetup({
           </details>
 
           {/* Science */}
-          <details {...sx('group', bf.detailsGroupFlush)}>
+          <details {...sx(stylex.defaultMarker(), bf.detailsGroupFlush)}>
             <summary {...sx(bf.detailsSummary)}>
               <span>Why it works</span>
               <span {...sx(bf.flexItemsCenterGap2)}>
@@ -656,7 +656,7 @@ function SessionSetup({
         </div>
 
         {/* Global disclosure */}
-        <details {...sx('group', bf.mt8)}>
+        <details {...sx(stylex.defaultMarker(), bf.mt8)}>
           <summary {...sx(bf.detailsSummaryTertiary)}>
             {SAFETY_DISCLOSURE.title}
             <DetailsChevron />

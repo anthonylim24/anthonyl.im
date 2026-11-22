@@ -23,6 +23,7 @@ import { AtlasMap, canRenderMap, useIsDark } from "./map/AtlasMap"
 import { formatCoord, type AtlasPin, type LngLat } from "./map/geo"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
+import { Presence } from "./components/presence"
 import { TripCover } from "./components/TripCover"
 import { atlasFigures } from "./live/atlasFigures"
 import { countdownLabel } from "./live/liveTrip"
@@ -764,22 +765,24 @@ export function TripsIndex() {
         </section>
       )}
 
-      {shareId && (
-        <ShareDialog
-          open
-          tripId={shareId}
-          getToken={readToken}
-          viewerId={viewer.id}
-          onClose={() => {
-            setShareId(null)
-            setReloadKey((k) => k + 1)
-          }}
-          onLeft={() => {
-            setShareId(null)
-            setReloadKey((k) => k + 1)
-          }}
-        />
-      )}
+      <Presence when={shareId}>
+        {(shareId) => (
+          <ShareDialog
+            open
+            tripId={shareId}
+            getToken={readToken}
+            viewerId={viewer.id}
+            onClose={() => {
+              setShareId(null)
+              setReloadKey((k) => k + 1)
+            }}
+            onLeft={() => {
+              setShareId(null)
+              setReloadKey((k) => k + 1)
+            }}
+          />
+        )}
+      </Presence>
 
       <Modal
         open={confirm !== null}

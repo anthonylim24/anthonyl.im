@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { createPortal } from "react-dom"
 import { Box, ChevronLeft, ChevronRight, ExternalLink, Footprints, LocateFixed, Pause, Pencil, Play, Route, Scan, Square, X } from "lucide-react"
-import { sx } from "@/styles/merge"
+import { stylex, sx } from "@/styles/merge"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { externalMapsLink } from "@/lib/externalMaps"
@@ -455,7 +455,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
 
   const controls = !failed && (
     <div {...sx(p.controls)} role="group" aria-label="Map controls">
-      <button type="button" {...sx(p.control, "group")} aria-label="Point north up" title="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
+      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Point north up" title="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
         <svg {...sx(p.compass)} width="24" height="24" viewBox="0 0 24 24" aria-hidden>
           <circle cx="12" cy="12" r="10.5" {...sx(p.compassRing)} />
           <g ref={needleRef}>
@@ -470,7 +470,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
       </button>
       <button
         type="button"
-        {...sx(p.control, !tilted && p.controlOn, "group")}
+        {...sx(p.control, !tilted && p.controlOn, stylex.defaultMarker())}
         aria-label="Top-down view"
         aria-pressed={!tilted}
         title={tilted ? "Look straight down" : "Tilt the view"}
@@ -484,7 +484,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
       <span {...sx(p.controlRule)} aria-hidden />
       <button
         type="button"
-        {...sx(p.control, hasUser && p.controlOn, "group")}
+        {...sx(p.control, hasUser && p.controlOn, stylex.defaultMarker())}
         aria-label={hasUser ? "Go to my location" : "Show my location"}
         title={hasUser ? "Go to my location" : "Show my location"}
         disabled={locating}
@@ -495,7 +495,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
           My location
         </span>
       </button>
-      <button type="button" {...sx(p.control, "group")} aria-label="Fit all stops" title="Fit all stops (F)" onClick={fitAll}>
+      <button type="button" {...sx(p.control, stylex.defaultMarker())} aria-label="Fit all stops" title="Fit all stops (F)" onClick={fitAll}>
         <Scan size={18} strokeWidth={1.75} aria-hidden />
         <span {...sx(p.tip)} aria-hidden>
           Fit all

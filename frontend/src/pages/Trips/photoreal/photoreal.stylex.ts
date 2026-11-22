@@ -562,11 +562,17 @@ export const p = stylex.create({
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" } },
   },
   controlOn: { color: "var(--brand)", backgroundColor: "var(--brand-soft)" },
+  // Shown while its control (which carries the default marker) is hovered or
+  // has keyboard focus.
   tip: {
     position: "absolute",
     right: "calc(100% + 0.625rem)",
     top: "50%",
-    translate: "0.25rem -50%",
+    translate: {
+      default: "0.25rem -50%",
+      [stylex.when.ancestor(":hover")]: "0 -50%",
+      [stylex.when.ancestor(":focus-visible")]: "0 -50%",
+    },
     paddingInline: "0.5rem",
     paddingBlock: "0.3125rem",
     borderRadius: "0.4375rem",
@@ -579,12 +585,14 @@ export const p = stylex.create({
     lineHeight: 1,
     whiteSpace: "nowrap",
     pointerEvents: "none",
-    opacity: 0,
+    opacity: {
+      default: 0,
+      [stylex.when.ancestor(":hover")]: 1,
+      [stylex.when.ancestor(":focus-visible")]: 1,
+    },
     display: { default: "none", [DESK]: "block" },
-    transitionProperty: "opacity, translate",
+    transitionProperty: { default: "opacity, translate", [REDUCE]: "opacity" },
     transitionDuration: "140ms",
-    ":is(.group:hover) > &": { opacity: 1, translate: "0 -50%" },
-    ":is(.group:focus-visible) > &": { opacity: 1, translate: "0 -50%" },
   },
   controlRule: { height: "1px", marginBlock: "0.25rem", marginInline: "0.625rem", backgroundColor: "var(--trips-line)" },
   compass: { display: "block", willChange: "transform" },

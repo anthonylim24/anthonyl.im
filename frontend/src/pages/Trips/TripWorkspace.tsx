@@ -44,6 +44,7 @@ import { useStopPhoto } from "./stopPhoto"
 import { daySky, useForecast } from "./forecast"
 import { useHolidays } from "./holidays"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
+import { Presence } from "./components/presence"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
@@ -1212,7 +1213,7 @@ function Workspace() {
         </div>
       </div>
 
-      {dialog === "share" && (
+      <Presence when={dialog === "share"}>{() => (
         <ShareDialog
           open
           tripId={trip.id}
@@ -1222,7 +1223,7 @@ function Workspace() {
           onChanged={(next) => editor.setCollaborators(next.collaborators)}
           onLeft={() => navigate("/trips")}
         />
-      )}
+      )}</Presence>
       {editable && (
         <DetailsDialog
           trip={trip}
@@ -1245,7 +1246,7 @@ function Workspace() {
         onClose={() => setDialog(null)}
         onRun={runAi}
       />
-      {editable && instagram && (
+      <Presence when={editable && instagram}>{(instagram) => (
         <OverlayBoundary onError={overlayFailed("Instagram import", () => setInstagram(null))}>
         <Suspense fallback={null}>
           <InstagramSheet
@@ -1259,21 +1260,21 @@ function Workspace() {
           />
         </Suspense>
         </OverlayBoundary>
-      )}
-      {recapOpen && (
+      )}</Presence>
+      <Presence when={recapOpen}>{() => (
         <OverlayBoundary onError={overlayFailed("The recap", () => setRecapOpen(false))}>
           <Suspense fallback={null}>
             <TripRecap open trip={trip} onClose={() => setRecapOpen(false)} />
           </Suspense>
         </OverlayBoundary>
-      )}
-      {editable && pasting && (
+      )}</Presence>
+      <Presence when={editable && pasting}>{() => (
         <OverlayBoundary onError={overlayFailed("Paste a confirmation", () => setPasting(false))}>
           <Suspense fallback={null}>
             <PasteBookingsSheet trip={trip} getToken={editor.readToken} onClose={() => setPasting(false)} onAdd={addPasted} />
           </Suspense>
         </OverlayBoundary>
-      )}
+      )}</Presence>
       <Modal
         open={dialog === "delete"}
         onClose={() => busy === null && setDialog(null)}

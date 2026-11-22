@@ -159,8 +159,10 @@ export const bf = stylex.create({
     '@media (prefers-reduced-motion: reduce)': {
       transitionProperty: 'none',
     },
-    ':is(.group[open] &)': {
-      transform: 'rotate(180deg)',
+    // Inside an open <details> that carries the default marker.
+    transform: {
+      default: null,
+      [stylex.when.ancestor('[open]')]: 'rotate(180deg)',
     },
   },
 
@@ -177,12 +179,11 @@ export const bf = stylex.create({
     borderStyle: 'solid',
     transitionProperty: 'color, background-color, border-color',
     transitionDuration: '150ms',
-    ':is(.peer:focus-visible ~ &)': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
+    // The ring of the visually hidden checkbox before it (default marker).
+    outlineWidth: '2px',
+    outlineStyle: { default: null, [stylex.when.siblingBefore(':focus-visible')]: 'solid' },
+    outlineColor: 'var(--bw-accent)',
+    outlineOffset: '2px',
   },
   checkboxBoxChecked: {
     borderWidth: '1px',
@@ -209,12 +210,11 @@ export const bf = stylex.create({
     '@media (prefers-reduced-motion: reduce)': {
       transitionProperty: 'none',
     },
-    ':is(.peer:focus-visible ~ &)': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
+    // The ring of the visually hidden switch before it (default marker).
+    outlineWidth: '2px',
+    outlineStyle: { default: null, [stylex.when.siblingBefore(':focus-visible')]: 'solid' },
+    outlineColor: 'var(--bw-accent)',
+    outlineOffset: '2px',
   },
   toggleThumb: {
     position: 'absolute',
@@ -259,10 +259,9 @@ export const bf = stylex.create({
   safeAreaBottom: {
     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
   },
+  // Hidden inside an open <details> that carries the default marker.
   groupOpenHidden: {
-    ':is(.group[open] &)': {
-      display: 'none',
-    },
+    display: { default: null, [stylex.when.ancestor('[open]')]: 'none' },
   },
   detailsGroup: {
     marginTop: '0.5rem',
