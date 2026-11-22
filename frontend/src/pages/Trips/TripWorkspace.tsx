@@ -34,7 +34,7 @@ import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
-import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
+import { centroid, corePoints, searchCenter, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry } from "./editorMachine"
 import { SaveIndicator } from "./offline/SaveIndicator"
@@ -408,15 +408,18 @@ function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notice])
 
-  const tripCenter = useMemo<LngLat | null>(() => {
-    if (!trip) return null
-    const all = trip.days.flatMap((d) => d.items.filter(isLocated).map((i) => ({ lat: i.location.lat, lng: i.location.lng })))
-    return centroid(all) ?? trip.center ?? null
-  }, [trip])
+  const tripPoints = useMemo<LngLat[]>(
+    () => (trip ? trip.days.flatMap((d) => d.items.filter(isLocated).map((i) => ({ lat: i.location.lat, lng: i.location.lng }))) : []),
+    [trip],
+  )
+  const tripCenter = useMemo<LngLat | null>(() => centroid(tripPoints) ?? trip?.center ?? null, [tripPoints, trip?.center])
+  // Where place searches look: the trip's (or the day's) main group of stops,
+  // so one airport or side trip cannot pull "near here" out to sea.
+  const tripFocus = useMemo<LngLat | null>(() => searchCenter(tripPoints, trip?.center), [tripPoints, trip?.center])
 
   // Search bias for the composer and every stop's place search. Memoised on
   // the coordinates: a new object per keystroke would re-render every card.
-  const nearNow = day ? (centroid(dayRoute(day)) ?? tripCenter) : tripCenter
+  const nearNow = day ? (searchCenter(dayRoute(day), tripFocus) ?? tripFocus) : tripFocus
   const nearLat = nearNow?.lat ?? null
   const nearLng = nearNow?.lng ?? null
   const near = useMemo<LngLat | null>(() => (nearLat === null || nearLng === null ? null : { lat: nearLat, lng: nearLng }), [nearLat, nearLng])

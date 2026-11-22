@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   centroid,
+  searchCenter,
   dayPins,
   dayRoute,
   distanceMeters,
@@ -271,5 +272,40 @@ describe("spreadPins", () => {
     const offsets = spreadPins([pin("a", 0, 0, 1), pin("b", 2, 0, 2), pin("c", 500, 0, 3), pin("d", 501, 0, 4)])
     expect([offsets.get("a"), offsets.get("b")]).toEqual([-14, 14])
     expect(501 + offsets.get("d")! - (500 + offsets.get("c")!)).toBe(30)
+  })
+})
+
+describe("searchCenter", () => {
+  const honolulu = { lat: 21.3069, lng: -157.8583 }
+  const oahu = [
+    { lat: 21.2766, lng: -157.8278 }, // Waikiki
+    { lat: 21.2998, lng: -157.8414 }, // King St
+    { lat: 21.6419, lng: -158.0629 }, // Haleiwa
+  ]
+  const sfo = { lat: 37.6213, lng: -122.379 }
+
+  it("stays on the island when a departure airport is among the stops", () => {
+    const plain = centroid([...oahu, sfo])!
+    expect(distanceMeters(plain, honolulu)).toBeGreaterThan(500_000)
+    const focus = searchCenter([...oahu, sfo], honolulu)!
+    expect(distanceMeters(focus, honolulu)).toBeLessThan(30_000)
+  })
+
+  it("breaks a tie toward the destination", () => {
+    // Flight day: one stop at each end.
+    const focus = searchCenter([sfo, { lat: 21.3187, lng: -157.9225 }], honolulu)!
+    expect(distanceMeters(focus, honolulu)).toBeLessThan(10_000)
+    expect(searchCenter([sfo, honolulu])).toEqual(sfo)
+  })
+
+  it("picks the bigger city of a two-city trip", () => {
+    const seoul = [{ lat: 37.57, lng: 126.98 }, { lat: 37.55, lng: 126.99 }, { lat: 37.58, lng: 127.0 }]
+    const busan = [{ lat: 35.1, lng: 129.04 }]
+    expect(distanceMeters(searchCenter([...busan, ...seoul])!, { lat: 37.567, lng: 126.99 })).toBeLessThan(5_000)
+  })
+
+  it("falls back to the hint without points", () => {
+    expect(searchCenter([], honolulu)).toEqual(honolulu)
+    expect(searchCenter([])).toBeNull()
   })
 })
