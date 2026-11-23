@@ -254,6 +254,16 @@ jobs:
             fi
             mv "$NEXT" "$LIVE"
 
+            # Pids listening on :3000 outside the unit and restart.sh's
+            # bridge (which shares the port on purpose and which restart.sh
+            # stops if one was left behind): PM2 before the hand-over, or
+            # anything else started by hand.
+            foreign_listeners() {
+              ss -Hltnp 'sport = :3000' 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u \
+                | while read -r pid; do
+                    grep -qsE '/system\.slice/anthonyl\.im(-bridge)?\.service$' "/proc/$pid/cgroup" || echo "$pid"
+                  done
+            }
             # The server runs as the anthonyl.im systemd unit
             # (deploy/systemd/anthonyl.im.service: NODE_ENV=production, the
             # PATH yt-dlp and ffmpeg need, the 700M memory ceiling, logs in
@@ -267,11 +277,13 @@ jobs:
               if [ -f "$LIVE/deploy/install-service.sh" ]; then
                 bash "$LIVE/deploy/install-service.sh" || return 1
               fi
-              # A hand-over that did not happen leaves PM2 serving on :3000.
-              # Starting the unit then would crash-loop beside it while PM2's
-              # copy answered /health, so a broken deploy would look healthy.
-              if systemctl is-active --quiet pm2-root.service; then
-                echo "ERROR: pm2-root is still active; not starting the unit"
+              # Another process on :3000 would leave the unit crash-looping
+              # beside it while that process answered /health, so a broken
+              # deploy would look healthy. Never start the unit then.
+              local held
+              held="$(foreign_listeners)"
+              if [ -n "$held" ]; then
+                echo "ERROR: :3000 is held outside anthonyl.im.service (pid $held); not starting the unit"
                 return 1
               fi
               # restart.sh keeps a second copy of the release listening on
@@ -315,8 +327,8 @@ jobs:
                 mv "$PREV" "$LIVE"
                 if start_app && wait_healthy; then
                   echo "[deploy] rolled back to previous release"
-                elif systemctl is-active --quiet pm2-root.service; then
-                  echo "[deploy] the hand-over did not happen; PM2 still serves the previous release"
+                elif [ -n "$(foreign_listeners)" ]; then
+                  echo "[deploy] :3000 is still held outside the unit (PM2 before the hand-over?); left as it is"
                 else
                   echo "ERROR: the previous release did not come up either"
                   journalctl -u anthonyl.im.service -n 20 --no-pager -o cat || true

@@ -41,13 +41,23 @@ sysctl -q -p /etc/sysctl.d/90-anthonyl.im.conf || echo "[service] WARN: could no
 
 # Hand-over from PM2, once. Stopping pm2-root stops PM2's copy of the server
 # and the daemon; disabling it keeps a reboot from starting a second copy on
-# :3000. PM2's saved process list (~/.pm2/dump.pm2) is left as it is, so
-#   systemctl disable --now anthonyl.im && systemctl enable --now pm2-root
-# puts the old setup back.
+# :3000. Neither step runs `pm2 save`, so PM2's saved process list
+# (~/.pm2/dump.pm2) is left as it is and
+#   systemctl disable --now anthonyl.im anthonyl-watchdog.timer
+#   systemctl enable --now pm2-root
+# puts the old setup back (the watchdog would restart this unit otherwise).
 if systemctl is-enabled --quiet pm2-root.service 2>/dev/null \
   || systemctl is-active --quiet pm2-root.service 2>/dev/null; then
   echo "[service] handing the server over from PM2"
   systemctl disable --now pm2-root.service
+fi
+# A daemon started outside pm2-root (a `pm2 start` with no daemon running
+# spawns one in the SSH session) survives that. `pm2 kill` stops its apps and
+# the daemon. ([n] keeps pgrep from matching a shell holding this pattern.)
+PM2_CLI=/root/.bun/install/global/node_modules/pm2/bin/pm2
+if pgrep -f 'PM2 v[0-9.]+: God Daemo[n]' >/dev/null && [ -x "$PM2_CLI" ]; then
+  echo "[service] stopping the PM2 daemon that runs outside pm2-root"
+  PM2_HOME=/root/.pm2 PATH="/usr/local/bin:/usr/bin:/bin" "$PM2_CLI" kill
 fi
 
 # Enabled only after the hand-over, so a failed one never leaves both units
