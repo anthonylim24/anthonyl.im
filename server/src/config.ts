@@ -105,7 +105,7 @@ export const config = {
 
   igWorkerEnabled: isTruthy(process.env.IG_WORKER_ENABLED ?? 'true'),
   igWorkerConcurrency: Number(process.env.IG_WORKER_CONCURRENCY ?? 3),
-  igWorkerPollMs: Number(process.env.IG_WORKER_POLL_MS ?? 3_000),
+  igWorkerPollMs: Number(process.env.IG_WORKER_POLL_MS ?? 60_000),
   igWorkerStaleSec: Number(process.env.IG_WORKER_STALE_SEC ?? 600),
   igDevBearer: resolveDevBearers(),
   igDevUserId: process.env.IG_DEV_USER_ID ?? 'dev-user',
