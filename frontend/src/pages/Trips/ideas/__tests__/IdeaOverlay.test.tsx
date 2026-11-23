@@ -63,6 +63,7 @@ import { Presence } from "../../components/presence"
 import { IDEA_PARAM } from "../contract"
 import { useIdeaNav } from "../ideaNav"
 import { IdeaOverlay } from "../IdeaOverlay"
+import { pickOption } from "../../__tests__/pickOption"
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -466,7 +467,7 @@ describe("IdeaOverlay", () => {
 
   it("changes the category from inside the details through onEdit", () => {
     const state = renderOverlay(twoDays())
-    fireEvent.change(screen.getByRole("combobox", { name: /Category for Tram 28/ }), { target: { value: "nightlife" } })
+    pickOption(screen.getByRole("combobox", { name: /Category for Tram 28/ }), "Bars & nightlife")
     expect(state.trip.ideas?.[0]?.theme).toBe("nightlife")
     expect(state.marks).toEqual([{ label: "Filed “Tram 28” under Bars & nightlife" }])
   })

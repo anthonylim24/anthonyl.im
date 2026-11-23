@@ -11,6 +11,7 @@ vi.mock("../geocode", () => ({
 
 import { DetailsDialog } from "../workspace/DetailsDialog"
 import type { DetailsPatch } from "../workspace/tripDetails"
+import { pickOption } from "./pickOption"
 
 const tokyo: CityResult = { id: "1850147", name: "Tokyo", country: "Japan", lat: 35.6895, lng: 139.69171, timezone: "Asia/Tokyo" }
 
@@ -32,6 +33,15 @@ function renderDialog(current: Trip = trip) {
   const onClose = vi.fn()
   render(<DetailsDialog trip={current} open onClose={onClose} onApply={onApply} />)
   return { onApply, onClose, dialog: within(screen.getByRole("dialog", { name: "Trip details" })) }
+}
+
+/** Types into the time zone field and picks the option it lists. */
+function searchZone(dialog: ReturnType<typeof within>, text: string, option: RegExp) {
+  const zone = dialog.getByRole("combobox", { name: "Time zone" })
+  fireEvent.focus(zone)
+  fireEvent.change(zone, { target: { value: text } })
+  fireEvent.click(within(dialog.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: option }))
+  return zone
 }
 
 function pickDates(dialog: ReturnType<typeof within>, from: string, to: string) {
@@ -108,7 +118,7 @@ describe("DetailsDialog", () => {
     fireEvent.click(await within(matches).findByRole("option", { name: /Tokyo/ }))
 
     expect(dialog.getByRole("status")).toHaveTextContent("Times now follow Tokyo time.")
-    expect(dialog.getByRole("combobox", { name: "Time zone" })).toHaveValue("Asia/Tokyo")
+    expect(dialog.getByRole("combobox", { name: "Time zone" })).toHaveValue("Tokyo · Asia")
     fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
     expect(onApply).toHaveBeenCalledWith({
       destinations: ["Tokyo"],
@@ -123,7 +133,7 @@ describe("DetailsDialog", () => {
     fireEvent.click(dialog.getByRole("button", { name: "Remove Lisbon" }))
     await waitFor(() => expect(dialog.getByRole("status")).toHaveTextContent("Times now follow Tokyo time."))
 
-    fireEvent.change(dialog.getByRole("combobox", { name: "Time zone" }), { target: { value: "Asia/Seoul" } })
+    expect(searchZone(dialog, "seo", /^Seoul/)).toHaveValue("Seoul · Asia")
     expect(dialog.getByRole("status")).toHaveTextContent("")
     fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
     expect(onApply).toHaveBeenCalledWith({ destinations: ["Tokyo"], center: { lat: 35.6895, lng: 139.69171 }, timezone: "Asia/Seoul" })
@@ -166,14 +176,94 @@ describe("DetailsDialog", () => {
     const dialog = within(screen.getByRole("dialog", { name: "Trip details" }))
     expect(dialog.getByRole("textbox", { name: "Name" })).toHaveValue("Lisbon and Sintra")
     const zone = dialog.getByRole("combobox", { name: "Time zone" })
-    expect(zone).toHaveValue("Europe/Madrid")
-    expect(within(zone).getAllByRole("option").length).toBeGreaterThan(1)
+    expect(zone).toHaveValue("Madrid · Europe")
+    fireEvent.focus(zone)
+    expect(screen.getAllByRole("option").length).toBeGreaterThan(1)
   })
 
-  it("lists a zone the runtime doesn't know first, then every zone it does", () => {
-    const { dialog } = renderDialog({ ...trip, timezone: "Mars/Olympus_Mons" })
-    const options = within(dialog.getByRole("combobox", { name: "Time zone" })).getAllByRole("option")
-    expect(options[0]).toHaveTextContent("Mars/Olympus Mons")
-    expect(options.map((option) => option.getAttribute("value"))).toContain("Europe/Lisbon")
+  it("keeps a zone the runtime doesn't know, and finds any other from a few letters", () => {
+    const { onApply, dialog } = renderDialog({ ...trip, timezone: "Mars/Olympus_Mons" })
+    const zone = dialog.getByRole("combobox", { name: "Time zone" })
+    expect(zone).toHaveValue("Olympus Mons · Mars")
+    fireEvent.focus(zone)
+    expect(within(dialog.getByRole("listbox", { name: "Time zones" })).getAllByRole("option")[0]).toHaveTextContent("Olympus Mons Mars")
+
+    searchZone(dialog, "lisb", /^Lisbon/)
+    fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
+    expect(onApply).toHaveBeenCalledWith({ timezone: "Europe/Lisbon" })
+  })
+
+  it("takes a typed city as the zone once the field is left", () => {
+    const { onApply, dialog } = renderDialog()
+    const zone = dialog.getByRole("combobox", { name: "Time zone" })
+    fireEvent.focus(zone)
+    fireEvent.change(zone, { target: { value: "new york" } })
+    fireEvent.blur(zone)
+    expect(zone).toHaveValue("New York · America")
+    fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
+    expect(onApply).toHaveBeenCalledWith({ timezone: "America/New_York" })
+  })
+
+  it("shuts the zone list on Escape and leaves the dialog open, then closes the dialog on the next", () => {
+    const { onClose, dialog } = renderDialog()
+    const zone = dialog.getByRole("combobox", { name: "Time zone" })
+    fireEvent.focus(zone)
+    fireEvent.change(zone, { target: { value: "seo" } })
+    fireEvent.keyDown(zone, { key: "Escape" })
+    expect(dialog.queryByRole("listbox", { name: "Time zones" })).toBeNull()
+    expect(zone).toHaveValue("Lisbon · Europe")
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(zone, { key: "Escape" })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("shuts the place suggestions on Escape and leaves the dialog open", async () => {
+    mockSearchCities.mockResolvedValue([tokyo])
+    const { onClose, dialog } = renderDialog()
+    const where = dialog.getByRole("combobox", { name: "Where" })
+    fireEvent.change(where, { target: { value: "Tok" } })
+    await dialog.findByRole("option", { name: /Tokyo/ })
+
+    fireEvent.keyDown(where, { key: "Escape" })
+    expect(dialog.queryByRole("listbox", { name: "Matching places" })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("shuts the calendar on Escape and leaves the dialog open", () => {
+    const { onClose, dialog } = renderDialog()
+    const dates = dialog.getByRole("button", { name: /^Dates: / })
+    fireEvent.click(dates)
+    const day = within(screen.getByRole("dialog", { name: "Choose dates" })).getByRole("button", { name: "Thursday, June 11, 2026" })
+
+    fireEvent.keyDown(day, { key: "Escape" })
+    expect(dates).toHaveAttribute("aria-expanded", "false")
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("opens the zone list again on a press after a pick, with the field still focused", () => {
+    const { dialog } = renderDialog()
+    const zone = searchZone(dialog, "seo", /^Seoul/)
+    expect(dialog.queryByRole("listbox", { name: "Time zones" })).toBeNull()
+
+    fireEvent.click(zone)
+    expect(dialog.getByRole("listbox", { name: "Time zones" })).toBeInTheDocument()
+    expect(zone).toHaveAttribute("aria-expanded", "true")
+    expect([(zone as HTMLInputElement).selectionStart, (zone as HTMLInputElement).selectionEnd]).toEqual([0, "Seoul · Asia".length])
+  })
+
+  it("says the trip's length once, on the dates", () => {
+    const { dialog } = renderDialog()
+    expect(dialog.getAllByText(/^3 days\.?$/)).toHaveLength(1)
+  })
+
+  it("names the status in a word on the closed field and in full in its list", () => {
+    const { onApply, dialog } = renderDialog()
+    const status = dialog.getByRole("combobox", { name: "Status" })
+    expect(status).toHaveTextContent(/^Confirmed$/)
+    pickOption(status, "Draft — still planning")
+    expect(status).toHaveTextContent(/^Draft$/)
+    fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
+    expect(onApply).toHaveBeenCalledWith({ status: "draft" })
   })
 })

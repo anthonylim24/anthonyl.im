@@ -7,6 +7,7 @@ import { composing } from "../ime"
 import { searchCities, type CityResult } from "../geocode"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
+import { useClaimEscape } from "./escape"
 import { Spinner } from "./kit"
 
 // Destinations as tokens with city autocomplete. Picking a suggestion gives
@@ -92,7 +93,8 @@ export function CityField({
     return () => document.removeEventListener("pointerdown", onPointer)
   }, [open])
 
-  const commit = (city?: CityResult) => {
+  /** `stay`: keep focus here for the next place; false when focus is already leaving. */
+  const commit = (city?: CityResult, stay = true) => {
     const name = city?.name ?? typed
     setEnterPending(false)
     if (!name) return
@@ -101,7 +103,7 @@ export function CityField({
     setSearch(NO_SEARCH)
     setAttempt(0)
     setOpen(false)
-    inputRef.current?.focus()
+    if (stay) inputRef.current?.focus()
   }
 
   // Enter takes the highlighted result. While the search is still out it
@@ -119,13 +121,17 @@ export function CityField({
     if (enterPending && !loading) submitLatest()
   }, [enterPending, loading, submitLatest])
 
+  const showList = open && searching && (results.length > 0 || loading)
+  const showFailure = open && failed
+  useClaimEscape(showList || showFailure, wrapRef)
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (composing(event)) return
     if (event.key === "Backspace" && !text && values.length > 0) {
       onRemove(values.length - 1)
       return
     }
-    if (event.key === "Escape" && open && (results.length > 0 || failed)) {
+    if (event.key === "Escape" && (showList || showFailure)) {
       event.stopPropagation()
       setOpen(false)
       setEnterPending(false)
@@ -143,8 +149,6 @@ export function CityField({
     }
   }
 
-  const showList = open && searching && (results.length > 0 || loading)
-  const showFailure = open && failed
   return (
     <div ref={wrapRef} {...sx(s.composer)}>
       <div
@@ -196,7 +200,7 @@ export function CityField({
             // Typed-but-unpicked text still counts once focus leaves the
             // field: as the city it names exactly when that answer is in,
             // otherwise as typed (the form resolves it before saving).
-            if (typed && !wrapRef.current?.contains(event.relatedTarget as Node | null)) commit(exactCity(results, typed))
+            if (typed && !wrapRef.current?.contains(event.relatedTarget as Node | null)) commit(exactCity(results, typed), false)
           }}
           onKeyDown={onKeyDown}
         />
@@ -216,6 +220,7 @@ export function CityField({
                 role="option"
                 id={`${listId}-${index}`}
                 aria-selected={index === cursor}
+                tabIndex={-1}
                 {...sx(s.result, index === cursor && s.resultOn)}
                 onMouseEnter={() => setCursor(index)}
                 onMouseDown={(event) => event.preventDefault()}

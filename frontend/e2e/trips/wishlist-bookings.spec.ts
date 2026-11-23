@@ -1,5 +1,5 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
-import { expect as baseExpect, deleteTrip, itemId, place, readTrip, seedTrip, test, TOKYO, type Item, type Trip } from './fixtures'
+import { expect as baseExpect, deleteTrip, itemId, pickOption, place, readTrip, seedTrip, test, TOKYO, type Item, type Trip } from './fixtures'
 
 // A loaded Vite dev server can take 20 s to serve a lazy chunk (the details
 // card, the day picker) the first time; the waits allow for that.
@@ -148,7 +148,7 @@ test.describe('wishlist', () => {
       await page.goto(`/trips/${trip.id}?tab=wishlist`)
       await wishlist(page).getByRole('button', { name: 'Ueno Zoo', exact: true }).click()
       const card = page.getByRole('dialog', { name: 'Ueno Zoo' })
-      await card.getByRole('combobox', { name: /^Category for Ueno Zoo:/ }).selectOption({ label: 'Nature & outdoors' })
+      await pickOption(card.getByRole('combobox', { name: /^Category for Ueno Zoo:/ }), 'Nature & outdoors')
       await expect(card.getByRole('combobox', { name: 'Category for Ueno Zoo: Nature & outdoors' })).toBeVisible()
       await stored(request, trip.id, (t) => t.ideas?.[0]?.theme === 'nature', 'the category reached the server')
     } finally {
@@ -409,7 +409,7 @@ test.describe('bookings by hand', () => {
     try {
       await page.goto(`/trips/${trip.id}/day/${trip.days[0].id}`)
       const plan = await addBooking(page, 'Korean Air to Tokyo')
-      await plan.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Flight' })
+      await pickOption(plan.getByRole('combobox', { name: 'Type', exact: true }), 'Flight')
       await plan.getByLabel('Airline', { exact: true }).fill('Korean Air')
       await plan.getByLabel('Flight number', { exact: true }).fill('KE 703')
       const from = plan.getByLabel('From', { exact: true })
@@ -449,9 +449,9 @@ test.describe('bookings by hand', () => {
     try {
       await page.goto(`/trips/${trip.id}/day/${trip.days[0].id}`)
       const plan = await addBooking(page, 'Park Hyatt Tokyo')
-      await plan.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Stay' })
+      await pickOption(plan.getByRole('combobox', { name: 'Type', exact: true }), 'Stay')
       await fillTime(page, 'Check-in', '3:00 PM')
-      await plan.getByRole('combobox', { name: 'Check-out', exact: true }).selectOption({ label: 'Wed 3 Mar · 2 nights' })
+      await pickOption(plan.getByRole('combobox', { name: 'Check-out', exact: true }), 'Wed 3 Mar · 2 nights')
       await fillTime(page, 'Check-out time', '11:00 AM')
       await plan.getByLabel('Booked with', { exact: true }).fill('Booking.com')
       await plan.getByLabel('Confirmation', { exact: true }).fill('88412907')

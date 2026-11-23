@@ -47,6 +47,7 @@ import type { ConflictAlert } from "./stopAlerts"
 import { StopRef } from "../timeline/StopRef"
 import { Parts } from "./Parts"
 import { a } from "../atlas.stylex"
+import { Select } from "../components/Select"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
 import { ItemIcon } from "../ItemIcon"
@@ -501,40 +502,32 @@ export const ItemCard = memo(function ItemCard({
                 </label>
                 <LinksField links={item.links} disabled={locked} onChange={(links) => patch({ links: links.length > 0 ? links : undefined })} />
                 {item.kind !== "note" && (
-                  <label>
+                  <label {...sx(s.span2Narrow)}>
                     <span {...sx(s.miniLabel)}>Status</span>
-                    <select
+                    <Select
+                      label="Status"
                       value={item.status}
                       disabled={locked}
-                      {...sx(a.field)}
-                      onChange={(event) => patch({ status: event.target.value as ItemStatus })}
-                    >
-                      {STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {STATUS_LABEL[status]}
-                        </option>
-                      ))}
-                    </select>
+                      options={STATUSES.map((status) => ({ value: status, label: STATUS_LABEL[status] }))}
+                      onChange={(status) => patch({ status })}
+                    />
                   </label>
                 )}
                 {item.kind !== "note" && (
-                  <CostField value={item.cost} defaultCurrency={currency} disabled={locked} onChange={(cost) => patch({ cost })} />
+                  <div {...sx(s.span2Narrow)}>
+                    <CostField value={item.cost} defaultCurrency={currency} disabled={locked} onChange={(cost) => patch({ cost })} />
+                  </div>
                 )}
                 {dayOptions.length > 1 && (
-                  <label>
+                  <label {...sx(s.span2Narrow)}>
                     <span {...sx(s.miniLabel)}>Day</span>
-                    <select
+                    <Select
+                      label="Day"
                       value={dayId}
                       disabled={locked}
-                      {...sx(a.field)}
-                      onChange={(event) => moveTo(event.target.value)}
-                    >
-                      {dayOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={dayOptions.map((option) => ({ value: option.id, label: option.label }))}
+                      onChange={moveTo}
+                    />
                   </label>
                 )}
                 <div {...sx(s.editorActions)}>
@@ -880,7 +873,7 @@ function LinksField({ links, disabled, onChange }: { links: string[] | undefined
             }
           }}
         />
-        <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={disabled || full || !draft.trim()} onClick={add}>
+        <button type="button" {...sx(a.btn, a.btnSecondary)} disabled={disabled || full || !draft.trim()} onClick={add}>
           Add
         </button>
       </div>

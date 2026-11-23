@@ -322,9 +322,17 @@ describe("TripsIndex", () => {
     expect(await screen.findByText("No trips match “atlantis”.")).toBeInTheDocument()
     expect(cardTitles()).toEqual([])
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    // One in the field, one under "No trips match".
+    const [, underEmpty] = screen.getAllByRole("button", { name: "Clear search" })
+    fireEvent.click(underEmpty!)
     await waitFor(() => expect(cardTitles()).toHaveLength(4))
     expect(screen.queryByText(/No trips match/)).toBeNull()
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull()
+
+    fireEvent.change(search, { target: { value: "porto" } })
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    expect(search).toHaveValue("")
+    await waitFor(() => expect(cardTitles()).toHaveLength(4))
   })
 
   it("shows the empty state when there are no trips", async () => {

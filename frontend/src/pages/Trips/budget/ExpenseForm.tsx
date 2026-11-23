@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKey
 import { Check, Trash2 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
+import { Select } from "../components/Select"
 import { ws } from "../workspace.stylex"
 import { holdEnterWhileComposing } from "../ime"
 import { formatTripDate } from "../meta"
@@ -219,28 +220,29 @@ export function ExpenseForm({
 
       <label>
         <span {...sx(ws.miniLabel)}>Day</span>
-        <select value={fields.date} disabled={disabled} {...sx(a.field)} onChange={(event) => set({ date: event.target.value })}>
-          {dayOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-          <option value="">No date</option>
-        </select>
+        <Select
+          label="Day"
+          value={fields.date}
+          disabled={disabled}
+          options={[...dayOptions, { value: "", label: "No date" }]}
+          onChange={(date) => set({ date })}
+        />
       </label>
 
       {people.length > 0 && (
         <label>
           <span {...sx(ws.miniLabel)}>Paid by</span>
-          <select value={fields.paidBy} disabled={disabled} {...sx(a.field)} onChange={(event) => set({ paidBy: event.target.value })}>
-            <option value="">Not set</option>
-            {people.map((person) => (
-              <option key={person.id} value={person.id}>
-                {personLabel(person, viewer)}
-              </option>
-            ))}
-            {fields.paidBy && !ids.includes(fields.paidBy) && <option value={fields.paidBy}>Someone no longer on the trip</option>}
-          </select>
+          <Select
+            label="Paid by"
+            value={fields.paidBy}
+            disabled={disabled}
+            options={[
+              { value: "", label: "Not set" },
+              ...people.map((person) => ({ value: person.id, label: personLabel(person, viewer) })),
+              ...(fields.paidBy && !ids.includes(fields.paidBy) ? [{ value: fields.paidBy, label: "Someone no longer on the trip" }] : []),
+            ]}
+            onChange={(paidBy) => set({ paidBy })}
+          />
         </label>
       )}
 

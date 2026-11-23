@@ -260,7 +260,7 @@ describe("TripCreate", () => {
 
     fireEvent.change(zone, { target: { value: "tokyo" } })
     fireEvent.click(within(screen.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: /^Tokyo/ }))
-    expect(zone).toHaveValue("Tokyo · Asia/Tokyo")
+    expect(zone).toHaveValue("Tokyo · Asia")
 
     fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
     await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))

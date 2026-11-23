@@ -291,6 +291,8 @@ export const idx = stylex.create({
     color: "var(--trips-ink-tertiary)",
     "@media (hover: none)": { display: "none" },
   },
+  // Its glyph sits where the "/" key does, on the field's inner edge.
+  searchClear: { marginRight: "-0.625rem" },
   bucket: { marginTop: "2rem" },
   bucketHead: { display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "1rem" },
   bucketRule: { flexGrow: 1, height: "1px", backgroundColor: "var(--trips-line)" },
@@ -626,8 +628,9 @@ export const range = stylex.create({
     textAlign: "left",
     cursor: "pointer",
     fontWeight: 500,
-    [HOVER]: { ":hover": { borderColor: "var(--trips-ink)" } },
   },
+  // Off while open, so the brand edge holds under the pointer.
+  triggerHover: { [HOVER]: { ":hover": { borderColor: "var(--trips-ink)" } } },
   triggerOpen: { borderColor: "var(--brand-fill)", boxShadow: "0 0 0 3px var(--brand-soft)" },
   panel: {
     position: "absolute",
@@ -677,9 +680,9 @@ export const range = stylex.create({
     borderRadius: "999px",
     ":focus-visible": { boxShadow: "0 0 0 2px var(--brand-ring)" },
   },
-  dayIn: { backgroundColor: "var(--trips-sunken)", borderRadius: 0 },
-  dayStart: { backgroundColor: "var(--trips-sunken)", borderTopRightRadius: 0, borderBottomRightRadius: 0 },
-  dayEnd: { backgroundColor: "var(--trips-sunken)", borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
+  dayIn: { backgroundColor: "var(--trips-wash)", borderRadius: 0 },
+  dayStart: { backgroundColor: "var(--trips-wash)", borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+  dayEnd: { backgroundColor: "var(--trips-wash)", borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
   dayEdge: {},
   dayNum: {
     display: "grid",

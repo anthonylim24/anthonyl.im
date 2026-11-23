@@ -1,5 +1,5 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
-import { TOKYO, deleteTrip, expect as baseExpect, itemId, note, place, readTrip, seedTrip, test, uniqueName, type Item, type Trip } from './fixtures'
+import { TOKYO, deleteTrip, expect as baseExpect, itemId, note, pickOption, place, readTrip, seedTrip, test, uniqueName, type Item, type Trip } from './fixtures'
 
 // On a loaded machine a page can take several seconds to load or to send its autosave.
 test.describe.configure({ timeout: 120_000 })
@@ -147,7 +147,7 @@ test.describe('editing a stop', () => {
       await ends.press('Enter')
       await expect(ends).toHaveValue('10:15 AM')
       await stop.getByLabel('Notes').fill('Tamagoyaki at the corner stall')
-      await stop.getByLabel('Cost currency').selectOption('USD')
+      await pickOption(stop.getByLabel('Cost currency'), /^USD · /)
       const cost = stop.getByLabel('Cost', { exact: true })
       await cost.fill('12.50')
       await cost.blur()
@@ -175,7 +175,7 @@ test.describe('editing a stop', () => {
       await expect(again.getByLabel('Ends')).toHaveValue('10:15 AM')
       await expect(again.getByLabel('Notes')).toHaveValue('Tamagoyaki at the corner stall')
       await expect(again.getByLabel('Cost', { exact: true })).toHaveValue(/^12\.50?$/)
-      await expect(again.getByLabel('Cost currency')).toHaveValue('USD')
+      await expect(again.getByLabel('Cost currency')).toHaveText('USD')
     } finally {
       await deleteTrip(request, trip.id)
     }
@@ -189,7 +189,7 @@ test.describe('editing a stop', () => {
       await openDay(page, trip)
       const stop = stopOf(page, first.id)
       await headOf(stop, first.title).click()
-      await stop.getByLabel('Status').selectOption({ label: 'Skipped' })
+      await pickOption(stop.getByLabel('Status'), 'Skipped')
 
       const plan = planOf(page, 1)
       await expect(headOf(stop, first.title)).toContainText('Skipped')
@@ -589,6 +589,58 @@ test.describe('trip details', () => {
     }
   })
 
+  test('keys in Trip details: Tab out of a field mid-search moves on, and Escape shuts only the open list', async ({ page, request }) => {
+    const trip = await seedTrip(request, { name: uniqueName('keys') })
+    const porto = { id: 2735943, name: 'Porto', latitude: 41.14961, longitude: -8.61099, country: 'Portugal', admin1: 'Porto', timezone: 'Europe/Lisbon' }
+    await page.route('https://geocoding-api.open-meteo.com/**', (route) => route.fulfill({ json: { results: [porto] } }))
+    try {
+      await openDay(page, trip)
+      const details = await openDetails(page)
+      const name = details.getByLabel('Name', { exact: true })
+      await name.fill('Kept while the keys move')
+      const where = details.getByRole('combobox', { name: 'Where' })
+      const places = page.getByRole('listbox', { name: 'Matching places' })
+
+      await where.fill('Port')
+      await expect(places.getByRole('option', { name: /Porto/ })).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(places).toBeHidden()
+      await expect(details).toBeVisible()
+      await where.fill('')
+
+      await where.fill('Porto')
+      await expect(places.getByRole('option', { name: /Porto/ })).toBeVisible()
+      await page.keyboard.press('Tab')
+      await expect(details.getByRole('button', { name: /Change dates$/ }), 'focus left the open list for the next field').toBeFocused()
+      await expect(details.getByRole('button', { name: 'Remove Porto' })).toBeVisible()
+
+      await page.keyboard.press('Enter')
+      const calendar = page.getByRole('dialog', { name: 'Choose dates' })
+      await expect(calendar).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(calendar).toBeHidden()
+      await expect(details).toBeVisible()
+
+      const zone = details.getByRole('combobox', { name: 'Time zone' })
+      const zones = page.getByRole('listbox', { name: 'Time zones' })
+      await zone.click()
+      await zone.pressSequentially('reykj')
+      await expect(zones).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(zones).toBeHidden()
+      await expect(details).toBeVisible()
+      await zone.click()
+      await expect(zones).toBeVisible()
+      await zone.pressSequentially('reykjavik')
+      await page.keyboard.press('Tab')
+      await expect(details.getByRole('button', { name: 'Cancel' })).toBeFocused()
+      await expect(zone).toHaveValue('Reykjavik · Atlantic')
+      await expect(name).toHaveValue('Kept while the keys move')
+    } finally {
+      await deleteTrip(request, trip.id)
+    }
+  })
+
   test('later end dates add empty days and leave the existing plan where it was', async ({ page, request }) => {
     const first = place('Tokyo Tower', 35.6586, 139.7454)
     const trip = await seedTrip(request, { name: uniqueName('extend'), patch: withDays([[first]]) })
@@ -597,7 +649,7 @@ test.describe('trip details', () => {
       await page.getByRole('button', { name: /3 days$/ }).click()
       const details = page.getByRole('dialog', { name: 'Trip details' })
       await pickDates(page, details, 'Monday, March 1, 2027', 'Friday, March 5, 2027')
-      await expect(details.getByText('5 days.')).toBeVisible()
+      await expect(details.getByRole('button', { name: /5 days\. Change dates$/ })).toBeVisible()
       await details.getByRole('button', { name: 'Save details' }).click()
 
       await expect(page.getByRole('navigation', { name: 'Days' }).getByRole('link', { name: /^Day 5, Friday, March 5/ })).toBeVisible()

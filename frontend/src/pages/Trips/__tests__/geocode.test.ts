@@ -57,6 +57,16 @@ describe("searchCities", () => {
     expect(url).toContain(`name=${encodeURIComponent("São Paulo")}`)
   })
 
+  it("lists two places that read the same once, the first one kept", async () => {
+    const kyo = (id: number, lat: number) => ({ id, name: "Kyo", latitude: lat, longitude: 8.9, country: "Nigeria", country_code: "NG", admin1: "Benue State" })
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      json({ results: [{ id: 1, name: "Kyoto", latitude: 35, longitude: 135.7, country: "Japan", country_code: "JP" }, kyo(2, 7.1), kyo(3, 7.4)] }),
+    )
+    const cities = await searchCities("Kyo")
+    expect(cities.map(cityLabel)).toEqual(["Kyoto, Japan", "Kyo, Benue State, Nigeria"])
+    expect(cities[1]!.id).toBe("2")
+  })
+
   it("returns [] when the body has no results", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({}))
     expect(await searchCities("zzzz")).toEqual([])

@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
 import type { ItineraryItem, Trip } from "../../types"
 import { OverviewPanel } from "../../workspace/OverviewPanel"
+import { pickOption } from "../../__tests__/pickOption"
 
 const booking = (id: string, title: string, time: string | undefined, reservation: ItineraryItem["reservation"]): ItineraryItem =>
   makeItem({ id, kind: "reservation", title, status: "booked", time, reservation })
@@ -75,8 +76,8 @@ describe("OverviewPanel bookings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add booking" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Enter by hand" }))
     const dialog = screen.getByRole("dialog", { name: "Add a booking" })
-    fireEvent.change(within(dialog).getByLabelText("What it is"), { target: { value: "car" } })
-    fireEvent.change(within(dialog).getByLabelText("Starts on"), { target: { value: "day-2" } })
+    pickOption(within(dialog).getByRole("combobox", { name: "What it is" }), "Car rental")
+    pickOption(within(dialog).getByRole("combobox", { name: "Starts on" }), /^Day 2 · /)
     fireEvent.click(within(dialog).getByRole("button", { name: "Add and open" }))
     expect(onAddBooking).toHaveBeenCalledWith("day-2", expect.objectContaining({ kind: "reservation", reservation: { type: "car", status: "confirmed" } }))
     expect(screen.queryByRole("dialog")).toBeNull()

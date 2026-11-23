@@ -5,16 +5,7 @@ import { sx } from "@/styles/merge"
 import { formatTripDate, plural, todayIsoIn } from "../meta"
 import type { Trip, TripDay } from "../types"
 import { ws as s } from "../workspace.stylex"
-import { scrollBehavior } from "./scroll"
-
-/** Which ends of the rail have days scrolled out of sight. */
-type Clipped = "none" | "start" | "end" | "both"
-
-function clippedEnds(el: HTMLElement): Clipped {
-  const start = el.scrollLeft > 1
-  const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
-  return start && end ? "both" : start ? "start" : end ? "end" : "none"
-}
+import { clippedEnds, scrollBehavior, type Clipped } from "./scroll"
 
 const FADE = { none: null, start: s.railFadeStart, end: s.railFadeEnd, both: s.railFadeBoth } as const
 

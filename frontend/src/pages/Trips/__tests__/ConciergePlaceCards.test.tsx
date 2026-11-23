@@ -9,6 +9,7 @@ vi.mock("../placePhoto", () => ({
 }))
 
 import { ConciergePlaceCards, hoursLine, walkLine } from "../ConciergePlaceCards"
+import { pickOption } from "./pickOption"
 
 const days: TripDay[] = [
   { id: "day-1", date: "2026-11-13", title: "Belém", items: [] },
@@ -53,7 +54,7 @@ describe("ConciergePlaceCards", () => {
     const onAdd = renderCards()
     fireEvent.click(screen.getByRole("button", { name: "Add A Marítima do Restelo to Fri 13 Nov · 12:30" }))
     expect(onAdd).toHaveBeenCalledWith(place, "day-1")
-    fireEvent.change(screen.getByRole("combobox", { name: "Day for A Marítima do Restelo" }), { target: { value: "day-2" } })
+    pickOption(screen.getByRole("combobox", { name: "Day for A Marítima do Restelo" }), /^Sat 14 Nov/)
     fireEvent.click(screen.getByRole("button", { name: "Add A Marítima do Restelo to Sat 14 Nov" }))
     expect(onAdd).toHaveBeenLastCalledWith(place, "day-2")
   })
