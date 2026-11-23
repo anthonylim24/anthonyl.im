@@ -11,7 +11,7 @@ import {
   type SetStateAction,
 } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { ArrowRight, Copy, MoreHorizontal, Plus, RotateCcw, Search, Share2, Sparkles, Trash2, Users } from "lucide-react"
+import { ArrowRight, Copy, MoreHorizontal, Plus, RotateCcw, Search, Share2, Sparkles, Trash2, Users, X } from "lucide-react"
 import { stylex, sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
@@ -702,7 +702,13 @@ export function TripsIndex() {
                   }
                 }}
               />
-              <kbd {...sx(s.kbd)}>/</kbd>
+              {query ? (
+                <button type="button" aria-label="Clear search" {...sx(a.iconBtn, a.iconBtnSm, s.searchClear)} onClick={() => setQuery("")}>
+                  <X size={16} strokeWidth={1.75} aria-hidden />
+                </button>
+              ) : (
+                <kbd {...sx(s.kbd)}>/</kbd>
+              )}
             </label>
           </div>
 

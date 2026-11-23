@@ -239,7 +239,7 @@ const st = stylex.create({
     userSelect: "none",
     outline: "none",
     overflowWrap: "anywhere",
-    ":focus": { backgroundColor: "var(--trips-sunken)" },
+    ":focus": { backgroundColor: "var(--trips-wash)" },
     ":focus-visible": { boxShadow: "inset 0 0 0 2px var(--brand-ring)" },
     [WIDE]: { fontSize: "0.9375rem" },
   },

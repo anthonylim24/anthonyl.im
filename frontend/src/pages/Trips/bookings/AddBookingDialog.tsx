@@ -6,7 +6,6 @@ import { Modal } from "../components/kit"
 import { dayShort } from "../conciergeProposal"
 import { RESERVATION_TYPES } from "../meta"
 import type { ItineraryItem, Trip } from "../types"
-import { ws as s } from "../workspace.stylex"
 import { defaultBookingDay, newBooking } from "./addBookings"
 import { bookingTypeLabel } from "./kinds"
 
@@ -53,7 +52,7 @@ export function AddBookingDialog({
       }
     >
       <label>
-        <span {...sx(s.miniLabel)}>What it is</span>
+        <span {...sx(a.label)}>What it is</span>
         <Select
           label="What it is"
           value={type}
@@ -62,7 +61,7 @@ export function AddBookingDialog({
         />
       </label>
       <label>
-        <span {...sx(s.miniLabel)}>Starts on</span>
+        <span {...sx(a.label)}>Starts on</span>
         <Select
           label="Starts on"
           value={dayId}

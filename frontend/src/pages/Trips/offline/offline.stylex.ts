@@ -28,7 +28,7 @@ export const save = stylex.create({
     whiteSpace: "nowrap",
   },
   /** In the header: the bar below 1024px says it instead. */
-  header: { marginLeft: "auto", [NARROW]: { display: "none" } },
+  header: { flexShrink: 0, marginLeft: "auto", [NARROW]: { display: "none" } },
   /** In the phone and tablet bar, beside the view switch. */
   bar: { flexShrink: 0, marginRight: "0.5rem" },
   status: { display: "inline-flex", alignItems: "center", gap: "0.375rem", minWidth: 0 },

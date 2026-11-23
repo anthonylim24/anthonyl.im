@@ -571,7 +571,15 @@ export function InstagramSheet({ open: requested, onClose, trip, dayId, initialU
                               {...sx(a.fieldBare)}
                               onChange={(event) => setQuery(event.target.value)}
                             />
-                            {savedBusy && <Spinner />}
+                            {savedBusy ? (
+                              <Spinner />
+                            ) : (
+                              query && (
+                                <button type="button" aria-label="Clear search" {...sx(a.iconBtn, a.iconBtnSm, s.searchClear)} onClick={() => setQuery("")}>
+                                  <X size={16} strokeWidth={1.75} aria-hidden />
+                                </button>
+                              )
+                            )}
                           </label>
                           {saved.status === "loading" ? (
                             <>

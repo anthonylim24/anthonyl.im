@@ -358,6 +358,7 @@ export const ig = stylex.create({
     color: "var(--trips-ink-tertiary)",
     ":focus-within": { boxShadow: "0 0 0 1.5px var(--brand-fill), 0 0 0 5px var(--brand-soft)" },
   },
+  searchClear: { marginRight: "-0.625rem" },
   skeletonRow: { height: "4.25rem", flexShrink: 0, borderRadius: "var(--trips-radius)" },
 
   foot: {

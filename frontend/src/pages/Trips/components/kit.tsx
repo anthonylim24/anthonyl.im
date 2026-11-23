@@ -253,9 +253,10 @@ export function Modal({
   footer?: ReactNode
   children: ReactNode
 }) {
+  const [scrolled, setScrolled] = useState(false)
   return (
     <DialogFrame open={open} onClose={onClose} accent={accent} content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}>
-      <div {...sx(a.dialogHead)}>
+      <div {...sx(a.dialogHead, scrolled && a.dialogHeadRuled)}>
         <div {...sx(a.stack)}>
           <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
           {description ? (
@@ -268,7 +269,9 @@ export function Modal({
           <X size={18} strokeWidth={1.75} aria-hidden />
         </DialogPrimitive.Close>
       </div>
-      <div {...sx(a.dialogBody)}>{children}</div>
+      <div {...sx(a.dialogBody)} onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}>
+        {children}
+      </div>
       {footer && <div {...sx(a.dialogFoot, "trips-dialog-foot")}>{footer}</div>}
     </DialogFrame>
   )

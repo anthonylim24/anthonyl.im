@@ -145,7 +145,7 @@ export function DateRange({
         aria-invalid={invalid || undefined}
         aria-label={`${label}: ${formatRangeLong(start, end)}, ${plural(count, "day")}. Change dates`}
         disabled={disabled}
-        {...sx(a.field, r.trigger, open && r.triggerOpen)}
+        {...sx(a.field, r.trigger, open ? r.triggerOpen : r.triggerHover)}
         onClick={toggle}
       >
         <CalendarDays size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.muted)} />

@@ -357,6 +357,7 @@ export const ws = stylex.create({
 
   // ── Overview tabs ─────────────────────────────────────
   tabs: {
+    position: "relative",
     display: "flex",
     gap: { default: "1rem", "@media (min-width: 640px)": "1.25rem" },
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
@@ -368,11 +369,10 @@ export const ws = stylex.create({
   },
   tab: {
     flexShrink: 0,
-    // A grid so the mono count sits on the label's baseline, centred as a pair.
-    display: "inline-grid",
-    gridAutoFlow: "column",
-    alignItems: "baseline",
-    alignContent: "center",
+    // Centred, not on a baseline: the count's pill would lift a label with one
+    // above the labels without.
+    display: "inline-flex",
+    alignItems: "center",
     gap: "0.375rem",
     minHeight: "2.75rem",
     paddingInline: "0.125rem",
@@ -392,14 +392,18 @@ export const ws = stylex.create({
     [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
   },
   tabOn: { color: "var(--trips-ink)", borderBottomColor: "var(--trips-ink)" },
+  tabsFadeStart: { maskImage: "linear-gradient(to right, transparent, #000 1.25rem)" },
+  tabsFadeEnd: { maskImage: "linear-gradient(to left, transparent, #000 2.5rem)" },
+  tabsFadeBoth: { maskImage: "linear-gradient(to right, transparent, #000 1.25rem, #000 calc(100% - 2.5rem), transparent)" },
   tabBadge: {
     minWidth: "1.25rem",
     paddingInline: "0.375rem",
-    paddingBlock: "0.0625rem",
+    paddingBlock: "0.125rem",
     borderRadius: "999px",
     backgroundColor: "var(--trips-sunken)",
     fontFamily: "var(--trips-mono)",
     fontSize: "0.6875rem",
+    lineHeight: "1rem",
     fontWeight: 400,
     textAlign: "center",
     color: "var(--trips-ink-secondary)",
@@ -957,7 +961,7 @@ export const ws = stylex.create({
     color: "var(--trips-ink)",
     fontSize: "0.875rem",
   },
-  resultOn: { backgroundColor: "var(--trips-sunken)" },
+  resultOn: { backgroundColor: "var(--trips-wash)" },
   resultRule: { height: "1px", marginBlock: "0.25rem", backgroundColor: "var(--trips-line)" },
 
   // ── AI ────────────────────────────────────────────────

@@ -871,7 +871,7 @@ function LinksField({ links, disabled, onChange }: { links: string[] | undefined
             }
           }}
         />
-        <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={disabled || full || !draft.trim()} onClick={add}>
+        <button type="button" {...sx(a.btn, a.btnSecondary)} disabled={disabled || full || !draft.trim()} onClick={add}>
           Add
         </button>
       </div>
