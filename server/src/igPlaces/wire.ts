@@ -351,11 +351,26 @@ export function buildWorld() {
     staleThresholdSec: config.igWorkerStaleSec,
   });
 
-  return { queue, loop, supabase };
+  const thenKick = <A extends unknown[], R>(write: (...args: A) => Promise<R>) =>
+    async (...args: A) => {
+      const result = await write(...args);
+      loop.kick();
+      return result;
+    };
+
+  return {
+    queue: {
+      ...queue,
+      enqueue: thenKick(queue.enqueue),
+      retryJob: thenKick(queue.retryJob),
+      reextractJob: thenKick(queue.reextractJob),
+    },
+    loop,
+    supabase,
+  };
 }
 
 let booted: ReturnType<typeof buildWorld> | null = null;
-let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 export function bootIgWorker() {
   if (!config.igWorkerEnabled) {
@@ -369,15 +384,14 @@ export function bootIgWorker() {
     // during start-up rather than after submitting the first job.
     void probeYtDlpOnce();
     void probeDevBrowserOnce();
-    pollInterval = setInterval(() => { void booted!.loop.tick(); }, config.igWorkerPollMs);
-    console.log(`[ig-worker] started concurrency=${config.igWorkerConcurrency} poll=${config.igWorkerPollMs}ms`);
+    booted.loop.start(config.igWorkerPollMs);
+    console.log(`[ig-worker] started concurrency=${config.igWorkerConcurrency} sweep=${config.igWorkerPollMs}ms`);
 
     // The shared handler exits once every worker has wound down; exiting
     // here would cut the others short.
     onShutdown('ig-worker', async () => {
       if (!booted) return;
       booted.loop.stop();
-      if (pollInterval) clearInterval(pollInterval);
       const start = Date.now();
       while (booted.loop.inflight() > 0 && Date.now() - start < 30_000) {
         await new Promise(r => setTimeout(r, 250));

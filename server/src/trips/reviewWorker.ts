@@ -91,7 +91,7 @@ export interface ReviewWorker {
 
 /** How often the server sweeps for due reviews, on top of the kick each new
  *  review gets: retries, and runs whose worker died. */
-export const REVIEW_SWEEP_MS = 10_000
+export const REVIEW_SWEEP_MS = 60_000
 
 const DEFAULT_CONCURRENCY = 2
 /** Saves of a finished review onto a trip that keeps changing under it. */
