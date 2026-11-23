@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { Hono } from "hono"
 import { MemoryTripStore } from "../trips/store"
-import { KOREA_TRIP_ID } from "../trips/koreaTrip"
+import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { createTripReviewWorker, type ReviewWorker } from "../trips/reviewWorker"
 import { REVIEW_MAX_ATTEMPTS } from "../trips/types"
 import { createTripsRouter, type TripsRouterDeps } from "./trips"
@@ -1312,6 +1312,9 @@ describe("invites and joining", () => {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
   }
+  async function patch(app: Hono, tripId: string, body: unknown, headers = AUTH) {
+    return app.request(`/api/trips/${tripId}`, { method: "PATCH", headers, body: JSON.stringify(body) })
+  }
 
   test("owner creates an invite, and the same role reuses it", async () => {
     const { app } = makeApp()
@@ -1385,20 +1388,36 @@ describe("invites and joining", () => {
     expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "editor" }])
   })
 
-  test("an editor invite upgrades a viewer; a viewer invite never downgrades", async () => {
+  test("rejoining keeps a collaborator's role whichever link they use, and refreshes the name", async () => {
     const { app, store } = makeApp()
     const trip = await createTrip(app)
     const viewer = await inviteFor(app, trip.id, "viewer")
     const editor = await inviteFor(app, trip.id, "editor")
     await join(app, viewer.token, { name: "Sam" })
 
-    const up = await join(app, editor.token)
-    expect(((await up.json()) as { access: string }).access).toBe("edit")
-    expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "editor", name: "Sam" }])
+    const viaEditor = await join(app, editor.token)
+    expect(((await viaEditor.json()) as { access: string }).access).toBe("view")
+    expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "viewer", name: "Sam" }])
 
-    const down = await join(app, viewer.token, { name: "Samantha" })
-    expect(((await down.json()) as { access: string }).access).toBe("edit")
+    await patch(app, trip.id, { collaborators: [{ userId: "user-2", role: "editor", name: "Sam" }] })
+    const viaViewer = await join(app, viewer.token, { name: "Samantha" })
+    expect(((await viaViewer.json()) as { access: string }).access).toBe("edit")
     expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "editor", name: "Samantha" }])
+  })
+
+  test("an old editor link does not undo the owner's downgrade to viewer", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const editor = await inviteFor(app, trip.id, "editor")
+    await join(app, editor.token)
+    const downgrade = await patch(app, trip.id, { collaborators: [{ userId: "user-2", role: "viewer" }] })
+    expect(downgrade.status).toBe(200)
+
+    const rejoin = await join(app, editor.token)
+    expect(rejoin.status).toBe(200)
+    expect(((await rejoin.json()) as { access: string }).access).toBe("view")
+    expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "viewer" }])
+    expect((await patch(app, trip.id, { name: "Mine now" }, OTHER)).status).toBe(403)
   })
 
   test("the owner joining their own link changes nothing", async () => {
@@ -1837,5 +1856,126 @@ describe("planning extras (budget, party, expenses, checklist, item cost)", () =
     expect((await patch(app, trip.id, { budget: { currency: "euro" } })).status).toBe(400)
     const bad = [{ id: "e", title: "x", amount: -1, currency: "EUR", category: "food", createdAt: "now" }]
     expect((await patch(app, trip.id, { expenses: bad })).status).toBe(400)
+  })
+})
+
+describe("link schemes on save", () => {
+  async function patch(app: Hono, id: string, body: unknown) {
+    return app.request(`/api/trips/${id}`, { method: "PATCH", headers: AUTH, body: JSON.stringify(body) })
+  }
+  async function tripWithDay(app: Hono) {
+    const trip = (await createTrip(app)) as unknown as { id: string; days: Array<{ id: string; date: string }> }
+    return { id: trip.id, day: trip.days[0]! }
+  }
+  const unsafe = ["javascript:alert(1)", " JavaScript:alert(1)", "java\tscript:alert(1)", "\njavascript:x", "DATA:text/html,<b>x</b>", "vbscript:msgbox", "file:///etc/passwd", "\u0000javascript:x", "mailto:a@b.co", "intent://scan#Intent;end", "blob:https://x.test/1"]
+  const kept = ["https://example.com", "www.exa", "example.com/a", "https://x.test/?q=javascript:alert(1)", "datastore.example.com", "javascript", "HTTP://example.com", "/relative/path", ""]
+
+  test("item links that are not web pages are dropped and the rest are kept, in order", async () => {
+    const { app, store } = makeApp()
+    const { id, day } = await tripWithDay(app)
+    const links = [kept[0]!, ...unsafe, ...kept.slice(1)]
+    const item = { id: "i1", kind: "place", title: "Senso-ji", links }
+    const res = await patch(app, id, { days: [{ id: day.id, date: day.date, items: [item] }] })
+    expect(res.status).toBe(200)
+    expect((await store.get(id))!.days[0]!.items[0]!.links).toEqual(kept)
+  })
+
+  test("an unsafe reservation url is cleared and a safe one is kept", async () => {
+    const { app, store } = makeApp()
+    const { id, day } = await tripWithDay(app)
+    const reservation = (url: string) => ({ type: "meal", status: "confirmed", url })
+    const items = [
+      { id: "bad", kind: "reservation", title: "Dinner", reservation: reservation(" JavaScript:alert(document.cookie)") },
+      { id: "good", kind: "reservation", title: "Lunch", reservation: reservation("https://example.com/booking") },
+    ]
+    expect((await patch(app, id, { days: [{ id: day.id, date: day.date, items }] })).status).toBe(200)
+    const [bad, good] = (await store.get(id))!.days[0]!.items
+    expect(bad!.reservation?.url).toBeUndefined()
+    expect(bad!.reservation?.type).toBe("meal")
+    expect(good!.reservation?.url).toBe("https://example.com/booking")
+  })
+
+  test("wishlist ideas get the same cleaning", async () => {
+    const { app, store } = makeApp()
+    const { id } = await tripWithDay(app)
+    const idea = { id: "idea-1", kind: "place", title: "Bar", links: ["data:text/html,x", "https://bar.example"], reservation: { type: "bar", status: "pending", url: "vbscript:x" } }
+    expect((await patch(app, id, { ideas: [idea] })).status).toBe(200)
+    const stored = (await store.get(id))!.ideas![0]!
+    expect(stored.links).toEqual(["https://bar.example"])
+    expect(stored.reservation?.url).toBeUndefined()
+  })
+})
+
+describe("write body size", () => {
+  const MB = 1024 * 1024
+  const ko = (n: number) => "경복궁 야경 투어 예약 필수 ".repeat(Math.ceil(n / 16)).slice(0, n)
+
+  test("a 200-idea, 1000-expense trip with long Korean notes still saves", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const ideas = Array.from({ length: 200 }, (_, i) => ({
+      id: `idea-${i}`,
+      kind: "place",
+      title: ko(30),
+      notes: ko(500),
+      links: ["https://www.instagram.com/p/ABCDEFGHIJK/", "https://map.naver.com/p/entry/place/1234567890"],
+      location: { name: ko(30), address: ko(60), lat: 37.5796, lng: 126.977, placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", category: "landmark" },
+    }))
+    const expenses = Array.from({ length: 1000 }, (_, i) => ({
+      id: `exp-${i}`,
+      title: ko(30),
+      amount: 12345.67,
+      currency: "KRW",
+      category: "food",
+      date: "2026-10-03",
+      paidBy: "person-1",
+      splitWith: ["person-1", "person-2", "person-3", "person-4"],
+      notes: ko(120),
+      createdAt: "2026-10-03T12:34:56.789Z",
+    }))
+    const body = JSON.stringify({ days: buildKoreaTrip().days, ideas, expenses })
+    expect(new TextEncoder().encode(body).length).toBeGreaterThan(1_000_000)
+    const res = await app.request(`/api/trips/${trip.id}`, { method: "PATCH", headers: AUTH, body })
+    expect(res.status).toBe(200)
+    const stored = (await store.get(trip.id))!
+    expect(stored.ideas).toHaveLength(200)
+    expect(stored.expenses).toHaveLength(1000)
+  })
+
+  const oversized = JSON.stringify({ name: "Renamed", padding: "y".repeat(2 * MB) })
+
+  test("an oversized PATCH that states its length is refused with 413 and writes nothing", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { ...AUTH, "Content-Length": String(oversized.length) },
+      body: oversized,
+    })
+    expect(res.status).toBe(413)
+    expect(((await res.json()) as { error: string }).error).toBe("too_large")
+    expect((await store.get(trip.id))!.name).toBe("Tokyo Long Weekend")
+  })
+
+  test("an oversized streamed PATCH with no length is refused with 413 too", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const bytes = new TextEncoder().encode(oversized)
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let at = 0; at < bytes.length; at += 64 * 1024) controller.enqueue(bytes.slice(at, at + 64 * 1024))
+        controller.close()
+      },
+    })
+    const res = await app.request(`/api/trips/${trip.id}`, { method: "PATCH", headers: AUTH, body: stream, duplex: "half" } as RequestInit)
+    expect(res.status).toBe(413)
+    expect((await store.get(trip.id))!.name).toBe("Tokyo Long Weekend")
+  })
+
+  test("the cap covers the other write routes", async () => {
+    const { app } = makeApp()
+    const body = JSON.stringify({ ...JSON.parse(newTripBody), padding: "y".repeat(2 * MB) })
+    const res = await app.request("/api/trips", { method: "POST", headers: AUTH, body })
+    expect(res.status).toBe(413)
   })
 })

@@ -1,4 +1,5 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono"
+import { bodyLimit } from "hono/body-limit"
 import { categoryColor, categoryIcon, formatDistance, haversineMeters, type PlaceCategory } from "../data/koreaPlaces"
 import { applySuggestions, generateItinerary, type AppliedSuggestions, type Geocoder, type LlmCall, type WeatherFetcher } from "../trips/ai"
 import { streamTripChat } from "../trips/chat"
@@ -70,6 +71,9 @@ export interface TripsRouterDeps {
   reviewWorker?: ReviewWorker
 }
 
+/** About twice the largest real save: a whole trip with 200 ideas, 1000
+ *  expenses and long Korean notes is about 1 MB of JSON. */
+const MAX_WRITE_BYTES = 2 * 1024 * 1024
 const MAX_SUMMARY_POINTS = 48
 const round4 = (n: number) => Math.round(n * 1e4) / 1e4
 
@@ -235,6 +239,13 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     await next()
   })
   if (deps.rateLimit) trips.use("*", deps.rateLimit)
+  trips.use(
+    "*",
+    bodyLimit({
+      maxSize: MAX_WRITE_BYTES,
+      onError: (c) => c.json({ error: "too_large", message: "This trip is too big to save. Remove some stops, ideas or expenses, then try again." }, 413),
+    }),
+  )
 
   const userIdOf = (c: Context) => c.get("userId" as never) as string
   const withLock = createKeyedLock()
@@ -324,15 +335,11 @@ export function createTripsRouter(deps: TripsRouterDeps) {
           collaborators: [...trip.collaborators, { userId, role: invite.role, ...(name ? { name } : {}) }],
         }
       }
-      const role = invite.role === "editor" ? "editor" : existing.role
-      const nextName = name ?? existing.name
-      if (role === existing.role && nextName === existing.name) return trip
-      return {
-        ...trip,
-        collaborators: trip.collaborators.map((col) =>
-          col === existing ? { ...col, role, ...(nextName ? { name: nextName } : {}) } : col,
-        ),
-      }
+      // A link sets the role of someone new only. Someone already on the trip
+      // keeps the role the owner gave them, so an old editor link cannot undo
+      // a downgrade to viewer.
+      if (!name || name === existing.name) return trip
+      return { ...trip, collaborators: trip.collaborators.map((col) => (col === existing ? { ...col, name } : col)) }
     })
     if (!joined) return c.json({ error: "invite_not_found" }, 404)
     const access = accessFor(joined, userId)
