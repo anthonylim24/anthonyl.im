@@ -81,6 +81,12 @@ assert_executable "deploy/install-service.sh"
 bash -n "$ROOT_DIR/deploy/install-service.sh"
 assert_contains ".github/workflows/deploy.yml" "deploy/install-service.sh"
 assert_contains "deploy/systemd/anthonyl.im.service" "ExecStart=/root/.bun/bin/bun run index.ts"
+# The deploy restarts it through restart.sh, which keeps a bridge on :3000
+# (SO_REUSEPORT, so the unit must set REUSE_PORT).
+assert_executable "deploy/restart.sh"
+bash -n "$ROOT_DIR/deploy/restart.sh"
+assert_contains ".github/workflows/deploy.yml" "deploy/restart.sh"
+assert_contains "deploy/systemd/anthonyl.im.service" "Environment=REUSE_PORT=1"
 # A preview .env carries the production Clerk key, never the dev bearer,
 # with the service worker off and the API on the PR's sidecar.
 assert_executable "deploy/write-frontend-env.sh"

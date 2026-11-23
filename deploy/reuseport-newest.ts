@@ -21,6 +21,16 @@ const SOL_SOCKET = 1
 const SO_ATTACH_REUSEPORT_CBPF = 51
 const BPF_RET_K = 0x06
 
+export class SyscallError extends Error {
+  constructor(
+    readonly call: string,
+    readonly errno: number,
+  ) {
+    super(`${call} failed: errno ${errno}`)
+  }
+}
+
+/** Throws a SyscallError when the kernel refuses a step. */
 export function steerToNewest(pid: number, fd: number) {
   const libc = dlopen('libc.so.6', {
     pidfd_open: { args: [FFIType.i32, FFIType.u32], returns: FFIType.i32 },
@@ -31,7 +41,7 @@ export function steerToNewest(pid: number, fd: number) {
   })
   const c = libc.symbols
   const check = (name: string, rc: number) => {
-    if (rc < 0) throw new Error(`${name} failed: errno ${read.i32(c.__errno_location()!, 0)}`)
+    if (rc < 0) throw new SyscallError(name, read.i32(c.__errno_location()!, 0))
     return rc
   }
   // struct sock_filter { u16 code; u8 jt; u8 jf; u32 k }: return 1.

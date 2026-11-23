@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { readdirSync, readFileSync, readlinkSync } from "node:fs"
-import { steerToNewest } from "../../deploy/reuseport-newest.ts"
+import { steerToNewest, SyscallError } from "../../deploy/reuseport-newest.ts"
 
 // Restarts that drop nothing (deploy/restart.sh, index.ts) rest on two things
 // Bun does on Linux: a second server can listen on the same port with
@@ -8,12 +8,15 @@ import { steerToNewest } from "../../deploy/reuseport-newest.ts"
 // to the other server) while a request already in flight still gets its
 // answer. A Bun upgrade that changes either brings the 502s back.
 test.skipIf(process.platform !== "linux")("a stopped server hands the port over and finishes what it has", async () => {
+  let arrived!: () => void
+  const reached = new Promise<void>((resolve) => (arrived = resolve))
   let release!: () => void
   const held = new Promise<void>((resolve) => (release = resolve))
   const first = Bun.serve({
     port: 0,
     reusePort: true,
     async fetch() {
+      arrived()
       await held
       return new Response("first")
     },
@@ -22,7 +25,7 @@ test.skipIf(process.platform !== "linux")("a stopped server hands the port over 
   const get = () => fetch(url, { headers: { connection: "close" } }).then((res) => res.text())
   try {
     const inFlight = get()
-    await Bun.sleep(50)
+    await reached
 
     const second = Bun.serve({ port: first.port, reusePort: true, fetch: () => new Response("second") })
     try {
@@ -47,8 +50,26 @@ test.skipIf(process.platform !== "linux")("a stopped server hands the port over 
 
 // deploy/restart.sh attaches this to the server's socket before it starts
 // the bridge; here the test process steers its own socket, which needs no
-// privileges. It runs in CI on x86_64, the droplet's architecture.
-test.skipIf(process.platform !== "linux")("steerToNewest sends every new connection to the newest listener", async () => {
+// privileges. It runs in CI on x86_64, the droplet's architecture. Skipped
+// where the kernel has no pidfd_getfd (an emulator) or a sandbox forbids it.
+const ENOSYS = 38
+const EPERM = 1
+const steeringUnavailable = ((): string | null => {
+  if (process.platform !== "linux") return "not Linux"
+  const probe = Bun.serve({ port: 0, reusePort: true, fetch: () => new Response("") })
+  try {
+    steerToNewest(process.pid, listeningFd(probe.port))
+    return null
+  } catch (err) {
+    if (err instanceof SyscallError && (err.errno === ENOSYS || err.errno === EPERM)) return err.message
+    throw err
+  } finally {
+    void probe.stop(true)
+  }
+})()
+if (steeringUnavailable) console.warn(`[reusePort.test] steering skipped: ${steeringUnavailable}`)
+
+test.skipIf(steeringUnavailable !== null)("steerToNewest sends every new connection to the newest listener", async () => {
   const serve = (tag: string, port = 0) => Bun.serve({ port, reusePort: true, fetch: () => new Response(tag) })
   const answers = (port: number) =>
     Promise.all(
