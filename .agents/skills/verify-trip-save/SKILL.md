@@ -64,8 +64,8 @@ Never raise the run count, drop a pinned example or loosen an assertion to make 
 
 ## Findings
 
-- **Fixed in 8dc9ed36.** Typing during a save sent the same PATCH twice; the hook deduped on the `Sync` object, which an edit replaces. `send()` now makes a new `sent` per request and the hook dedupes on it. Pinned example `typedTwiceWhileSaving`.
-- **Fixed in 95a0d242.** Undo after a merge erased the other writer's change (an open typing step spanned the merge), and an undo that clashed fell back to the whole remembered plan. `merged()` closes the step on every merge; `replayPlan` merges with the step winning only clashing fields. Pinned examples `undoAcrossTheirCopy`, `redoOverTheirRename`.
+- **Fixed.** Typing during a save sent the same PATCH twice; the hook deduped on the `Sync` object, which an edit replaces. `send()` now makes a new `sent` per request and the hook dedupes on it. Pinned example `typedTwiceWhileSaving`.
+- **Fixed.** Undo after a merge erased the other writer's change (an open typing step spanned the merge), and an undo that clashed fell back to the whole remembered plan. `merged()` closes the step on every merge; `replayPlan` merges with the step winning only clashing fields. Pinned examples `undoAcrossTheirCopy`, `redoOverTheirRename`.
 - **Open.** A save that landed but whose answer was lost is retried against the old base, the server answers 409 with the traveller's own save, and newer typing on the same field clashes with it, so a traveller alone sees "Keep mine / Use theirs". No data is lost (Keep mine keeps the newest). Property 2 is `it.fails` with the pinned example `answerLostThenTyped`; when it is fixed, vitest reports the `it.fails` as passing unexpectedly, so flip it to `it`.
 
 ## Bounds and what it does not cover
@@ -78,7 +78,7 @@ Never raise the run count, drop a pinned example or loosen an assertion to make 
 
 ## Coverage record
 
-Last confirmed against the code at commit **95a0d242**.
+Last confirmed against the code at **2026-11-23T00:02Z**. A time, not a commit, because squash merges drop branch commits.
 
 | File | What the check depends on |
 |------|---------------------------|
@@ -90,10 +90,10 @@ Last confirmed against the code at commit **95a0d242**.
 To see whether the check needs another look after a change:
 
 ```bash
-git log --oneline 95a0d242..HEAD -- frontend/src/pages/Trips/editorMachine.ts frontend/src/pages/Trips/tripMerge.ts frontend/src/pages/Trips/useTripEditor.ts server/src/routes/trips.ts
+git log --oneline --since=2026-11-23T00:02Z -- frontend/src/pages/Trips/editorMachine.ts frontend/src/pages/Trips/tripMerge.ts frontend/src/pages/Trips/useTripEditor.ts server/src/routes/trips.ts
 ```
 
-For each commit listed, confirm the model still matches the code (a new event, a new field in `savePatch`, a different 409 rule, a second request path in the hook) and update the test if not. Move the commit above forward only after that confirmation.
+For each commit listed, confirm the model still matches the code (a new event, a new field in `savePatch`, a different 409 rule, a second request path in the hook) and update the test if not. The first commit listed may be the one that recorded this time. Move the time above forward only after that confirmation.
 
 ## Proving a change to the check
 
