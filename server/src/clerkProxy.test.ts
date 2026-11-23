@@ -38,6 +38,41 @@ test("forwards to Clerk's Frontend API with the proxy headers", async () => {
   expect(await res.json()).toEqual({ ok: true });
 });
 
+function cookieApp(cookies: string[], headers: Record<string, string> = {}) {
+  const app = new Hono();
+  app.all(`${CLERK_PROXY_PATH}/*`, createClerkProxy({
+    secretKey: "sk_live_test",
+    proxyUrl: "https://anthonyl.im/__clerk",
+    fetch: (async () => {
+      const upstream = new Headers(headers);
+      for (const cookie of cookies) upstream.append("set-cookie", cookie);
+      return new Response("x", { status: 200, headers: upstream });
+    }) as unknown as typeof fetch,
+  }));
+  return app;
+}
+
+test("passes on Clerk's cookies for this site and drops the ones a browser here would reject", async () => {
+  const res = await cookieApp([
+    "__client=abc; Path=/; Domain=anthonyl.im; HttpOnly; Secure; SameSite=Lax",
+    "__client_uat=0; Path=/; Domain=.anthonyl.im; Secure; SameSite=Lax",
+    "__session=s; Path=/; Secure",
+    "__cf_bm=bot; HttpOnly; Path=/; Domain=frontend-api.clerk.dev",
+    "_cfuvid=id; HttpOnly; Path=/; Domain=clerkprod-cloudflare.net",
+    "evil=1; Path=/; Domain=notanthonyl.im",
+  ]).fetch(new Request("https://anthonyl.im/__clerk/v1/client"));
+  expect(res.headers.getSetCookie().map((c) => c.split("=")[0])).toEqual(["__client", "__client_uat", "__session"]);
+});
+
+test("a pinned clerk-js file keeps its long cache and sets no cookie, so Cloudflare can cache it", async () => {
+  const res = await cookieApp(
+    ["__cf_bm=bot; HttpOnly; Path=/; Domain=frontend-api.clerk.dev"],
+    { "cache-control": "public, max-age=31536000, s-maxage=31536000, immutable" },
+  ).fetch(new Request("https://anthonyl.im/__clerk/npm/@clerk/clerk-js@5.128.2/dist/clerk.browser.js"));
+  expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, s-maxage=31536000, immutable");
+  expect(res.headers.has("set-cookie")).toBe(false);
+});
+
 test("passes a POST body through", async () => {
   const { app, calls } = proxiedApp();
   await app.fetch(new Request("https://anthonyl.im/__clerk/v1/client/sign_ins", {
