@@ -1,5 +1,5 @@
 import { dayShort } from "../conciergeProposal"
-import { dayZone, validZone } from "../dayClock"
+import { dayZone } from "../dayClock"
 import { addDays, daysBetween } from "../meta"
 import type { Trip } from "../types"
 import type { BookingForm } from "./kinds"
@@ -51,33 +51,6 @@ export function endDateChoices(form: BookingForm, start: string, tripEnd: string
 export function tripZones(trip: Pick<Trip, "timezone" | "days">): string[] {
   const zones = [dayZone(trip), ...trip.days.map((day) => dayZone(trip, day))]
   return [...new Set(zones)]
-}
-
-/** Every IANA zone the runtime knows; just `fallback` where it can't list them. */
-export function knownZones(fallback: readonly string[]): string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] }
-  try {
-    const all = intl.supportedValuesOf?.("timeZone")
-    if (all && all.length > 0) return [...new Set([...fallback, ...all])]
-  } catch {
-    // An engine without the list: the trip's own zones still work.
-  }
-  return [...fallback]
-}
-
-const cityOf = (zone: string) => zone.split("/").pop()!.replace(/_/g, " ").toLowerCase()
-
-/**
- * What a typed zone means: an IANA name in any case ("asia/tokyo"), or a
- * city that names exactly one zone ("Tokyo", "new york"). Null otherwise.
- */
-export function resolveZone(text: string, zones: readonly string[]): string | null {
-  const typed = text.trim().toLowerCase()
-  if (!typed) return null
-  const exact = zones.find((zone) => zone.toLowerCase() === typed)
-  if (exact) return validZone(exact) ?? null
-  const byCity = zones.filter((zone) => cityOf(zone) === typed.replace(/_/g, " "))
-  return byCity.length === 1 ? (validZone(byCity[0]) ?? null) : null
 }
 
 /** "Honolulu · HST" for a zone chip. */

@@ -873,6 +873,9 @@ body {
      on paper plus a shadow); dark redefines it, since raised and sunken sit
      about 1.2:1 apart there. */
   --trips-selected-edge: transparent;
+  /* A row under the pointer or the keyboard, on any surface: ink at a low
+     alpha, so it lifts on dark paper where --trips-sunken would sink. */
+  --trips-wash: rgb(20 23 26 / 0.07);
   --trips-shadow: rgb(20 23 26 / 0.14);
   --trips-shadow-1: 0 1px 2px rgb(20 23 26 / 0.06), 0 0 0 1px rgb(20 23 26 / 0.04);
   --trips-shadow-2: 0 10px 30px -12px rgb(20 23 26 / 0.22), 0 2px 6px -2px rgb(20 23 26 / 0.08);
@@ -953,6 +956,7 @@ html.dark .trips,
   --trips-line-strong: rgb(255 255 255 / 0.2);
   /* 3.2:1 on --trips-sunken. */
   --trips-selected-edge: #5d6269;
+  --trips-wash: rgb(255 255 255 / 0.08);
   --trips-shadow: rgb(0 0 0 / 0.5);
   --trips-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.06);
   --trips-shadow-2: 0 12px 32px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
@@ -1356,6 +1360,12 @@ html.dark .trips .trips-sky-plate > .trips-sky-art,
 .trips.trips-portal {
   background: none;
   display: contents;
+}
+
+/* Search fields draw their own clear button in the atlas's ink. */
+.trips input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 /* Kit dialogs leave the way they came, a third quicker: Radix keeps them

@@ -4,6 +4,7 @@ import { sx } from "@/styles/merge"
 import { errorMessage } from "../../../effect/errors"
 import type { GetToken } from "../../../effect/http"
 import { a } from "../atlas.stylex"
+import { Select } from "../components/Select"
 import { Modal, Spinner } from "../components/kit"
 import { dayShort } from "../conciergeProposal"
 import { ItemIcon } from "../ItemIcon"
@@ -217,21 +218,13 @@ function DraftCard({ trip, draft, onUpdate }: { trip: Trip; draft: BookingDraft;
   const dayChoice = (
     <label>
       <span {...sx(s.miniLabel)}>Day</span>
-      <select
+      <Select
+        label="Day"
         value={draft.dayId ?? ""}
-        {...sx(a.field)}
-        onChange={(event) => {
-          const dayId = event.target.value || null
-          onUpdate((d) => ({ ...d, dayId, picked: dayId !== null && d.picked }))
-        }}
-      >
-        {draft.dayId === null && <option value="">Choose a day</option>}
-        {trip.days.map((d, i) => (
-          <option key={d.id} value={d.id}>
-            Day {i + 1} · {dayShort(d)}
-          </option>
-        ))}
-      </select>
+        placeholder="Choose a day"
+        options={trip.days.map((d, i) => ({ value: d.id, label: `Day ${i + 1} · ${dayShort(d)}` }))}
+        onChange={(dayId) => onUpdate((d) => ({ ...d, dayId, picked: d.picked }))}
+      />
     </label>
   )
 

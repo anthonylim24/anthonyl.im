@@ -4,7 +4,7 @@ import { todayIsoIn } from "../../meta"
 import type { ItineraryItem, TripDay } from "../../types"
 import { addBookings, bookingsInOrder, defaultBookingDay, draftsFrom, newBooking, pickedEntries } from "../addBookings"
 import { pasteErrorMessage } from "../bookingsApi"
-import { endDateChoices, resolveZone, tripZones } from "../choices"
+import { endDateChoices, tripZones } from "../choices"
 
 const booking = (id: string, time?: string): ItineraryItem =>
   makeItem({ id, kind: "reservation", title: id, status: "booked", time, reservation: { type: "flight", status: "confirmed" } })
@@ -96,14 +96,6 @@ describe("time zones", () => {
       ],
     })
     expect(tripZones(trip)).toEqual(["America/Los_Angeles", "Pacific/Honolulu"])
-  })
-
-  it("reads a zone by its name in any case, or by a city that names one", () => {
-    const zones = ["Asia/Tokyo", "America/New_York", "Pacific/Honolulu"]
-    expect(resolveZone("asia/tokyo", zones)).toBe("Asia/Tokyo")
-    expect(resolveZone("new york", zones)).toBe("America/New_York")
-    expect(resolveZone("Osaka", zones)).toBeNull()
-    expect(resolveZone("", zones)).toBeNull()
   })
 })
 

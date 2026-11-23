@@ -8,10 +8,12 @@ import type { CollaboratorRole, Trip, TripAccess } from "../types"
 import { a } from "../atlas.stylex"
 import { share as s } from "../workspace.stylex"
 import { Modal, Spinner } from "./kit"
+import { Select } from "./Select"
 
 // Sharing is link-first: pick a role, copy a link, send it. Whoever opens
-// it while signed in joins the trip with that role. The owner can change a
-// person's role, remove them, or reset a link.
+// it while signed in joins the trip with that role; someone already on it
+// keeps the role the owner gave them. The owner can change a person's role,
+// remove them, or reset a link.
 
 type Load =
   | { status: "loading" }
@@ -24,6 +26,7 @@ const ROLE_COPY: Record<CollaboratorRole, { label: string; hint: string }> = {
 }
 
 const ROLES = Object.keys(ROLE_COPY) as CollaboratorRole[]
+const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: ROLE_COPY[role].label }))
 
 export function inviteUrl(token: string): string {
   return `${window.location.origin}${routerBasename() ?? ""}/trips/join/${token}`
@@ -256,23 +259,20 @@ export function ShareDialog({
                     </span>
                     {owner ? (
                       <>
-                        <select
-                          aria-label={`Role for ${person.name || `guest ${index + 1}`}`}
+                        <Select
+                          label={`Role for ${person.name || `guest ${index + 1}`}`}
                           value={person.role}
                           disabled={busy !== null}
-                          {...sx(s.roleSelect)}
-                          onChange={(event) =>
+                          size="sm"
+                          options={ROLE_OPTIONS}
+                          triggerStyle={s.roleSelect}
+                          onChange={(role) =>
                             void saveCollaborators(
                               `role-${person.userId}`,
-                              trip.collaborators.map((c) =>
-                                c.userId === person.userId ? { ...c, role: event.target.value as CollaboratorRole } : c,
-                              ),
+                              trip.collaborators.map((c) => (c.userId === person.userId ? { ...c, role } : c)),
                             )
                           }
-                        >
-                          <option value="viewer">Can view</option>
-                          <option value="editor">Can edit</option>
-                        </select>
+                        />
                         <button
                           type="button"
                           {...sx(a.iconBtn, a.iconBtnSm)}

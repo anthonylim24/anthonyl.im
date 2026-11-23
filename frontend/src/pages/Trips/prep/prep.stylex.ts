@@ -318,7 +318,7 @@ export const prep = stylex.create({
 
   // ── Currency converter ────────────────────────────────
   convert: { display: "flex", flexDirection: "column", gap: "0.375rem", paddingTop: "0.5rem", maxWidth: "34rem" },
-  convertRow: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", minWidth: 0 },
+  convertRow: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 0.75rem", minWidth: 0 },
   convertField: { position: "relative", display: "block", flexGrow: 1, flexShrink: 1, flexBasis: "9rem", minWidth: 0 },
   convertInput: { fontVariantNumeric: "tabular-nums" },
   convertCoded: { paddingRight: "3.5rem" },
@@ -333,10 +333,11 @@ export const prep = stylex.create({
     color: "var(--trips-ink-tertiary)",
     pointerEvents: "none",
   },
-  convertEquals: { flexShrink: 0, fontFamily: "var(--trips-mono)", color: "var(--trips-ink-tertiary)" },
+  convertEquals: { fontFamily: "var(--trips-mono)", color: "var(--trips-ink-tertiary)" },
   convertHome: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) minmax(5.75rem, 8.5rem)",
+    gridTemplateColumns: "auto minmax(0, 1fr) minmax(5.5rem, 7rem)",
+    alignItems: "center",
     gap: "0.5rem",
     flexGrow: 1,
     flexShrink: 1,

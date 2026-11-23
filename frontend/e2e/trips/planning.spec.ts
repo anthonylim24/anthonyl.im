@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import type { Page } from '@playwright/test'
-import { deleteTrip, expect as baseExpect, itemId, place, seedTrip, serverTrip, test, type Item, type Trip } from './fixtures'
+import { deleteTrip, expect as baseExpect, itemId, pickOption, place, seedTrip, serverTrip, test, type Item, type Trip } from './fixtures'
 
 // On a loaded machine a lazy panel or a rate lookup takes well past the 5 s default.
 const expect = baseExpect.configure({ timeout: 30_000 })
@@ -51,7 +51,7 @@ test.describe('budget', () => {
     try {
       await page.goto(`/trips/${trip.id}?tab=budget`)
       await page.getByRole('button', { name: 'Set a budget' }).click()
-      await page.getByRole('combobox', { name: 'Budget currency' }).selectOption('EUR')
+      await pickOption(page.getByRole('combobox', { name: 'Budget currency' }), /^EUR · /)
       await page.getByRole('textbox', { name: 'Budget for the whole trip' }).fill('2,500')
       await page.getByRole('button', { name: 'Save budget' }).click()
 
@@ -177,10 +177,10 @@ test.describe('budget', () => {
       let form = page.getByRole('form', { name: 'Log an expense' })
       await form.getByRole('textbox', { name: 'What for' }).fill('Ramen')
       await form.getByRole('textbox', { name: 'Amount', exact: true }).fill('4,500')
-      await form.getByRole('combobox', { name: 'Currency', exact: true }).selectOption('JPY')
+      await pickOption(form.getByRole('combobox', { name: 'Currency', exact: true }), /^JPY · /)
       await form.getByRole('radio', { name: 'Food & drink' }).click()
-      await form.getByRole('combobox', { name: 'Day', exact: true }).selectOption(trip.days[1].date)
-      await form.getByRole('combobox', { name: 'Paid by' }).selectOption({ label: 'Bo' })
+      await pickOption(form.getByRole('combobox', { name: 'Day', exact: true }), /^Day 2 · /)
+      await pickOption(form.getByRole('combobox', { name: 'Paid by' }), 'Bo')
       await form.getByRole('group', { name: 'Split between' }).getByRole('checkbox', { name: 'Ann' }).click()
       await form.getByRole('button', { name: 'Log expense' }).click()
 
@@ -190,10 +190,10 @@ test.describe('budget', () => {
       await spent.getByRole('button', { name: 'Log an expense' }).click()
       form = page.getByRole('form', { name: 'Log an expense' })
       await form.getByRole('textbox', { name: 'What for' }).fill('Taxi')
-      await form.getByRole('combobox', { name: 'Currency', exact: true }).selectOption('USD')
+      await pickOption(form.getByRole('combobox', { name: 'Currency', exact: true }), /^USD · /)
       await form.getByRole('textbox', { name: 'Amount', exact: true }).fill('20')
       await form.getByRole('radio', { name: 'Transport' }).click()
-      await form.getByRole('combobox', { name: 'Paid by' }).selectOption({ label: 'Ann' })
+      await pickOption(form.getByRole('combobox', { name: 'Paid by' }), 'Ann')
       await form.getByRole('button', { name: 'Log expense' }).click()
       await expect(spent.getByRole('button', { name: 'Edit “Taxi”, $20' })).toBeVisible()
 

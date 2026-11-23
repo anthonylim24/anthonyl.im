@@ -18,6 +18,7 @@ vi.mock("../tripsApi", () => ({
 }))
 
 import { inviteUrl, ShareDialog } from "../components/ShareDialog"
+import { pickOption } from "./pickOption"
 
 const getToken = async () => "test-token"
 const writeText = vi.fn()
@@ -188,13 +189,13 @@ describe("ShareDialog", () => {
     renderShare(trip, "owner")
 
     const select = await screen.findByRole("combobox", { name: "Role for Mina" })
-    expect(select).toHaveValue("viewer")
-    expect(screen.getByRole("combobox", { name: "Role for guest 2" })).toHaveValue("editor")
+    expect(select).toHaveTextContent("Can view")
+    expect(screen.getByRole("combobox", { name: "Role for guest 2" })).toHaveTextContent("Can edit")
 
-    fireEvent.change(select, { target: { value: "editor" } })
+    pickOption(select, "Can edit")
     await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(1))
     expect(mockUpdateTrip).toHaveBeenCalledWith(getToken, "lisbon", { collaborators: [{ ...mina, role: "editor" }, joon] })
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Role for Mina" })).toHaveValue("editor"))
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Role for Mina" })).toHaveTextContent("Can edit"))
     expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ collaborators: [{ ...mina, role: "editor" }, joon] }))
   })
 

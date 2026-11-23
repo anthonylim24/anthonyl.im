@@ -72,7 +72,7 @@ const searchCitiesEffect = Effect.fn("Geocode.searchCities")(function* (query: s
   // A failed search is not "no such place": the field offers Retry for one.
   if (!res.ok) return yield* Effect.fail(new HttpStatusError({ status: res.status, message: "Couldn’t search for places." }))
   const body = yield* parseJson<{ results?: OpenMeteoRow[] }>(res)
-  return (body.results ?? []).map(
+  const cities = (body.results ?? []).map(
     (row): CityResult => ({
       id: String(row.id),
       name: row.name,
@@ -84,6 +84,9 @@ const searchCitiesEffect = Effect.fn("Geocode.searchCities")(function* (query: s
       timezone: row.timezone,
     }),
   )
+  // Two villages that read the same ("Kyo, Benue State, Nigeria") can't be
+  // told apart in the list; the first, the more populous, stands for both.
+  return cities.filter((city, index) => cities.findIndex((other) => cityLabel(other) === cityLabel(city)) === index)
 })
 
 /** OSM tag → the place categories the itinerary already knows (theme.ts icons). */

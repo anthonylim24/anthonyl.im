@@ -2,6 +2,7 @@ import { useId, useMemo, useState, type ReactNode } from "react"
 import { sx } from "@/styles/merge"
 import { LIMITS } from "../limits"
 import { a } from "../atlas.stylex"
+import { Select } from "../components/Select"
 import { ws as s } from "../workspace.stylex"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { bk } from "../bookings/bookings.stylex"
@@ -15,7 +16,6 @@ import {
   RESERVATION_STATUSES,
   reservationOf,
   type Reservation,
-  type ReservationStatus,
 } from "../bookings/kinds"
 import { cleanLinkInput } from "../bookings/lines"
 import { TimeField } from "../bookings/TimeField"
@@ -81,7 +81,7 @@ export function BookingFields({ item, onChange, trip, day, disabled }: BookingFi
     <TimeField key={key} label={label} value={item[key]} disabled={disabled} onChange={(value) => onChange({ [key]: value })} />
   )
   const endDate = (label: string) => (
-    <Select
+    <SelectField
       key="endDate"
       label={label}
       value={r.endDate ?? ""}
@@ -144,19 +144,19 @@ export function BookingFields({ item, onChange, trip, day, disabled }: BookingFi
       <legend id={legendId} {...sx(a.srOnly)}>
         Booking details
       </legend>
-      <Select
+      <SelectField
         label="Type"
         value={r.type}
         disabled={disabled}
         options={bookingTypeOptions(r.type).map((type) => ({ value: type, label: bookingTypeLabel(type) }))}
         onChange={(type) => set({ type })}
       />
-      <Select
+      <SelectField
         label="Booking status"
         value={r.status}
         disabled={disabled}
         options={RESERVATION_STATUSES.map((status) => ({ value: status, label: RESERVATION_STATUS_LABEL[status] }))}
-        onChange={(status) => set({ status: status as ReservationStatus })}
+        onChange={(status) => set({ status })}
       />
       {specific}
       {text("confirmation", "Confirmation", LIMITS.confirmation, { placeholder: "Code or reference", code: true })}
@@ -209,7 +209,7 @@ function TextField({
   )
 }
 
-function Select({
+function SelectField<V extends string>({
   label,
   value,
   options,
@@ -217,21 +217,15 @@ function Select({
   onChange,
 }: {
   label: string
-  value: string
-  options: { value: string; label: string }[]
+  value: V
+  options: { value: V; label: string }[]
   disabled?: boolean
-  onChange: (value: string) => void
+  onChange: (value: V) => void
 }) {
   return (
     <label>
       <span {...sx(s.miniLabel)}>{label}</span>
-      <select value={value} disabled={disabled} {...sx(a.field)} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <Select label={label} value={value} disabled={disabled} options={options} onChange={onChange} />
     </label>
   )
 }

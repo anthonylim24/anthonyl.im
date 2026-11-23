@@ -1,6 +1,7 @@
 import { useId, useState } from "react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
+import { Select } from "../components/Select"
 import { ws } from "../workspace.stylex"
 import { holdEnterWhileComposing } from "../ime"
 import type { Money } from "../types"
@@ -25,20 +26,19 @@ export function CurrencySelect({
   onChange: (currency: string) => void
 }) {
   return (
-    <select
+    <Select
       id={id}
-      aria-label={label}
+      label={label}
       value={value}
       disabled={disabled}
-      {...sx(a.field, b.currency)}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {currencyChoices(value).map((choice) => (
-        <option key={choice.code} value={choice.code}>
-          {choice.name === choice.code ? choice.code : `${choice.code} · ${choice.name}`}
-        </option>
-      ))}
-    </select>
+      options={currencyChoices(value).map((choice) => ({
+        value: choice.code,
+        label: choice.name === choice.code ? choice.code : `${choice.code} · ${choice.name}`,
+        short: choice.code,
+      }))}
+      triggerStyle={b.currency}
+      onChange={onChange}
+    />
   )
 }
 

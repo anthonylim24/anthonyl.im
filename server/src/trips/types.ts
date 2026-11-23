@@ -472,6 +472,28 @@ const moneyAmount = z.number().finite().min(0).max(1_000_000_000)
 
 export const moneySchema = z.object({ amount: moneyAmount, currency: currencyCode })
 
+const SCHEME = /^([a-z][a-z\d+.-]*):/i
+
+/** A link that is not a web page: any scheme but http and https (javascript:,
+ *  data:, file:, an app's own). A link with no scheme is a page the client
+ *  opens as https. Browsers ignore whitespace and control characters around
+ *  and inside a scheme (`" java\tscript:"` still runs), so those go first. */
+function isUnsafeLink(url: string): boolean {
+  const scheme = SCHEME.exec(url.replace(/[\x00-\x20]/g, ""))?.[1]
+  return scheme !== undefined && !/^https?$/i.test(scheme)
+}
+
+// Unsafe links are dropped, not refused: a 400 would fail every autosave of
+// an older client holding one, and the rest of the edit with it.
+const itemLinks = z
+  .array(z.string().max(2000))
+  .max(20)
+  .transform((links) => links.filter((link) => !isUnsafeLink(link)))
+const reservationUrl = z
+  .string()
+  .max(2000)
+  .transform((url) => (isUnsafeLink(url) ? undefined : url))
+
 export const itemSchema = z.object({
   id: z.string().min(1).max(64),
   kind: z.enum(["place", "note", "section", "reservation"]),
@@ -479,7 +501,7 @@ export const itemSchema = z.object({
   time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   notes: z.string().max(8000).optional(),
-  links: z.array(z.string().max(2000)).max(20).optional(),
+  links: itemLinks.optional(),
   status: z.enum(["none", "optional", "booked", "completed", "skipped", "needs_review"]).default("none"),
   location: locationSchema.optional(),
   reservation: z
@@ -488,7 +510,7 @@ export const itemSchema = z.object({
       status: z.enum(["confirmed", "tentative", "pending"]),
       confirmation: z.string().max(120).optional(),
       contact: z.string().max(200).optional(),
-      url: z.string().max(2000).optional(),
+      url: reservationUrl.optional(),
       provider: z.string().max(120).optional(),
       number: z.string().max(40).optional(),
       from: z.string().max(120).optional(),

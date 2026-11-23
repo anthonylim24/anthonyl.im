@@ -75,10 +75,11 @@ export function CurrencyConverter({ local, home, onHome }: { local: string; home
     <div {...sx(p.convert)}>
       <div {...sx(p.convertRow)}>
         {field("local")}
-        <span aria-hidden {...sx(p.convertEquals)}>
-          =
-        </span>
+        {/* "=" leads the second half, so a wrapped row reads as the equation's next line. */}
         <span {...sx(p.convertHome)}>
+          <span aria-hidden {...sx(p.convertEquals)}>
+            =
+          </span>
           {field("home")}
           <CurrencySelect value={home} label="Your currency" onChange={onHome} />
         </span>

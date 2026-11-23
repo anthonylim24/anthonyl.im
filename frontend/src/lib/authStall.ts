@@ -11,8 +11,9 @@ import { reportClientEvent } from "./telemetry"
 // unreachable, tells the visitor, keeps probing, and reloads the page once
 // sign-in can load again.
 
-/** What is in the way: no connection, this site, or the sign-in service. */
-export type StallCause = "offline" | "site" | "auth"
+/** What is in the way: no connection, the network between here and the
+ *  site, this site, or the sign-in service. */
+export type StallCause = "offline" | "network" | "site" | "auth"
 
 /** How long Clerk may take before we call it stalled. */
 export const STALL_AFTER_MS = 10_000
@@ -41,24 +42,30 @@ export function reloadToRecover(): boolean {
   return true
 }
 
-const reachable = (request: Effect.Effect<Response, Error>) =>
+type Probe = "up" | "down" | "unreached"
+
+// Cloudflare answers for this site even when the server behind it is down,
+// with a 5xx. A request that gets no answer at all was stopped on the way:
+// a Wi-Fi filter, DNS, a captive portal.
+const probe = (request: Effect.Effect<Response, Error>) =>
   request.pipe(
-    Effect.map((res) => res.status < 500),
-    Effect.catchAll(() => Effect.succeed(false)),
+    Effect.map((res): Probe => (res.status < 500 ? "up" : "down")),
+    Effect.catchAll(() => Effect.succeed<Probe>("unreached")),
   )
 
 /** `null` means everything answers, so a reload should bring sign-in back. */
 export const diagnose = Effect.fn("AuthStall.diagnose")(function* (proxyUrl: string | undefined = CLERK_PROXY_URL) {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return "offline" as StallCause
-  const siteUp = yield* reachable(fetchApi("/health", { cache: "no-store" }))
-  if (!siteUp) return "site" as StallCause
+  const site = yield* probe(fetchApi("/health", { cache: "no-store" }))
+  if (site === "unreached") return "network" as StallCause
+  if (site === "down") return "site" as StallCause
   // Without the proxy Clerk is served from its own host, which we cannot probe
   // across origins; the site answering means that host is the part that failed.
   if (!proxyUrl) return "auth" as StallCause
-  const authUp = yield* reachable(
+  const auth = yield* probe(
     fetchExternal(`${proxyUrl}/v1/environment`, { cache: "no-store", credentials: "omit" }),
   )
-  return authUp ? null : ("auth" as StallCause)
+  return auth === "up" ? null : ("auth" as StallCause)
 })
 
 /** Pause before the next probe: 4 s, doubling to a 30 s ceiling. */

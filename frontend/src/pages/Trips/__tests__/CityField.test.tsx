@@ -27,6 +27,27 @@ describe("CityField", () => {
     vi.clearAllMocks()
   })
 
+  it("adds typed text when focus moves on, and lets focus go where it went", async () => {
+    mockSearchCities.mockResolvedValue([])
+    const onAdd = vi.fn<(name: string, city?: CityResult) => void>()
+    render(
+      <>
+        <label htmlFor="where">Where</label>
+        <CityField id="where" values={[]} onAdd={onAdd} onRemove={() => {}} />
+        <button type="button">Dates</button>
+      </>,
+    )
+    const field = screen.getByRole("combobox", { name: "Where" })
+    field.focus()
+    fireEvent.change(field, { target: { value: "Porto" } })
+    await waitFor(() => expect(mockSearchCities).toHaveBeenCalled())
+
+    const next = screen.getByRole("button", { name: "Dates" })
+    next.focus()
+    expect(onAdd).toHaveBeenCalledWith("Porto", undefined)
+    expect(next).toHaveFocus()
+  })
+
   it("waits for a search still on its way before Enter adds the place", async () => {
     let answer!: (cities: CityResult[]) => void
     mockSearchCities.mockReturnValue(new Promise<CityResult[]>((resolve) => (answer = resolve)))
