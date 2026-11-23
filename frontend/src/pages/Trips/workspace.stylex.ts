@@ -891,7 +891,7 @@ export const ws = stylex.create({
     paddingTop: "0.875rem",
   },
   span2: { gridColumn: "1 / -1" },
-  // A full row on a phone, where half of one leaves an amount no room.
+  // A full row on a phone: half of one leaves a cost no room for its amount, and a day no room for its date.
   span2Narrow: { gridColumn: { default: "1 / -1", "@media (min-width: 640px)": "auto" } },
   miniLabel: {
     display: "block",

@@ -502,7 +502,7 @@ export const ItemCard = memo(function ItemCard({
                 </label>
                 <LinksField links={item.links} disabled={locked} onChange={(links) => patch({ links: links.length > 0 ? links : undefined })} />
                 {item.kind !== "note" && (
-                  <label>
+                  <label {...sx(s.span2Narrow)}>
                     <span {...sx(s.miniLabel)}>Status</span>
                     <Select
                       label="Status"
@@ -519,7 +519,7 @@ export const ItemCard = memo(function ItemCard({
                   </div>
                 )}
                 {dayOptions.length > 1 && (
-                  <label>
+                  <label {...sx(s.span2Narrow)}>
                     <span {...sx(s.miniLabel)}>Day</span>
                     <Select
                       label="Day"
