@@ -18,8 +18,8 @@ git push → GitHub Actions (.github/workflows/deploy.yml)
               │  └─ apt/curl ↓ yt-dlp + ffmpeg + dev-browser (idempotent, non-fatal)
               ├─ scp frontend/dist → ~/anthonyl.im.next/frontend/dist
               ├─ atomic swap next → live (prev kept for rollback)
-              ├─ deploy/install-service.sh (unit + watchdog from the release)
-              ├─ systemctl restart anthonyl.im, wait for loopback /health
+              ├─ deploy/install-service.sh (unit + watchdog + sysctl from the release)
+              ├─ deploy/restart.sh (bridge on :3000, restart the unit), wait for loopback /health
               └─ smoke: /health + SPA shells
 ```
 
@@ -355,11 +355,19 @@ systemd runs the server as `anthonyl.im.service` (`deploy/systemd/anthonyl.im.se
 systemctl status anthonyl.im                  # state, memory, last lines
 journalctl -u anthonyl.im -f                  # follow the log
 journalctl -u anthonyl.im --since "1 hour ago" | grep '\[client\]'
-systemctl restart anthonyl.im                 # what the deploy and watchdog do
+bash ~/anthonyl.im/deploy/restart.sh          # restart, dropping nothing (what the deploy does)
+systemctl restart anthonyl.im                 # plain restart (what the watchdog does)
 ```
 
 - **Working directory and env.** `/root/anthonyl.im`, the live release. Bun loads that release's `.env` (the deploy's copy of `~/.env`). The unit sets `NODE_ENV=production`, `HOME`, `LANG` and the `PATH` that finds yt-dlp and ffmpeg in `/usr/local/bin`. An edit to `~/.env` takes effect on the next deploy, or copy it to `~/anthonyl.im/.env` and restart.
-- **Restarts.** `Restart=always` (one second apart, never giving up), so any exit brings it back. A restart sends SIGTERM; `server/src/shutdown.ts` drains the workers while the old process keeps serving, and anything still running after 10 s is killed.
+- **Restarts.** `Restart=always` (one second apart, never giving up), so any exit brings it back. A stop sends SIGTERM: the server stops listening at once, finishes the requests it has (up to 8 s; a chat stream still open then is cut) and drains the workers (`server/src/shutdown.ts`); anything still running after 10 s is killed.
+- **Restarts that drop nothing.** A plain `systemctl restart` leaves :3000 closed from SIGTERM until the new process listens, and nginx answers 502 to whatever arrives then: about a second, or up to 10 s while an Instagram import or a request finishes. The deploy runs `deploy/restart.sh` instead:
+  1. It points new connections at the newest listener on the port (`deploy/reuseport-newest.ts`, a one-instruction BPF program on the SO_REUSEPORT group).
+  2. It starts a **bridge**, a second copy of the live release in the transient unit `anthonyl.im-bridge`, with the unit's directory and environment and the background workers off (`IG_WORKER_ENABLED=false`, `TRIPS_REVIEW_WORKER=false`). The unit sets `REUSE_PORT=1`, so both can listen on :3000, and from the moment the bridge listens it takes every new connection.
+  3. It restarts the unit and waits until the new process listens, which takes the new connections from then on.
+  4. It stops the bridge, which finishes what it has.
+
+  Each listener closes only after traffic has moved off it, and `net.ipv4.tcp_migrate_req=1` (`deploy/sysctl/90-anthonyl.im.conf`) hands anything still queued on a closing listener to the other one. The bridge adds about 60 MB for a couple of seconds. Each step falls back: without the steering, the two listeners share connections; without a bridge (the running server predates `REUSE_PORT`, or the bridge fails to start), it is a plain restart. The bridge has `RuntimeMaxSec=120`, so one left by an interrupted run stops by itself, and the next run stops any it finds. Logs: `journalctl -u anthonyl.im-bridge`.
 - **Memory ceiling.** `MemoryMax=700M`, the number PM2's `--max-memory-restart` used. It covers the whole unit (server, yt-dlp, ffmpeg, page cache), not the server's RSS alone; page cache is dropped first. Past the limit the kernel kills the largest process: a child alone leaves the server running (`OOMPolicy=continue`), the server itself is restarted. `MemorySwapMax=100M` keeps a runaway from living in swap instead.
 - **Logs.** journald, capped at 100 MB and a month for the whole droplet (`/etc/systemd/journald.conf.d/size.conf`). The old PM2 logs in `~/.pm2/logs` are no longer written.
 - **Back to PM2, if ever needed.** The hand-over left PM2 installed and its saved process list in place: `systemctl disable --now anthonyl.im && systemctl enable --now pm2-root`. The next deploy hands the server back to systemd.
@@ -368,7 +376,7 @@ PR preview sidecars (`server/src/previewApi.ts`) are not part of this unit and n
 
 ## Rollback
 
-Deploy keeps the previous tree at `~/anthonyl.im.prev` only until the new release answers `/health` on loopback; then `prev` is deleted. If it does not, the workflow moves `prev` back to `~/anthonyl.im`, reinstalls that release's unit (when it has one) and restarts, then checks that `/health` answers again.
+Deploy keeps the previous tree at `~/anthonyl.im.prev` only until the new release answers `/health` on loopback; then `prev` is deleted. If it does not, the workflow moves `prev` back to `~/anthonyl.im`, reinstalls that release's unit (when it has one) and restarts it (through that release's `deploy/restart.sh` when it has one), then checks that `/health` answers again.
 
 To roll back a bad *merged* commit: revert on `main`, push, and the workflow re-runs. End-to-end takes a few minutes from `git push`.
 
@@ -378,7 +386,7 @@ To roll back a bad *merged* commit: revert on `main`, push, and the workflow re-
 
 - **nginx site** (`deploy/nginx/anthonyl.im.conf` → `/etc/nginx/sites-available/anthonyl.im`). Large proxy buffers for Clerk's cookies, a 5 s connect timeout, 300 s read timeout for streams, and `X-Forwarded-For` / `X-Real-IP` on every proxied request (the `/health/metrics` loopback gate and the rate limiter's fallback key depend on them). The previous file is copied to `/root/nginx-anthonyl.im.bak-<time>` and restored if `nginx -t` rejects the new one.
 - **Outage page** (`deploy/nginx/unavailable.html` → `/var/www/anthonyl.im/__unavailable.html`). nginx serves it for 502 / 503 / 504, so a restart shows "Back in a moment" and the page reloads itself once `/health` answers.
-- **Server unit and watchdog**, through `deploy/install-service.sh`, which every deploy also runs: `anthonyl.im.service` (see [The server process](#the-server-process)) and `anthonyl-watchdog.timer` (`deploy/watchdog/*`). Every minute the watchdog asks `http://127.0.0.1:3000/health`; three failures in a row run `systemctl restart anthonyl.im`. It covers a process that is up but hung; systemd already restarts one that exits. It stands down while `~/anthonyl.im.next` is fresh (a deploy in progress). Logs: `journalctl -u anthonyl-watchdog`. On a droplet still running PM2, the script stops and disables `pm2-root` before the unit takes over :3000.
+- **Server unit, watchdog and sysctl**, through `deploy/install-service.sh`, which every deploy also runs: `anthonyl.im.service` (see [The server process](#the-server-process)), `net.ipv4.tcp_migrate_req=1` (`deploy/sysctl/90-anthonyl.im.conf` → `/etc/sysctl.d/`, for `deploy/restart.sh`) and `anthonyl-watchdog.timer` (`deploy/watchdog/*`). Every minute the watchdog asks `http://127.0.0.1:3000/health`; three failures in a row run a plain `systemctl restart anthonyl.im` (the server is not answering anyway). It covers a process that is up but hung; systemd already restarts one that exits. It stands down while `~/anthonyl.im.next` is fresh (a deploy in progress). Logs: `journalctl -u anthonyl-watchdog`. On a droplet still running PM2, the script stops and disables `pm2-root` before the unit takes over :3000.
 
 The deploy workflow does not run `install-droplet.sh`; run it by hand after changing the nginx files. Unit and watchdog changes ship with the next deploy.
 

@@ -33,6 +33,12 @@ if [ "$changed" = 1 ]; then
   systemctl daemon-reload
 fi
 
+# Lets deploy/restart.sh hand queued connections from the closing listener to
+# the other one. Applied every run, a no-op once set; without it a restart
+# can still reset a connection that arrives as a listener closes.
+put 644 "$HERE/sysctl/90-anthonyl.im.conf" /etc/sysctl.d/90-anthonyl.im.conf
+sysctl -q -p /etc/sysctl.d/90-anthonyl.im.conf || echo "[service] WARN: could not set net.ipv4.tcp_migrate_req"
+
 # Hand-over from PM2, once. Stopping pm2-root stops PM2's copy of the server
 # and the daemon; disabling it keeps a reboot from starting a second copy on
 # :3000. PM2's saved process list (~/.pm2/dump.pm2) is left as it is, so

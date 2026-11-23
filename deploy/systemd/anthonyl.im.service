@@ -7,7 +7,8 @@
 #
 #   journalctl -u anthonyl.im -f      logs
 #   systemctl status anthonyl.im      state, memory, last lines
-#   systemctl restart anthonyl.im     restart (the deploy and watchdog do this)
+#   bash ~/anthonyl.im/deploy/restart.sh   restart, dropping nothing (the deploy)
+#   systemctl restart anthonyl.im          plain restart (the watchdog)
 
 [Unit]
 Description=anthonyl.im server (Bun)
@@ -34,6 +35,9 @@ Environment=NODE_ENV=production
 Environment=HOME=/root
 Environment=LANG=C.UTF-8
 Environment=PATH=/root/.bun/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/usr/games:/usr/local/games:/snap/bin
+# SO_REUSEPORT on :3000, so deploy/restart.sh can keep a second copy (a
+# bridge) listening while this unit restarts.
+Environment=REUSE_PORT=1
 LimitNOFILE=65536
 
 # Any exit brings the server back, a clean one too (it exits 0 on SIGTERM).
@@ -41,8 +45,10 @@ Restart=always
 RestartSec=1
 
 # A stop sends SIGTERM to the server and its children (yt-dlp, ffmpeg). The
-# old process keeps serving while server/src/shutdown.ts drains the workers;
-# whatever is left after 10 s is killed.
+# server stops listening, finishes the requests it has and drains the workers
+# (server/src/shutdown.ts); whatever is left after 10 s is killed. A plain
+# restart refuses connections until the new process listens; restart through
+# deploy/restart.sh, which keeps a bridge on the port meanwhile.
 KillSignal=SIGTERM
 TimeoutStopSec=10
 

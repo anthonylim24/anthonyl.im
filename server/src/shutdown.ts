@@ -5,10 +5,17 @@
 //
 // systemd sends SIGTERM on a restart or deploy and kills whatever is left
 // 10 s later (TimeoutStopSec in deploy/systemd/anthonyl.im.service), so a
-// drain must start its important writes at once. The server keeps answering
-// requests until the process exits.
+// drain must start its important writes at once. The HTTP server is one of
+// the drains (index.ts): it stops listening at once, since deploy/restart.sh
+// keeps a second process on the port to take new connections, and finishes
+// the requests it already has.
 
 type Drain = () => Promise<void>
+
+/** How long the HTTP server waits for requests in flight after SIGTERM:
+ *  inside systemd's 10 s, so they finish before the kill. A chat stream
+ *  still open then is cut. */
+export const HTTP_DRAIN_MS = 8_000
 
 /** The part of `process` this needs; tests pass a stand-in. */
 export interface ShutdownHost {

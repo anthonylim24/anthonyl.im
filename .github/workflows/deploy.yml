@@ -274,12 +274,19 @@ jobs:
                 echo "ERROR: pm2-root is still active; not starting the unit"
                 return 1
               fi
-              systemctl restart anthonyl.im.service
+              # restart.sh keeps a second copy of the release listening on
+              # :3000 while the unit restarts, so nginx never finds the port
+              # closed. A release from before it restarts the plain way.
+              if [ -f "$LIVE/deploy/restart.sh" ]; then
+                bash "$LIVE/deploy/restart.sh"
+              else
+                systemctl restart anthonyl.im.service
+              fi
             }
             # Healthy means the new process answers /health, not just that
             # systemd calls the unit active. Usually true within a second.
-            # The restart waits for the old process to exit, so nothing else
-            # can answer on :3000 here.
+            # restart.sh has stopped its bridge by now and the restart waited
+            # for the old process to exit, so only the new one answers here.
             wait_healthy() {
               for _ in $(seq 1 40); do
                 if curl -fsS --max-time 2 http://127.0.0.1:3000/health 2>/dev/null \
