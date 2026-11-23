@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex"
 
-// Trip details: the "what happens to my plans" choices and the list of days
-// a new date range leaves out.
+// Trip details: the "what happens to my plans" choices, the list of days a
+// new date range leaves out, and the status and time zone row.
 
 const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
@@ -68,4 +68,11 @@ export const d = stylex.create({
   },
   lostCount: { flexShrink: 0, fontFamily: "var(--trips-mono)", fontSize: "0.75rem", color: "var(--trips-ink-tertiary)", paddingTop: "0.125rem" },
   note: { fontSize: "0.8125rem", color: "var(--trips-ink-secondary)", marginTop: "0.375rem", overflowWrap: "anywhere" },
+  // Status and time zone: stacked on a phone, where half a sheet cuts both short.
+  pair: {
+    display: "grid",
+    gridTemplateColumns: { default: "minmax(0, 1fr)", "@media (min-width: 640px)": "repeat(2, minmax(0, 1fr))" },
+    rowGap: "1.125rem",
+    columnGap: "0.75rem",
+  },
 })

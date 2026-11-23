@@ -123,7 +123,8 @@ export const b = stylex.create({
   },
   span2: { gridColumn: "1 / -1" },
   actions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", gridColumn: "1 / -1" },
-  amountRow: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(6.5rem, 11rem)", gap: "0.5rem" },
+  // The currency is as wide as its code; the amount takes the rest.
+  amountRow: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.5rem" },
   amountInput: { fontVariantNumeric: "tabular-nums" },
   currency: { cursor: "pointer", paddingInline: "0.625rem" },
   choices: { display: "flex", flexWrap: "wrap", gap: "0.375rem" },

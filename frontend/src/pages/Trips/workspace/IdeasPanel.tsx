@@ -404,7 +404,8 @@ function IdeaRow({
   onRemove: () => void
 }) {
   const name = ideaName(idea)
-  const where = idea.location?.address ?? (idea.location?.category ? idea.location.category.replace(/_/g, " ") : undefined)
+  // The address only: the category menu beside it already says what kind of place it is.
+  const where = idea.location?.address
   const links = (idea.links ?? []).map(stopLink).filter((link): link is NonNullable<typeof link> => link !== null)
   return (
     <li {...sx(s.ideaRow)}>

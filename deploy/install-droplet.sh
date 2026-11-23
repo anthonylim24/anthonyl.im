@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Installs the droplet-side pieces that live outside the app: the nginx site,
-# the outage page and the health watchdog. Safe to run again. Run as root on
-# the droplet from a checkout of this repo:
+# the outage page, and (through install-service.sh, which every deploy also
+# runs) the server's systemd unit and the health watchdog. Starts the server
+# if it is not running. Safe to run again. Run as root on the droplet from a
+# checkout of this repo:
 #
 #   bash deploy/install-droplet.sh
 set -euo pipefail
@@ -31,11 +33,10 @@ else
   exit 1
 fi
 
-echo "[install] watchdog"
-install -m 755 "$HERE/watchdog/anthonyl-watchdog.sh" /usr/local/bin/anthonyl-watchdog.sh
-install -m 644 "$HERE/watchdog/anthonyl-watchdog.service" /etc/systemd/system/anthonyl-watchdog.service
-install -m 644 "$HERE/watchdog/anthonyl-watchdog.timer" /etc/systemd/system/anthonyl-watchdog.timer
-systemctl daemon-reload
-systemctl enable --now anthonyl-watchdog.timer
+echo "[install] server unit + watchdog"
+bash "$HERE/install-service.sh"
+# No-op when it is already running; a changed unit takes effect on the next
+# deploy or `systemctl restart anthonyl.im`.
+systemctl start anthonyl.im.service
 
 echo "[install] done"

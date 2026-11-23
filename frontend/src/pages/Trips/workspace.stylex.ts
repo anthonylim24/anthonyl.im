@@ -63,19 +63,7 @@ export const share = stylex.create({
     fontSize: "0.8125rem",
     fontWeight: 700,
   },
-  roleSelect: {
-    minHeight: "2.25rem",
-    paddingInline: "0.5rem",
-    borderRadius: "0.625rem",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--trips-line-strong)",
-    backgroundColor: "var(--trips-raised)",
-    color: "var(--trips-ink)",
-    fontSize: "0.8125rem",
-    cursor: "pointer",
-    [HOVER]: { ":hover": { borderColor: "var(--trips-ink)" } },
-  },
+  roleSelect: { width: "auto", flexShrink: 0 },
 })
 
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
@@ -369,6 +357,7 @@ export const ws = stylex.create({
 
   // ── Overview tabs ─────────────────────────────────────
   tabs: {
+    position: "relative",
     display: "flex",
     gap: { default: "1rem", "@media (min-width: 640px)": "1.25rem" },
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
@@ -380,11 +369,10 @@ export const ws = stylex.create({
   },
   tab: {
     flexShrink: 0,
-    // A grid so the mono count sits on the label's baseline, centred as a pair.
-    display: "inline-grid",
-    gridAutoFlow: "column",
-    alignItems: "baseline",
-    alignContent: "center",
+    // Centred, not on a baseline: the count's pill would lift a label with one
+    // above the labels without.
+    display: "inline-flex",
+    alignItems: "center",
     gap: "0.375rem",
     minHeight: "2.75rem",
     paddingInline: "0.125rem",
@@ -404,14 +392,18 @@ export const ws = stylex.create({
     [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
   },
   tabOn: { color: "var(--trips-ink)", borderBottomColor: "var(--trips-ink)" },
+  tabsFadeStart: { maskImage: "linear-gradient(to right, transparent, #000 1.25rem)" },
+  tabsFadeEnd: { maskImage: "linear-gradient(to left, transparent, #000 2.5rem)" },
+  tabsFadeBoth: { maskImage: "linear-gradient(to right, transparent, #000 1.25rem, #000 calc(100% - 2.5rem), transparent)" },
   tabBadge: {
     minWidth: "1.25rem",
     paddingInline: "0.375rem",
-    paddingBlock: "0.0625rem",
+    paddingBlock: "0.125rem",
     borderRadius: "999px",
     backgroundColor: "var(--trips-sunken)",
     fontFamily: "var(--trips-mono)",
     fontSize: "0.6875rem",
+    lineHeight: "1rem",
     fontWeight: 400,
     textAlign: "center",
     color: "var(--trips-ink-secondary)",
@@ -899,6 +891,8 @@ export const ws = stylex.create({
     paddingTop: "0.875rem",
   },
   span2: { gridColumn: "1 / -1" },
+  // A full row on a phone: half of one leaves a cost no room for its amount, and a day no room for its date.
+  span2Narrow: { gridColumn: { default: "1 / -1", "@media (min-width: 640px)": "auto" } },
   miniLabel: {
     display: "block",
     marginBottom: "0.25rem",
@@ -969,7 +963,7 @@ export const ws = stylex.create({
     color: "var(--trips-ink)",
     fontSize: "0.875rem",
   },
-  resultOn: { backgroundColor: "var(--trips-sunken)" },
+  resultOn: { backgroundColor: "var(--trips-wash)" },
   resultRule: { height: "1px", marginBlock: "0.25rem", backgroundColor: "var(--trips-line)" },
 
   // ── AI ────────────────────────────────────────────────
@@ -1465,30 +1459,12 @@ export const ws = stylex.create({
     color: "var(--trips-ink-tertiary)",
   },
   // The details' category: a native select with the category's glyph inside its edge.
-  ideaThemeField: { position: "relative", display: "inline-flex", alignItems: "center", maxWidth: "100%" },
-  ideaThemeFieldIcon: {
-    position: "absolute",
-    insetInlineStart: "0.75rem",
-    display: "grid",
-    color: "var(--trips-ink-tertiary)",
-    pointerEvents: "none",
-  },
   ideaThemeSelect: {
+    width: "auto",
     maxWidth: "100%",
-    minHeight: "2.75rem",
-    paddingInlineStart: "2.125rem",
-    paddingInlineEnd: "0.75rem",
+    paddingInlineStart: "0.75rem",
     borderRadius: "var(--trips-radius-sm)",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--trips-line-strong)",
-    backgroundColor: "var(--trips-raised)",
-    color: "var(--trips-ink)",
     fontSize: "0.875rem",
-    cursor: "pointer",
-    outline: "none",
-    ":focus-visible": { boxShadow: ring },
-    [HOVER]: { ":hover": { borderColor: "var(--trips-ink)" } },
   },
   // Looks like the tag; a hairline pill on hover. The band takes it to 44px,
   // downward only: reaching up, it would take the bottom of the name's clicks.

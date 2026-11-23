@@ -3,6 +3,7 @@ import { useState } from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import type { Money } from "../../types"
 import { CostField } from "../CostField"
+import { pickOption } from "../../__tests__/pickOption"
 
 function renderField(initial?: Money) {
   const reports: Array<Money | undefined> = []
@@ -55,13 +56,13 @@ describe("CostField", () => {
 
   it("changes the currency of an amount", () => {
     const { reports } = renderField({ amount: 12.5, currency: "EUR" })
-    fireEvent.change(currencyBox(), { target: { value: "JPY" } })
+    pickOption(currencyBox(), /^JPY · /)
     expect(reports[reports.length - 1]).toEqual({ amount: 13, currency: "JPY" })
   })
 
   it("remembers a currency picked before the amount is typed", () => {
     const { reports } = renderField()
-    fireEvent.change(currencyBox(), { target: { value: "KRW" } })
+    pickOption(currencyBox(), /^KRW · /)
     expect(reports).toHaveLength(0)
     fireEvent.change(amountBox(), { target: { value: "42,000" } })
     expect(reports[reports.length - 1]).toEqual({ amount: 42000, currency: "KRW" })
@@ -81,6 +82,6 @@ describe("CostField", () => {
     fireEvent.change(amountBox(), { target: { value: "7" } })
     act(() => setFromOutside({ amount: 300, currency: "USD" }))
     expect(amountBox()).toHaveValue("300")
-    expect(currencyBox()).toHaveValue("USD")
+    expect(currencyBox()).toHaveTextContent("USD")
   })
 })

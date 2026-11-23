@@ -385,9 +385,9 @@ export const a = stylex.create({
     textDecoration: "none",
     outline: "none",
     // Inset, so the ring never paints over the item above or below it.
-    ":focus-visible": { backgroundColor: "var(--trips-sunken)", boxShadow: "inset 0 0 0 2px var(--brand-ring)" },
+    ":focus-visible": { backgroundColor: "var(--trips-wash)", boxShadow: "inset 0 0 0 2px var(--brand-ring)" },
     ":disabled": { opacity: 0.45, cursor: "not-allowed" },
-    [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)" } },
+    [HOVER]: { ":hover": { backgroundColor: "var(--trips-wash)" } },
   },
   menuItemDanger: { color: "var(--trips-danger)" },
   menuRule: { height: "1px", marginBlock: "0.375rem", marginInline: "0.25rem", backgroundColor: "var(--trips-line)" },
@@ -458,6 +458,8 @@ export const a = stylex.create({
     paddingTop: "1.375rem",
     paddingBottom: "0.5rem",
   },
+  // Once the body scrolls under it, as the foot's rule already marks the bottom.
+  dialogHeadRuled: { boxShadow: "inset 0 -1px 0 var(--trips-line)" },
   dialogTitle: {
     fontFamily: "var(--trips-display)",
     fontSize: "1.875rem",

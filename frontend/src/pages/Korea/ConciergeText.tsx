@@ -107,9 +107,9 @@ function makeComponents(
       <td {...sx(conciergeText.s23406cde)}>{children}</td>
     ),
     hr: () => <hr {...sx(conciergeText.s5c8bd8c9)} />,
-    img: ({ src, alt }) => (
-      <img src={src} alt={alt ?? ""} loading="lazy" decoding="async" {...sx(conciergeText.s95cb8ebe)} />
-    ),
+    // Never loaded: an image URL a prompt-injected reply writes would send
+    // whatever it carries to that host without a click.
+    img: ({ alt }) => alt || null,
   }
 }
 

@@ -126,13 +126,17 @@ app.route(
 // The sweep picks up retries, runs whose worker died, and (with its first
 // pass, now) the runs this process's restart left behind. On shutdown the
 // runs in progress are handed back so the next process takes them at once
-// without spending an attempt; PM2 kills the process ~1.6 s after SIGINT.
-if (reviewWorker && config.tripsReviewWorkerEnabled) {
-  reviewWorker.start(REVIEW_SWEEP_MS);
+// without spending an attempt; systemd kills the process 10 s after SIGTERM.
+// The hand-back runs with the sweep off too: `/enhance` still starts reviews
+// in this process (the restart bridge in deploy/restart.sh, say).
+if (reviewWorker) {
   onShutdown("trips-review", async () => {
     reviewWorker.stop();
     await reviewWorker.drain(1_000);
   });
+}
+if (reviewWorker && config.tripsReviewWorkerEnabled) {
+  reviewWorker.start(REVIEW_SWEEP_MS);
   console.log(`[trips/review] worker sweeping every ${REVIEW_SWEEP_MS / 1000}s`);
 } else if (reviewWorker) {
   console.log("[trips/review] TRIPS_REVIEW_WORKER is off: reviews start when asked for, nothing sweeps");

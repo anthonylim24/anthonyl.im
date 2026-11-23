@@ -174,8 +174,8 @@ describe("Done, Skip and Loved it on the card", () => {
   it("offers Skipped among the statuses in the editor", () => {
     renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
-    const status = within(card("lunch")).getByRole("combobox", { name: "Status" })
-    expect(within(status).getByRole("option", { name: "Skipped" })).toBeInTheDocument()
+    fireEvent.click(within(card("lunch")).getByRole("combobox", { name: "Status" }))
+    expect(screen.getByRole("option", { name: "Skipped" })).toBeInTheDocument()
   })
 })
 

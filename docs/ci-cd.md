@@ -29,7 +29,7 @@ merge to main → .github/workflows/deploy.yml
         ├─ frontend build (FRONTEND_ENV + deploy/write-frontend-env.sh)
         ├─ SSH: stage ~/anthonyl.im.next (shallow clone + bun install)
         ├─ SCP dist → anthonyl.im.next/frontend/dist
-        ├─ SSH: atomic swap next→live, PM2 restart, rollback on failure
+        ├─ SSH: atomic swap next→live, install unit, deploy/restart.sh, rollback on failure
         └─ smoke: /health JSON + SPA shells (/ /lab /breathwork /trips /trips/korea-2026)
 ```
 
@@ -82,20 +82,21 @@ This is the **minimum** agents must pass before merging. The full GitHub `pr-gat
 cd frontend && bun run lint && bun run build && bun run test:run
 ```
 
-**Server typecheck.** `tsconfig.server.json` (root) extends `tsconfig.json`, adds `types: ["bun"]`, includes `server/**/*.ts` + `index.ts` and excludes tests. Bun runs TypeScript without checking it, so before this a call to a removed variable shipped (`dayPlacesCache` in `igPlaces/wire.ts`). Run it with `bun run typecheck:server`.
+**Server typecheck.** `tsconfig.server.json` (root) extends `tsconfig.json`, adds `types: ["bun"]`, includes `server/**/*.ts`, `index.ts` and `deploy/**/*.ts` and excludes tests. Bun runs TypeScript without checking it, so before this a call to a removed variable shipped (`dayPlacesCache` in `igPlaces/wire.ts`). Run it with `bun run typecheck:server`.
 
 **Lint.** `pr-frontend-lint` fails on any ESLint error (warnings pass). Fix the code; where a rule is genuinely wrong for one spot, a single-line `// eslint-disable-next-line <rule> -- <reason>`. No file- or config-wide disables.
 
 ## Deploy invariants (do not break)
 
 1. **Never build the frontend on the droplet** — 1 GB RAM OOMs Vite. CI builds; SCP ships `frontend/dist`.
-2. **Atomic swap** — prepare `~/anthonyl.im.next`, verify `frontend/dist/index.html`, then `mv live→prev`, `mv next→live`, PM2 restart. On PM2 failure, roll back `prev→live`.
-3. **PATH for PM2 children** — export `$HOME/.bun/bin:/usr/local/bin:...` and `pm2 start --update-env` so yt-dlp / ffmpeg / dev-browser resolve. The app starts with `NODE_ENV=production` (also on rollback), which disables the dev-bearer bridge in `server/src/config.ts`; PM2 keeps it across `pm2 restart` and `pm2 resurrect`.
-4. **Smoke is mandatory** — `/health` must return `"status":"ok"`; SPA routes must contain `<div id="root">`.
-5. **No `VITE_DEV_BEARER` in `FRONTEND_ENV`** — production must not bypass Clerk.
-6. **PR previews are not a merge gate** — `.github/workflows/preview.yml` must stay out of `pr-gate`. Same-repo only; never bake `VITE_DEV_BEARER` into a preview. Agents screenshot Clerk-gated preview routes via `bun scripts/clerk-agent-login.ts` (applies a Clerk Agent Task + Testing Token in Chrome; do not paste tickets; helper re-execs from `origin/main`; Cursor cloud `gh` tokens are installation tokens, not push collaborators). Details: [`docs/pr-previews.md`](pr-previews.md).
+2. **Atomic swap** — prepare `~/anthonyl.im.next`, verify `frontend/dist/index.html`, then `mv live→prev`, `mv next→live`, `deploy/install-service.sh` from the new release, then `deploy/restart.sh`. If `/health` does not come up, roll back `prev→live` (its unit too) and check that it answers.
+3. **The server is a systemd unit** — `deploy/systemd/anthonyl.im.service` sets what PM2 used to take from the deploy's SSH session: `NODE_ENV=production` (which disables the dev-bearer bridge in `server/src/config.ts`), `HOME`, `LANG` and the `PATH` that finds yt-dlp and ffmpeg. `.env` still comes from Bun reading the release's copy of `~/.env` in its working directory; never switch that to `EnvironmentFile=`, which parses quotes and `$` differently. `Restart=always`, `MemoryMax=700M` (the whole unit: server, children, page cache), logs in journald. Unit changes ship with the deploy that carries them.
+4. **Restarts drop nothing** — the deploy restarts through `deploy/restart.sh`, never a bare `systemctl restart`: a bridge (a second copy of the release in the transient unit `anthonyl.im-bridge`, workers off) holds :3000 through SO_REUSEPORT while the unit restarts, a BPF program sends new connections to the newest listener, and `net.ipv4.tcp_migrate_req=1` moves anything queued on a closing listener. It needs `REUSE_PORT=1` in the unit and a server that stops listening on SIGTERM and finishes its requests (`index.ts`); `server/src/reusePort.test.ts` guards the Bun behaviour it relies on. Details: [`deploy/README.md`](../deploy/README.md#the-server-process).
+5. **Smoke is mandatory** — `/health` must return `"status":"ok"`; SPA routes must contain `<div id="root">`.
+6. **No `VITE_DEV_BEARER` in `FRONTEND_ENV`** — production must not bypass Clerk.
+7. **PR previews are not a merge gate** — `.github/workflows/preview.yml` must stay out of `pr-gate`. Same-repo only; never bake `VITE_DEV_BEARER` into a preview. Agents screenshot Clerk-gated preview routes via `bun scripts/clerk-agent-login.ts` (applies a Clerk Agent Task + Testing Token in Chrome; do not paste tickets; helper re-execs from `origin/main`; Cursor cloud `gh` tokens are installation tokens, not push collaborators). Details: [`docs/pr-previews.md`](pr-previews.md).
 
-**Disk preflight.** The stage step prints free space on the droplet, clears only re-creatable caches (the previous `~/anthonyl.im.next`, Bun's install cache, day-old temp archives) when under 800 MB, and fails early with a `du` breakdown when under 300 MB. A full disk otherwise shows up as `No space left on device` in the clone or an scp `exit status 1`. It never deletes logs or live data: if the breakdown points at PM2 logs or worker files, clear those on the droplet by hand.
+**Disk preflight.** The stage step prints free space on the droplet, clears only re-creatable caches (the previous `~/anthonyl.im.next`, Bun's install cache, day-old temp archives) when under 800 MB, and fails early with a `du` breakdown when under 300 MB. A full disk otherwise shows up as `No space left on device` in the clone or an scp `exit status 1`. It never deletes logs or live data: if the breakdown points at old PM2 logs (`~/.pm2/logs`, unused since the move to systemd) or worker files, clear those on the droplet by hand. journald caps its own size (`/etc/systemd/journald.conf.d/size.conf`, 100 MB).
 
 Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBLISHABLE_KEY` (production Clerk key; `deploy/write-frontend-env.sh` drops any copy in `FRONTEND_ENV` and appends this one, with the `VITE_CLERK_PROXY_URL` and `VITE_SUPABASE_ANON_KEY` variables. Deploys and previews both use it: the preview API sidecar verifies tokens with the production `CLERK_SECRET_KEY`, so a preview on another Clerk instance cannot sign in). Droplet runtime secrets live in `~/.env` (copied into the staged tree each deploy). Details: `deploy/README.md`.
 
@@ -103,13 +104,13 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`, `VITE_CLERK_PUBL
 
 | Failure | Catch |
 |---------|--------|
-| Missing/renamed server export (PM2 crash) | `server/src/appLoad.test.ts` via `bun test server/src` |
+| Missing/renamed server export (crash at start-up) | `server/src/appLoad.test.ts` via `bun test server/src` |
 | Frontend types green in vite/esbuild but red in `tsc` | `pr-frontend-typecheck` + `bun run typecheck` |
 | Server code that Bun runs but `tsc` rejects (a removed name, a wrong call) | `bun run typecheck:server` in `pr-server-tests` and `.codex/check.sh` |
 | React hook misuse (`set-state-in-effect`, refs read in render) | `pr-frontend-lint` |
 | Cloud agent builds before `frontend/node_modules` exists → TS 5.x fallback | `.codex/lib.sh` `verify_frontend_typescript` |
 | Dependabot bumps `package.json` without lockfile | Fixed by `package-ecosystem: bun` + text `bun.lock` |
-| PM2 online but app dead on first request | Post-deploy `/health` + SPA smoke |
+| Unit active but app dead on first request | Post-deploy `/health` + SPA smoke |
 | Stale service worker after deploy | `sw.js` no-cache headers in `server/app.ts`; bump `CACHE_VERSION` on SW behavior changes |
 | Preview HTML served as production SPA | Preview router is mounted **before** the SPA fallback; missing trees 404 |
 | Stale `api.pid` naming an unrelated process (root `kill`) | `publish-preview.sh` and the cleanup job only signal a pid whose `/proc/<pid>/cmdline` contains `previewApi`; otherwise they drop the pid file |

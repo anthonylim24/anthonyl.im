@@ -4,6 +4,7 @@ import { sx } from "@/styles/merge"
 import { addDays, dayCount, plural } from "../meta"
 import { a } from "../atlas.stylex"
 import { range as r } from "../index.stylex"
+import { useClaimEscape } from "./escape"
 import { useLeaving } from "./presence"
 
 // One field for the whole date range. It opens a calendar in place: first
@@ -114,8 +115,10 @@ export function DateRange({
     requestAnimationFrame(() => gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${iso}"]`)?.focus())
   }
 
+  useClaimEscape(open, wrapRef)
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && open) {
       event.stopPropagation()
       setOpen(false)
       wrapRef.current?.querySelector<HTMLButtonElement>("button[aria-haspopup]")?.focus()
@@ -136,7 +139,7 @@ export function DateRange({
   const cursor = monthOf(wanted) === month ? wanted : `${month}-01`
   const count = dayCount(start, end)
   return (
-    <div ref={wrapRef} {...sx(r.wrap)}>
+    <div ref={wrapRef} {...sx(r.wrap)} onKeyDown={onKeyDown}>
       <button
         type="button"
         aria-haspopup="dialog"
@@ -145,7 +148,7 @@ export function DateRange({
         aria-invalid={invalid || undefined}
         aria-label={`${label}: ${formatRangeLong(start, end)}, ${plural(count, "day")}. Change dates`}
         disabled={disabled}
-        {...sx(a.field, r.trigger, open && r.triggerOpen)}
+        {...sx(a.field, r.trigger, open ? r.triggerOpen : r.triggerHover)}
         onClick={toggle}
       >
         <CalendarDays size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.muted)} />
@@ -161,7 +164,6 @@ export function DateRange({
           {...sx(r.panel, "trips-pop", "trips-glass-sheet")}
           ref={panelRef}
           {...leave.bind}
-          onKeyDown={onKeyDown}
         >
           <div {...sx(a.between)}>
             <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))}>

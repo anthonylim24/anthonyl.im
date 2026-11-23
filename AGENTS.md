@@ -171,7 +171,7 @@ PR opened ─────► .github/workflows/preview.yml ─► build + publis
                                               (frontend + loopback API sidecar; not a merge gate)
 
 merge to main ─► .github/workflows/deploy.yml ─► test → build → stage next → SCP dist
-                                              → atomic swap → PM2 restart (rollback on fail)
+                                              → atomic swap → deploy/restart.sh (rollback on fail)
                                               → smoke (/health + SPA shells)
 ```
 
@@ -307,10 +307,10 @@ Full list: [`docs/env.md`](docs/env.md). Schema: `server/src/config.ts`; fronten
 2. Frontend builds on CI (`bun run build` in `frontend/`) with secrets injected as `.env`.
 3. Backend staged on Digital Ocean via SSH into `~/anthonyl.im.next` (shallow clone, `bun install --frozen-lockfile`), system tools checked (yt-dlp, ffmpeg, dev-browser).
 4. Frontend `dist/` uploaded via SCP into the staged tree.
-5. Atomic swap `next → live`, PM2 restart (`--max-memory-restart 700M`), wait for loopback `/health`; auto-rollback to `prev` if it does not come up.
+5. Atomic swap `next → live`, install the `anthonyl.im` systemd unit from the release (`deploy/install-service.sh`), restart it through `deploy/restart.sh` (a bridge process holds :3000 meanwhile, so no request is dropped), wait for loopback `/health`; auto-rollback to `prev` if it does not come up.
 6. Post-deploy smoke: `/health` JSON + `/home` and legal pages plus SPA shells on `/`, `/lab`, `/breathwork`, `/trips`, `/trips/korea-2026`.
 
-**Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
+**Server:** Digital Ocean droplet (1 GB RAM). systemd runs the Bun process (`deploy/systemd/anthonyl.im.service`: restart on any exit, `MemoryMax=700M`, logs in journald, `journalctl -u anthonyl.im`). Frontend is static files served by Hono.
 
 **Never build the frontend on the droplet** — 1 GB RAM is not enough for Vite + StyleX production builds. CI always builds and SCPs the dist.
 

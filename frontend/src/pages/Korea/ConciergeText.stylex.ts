@@ -103,11 +103,6 @@ export const conciergeText = stylex.create({
     "borderTopStyle": "solid",
     "borderColor": "var(--trips-line-strong, rgba(120, 113, 108, 0.35))",
   },
-  s95cb8ebe: {
-    "marginTop": "0.5rem",
-    "marginBottom": "0.5rem",
-    "borderRadius": "0.5rem",
-  },
   sd79dc566: {
     "display": "flex",
     "flexDirection": "column",

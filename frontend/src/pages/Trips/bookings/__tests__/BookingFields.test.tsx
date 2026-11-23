@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { makeTrip } from "../../__tests__/tripFixtures"
 import type { ItineraryItem } from "../../types"
 import { BookingFields } from "../../workspace/BookingFields"
+import { pickOption } from "../../__tests__/pickOption"
 
 const trip = makeTrip({ timezone: "America/Los_Angeles", startDate: "2026-12-20", endDate: "2026-12-23", days: [
   { id: "d1", date: "2026-12-20", items: [] },
@@ -31,9 +32,47 @@ describe("BookingFields", () => {
     expect(screen.getByRole("button", { name: /Honolulu/ })).toBeInTheDocument()
   })
 
+  it("finds an arrival zone from a few letters, the trip's own zones listed first", () => {
+    const onChange = renderFields(booking({ type: "flight", status: "confirmed" }))
+    const zone = screen.getByRole("combobox", { name: "Arrival time zone" })
+    fireEvent.focus(zone)
+    const first = within(screen.getByRole("listbox", { name: "Time zones" })).getAllByRole("option")
+    expect(first[0]).toHaveTextContent(/^Los Angeles/)
+    expect(first[1]).toHaveTextContent(/^Honolulu/)
+
+    fireEvent.change(zone, { target: { value: "lisb" } })
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: /^Lisbon/ }))
+    expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed", endTimezone: "Europe/Lisbon" } })
+  })
+
+  it("reads a typed city as its zone once the field is left", () => {
+    const onChange = renderFields(booking({ type: "flight", status: "confirmed" }))
+    const zone = screen.getByRole("combobox", { name: "Arrival time zone" })
+    fireEvent.focus(zone)
+    fireEvent.change(zone, { target: { value: "Tokyo" } })
+    fireEvent.blur(zone)
+    expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed", endTimezone: "Asia/Tokyo" } })
+  })
+
+  it("says when typed text names no zone, and clears the zone when the field is emptied", () => {
+    const onChange = renderFields(booking({ type: "flight", status: "confirmed", endTimezone: "Pacific/Honolulu" }))
+    const zone = screen.getByRole("combobox", { name: "Arrival time zone" })
+    expect(zone).toHaveValue("Honolulu · Pacific")
+    fireEvent.focus(zone)
+    fireEvent.change(zone, { target: { value: "Osaka" } })
+    fireEvent.blur(zone)
+    expect(screen.getByRole("alert")).toHaveTextContent("No zone named “Osaka”.")
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.change(zone, { target: { value: "" } })
+    fireEvent.blur(zone)
+    expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed" } })
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
   it("sends the whole reservation back with each change, empty fields left out", () => {
     const onChange = renderFields(booking({ type: "flight", status: "confirmed", seat: "14A" }))
-    fireEvent.change(screen.getByLabelText("Booking status"), { target: { value: "pending" } })
+    pickOption(screen.getByRole("combobox", { name: "Booking status" }), "Pending")
     expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "pending", seat: "14A" } })
     fireEvent.change(screen.getByLabelText("Seat"), { target: { value: "" } })
     expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed" } })
@@ -49,8 +88,9 @@ describe("BookingFields", () => {
     renderFields(booking({ type: "hotel", status: "confirmed" }))
     expect(screen.getByLabelText("Check-in")).toBeInTheDocument()
     expect(screen.getByLabelText("Check-out time")).toBeInTheDocument()
-    const out = screen.getByLabelText("Check-out")
-    expect(out).toHaveDisplayValue("Not set")
+    const out = screen.getByRole("combobox", { name: "Check-out" })
+    expect(out).toHaveTextContent("Not set")
+    fireEvent.click(out)
     expect(screen.getByRole("option", { name: "Thu 24 Dec · 4 nights" })).toBeInTheDocument()
     expect(screen.queryByLabelText("Seat")).toBeNull()
   })

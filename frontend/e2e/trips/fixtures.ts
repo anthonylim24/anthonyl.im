@@ -1,4 +1,4 @@
-import { test as base, expect, type APIRequestContext } from '@playwright/test'
+import { test as base, expect, type APIRequestContext, type Locator } from '@playwright/test'
 
 /**
  * Shared ground for the Trips workflow specs.
@@ -116,6 +116,12 @@ export function note(title: string, extra: Partial<Item> = {}): Item {
 async function json<T>(res: Awaited<ReturnType<APIRequestContext['get']>>, what: string): Promise<T> {
   if (!res.ok()) throw new Error(`${what} answered ${res.status()}: ${await res.text()}`)
   return (await res.json()) as T
+}
+
+/** Chooses in a kit Select, whose list opens on <body>: the closed control, then the option. */
+export async function pickOption(select: Locator, option: string | RegExp): Promise<void> {
+  await select.click()
+  await select.page().getByRole('option', { name: option }).click()
 }
 
 export async function seedTrip(request: APIRequestContext, input: SeedInput = {}): Promise<Trip> {

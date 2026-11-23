@@ -21,9 +21,10 @@ PREVIEW_API_MAX="${PREVIEW_API_MAX:-1}"
 PROD_ROOT="${PROD_ROOT:-$HOME/anthonyl.im}"
 PROD_ENV="${PROD_ENV:-$HOME/.env}"
 
-# Hono reads PREVIEW_ROOT from the same ~/.env PM2 loads. The SSH session
-# does not source that file, so a publish that used $HOME/previews while the
-# server looked at /root/previews produced a 200 listing and a 404 PR URL.
+# Hono reads PREVIEW_ROOT from ~/.env (each deploy copies it into the live
+# tree, where Bun loads it). The SSH session does not source that file, so a
+# publish that used $HOME/previews while the server looked at
+# /root/previews produced a 200 listing and a 404 PR URL.
 if [ -z "${PREVIEW_ROOT:-}" ] && [ -f "$PROD_ENV" ]; then
   PREVIEW_ROOT="$(
     set -a

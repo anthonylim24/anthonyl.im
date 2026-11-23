@@ -80,6 +80,14 @@ export default defineConfig({
             { name: 'tslib', test: /[\\/]node_modules[\\/]tslib[\\/]/, priority: 81 },
             { name: 'supabase', test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 80 },
             { name: 'router', test: /[\\/]node_modules[\\/]react-router/, priority: 70 },
+            // The Trips Select and what only it needs (Popper, Floating UI).
+            // Inside `radix`, the landing page's tabs downloaded it too.
+            {
+              name: 'radix-select',
+              test: /[\\/]node_modules[\\/](@radix-ui[\\/](react-select|react-popper|react-arrow|react-use-rect|react-use-size|react-use-previous|react-visually-hidden|rect|number)|@floating-ui)[\\/]/,
+              priority: 61,
+              includeDependenciesRecursively: false,
+            },
             { name: 'radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 60 },
             { name: 'state', test: /[\\/]node_modules[\\/]zustand[\\/]/, priority: 50 },
             { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/, priority: 40 },
