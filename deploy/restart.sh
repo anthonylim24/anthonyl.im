@@ -58,6 +58,14 @@ stop_bridge() {
   systemctl stop "$BRIDGE" 2>/dev/null || true
 }
 
+# One restart at a time: a second run (by hand, during a deploy) would stop
+# this one's bridge. Held until exit, so the EXIT trap runs under it.
+exec 9>/run/anthonyl.im-restart.lock
+if ! flock -w 60 9; then
+  echo "[restart] another restart has held the lock for 60 s; giving up"
+  exit 1
+fi
+
 # A bridge left by an interrupted run would serve its release beside this one.
 stop_bridge
 trap stop_bridge EXIT
