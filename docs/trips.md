@@ -42,7 +42,7 @@ retried after 5 s, then 30 s (jittered), up to 3 attempts, and the last error
 is the run's `error`. Every write is fenced on the claim, so a worker that
 lost its lease (stalled, or its process died and another reclaimed the run)
 writes nothing. The server's worker (`server/app.ts`, `TRIPS_REVIEW_WORKER`,
-default on in production) sweeps every 10 s and once at boot, which picks up
+default on in production) sweeps every 60 s and once at boot, which picks up
 retries, runs whose worker died and runs a restart left behind; on
 SIGTERM / SIGINT it hands its runs back without spending the attempt
 (`server/src/shutdown.ts` exits once every worker has wound down). The PR

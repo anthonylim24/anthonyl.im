@@ -94,6 +94,72 @@ describe('createWorkerLoop', () => {
     }
   });
 
+  test('a kick before start() claims nothing, so a process with the worker off never runs jobs', async () => {
+    const claim = mock(async () => ({ id: 1 } as any));
+    const wl = createWorkerLoop({
+      claim, process: mock(async () => {}), reapStale: mock(async () => 0), concurrency: 1, workerId: 'w',
+    });
+    wl.kick();
+    await Bun.sleep(5);
+    expect(claim).not.toHaveBeenCalled();
+  });
+
+  test('an idle loop asks the queue once at start and once per sweep, not more', async () => {
+    const claim = mock(async () => null);
+    const reapStale = mock(async () => 0);
+    const wl = createWorkerLoop({ claim, process: mock(async () => {}), reapStale, concurrency: 3, workerId: 'w' });
+    wl.start(50);
+    await Bun.sleep(125);
+    wl.stop();
+    expect(reapStale).toHaveBeenCalledTimes(3);
+    expect(claim).toHaveBeenCalledTimes(3);
+  });
+
+  test('a kick claims a newly queued job without waiting for the sweep', async () => {
+    let queued = false;
+    const claim = mock(async () => (queued ? (queued = false, { id: 7 } as any) : null));
+    const process = mock(async () => {});
+    const wl = createWorkerLoop({ claim, process, reapStale: mock(async () => 0), concurrency: 1, workerId: 'w' });
+    wl.start(60_000);
+    await Bun.sleep(5);
+    queued = true;
+    wl.kick();
+    await Bun.sleep(5);
+    wl.stop();
+    expect(process).toHaveBeenCalledTimes(1);
+  });
+
+  test('a finished job frees its slot and the next queued job starts without waiting for the sweep', async () => {
+    let backlog = 2;
+    const claim = mock(async () => (backlog > 0 ? ({ id: backlog-- } as any) : null));
+    const process = mock(async () => { await Bun.sleep(5); });
+    const wl = createWorkerLoop({ claim, process, reapStale: mock(async () => 0), concurrency: 1, workerId: 'w' });
+    wl.start(60_000);
+    await Bun.sleep(40);
+    wl.stop();
+    expect(process).toHaveBeenCalledTimes(2);
+  });
+
+  test('a kick that arrives during a tick is not lost', async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    let calls = 0;
+    const claim = mock(async () => {
+      calls++;
+      if (calls === 1) { await hold; return null; }
+      return calls === 2 ? ({ id: 1 } as any) : null;
+    });
+    const process = mock(async () => {});
+    const wl = createWorkerLoop({ claim, process, reapStale: mock(async () => 0), concurrency: 1, workerId: 'w' });
+    wl.start(60_000);
+    await Bun.sleep(5);
+    wl.kick();
+    release();
+    await Bun.sleep(10);
+    wl.stop();
+    expect(process).toHaveBeenCalledTimes(1);
+  });
+
   test('the default deadline sits under the stale-reap threshold', () => {
     expect(processTimeoutFor(600)).toBe(540_000);
     expect(processTimeoutFor(60)).toBe(30_000);
