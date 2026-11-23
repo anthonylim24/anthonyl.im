@@ -98,9 +98,13 @@ const stallCopy: Record<StallCause, { title: string; body: string }> = {
     title: "You are offline",
     body: "Trips needs a connection to sign you in. It will carry on by itself once you are back online.",
   },
+  network: {
+    title: "Your network is not reaching anthonyl.im",
+    body: "Something between this device and the site is stopping the connection, often a Wi-Fi security filter. This page keeps trying and will carry on by itself; another network, or allowing anthonyl.im in your router's security settings, usually gets through.",
+  },
   site: {
     title: "anthonyl.im is not answering",
-    body: "The connection to this site dropped. This page keeps trying and will carry on by itself.",
+    body: "The site is having trouble right now. This page keeps trying and will carry on by itself.",
   },
   auth: {
     title: "Sign-in is not loading",
