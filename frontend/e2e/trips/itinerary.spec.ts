@@ -597,7 +597,7 @@ test.describe('trip details', () => {
       await page.getByRole('button', { name: /3 days$/ }).click()
       const details = page.getByRole('dialog', { name: 'Trip details' })
       await pickDates(page, details, 'Monday, March 1, 2027', 'Friday, March 5, 2027')
-      await expect(details.getByText('5 days.')).toBeVisible()
+      await expect(details.getByRole('button', { name: /5 days\. Change dates$/ })).toBeVisible()
       await details.getByRole('button', { name: 'Save details' }).click()
 
       await expect(page.getByRole('navigation', { name: 'Days' }).getByRole('link', { name: /^Day 5, Friday, March 5/ })).toBeVisible()

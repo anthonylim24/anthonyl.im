@@ -891,6 +891,8 @@ export const ws = stylex.create({
     paddingTop: "0.875rem",
   },
   span2: { gridColumn: "1 / -1" },
+  // A full row on a phone, where half of one leaves an amount no room.
+  span2Narrow: { gridColumn: { default: "1 / -1", "@media (min-width: 640px)": "auto" } },
   miniLabel: {
     display: "block",
     marginBottom: "0.25rem",

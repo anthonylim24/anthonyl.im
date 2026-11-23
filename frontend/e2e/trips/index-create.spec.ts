@@ -218,10 +218,18 @@ test.describe('index', () => {
 
       await search.fill(`${alpha.name} zzz-no-such-trip`)
       await expect(page.getByText(`No trips match “${alpha.name} zzz-no-such-trip”.`)).toBeVisible()
-      await page.getByRole('button', { name: 'Clear search' }).click()
+      // The empty state's button and the field's own X both clear it.
+      const clear = page.getByRole('button', { name: 'Clear search' })
+      await clear.filter({ hasText: 'Clear search' }).click()
       await expect(search).toHaveValue('')
       await expect(cardLink(page, alpha.name)).toBeVisible()
       await expect(cardLink(page, beta.name)).toBeVisible()
+
+      await search.fill(beta.name)
+      await expect(cardLink(page, alpha.name)).toHaveCount(0)
+      await clear.click()
+      await expect(search).toHaveValue('')
+      await expect(cardLink(page, alpha.name)).toBeVisible()
     } finally {
       for (const trip of seeded) await remove(request, trip.id)
     }

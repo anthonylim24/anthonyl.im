@@ -514,7 +514,9 @@ export const ItemCard = memo(function ItemCard({
                   </label>
                 )}
                 {item.kind !== "note" && (
-                  <CostField value={item.cost} defaultCurrency={currency} disabled={locked} onChange={(cost) => patch({ cost })} />
+                  <div {...sx(s.span2Narrow)}>
+                    <CostField value={item.cost} defaultCurrency={currency} disabled={locked} onChange={(cost) => patch({ cost })} />
+                  </div>
                 )}
                 {dayOptions.length > 1 && (
                   <label>
