@@ -141,6 +141,13 @@ export const TimeZoneField = forwardRef<
             event.preventDefault()
             inputRef.current?.focus()
           }}
+          // Focus opens the list; a press on the field after a pick or Escape,
+          // still focused, opens it again with the text selected, as focus does.
+          onClick={() => {
+            if (disabled || open) return
+            inputRef.current?.select()
+            show()
+          }}
         >
           <Clock size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.muted)} />
           <input

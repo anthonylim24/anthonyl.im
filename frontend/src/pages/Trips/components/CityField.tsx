@@ -93,7 +93,8 @@ export function CityField({
     return () => document.removeEventListener("pointerdown", onPointer)
   }, [open])
 
-  const commit = (city?: CityResult) => {
+  /** `stay`: keep focus here for the next place; false when focus is already leaving. */
+  const commit = (city?: CityResult, stay = true) => {
     const name = city?.name ?? typed
     setEnterPending(false)
     if (!name) return
@@ -102,7 +103,7 @@ export function CityField({
     setSearch(NO_SEARCH)
     setAttempt(0)
     setOpen(false)
-    inputRef.current?.focus()
+    if (stay) inputRef.current?.focus()
   }
 
   // Enter takes the highlighted result. While the search is still out it
@@ -199,7 +200,7 @@ export function CityField({
             // Typed-but-unpicked text still counts once focus leaves the
             // field: as the city it names exactly when that answer is in,
             // otherwise as typed (the form resolves it before saving).
-            if (typed && !wrapRef.current?.contains(event.relatedTarget as Node | null)) commit(exactCity(results, typed))
+            if (typed && !wrapRef.current?.contains(event.relatedTarget as Node | null)) commit(exactCity(results, typed), false)
           }}
           onKeyDown={onKeyDown}
         />
@@ -219,6 +220,7 @@ export function CityField({
                 role="option"
                 id={`${listId}-${index}`}
                 aria-selected={index === cursor}
+                tabIndex={-1}
                 {...sx(s.result, index === cursor && s.resultOn)}
                 onMouseEnter={() => setCursor(index)}
                 onMouseDown={(event) => event.preventDefault()}

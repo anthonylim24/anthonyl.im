@@ -241,6 +241,17 @@ describe("DetailsDialog", () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it("opens the zone list again on a press after a pick, with the field still focused", () => {
+    const { dialog } = renderDialog()
+    const zone = searchZone(dialog, "seo", /^Seoul/)
+    expect(dialog.queryByRole("listbox", { name: "Time zones" })).toBeNull()
+
+    fireEvent.click(zone)
+    expect(dialog.getByRole("listbox", { name: "Time zones" })).toBeInTheDocument()
+    expect(zone).toHaveAttribute("aria-expanded", "true")
+    expect([(zone as HTMLInputElement).selectionStart, (zone as HTMLInputElement).selectionEnd]).toEqual([0, "Seoul · Asia".length])
+  })
+
   it("says the trip's length once, on the dates", () => {
     const { dialog } = renderDialog()
     expect(dialog.getAllByText(/^3 days\.?$/)).toHaveLength(1)

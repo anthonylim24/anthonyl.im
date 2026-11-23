@@ -589,6 +589,58 @@ test.describe('trip details', () => {
     }
   })
 
+  test('keys in Trip details: Tab out of a field mid-search moves on, and Escape shuts only the open list', async ({ page, request }) => {
+    const trip = await seedTrip(request, { name: uniqueName('keys') })
+    const porto = { id: 2735943, name: 'Porto', latitude: 41.14961, longitude: -8.61099, country: 'Portugal', admin1: 'Porto', timezone: 'Europe/Lisbon' }
+    await page.route('https://geocoding-api.open-meteo.com/**', (route) => route.fulfill({ json: { results: [porto] } }))
+    try {
+      await openDay(page, trip)
+      const details = await openDetails(page)
+      const name = details.getByLabel('Name', { exact: true })
+      await name.fill('Kept while the keys move')
+      const where = details.getByRole('combobox', { name: 'Where' })
+      const places = page.getByRole('listbox', { name: 'Matching places' })
+
+      await where.fill('Port')
+      await expect(places.getByRole('option', { name: /Porto/ })).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(places).toBeHidden()
+      await expect(details).toBeVisible()
+      await where.fill('')
+
+      await where.fill('Porto')
+      await expect(places.getByRole('option', { name: /Porto/ })).toBeVisible()
+      await page.keyboard.press('Tab')
+      await expect(details.getByRole('button', { name: /Change dates$/ }), 'focus left the open list for the next field').toBeFocused()
+      await expect(details.getByRole('button', { name: 'Remove Porto' })).toBeVisible()
+
+      await page.keyboard.press('Enter')
+      const calendar = page.getByRole('dialog', { name: 'Choose dates' })
+      await expect(calendar).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(calendar).toBeHidden()
+      await expect(details).toBeVisible()
+
+      const zone = details.getByRole('combobox', { name: 'Time zone' })
+      const zones = page.getByRole('listbox', { name: 'Time zones' })
+      await zone.click()
+      await zone.pressSequentially('reykj')
+      await expect(zones).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(zones).toBeHidden()
+      await expect(details).toBeVisible()
+      await zone.click()
+      await expect(zones).toBeVisible()
+      await zone.pressSequentially('reykjavik')
+      await page.keyboard.press('Tab')
+      await expect(details.getByRole('button', { name: 'Cancel' })).toBeFocused()
+      await expect(zone).toHaveValue('Reykjavik · Atlantic')
+      await expect(name).toHaveValue('Kept while the keys move')
+    } finally {
+      await deleteTrip(request, trip.id)
+    }
+  })
+
   test('later end dates add empty days and leave the existing plan where it was', async ({ page, request }) => {
     const first = place('Tokyo Tower', 35.6586, 139.7454)
     const trip = await seedTrip(request, { name: uniqueName('extend'), patch: withDays([[first]]) })

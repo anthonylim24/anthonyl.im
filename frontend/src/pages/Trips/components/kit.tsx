@@ -303,6 +303,8 @@ export function DialogFrame({
   const closing = useClosing()
   const shown = open && !closing
   const opener = useOpener(shown)
+  /** Where focus was going when it last left an element in the dialog. */
+  const heading = useRef<EventTarget | null>(null)
   return (
     <DialogPrimitive.Root open={shown} onOpenChange={(next) => !next && onClose()}>
       {/* A plain portal, not Radix's: its presence would watch this token
@@ -317,6 +319,19 @@ export function DialogFrame({
             // While it animates out, nothing in it can be pressed again.
             inert={!shown}
             onOpenAutoFocus={onOpenAutoFocus}
+            // A field that removes nodes as focus leaves it (a list closing on
+            // blur) does so while focus is on <body>, and Radix then moves focus
+            // to the dialog itself. Focus goes on to where it was going.
+            onBlurCapture={(event) => {
+              heading.current = event.relatedTarget
+            }}
+            onFocusCapture={(event) => {
+              const next = heading.current
+              heading.current = null
+              if (event.target === event.currentTarget && next instanceof HTMLElement && next !== event.currentTarget && next.isConnected && event.currentTarget.contains(next)) {
+                next.focus({ preventScroll: true })
+              }
+            }}
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
