@@ -83,9 +83,17 @@ export default defineConfig({
           reuseExistingServer: !process.env.CI,
           stdout: 'pipe',
           stderr: 'pipe',
+          // Blank, not unset: Vite lets process.env win over frontend/.env*,
+          // so a checkout with real keys still sends no billed Google tile,
+          // Supabase or PostHog request from a test.
           env: {
             VITE_DEV_BEARER: 'codex-dev-bearer',
             API_PROXY_TARGET: `http://localhost:${BACKEND_PORT}`,
+            VITE_GOOGLE_MAP_TILES_API_KEY: NO_KEY,
+            VITE_GOOGLE_PLACES_API_KEY: NO_KEY,
+            VITE_SUPABASE_URL: NO_KEY,
+            VITE_SUPABASE_ANON_KEY: NO_KEY,
+            VITE_POSTHOG_KEY: NO_KEY,
           },
         },
       ],

@@ -6,7 +6,7 @@ Three kinds of check, each rerunnable:
 
 1. **The gate.** The same steps as `pr-gate`: server typecheck and tests, frontend typecheck, lint, build and unit tests. Run before any change and again at the end.
 2. **A property check of the save path.** `frontend/src/pages/Trips/__tests__/saveProtocol.property.test.ts` drives the real editor reducer through generated interleavings of the traveller's edits, another writer, and a network that loses or reorders requests. How to run and read it: the [`verify-trip-save`](../../../.agents/skills/verify-trip-save/SKILL.md) skill.
-3. **Browser specs.** `frontend/e2e/trips/*.spec.ts`, one file per area, on a hermetic stack (`frontend/playwright.config.ts`): an in-memory trip store, every AI, Google and Supabase key blank, rate limits off. The shared fixture (`e2e/trips/fixtures.ts`) refuses to run on a stack with AI configured, fails any test whose page calls an AI endpoint, and fails any test with an uncaught page error. Each test seeds its own trip, checks the server copy after every edit, and reloads where it matters.
+3. **Browser specs.** `frontend/e2e/trips/*.spec.ts`, one file per area, on a hermetic stack (`frontend/playwright.config.ts`): an in-memory trip store, every AI, Google and Supabase key blank, rate limits off, and the browser's own Google, Supabase and PostHog keys blank too (Vite lets `process.env` win over `frontend/.env*`). The shared fixture (`e2e/trips/fixtures.ts`) refuses to run on a stack with AI configured, fails any test whose page calls an AI endpoint, and fails any test with an uncaught page error. Each test seeds its own trip, checks the server copy after every edit, and reloads where it matters.
 
 `decisions.tsv` beside this file is the decision trail.
 
@@ -141,18 +141,18 @@ When another writer edits a stop (say, adds a note) while the traveller edits th
 
 ## Gate
 
-| Step | Before (main 284b3421) | After (this branch, rebased on main 0f1ac99e) |
+| Step | Before (main 284b3421) | After (this branch, rebased on main 8dd9c1c9) |
 |---|---|---|
 | Server typecheck | pass | pass |
-| Server tests | 971 pass, 8 skip | 984 pass, 4 skip (the shell tests that need `frontend/dist` ran) |
+| Server tests | 971 pass, 8 skip | 1023 pass, 4 skip (main added tests; the shell tests that need `frontend/dist` ran) |
 | Frontend typecheck (now includes `e2e/`) | pass | pass |
 | Lint | 0 errors, 29 warnings | 0 errors, 29 warnings |
 | Build | pass | pass |
-| Unit tests (vitest) | 2866 pass in 223 files | 2880 pass and 1 expected failure (#5) in 224 files (main's #629 added 10) |
+| Unit tests (vitest) | 2866 pass in 223 files | 2907 pass and 1 expected failure (defect 5) in 226 files (main's #629 and #631 added 37) |
 
 ## Browser suite
 
-Final run on this branch rebased onto main 0f1ac99e, on a fresh hermetic stack with 4 workers at a load average of 9 to 23: **103 passed in 4.5 min, none retried, none skipped.** The same 103 passed on the pre-rebase head too.
+Final run on this branch rebased onto main 8dd9c1c9, on a fresh hermetic stack with 4 workers at a load average of 8 to 23: **103 passed in 4.6 min, none retried, none skipped.** The same 103 passed on each earlier base (284b3421, 0f1ac99e). An independent verifier's run went 102 of 103; the one failure was a connection reset during cleanup and passed alone. The save-path property check holds at 20,000 runs on the same head.
 
 | Spec | Tests |
 |---|---|
