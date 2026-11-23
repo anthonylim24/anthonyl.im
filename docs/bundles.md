@@ -17,6 +17,7 @@ Source of truth: `frontend/vite.config.ts`.
 | `tslib` | tslib helpers | Shared by `supabase` and `radix` (react-remove-scroll). Ungrouped, Rolldown put them in `supabase`, so a Radix dialog downloaded Supabase too |
 | `supabase` | @supabase/* | Auth + sync |
 | `router` | react-router | Routing |
+| `radix-select` | @radix-ui/react-select and the packages only it uses (Popper, Floating UI) | The Trips kit Select. Only its own matches (`includeDependenciesRecursively: false`), so the landing page's tabs in `radix` never download it. ≈ 16 kB gzip |
 | `radix` | @radix-ui/* | UI primitives |
 | `state` | zustand | State |
 | `icons` | lucide-react | Icons |
