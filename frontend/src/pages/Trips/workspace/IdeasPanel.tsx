@@ -1,5 +1,6 @@
 import { useId, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
-import { CalendarPlus, X } from "lucide-react"
+import { Link } from "react-router-dom"
+import { CalendarPlus, CornerUpLeft, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { share, ws as s } from "../workspace.stylex"
@@ -8,10 +9,11 @@ import { ItemIcon } from "../ItemIcon"
 import { LIMITS } from "../limits"
 import type { LngLat } from "../map/geo"
 import { plural } from "../meta"
-import { addIdea, ideasFull, removeIdea } from "../tripEdits"
+import { addIdea, ideasFull, removeIdea, saveForLater } from "../tripEdits"
 import type { ItemTheme, ItineraryItem, Trip } from "../types"
 import { IDEA_ANCHOR_ATTR, ideaName } from "../ideas/contract"
 import { useIdeaNav } from "../ideas/ideaNav"
+import { dayChipLabel, wishlistOnDays, type ScheduledIdea } from "../ideas/onDays"
 import { compareAreas, ideaAreas } from "../ideas/areas"
 import { THEME_ORDER, themeLabel, themeOf } from "../ideas/themes"
 import { ThemeMenu, ThemeTag } from "../ideas/ThemeMenu"
@@ -25,12 +27,15 @@ import { stopLink } from "./stopLinks"
 // both over the page through the URL (`?idea=<id>`, `&add=1`; `ideas/
 // IdeaOverlay`), so a map pin opens the same thing and Back closes it.
 // Every write is one `onEdit` updater over the trip, as the other overview
-// tabs do.
+// tabs do. Places that left the list for a day are listed after it, each
+// with a link to its day and the way back.
 
 type Edit = (fn: (doc: Trip) => Trip, undo?: UndoMark) => void
 
 export interface IdeasPanelProps {
   trip: Trip
+  /** `/trips/<slug or id>`: a scheduled place links to its day. */
+  basePath: string
   /** The traveller can change the trip (owner or editor). Viewers get the list only. */
   editable: boolean
   /** An AI run or a conflict owns the document for now. */
@@ -76,13 +81,14 @@ interface Group {
 }
 
 
-export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelProps) {
+export function IdeasPanel({ trip, basePath, editable, locked, near, onEdit }: IdeasPanelProps) {
   const uid = useId()
   const nav = useIdeaNav()
   const [announcement, setAnnouncement] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
   const [chosenGrouping, setGrouping] = useState<Grouping>(readGrouping)
   const ideas = useMemo(() => trip.ideas ?? [], [trip.ideas])
+  const onDays = useMemo(() => wishlistOnDays(trip), [trip])
   // One idea has nothing to sort into groups (and no control to say how it is grouped).
   const grouping = ideas.length > 1 ? chosenGrouping : "none"
   const full = ideasFull(trip)
@@ -133,6 +139,12 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
     setAnnouncement(`Removed ${name}`)
   }
 
+  const unschedule = ({ item, day }: ScheduledIdea) => {
+    const name = ideaName(item)
+    onEdit((doc) => saveForLater(doc, day.id, item.id), { label: `Moved “${name}” back to the wishlist`, toast: true })
+    setAnnouncement(`Moved ${name} back to the wishlist`)
+  }
+
   // One history entry per opening (`ideas/ideaNav`): on a phone, Back closes what opened.
   const open = (idea: ItineraryItem, add = false) => nav.open(idea.id, "row", add)
 
@@ -181,6 +193,11 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
         <p {...sx(a.body, a.muted, a.wrap)} style={{ margin: 0 }}>
           Places you might fit in. Add one to a day when you know where it goes.
         </p>
+        {ideas.length > 0 && onDays.length > 0 && (
+          <p {...sx(a.mono, a.muted, a.wrap)} style={{ margin: 0 }}>
+            {plural(ideas.length, "place")} to fit in · {onDays.length} on your days
+          </p>
+        )}
       </header>
 
       {editable && (
@@ -245,7 +262,11 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
 
       {ideas.length === 0 ? (
         <p {...sx(a.body, a.muted)} style={{ margin: 0 }}>
-          {editable ? "Nothing saved yet. Search for a place above, or use Save for later on any stop." : "Nothing saved for later yet."}
+          {onDays.length > 0
+            ? `Everything you saved has a day now.${editable ? " Search for another place above, or use Save for later on any stop." : ""}`
+            : editable
+              ? "Nothing saved yet. Search for a place above, or use Save for later on any stop."
+              : "Nothing saved for later yet."}
         </p>
       ) : visible.length === 0 ? (
         <p {...sx(a.body, a.muted, a.wrap)} style={{ margin: 0 }}>
@@ -282,7 +303,75 @@ export function IdeasPanel({ trip, editable, locked, near, onEdit }: IdeasPanelP
           {rows(visible)}
         </ul>
       )}
+
+      {onDays.length > 0 && (
+        <section {...sx(s.ideaOnDays)} aria-labelledby={`${uid}-days`}>
+          <h3 id={`${uid}-days`} {...sx(s.ideaGroupHead)}>
+            <span {...sx(a.eyebrow, a.ink)}>On your days</span>
+            <span {...sx(a.mono, a.muted)} aria-hidden>
+              {onDays.length}
+            </span>
+            <span {...sx(a.srOnly)}>, {plural(onDays.length, "place")}</span>
+          </h3>
+          <ul {...sx(s.ideaList)} aria-labelledby={`${uid}-days`}>
+            {onDays.map((scheduled) => (
+              <ScheduledRow
+                key={scheduled.item.id}
+                scheduled={scheduled}
+                basePath={basePath}
+                editable={editable}
+                disabled={locked || full}
+                onBack={() => unschedule(scheduled)}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
     </section>
+  )
+}
+
+/** A wishlist place on a day: which day, a link there, and the way back to the list. */
+function ScheduledRow({
+  scheduled,
+  basePath,
+  editable,
+  disabled,
+  onBack,
+}: {
+  scheduled: ScheduledIdea
+  basePath: string
+  editable: boolean
+  disabled: boolean
+  onBack: () => void
+}) {
+  const { item, day } = scheduled
+  const name = ideaName(item)
+  const when = dayChipLabel(scheduled)
+  return (
+    <li {...sx(s.ideaRow)}>
+      <span {...sx(s.ideaIcon)} aria-hidden>
+        <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} size={16} strokeWidth={1.75} />
+      </span>
+      <div {...sx(s.ideaText)}>
+        <span {...sx(s.ideaTitle, a.wrap)}>{name}</span>
+        <Link
+          to={`${basePath}/day/${day.id}#stop-${encodeURIComponent(item.id)}`}
+          aria-label={`${name}: ${when}. Open the day`}
+          {...sx(s.ideaDayLink)}
+        >
+          {when}
+        </Link>
+      </div>
+      {editable && (
+        <div {...sx(s.ideaActions)}>
+          <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} aria-label={`Back to wishlist: ${name}`} disabled={disabled} onClick={onBack}>
+            <CornerUpLeft size={16} strokeWidth={1.75} aria-hidden />
+            Back to wishlist
+          </button>
+        </div>
+      )}
+    </li>
   )
 }
 

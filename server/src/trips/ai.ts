@@ -18,7 +18,20 @@ import { fromModel, redactPrivate } from "./privateText"
 import { ENHANCEMENT_SYSTEM, GENERATION_SYSTEM, OUTLINE_SYSTEM } from "./prompts"
 import { repairTruncatedJson } from "./jsonRepair"
 import { baseByDay, describeBases, isFixed, isLodging } from "./lodging"
-import { analyseDay, describeSignals, insertByTime, shorterRoute, weekday } from "./signals"
+import { analyseDay, describeSignals, shorterRoute, weekday } from "./signals"
+import {
+  clockMinutes,
+  dayStarts,
+  firstOutOfOrder,
+  insertByTime,
+  moveToTime,
+  outOfOrder,
+  reorderDay,
+  retimed,
+  sortByTime,
+  splitPlan,
+  type ProposedTimes,
+} from "./dayClock"
 
 export { weekday }
 import {
@@ -696,6 +709,9 @@ function normalizeSuggestion(rawSug: unknown): unknown {
   else delete s.fromIdeaId
   if (s.proposedItem != null) s.proposedItem = normalizeAiItem(s.proposedItem)
   if (s.proposedChanges != null) s.proposedChanges = normalizeAiItem(s.proposedChanges)
+  const times = cleanProposedTimes(s.proposedTimes)
+  if (times) s.proposedTimes = times
+  else delete s.proposedTimes
   // A wishlist add needs nothing from the model but the link: the saved
   // place fills every blank. So a null, an empty string or a location with
   // no name is a gap to fill, not a malformed stop.
@@ -706,6 +722,28 @@ function normalizeSuggestion(rawSug: unknown): unknown {
     }
   }
   return s
+}
+
+/** A reorder's new times, one stop at a time: an entry the model got wrong
+ *  is dropped (and a bad end time with it), never the whole reorder. A bare
+ *  "HH:mm" is read as the start. */
+function cleanProposedTimes(raw: unknown): ProposedTimes | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined
+  const clockTime = (value: unknown) => {
+    if (typeof value !== "string") return undefined
+    const time = normalizeTime(value)
+    return clockMinutes(time) === null ? undefined : time
+  }
+  const out: ProposedTimes = {}
+  for (const [id, value] of Object.entries(raw).slice(0, 200)) {
+    if (!id || id.length > 64) continue
+    const entry = typeof value === "string" ? { time: value } : value && typeof value === "object" ? (value as Record<string, unknown>) : {}
+    const time = clockTime(entry.time)
+    if (!time) continue
+    const endTime = clockTime(entry.endTime)
+    out[id] = endTime ? { time, endTime } : { time }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 function withoutBlanks(item: Record<string, unknown>): Record<string, unknown> {
@@ -1038,7 +1076,7 @@ export async function generateItinerary(args: {
       return true
     })
     if (!drafted(aiDay, i)) incompleteDays.push(i + 1)
-    const items = (fixedByDate.get(date) ?? []).reduce((list, item) => insertByTime(list, item), fresh)
+    const items = sortByTime((fixedByDate.get(date) ?? []).reduce((list, item) => insertByTime(list, item), fresh))
     return {
       id: `day-${i + 1}`,
       date,
@@ -1525,6 +1563,7 @@ function scheduledIdea(
     location: savedLocation(idea.location, proposed?.location, confidence),
     reservation: idea.reservation ? { ...idea.reservation } : undefined,
     cost: idea.cost ? { ...idea.cost } : undefined,
+    fromWishlist: true,
     createdBy: "ai",
   }
 }
@@ -1614,6 +1653,15 @@ function acceptedSuggestions(args: {
       case "remove":
         if (!s.itemId || !validItemIds.has(s.itemId)) continue
         break
+      case "reorder": {
+        const day = days.find((d) => d.id === s.dayId)
+        if (!day || !s.proposedOrder) continue
+        const onDay = new Set(day.items.map((i) => i.id))
+        const times = Object.entries(s.proposedTimes ?? {}).filter(([id]) => onDay.has(id))
+        const kept = { ...base(s), ...(times.length > 0 ? { proposedTimes: Object.fromEntries(times) } : {}) }
+        if (reorderKeepsClock(day, kept)) accepted.push(kept)
+        continue
+      }
       // Moves and day swaps reach across days, so the target may be any day of the trip.
       case "move":
         if (!s.itemId || !validItemIds.has(s.itemId) || !s.toDayId || !tripDayIds.has(s.toDayId)) continue
@@ -1625,6 +1673,61 @@ function acceptedSuggestions(args: {
     accepted.push(base(s))
   }
   return accepted
+}
+
+/**
+ * The one test every reorder passes before the traveller sees it, the
+ * model's or our own: applied to the day as it is, it still names two of
+ * its stops, and its order agrees with the times it leaves them at. A
+ * reorder that fights the clock would be undone by the sort that follows
+ * every apply.
+ */
+function reorderKeepsClock(day: TripDay, s: Pick<EnhancementSuggestion, "proposedOrder" | "proposedTimes">): boolean {
+  const items = s.proposedOrder ? reorderDay(day.items, s.proposedOrder, s.proposedTimes) : null
+  return items !== null && !outOfOrder(items)
+}
+
+/** "15:00" → "3:00 PM". */
+function twelveHour(time: string): string {
+  const minutes = clockMinutes(time) ?? 0
+  const hours = Math.floor(minutes / 60)
+  return `${hours % 12 || 12}:${String(minutes % 60).padStart(2, "0")} ${hours < 12 ? "AM" : "PM"}`
+}
+
+const stopName = (item: ItineraryItem) => item.title.trim() || item.location?.name?.trim() || "A stop"
+
+/**
+ * A day listed out of clock order, put back in it. Not offered for a day
+ * that is getting a stop added: the add sorts that day when it lands.
+ */
+function clockOrderFix(trip: Trip, day: TripDay, suggestions: readonly EnhancementSuggestion[]): EnhancementSuggestion | null {
+  if (suggestions.some((s) => s.dayId === day.id && isAddableSuggestion(s))) return null
+  const misplaced = firstOutOfOrder(day.items)
+  if (!misplaced) return null
+  const at = (item: ItineraryItem) => `${stopName(item)} (${twelveHour(item.time!)})`
+  return {
+    id: newId("sug"),
+    kind: "reorder",
+    dayId: day.id,
+    title: `Put Day ${trip.days.findIndex((d) => d.id === day.id) + 1} back in time order`,
+    detail: `${at(misplaced.listedFirst)} is listed before ${at(misplaced.startsEarlier)}.`,
+    confidence: "high",
+    proposedOrder: sortByTime(day.items).map((i) => i.id),
+  }
+}
+
+function shorterWalk(day: TripDay): EnhancementSuggestion | null {
+  const shorter = shorterRoute(day)
+  if (!shorter) return null
+  return {
+    id: newId("sug"),
+    kind: "reorder",
+    dayId: day.id,
+    title: "Walk the stops in a shorter order",
+    detail: `Visiting them nearest-first cuts the route from ${shorter.beforeKm} km to ${shorter.afterKm} km. Your first stop stays first.`,
+    confidence: "high",
+    proposedOrder: shorter.order,
+  }
 }
 
 export async function enhanceTrip(args: {
@@ -1688,22 +1791,6 @@ export async function enhanceTrip(args: {
     }
     run.summary = parsed.summary
     run.suggestions = acceptedSuggestions({ trip, scope, dayId, days, suggestions: parsed.suggestions })
-    // A shorter walking order needs no model: offer it when the review did
-    // not already propose a reorder for that day.
-    for (const day of days) {
-      if (run.suggestions.some((s) => s.kind === "reorder" && s.dayId === day.id)) continue
-      const shorter = shorterRoute(day)
-      if (!shorter) continue
-      run.suggestions.push({
-        id: newId("sug"),
-        kind: "reorder",
-        dayId: day.id,
-        title: "Walk the stops in a shorter order",
-        detail: `Visiting them nearest-first cuts the route from ${shorter.beforeKm} km to ${shorter.afterKm} km. Your first stop stays first.`,
-        confidence: "high",
-        proposedOrder: shorter.order,
-      })
-    }
     if (args.geocode) {
       await fillMissingCoordinates(
         run.suggestions.flatMap((s) => (s.proposedItem ? [s.proposedItem] : [])),
@@ -1712,6 +1799,15 @@ export async function enhanceTrip(args: {
         signal,
       )
       throwIfAborted(signal)
+    }
+    // Two orders need no model: a day listed out of clock order put back in
+    // it, and an untimed day walked nearest-first. Each is offered when the
+    // review did not already propose an order for that day. Decided after
+    // geocoding: an add the geocoder places lands on its own and sorts its day.
+    for (const day of days) {
+      if (run.suggestions.some((s) => s.kind === "reorder" && s.dayId === day.id)) continue
+      const fix = clockOrderFix(trip, day, run.suggestions) ?? shorterWalk(day)
+      if (fix && reorderKeepsClock(day, fix)) run.suggestions.push(fix)
     }
     const resolved = resolveEnhancementOutcome({
       suggestions: run.suggestions,
@@ -1803,12 +1899,19 @@ export function autoApplyAddSuggestions(
 ): { trip: Trip; run: CompleteEnhancementRun; applied: string[]; skipped: string[] } {
   const ids = addableSuggestionIds(run)
   const result = ids.length > 0 ? applySuggestions(trip, run, ids) : { trip, applied: [], skipped: [] }
+  // An add whose place was already on its day counts as applied, but it
+  // added nothing: only a stop that is new on the trip is an added stop.
+  const onTrip = (t: Trip, itemId: string) => t.days.some((d) => d.items.some((i) => i.id === itemId))
+  const added = result.applied.filter((id) => {
+    const item = run.suggestions.find((s) => s.id === id)?.proposedItem
+    return item !== undefined && !onTrip(trip, item.id) && onTrip(result.trip, item.id)
+  })
   const resolved = resolveEnhancementOutcome({
     suggestions: run.suggestions,
     summary: run.summary,
     modelOutcome: run.outcome,
     modelReason: run.outcomeReason,
-    appliedAddCount: result.applied.length,
+    appliedAddCount: added.length,
   })
   const nextRun = finishRun(
     { ...run, appliedSuggestionIds: [...run.appliedSuggestionIds, ...result.applied] },
@@ -1819,41 +1922,62 @@ export function autoApplyAddSuggestions(
 
 // ── Applying accepted suggestions ────────────────────────────────────────
 
+export interface AppliedSuggestions {
+  trip: Trip
+  /** Suggestions whose change now holds, including ones the trip already had. */
+  applied: string[]
+  skipped: string[]
+  /** Why each skipped suggestion could not land, one sentence for the traveller. */
+  skipReasons: Record<string, string>
+}
+
+const STOP_GONE = "That stop is no longer on the trip."
+const DAY_GONE = "Its day is no longer on the trip."
+
+/**
+ * Apply the chosen suggestions to the trip as it is now, which may have
+ * changed since the review. What a suggestion asked for that already holds
+ * (the stop is on that day, the stop is gone) counts as applied; what cannot
+ * land says why. A suggestion already recorded on the run is left out of
+ * both lists. Every day a suggestion changed ends in clock order.
+ */
 export function applySuggestions(
   trip: Trip,
   run: Pick<EnhancementRunBase, "suggestions" | "appliedSuggestionIds">,
   suggestionIds: string[],
-): {
-  trip: Trip
-  applied: string[]
-  skipped: string[]
-} {
+): AppliedSuggestions {
   const applied: string[] = []
   const skipped: string[] = []
+  const skipReasons: Record<string, string> = {}
   const days = trip.days.map((d) => ({ ...d, items: [...d.items] }))
   // Written back only when an add took an idea off it, so a trip without a
   // wishlist does not grow an empty one.
   let ideas = trip.ideas
+  // Sorted by time once every suggestion has landed: an edit's new time, a
+  // stop moved in, or an add whose time falls inside a day already out of order.
+  const touched = new Set<string>()
+  const dayNamed = (dayId: string | undefined) => days.find((d) => d.id === dayId)
+  const dayHolding = (itemId: string | undefined) => days.find((d) => d.items.some((i) => i.id === itemId))
+  const dayLabel = (day: TripDay) => `Day ${days.indexOf(day) + 1}`
 
-  for (const id of suggestionIds) {
-    const s = run.suggestions.find((x) => x.id === id)
-    if (!s || run.appliedSuggestionIds.includes(id)) {
-      skipped.push(id)
-      continue
-    }
-    const day = s.dayId ? days.find((d) => d.id === s.dayId) : undefined
-    let ok = false
+  /** Lands one suggestion; returns why it could not, or nothing once its change holds. */
+  const land = (s: EnhancementSuggestion): string | undefined => {
     switch (s.kind) {
       case "add": {
-        // The proposed item keeps its id when it lands, so finding it on the
-        // trip means this add already happened (a retried or repeated apply,
-        // or, for a saved place, the traveller scheduling it meanwhile).
-        if (!s.proposedItem || !day || days.some((d) => d.items.some((i) => i.id === s.proposedItem!.id))) break
-        let item = structuredClone(s.proposedItem)
-        // A venue lands once: not when it is on a day already, under this
-        // name or a near one (the traveller may have added it since).
-        if (days.some((d) => d.items.some((i) => sameVenue(i, item)))) break
+        const proposed = s.proposedItem
+        if (!proposed) return "It had no stop to add."
+        const day = dayNamed(s.dayId)
+        if (!day) return DAY_GONE
+        // The proposed item keeps its id when it lands, so finding it (or the
+        // same venue under a near name) means the stop is already planned: by
+        // a retried apply, or by the traveller meanwhile.
+        const planned = (i: ItineraryItem) => i.id === proposed.id || sameVenue(i, proposed)
+        if (day.items.some(planned)) return undefined
+        const elsewhere = days.find((d) => d.items.some(planned))
+        if (elsewhere) return `${stopName(proposed)} is already on ${dayLabel(elsewhere)}.`
+        let item = structuredClone(proposed)
         if (s.fromIdeaId) {
+          item = { ...item, fromWishlist: true }
           // It leaves the wishlist in the same change, bringing what the stop
           // lacks (the idea may have been edited since the review). If it is
           // already gone, the stop still lands as proposed.
@@ -1868,77 +1992,102 @@ export function applySuggestions(
             ideas = ideas!.filter((i) => i.id !== s.fromIdeaId)
           }
         }
-        // Timed adds land where the clock says, not at the bottom.
         day.items = insertByTime(day.items, item)
-        ok = true
-        break
+        touched.add(day.id)
+        return undefined
       }
       case "edit": {
-        for (const d of days) {
-          const idx = d.items.findIndex((i) => i.id === s.itemId)
-          if (idx >= 0 && s.proposedChanges) {
-            d.items[idx] = { ...d.items[idx]!, ...structuredClone(s.proposedChanges) }
-            ok = true
-            break
-          }
-        }
-        break
+        const day = dayHolding(s.itemId)
+        if (!day) return STOP_GONE
+        const changes = s.proposedChanges
+        if (!changes || Object.keys(changes).length === 0) return "It had no change to make."
+        const { time, ...rest } = structuredClone(changes)
+        const edited = { ...day.items.find((i) => i.id === s.itemId)!, ...rest }
+        day.items = time ? moveToTime(day.items, retimed(edited, { time, endTime: rest.endTime })) : day.items.map((i) => (i.id === s.itemId ? edited : i))
+        touched.add(day.id)
+        return undefined
       }
       case "remove": {
-        for (const d of days) {
-          const before = d.items.length
-          d.items = d.items.filter((i) => i.id !== s.itemId)
-          if (d.items.length < before) {
-            ok = true
-            break
-          }
-        }
-        break
+        const day = dayHolding(s.itemId)
+        if (!day) return undefined
+        day.items = day.items.filter((i) => i.id !== s.itemId)
+        touched.add(day.id)
+        return undefined
       }
       case "move": {
-        const target = days.find((d) => d.id === s.toDayId)
-        const from = days.find((d) => d.items.some((i) => i.id === s.itemId))
-        if (target && from && from.id !== target.id) {
-          const item = from.items.find((i) => i.id === s.itemId)!
+        const target = dayNamed(s.toDayId)
+        if (!target) return "The day it was moving to is no longer on the trip."
+        const from = dayHolding(s.itemId)
+        if (!from) return STOP_GONE
+        const item = from.items.find((i) => i.id === s.itemId)!
+        const time = s.proposedChanges?.time
+        const moved = time ? retimed(item, { time, endTime: s.proposedChanges?.endTime }) : item
+        if (from === target) {
+          // Already on that day: only a new time is left to apply.
+          if (!time) return undefined
+          from.items = moveToTime(from.items, moved)
+        } else {
+          const route = splitPlan(from.items).plan
+          const was = dayStarts(route)[route.indexOf(item)] ?? null
           from.items = from.items.filter((i) => i.id !== s.itemId)
-          const moved = { ...item, ...(s.proposedChanges?.time ? { time: s.proposedChanges.time, endTime: s.proposedChanges.endTime } : {}) }
-          target.items = insertByTime(target.items, moved)
-          ok = true
+          target.items = moveToTime(target.items, moved, was)
         }
-        break
+        touched.add(from.id)
+        touched.add(target.id)
+        return undefined
       }
       case "swap_days": {
         // The dates (their weather and journal) stay put; the plans, and the
         // zone that goes with each city, trade places.
-        const other = days.find((d) => d.id === s.toDayId)
-        if (day && other && day.id !== other.id) {
-          const keep = (d: TripDay) => ({ items: d.items, title: d.title, emoji: d.emoji, city: d.city, notes: d.notes, neighborhoods: d.neighborhoods, timezone: d.timezone })
-          const a = keep(day)
-          const b = keep(other)
-          Object.assign(day, b)
-          Object.assign(other, a)
-          ok = true
-        }
-        break
+        const day = dayNamed(s.dayId)
+        const other = dayNamed(s.toDayId)
+        if (!day || !other) return "One of its days is no longer on the trip."
+        const keep = (d: TripDay) => ({ items: d.items, title: d.title, emoji: d.emoji, city: d.city, notes: d.notes, neighborhoods: d.neighborhoods, timezone: d.timezone })
+        const a = keep(day)
+        const b = keep(other)
+        Object.assign(day, b)
+        Object.assign(other, a)
+        touched.add(day.id)
+        touched.add(other.id)
+        return undefined
       }
       case "reorder": {
-        if (day && s.proposedOrder) {
-          const byId = new Map(day.items.map((i) => [i.id, i]))
-          const reordered = s.proposedOrder.map((iid) => byId.get(iid)).filter((i): i is ItineraryItem => !!i)
-          if (reordered.length === day.items.length) {
-            day.items = reordered
-            ok = true
-          }
-        }
-        break
+        const day = dayNamed(s.dayId)
+        if (!day) return DAY_GONE
+        const items = reorderDay(day.items, s.proposedOrder ?? [], s.proposedTimes)
+        if (!items) return `Fewer than two of its stops are still on ${dayLabel(day)}.`
+        // An older review's reorder with no times: sorting would undo it, so
+        // reporting it applied would show the traveller nothing changing.
+        if (outOfOrder(items)) return `Its order doesn't match the times of the stops on ${dayLabel(day)}.`
+        day.items = items
+        touched.add(day.id)
+        return undefined
       }
       default:
         // warning/info are informational — accepting them is a no-op ack.
-        ok = true
+        return undefined
     }
-    if (ok) applied.push(id)
-    else skipped.push(id)
   }
 
-  return { trip: { ...trip, days, ...(ideas !== trip.ideas ? { ideas } : {}), updatedAt: nowIso() }, applied, skipped }
+  const ids = [...new Set(suggestionIds)].filter((id) => !run.appliedSuggestionIds.includes(id))
+  const suggestionOf = (id: string) => run.suggestions.find((x) => x.id === id)
+  // Reorders land first: the review checked each against its day before any
+  // of the run's other changes moved a stop on it.
+  const landing = [...ids.filter((id) => suggestionOf(id)?.kind === "reorder"), ...ids.filter((id) => suggestionOf(id)?.kind !== "reorder")]
+  const outcome = new Map<string, string | undefined>()
+  for (const id of landing) {
+    const s = suggestionOf(id)
+    outcome.set(id, s ? land(s) : "This suggestion is no longer part of the review.")
+  }
+  for (const id of ids) {
+    const why = outcome.get(id)
+    if (why === undefined) applied.push(id)
+    else {
+      skipped.push(id)
+      skipReasons[id] = why
+    }
+  }
+  for (const day of days) if (touched.has(day.id)) day.items = sortByTime(day.items)
+
+  return { trip: { ...trip, days, ...(ideas !== trip.ideas ? { ideas } : {}), updatedAt: nowIso() }, applied, skipped, skipReasons }
 }

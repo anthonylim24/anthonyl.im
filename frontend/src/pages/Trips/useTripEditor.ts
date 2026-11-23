@@ -23,6 +23,7 @@ import { useShowCopy, useTripsDevice } from "./offline/tripsDevice"
 import { removeItem } from "./tripEdits"
 import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { formatTripDate, plural } from "./meta"
+import { diffPlan, touchedStops, type AppliedChanges, type SkippedSuggestion } from "./changes/planDiff"
 import {
   canEdit,
   canResume,
@@ -70,6 +71,17 @@ export const errorText = (err: unknown) => (err instanceof Error ? err.message :
 
 const isAbort = (err: unknown) => err instanceof Error && err.name === "AbortError"
 
+/** For a skip an older server gave no reason for. */
+const SKIP_FALLBACK = "It no longer fits the trip as it is now."
+
+/** The dock's line after an apply: how many landed, and what didn't, by name when it is one. */
+function appliedNotice(applied: number, skipped: readonly SkippedSuggestion[]): string {
+  const done = applied > 0 ? `Applied ${plural(applied, "change")}.` : ""
+  const [only] = skipped
+  const missed = !only ? "" : skipped.length === 1 ? `Couldn’t apply “${only.title}”: ${only.reason}` : `Couldn’t apply ${skipped.length}: see the review.`
+  return [done, missed].filter(Boolean).join(" ") || "Nothing needed applying."
+}
+
 /** What an AI call hands back: the machine's `AI_DONE` payload plus work to do with it. */
 interface AiOutcome {
   trip?: Trip
@@ -94,6 +106,10 @@ export function useTripEditor() {
   } | null
   const [notice, setNotice] = useState<string | null>(navState?.notice ?? null)
   const [recentIds, setRecentIds] = useState<Set<string>>(() => new Set())
+  /** The last apply, for the "What changed" sheet; null once it is closed. */
+  const [changes, setChanges] = useState<AppliedChanges | null>(null)
+  /** Why each suggestion of the run in review couldn't be applied, so the review can say so. */
+  const [skips, setSkips] = useState<{ runId: string; reasons: Record<string, string> } | null>(null)
   const recentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const restoreScrollRef = useRef<number | null>(null)
   /** The committed state, for callbacks and cleanups that outlive a render. */
@@ -667,20 +683,31 @@ export function useTripEditor() {
       void runAi(
         { type: "APPLY" },
         async () => {
-          const { trip: next, applied, skipped } = await applySuggestions(readToken, tripDocId, run.id, suggestionIds)
+          // Read after the flush: the copy the server applies to.
+          const settled = stateRef.current
+          const before = settled.s === "ready" ? settled.doc : now.doc
+          const { trip: next, applied, skipped, skipReasons } = await applySuggestions(readToken, tripDocId, run.id, suggestionIds)
+          const failed = skipped.map((id): SkippedSuggestion => {
+            const reason = skipReasons?.[id]?.trim() || SKIP_FALLBACK
+            return {
+              id,
+              title: run.suggestions.find((s) => s.id === id)?.title ?? "A suggestion",
+              reason: /[.!?]$/.test(reason) ? reason : `${reason}.`,
+            }
+          })
+          // What couldn't be applied stays in review, to tick and try again;
+          // what was applied leaves the list. Not an undo step: apply never was.
+          const kept = failed.length > 0 ? { ...run, appliedSuggestionIds: [...new Set([...run.appliedSuggestionIds, ...applied])] } : null
           return {
             trip: next,
-            run: null,
+            run: kept,
             onLand: () => {
-              const touched = new Set<string>()
-              for (const id of applied) {
-                const s = run.suggestions.find((x) => x.id === id)
-                const target = s?.proposedItem?.id ?? s?.itemId
-                if (target && (s?.kind === "add" || s?.kind === "edit")) touched.add(target)
-              }
-              flashTouched(touched)
-              const skipNote = skipped.length > 0 ? ` ${skipped.length} could not be applied.` : ""
-              setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.${skipNote}`)
+              // From the two documents: the server also sorts and re-times what it touches.
+              const diff = diffPlan(before, next)
+              flashTouched(touchedStops(diff))
+              if (diff.days.length > 0 || failed.length > 0) setChanges({ before, after: next, skipped: failed })
+              setSkips(kept ? { runId: run.id, reasons: Object.fromEntries(failed.map((f) => [f.id, f.reason])) } : null)
+              setNotice(appliedNotice(applied.length, failed))
             },
           }
         },
@@ -711,6 +738,8 @@ export function useTripEditor() {
   }, [])
 
   const dismissRun = useCallback(() => dispatch({ type: "DISMISS_RUN" }), [])
+  const closeChanges = useCallback(() => setChanges(null), [])
+  const skipReasons = activeRun && skips?.runId === activeRun.id ? skips.reasons : undefined
   const enhanceDay = useCallback((dayId: string, prompt?: string) => void runEnhance("day", dayId, prompt), [runEnhance])
 
   const deleteItem = useCallback(
@@ -759,6 +788,11 @@ export function useTripEditor() {
     notice,
     setNotice,
     activeRun,
+    /** Why suggestions of the run in review couldn't be applied, by id. */
+    skipReasons,
+    /** What the last apply changed, while its sheet is open. */
+    changes,
+    closeChanges,
     recentIds,
     dayOptions,
     navState,

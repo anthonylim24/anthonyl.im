@@ -51,6 +51,7 @@ function renderIdeas(trip: Trip, { editable = true, locked = false, url = "/trip
     return (
       <IdeasPanel
         trip={doc}
+        basePath="/trips/lisbon"
         editable={editable}
         locked={locked}
         near={null}
@@ -311,6 +312,50 @@ describe("IdeasPanel", () => {
     expect(screen.queryByRole("button", { name: /Category for/ })).toBeNull()
     expect(screen.getByText("Other")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Tram 28" })).toBeEnabled()
+  })
+
+  describe("places that have a day now", () => {
+    const scheduled = () =>
+      makeTrip({
+        ideas: [tram],
+        days: [
+          { id: "day-1", date: "2026-07-10", items: [makeItem({ id: "s1", title: "Rossio" })] },
+          {
+            id: "day-2",
+            date: "2026-07-11",
+            items: [makeItem({ id: "sintra-stop", title: "Sintra", time: "08:30", fromWishlist: true }), makeItem({ id: "s2", title: "Quinta" })],
+          },
+        ],
+      })
+
+    it("lists them after the wishlist, each linking to its stop on its day", () => {
+      renderIdeas(scheduled())
+      expect(screen.getByText("1 place to fit in · 1 on your days")).toBeInTheDocument()
+      const group = screen.getByRole("list", { name: /On your days/ })
+      expect(within(group).getByText("Sintra")).toBeInTheDocument()
+      const link = within(group).getByRole("link", { name: "Sintra: Day 2 · Sat Jul 11 · 8:30 AM. Open the day" })
+      expect(link).toHaveAttribute("href", "/trips/lisbon/day/day-2#stop-sintra-stop")
+      // Not counted as waiting on the wishlist, and not listed with the others.
+      expect(within(screen.getByRole("list", { name: "1 place on the wishlist" })).queryByText("Sintra")).toBeNull()
+    })
+
+    it("sends one back to the wishlist with an Undo toast", () => {
+      const state = renderIdeas(scheduled())
+      fireEvent.click(screen.getByRole("button", { name: "Back to wishlist: Sintra" }))
+      expect(state.trip.days[1]!.items.map((i) => i.id)).toEqual(["s2"])
+      expect(state.trip.ideas!.map((i) => i.id)).toEqual(["idea-tram", "sintra-stop"])
+      expect(state.trip.ideas![1]!.fromWishlist).toBeUndefined()
+      expect(state.marks[state.marks.length - 1]).toEqual({ label: "Moved “Sintra” back to the wishlist", toast: true })
+      expect(screen.queryByRole("list", { name: /On your days/ })).toBeNull()
+    })
+
+    it("says so when every saved place has a day, and offers no way back to a viewer", () => {
+      renderIdeas(makeTrip({ ...scheduled(), ideas: [] }), { editable: false })
+      expect(screen.getByText("Everything you saved has a day now.")).toBeInTheDocument()
+      expect(screen.queryByText(/to fit in/)).toBeNull()
+      expect(screen.getByRole("link", { name: /Sintra: Day 2/ })).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /Back to wishlist/ })).toBeNull()
+    })
   })
 
   it("stops taking new ideas at the limit and says why", () => {

@@ -84,6 +84,8 @@ export interface ItineraryItem {
   highlight?: boolean
   /** The traveller's own wishlist category; absent means "infer from the place" (`ideas/themes.ts`). */
   theme?: ItemTheme
+  /** A wishlist place put on a day (by the traveller or an AI review). Dropped when it goes back to the wishlist. */
+  fromWishlist?: true
   createdBy: LocationSource
 }
 
@@ -246,6 +248,8 @@ export interface EnhancementSuggestion {
   proposedItem?: ItineraryItem
   proposedChanges?: Partial<Omit<ItineraryItem, "id">>
   proposedOrder?: string[]
+  /** "reorder" only: the new clock for stops the reorder re-times, by item id. */
+  proposedTimes?: Record<string, { time: string; endTime?: string }>
   /** "move": the day the item goes to. "swap_days": the day traded with `dayId`. */
   toDayId?: string
   /** "add" only: the wishlist idea (`trip.ideas[].id`) this stop schedules.

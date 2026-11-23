@@ -48,8 +48,7 @@ export function addItem(days: TripDay[], dayId: string, item: ItineraryItem): Tr
  * they land above a "To schedule" heading: what is parked under it stays
  * parked, and its times are not the route's. Existing times are read on the
  * day's clock (`dayStarts`), so a 22:00 stop lands before a 01:00 one listed
- * after a late dinner. The server's `insertByTime` (server/src/trips/signals.ts)
- * does not know about the heading yet.
+ * after a late dinner. Mirrors the server's `insertByTime` (server/src/trips/dayClock.ts).
  */
 export function insertByTime(items: readonly ItineraryItem[], item: ItineraryItem): ItineraryItem[] {
   const end = planEnd(items)
@@ -150,6 +149,8 @@ export function duplicateItem(days: TripDay[], dayId: string, itemId: string): T
       ...structuredClone(day.items[idx]!),
       id: `it-${crypto.randomUUID().slice(0, 8)}`,
     }
+    // The wishlist lists the place once: the copy is the traveller's own.
+    delete copy.fromWishlist
     const items = [...day.items]
     items.splice(idx + 1, 0, copy)
     return { ...day, items }
@@ -181,6 +182,7 @@ function asIdea(item: ItineraryItem): ItineraryItem {
   delete idea.time
   delete idea.endTime
   delete idea.highlight
+  delete idea.fromWishlist
   if (idea.status === "completed" || idea.status === "skipped") idea.status = restingStatus(idea)
   return idea
 }
@@ -226,7 +228,7 @@ export function ideaToDay<T extends IdeaDoc>(trip: T, ideaId: string, dayId: str
   if (!idea || !day || dayFull(day)) return trip
   // Ids are unique across the trip; a copy already on a day must not share one.
   const taken = trip.days.some((d) => d.items.some((i) => i.id === idea.id))
-  const item = taken ? { ...idea, id: makeItem(idea.kind).id } : idea
+  const item: ItineraryItem = { ...idea, ...(taken ? { id: makeItem(idea.kind).id } : {}), fromWishlist: true }
   return { ...trip, ideas: trip.ideas!.filter((i) => i.id !== ideaId), days: addItem(trip.days, dayId, item) }
 }
 

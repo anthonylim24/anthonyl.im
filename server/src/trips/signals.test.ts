@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { analyseDay, describeSignals, insertByTime, shorterRoute, weekday } from "./signals"
+import { analyseDay, describeSignals, shorterRoute, weekday } from "./signals"
 import type { ItineraryItem, TripDay } from "./types"
 
 let seq = 0
@@ -53,6 +53,35 @@ describe("analyseDay", () => {
     expect(signals.outOfOrder).toBe(true)
   })
 
+  test("a bar after midnight, listed after dinner, is in order", () => {
+    const signals = analyseDay(day([stop("Dinner", { time: "19:00" }), stop("Bar", { time: "23:00" }), stop("Club", { time: "01:00" })]))
+    expect(signals.outOfOrder).toBe(false)
+    expect(describeSignals(signals)).not.toContain("OUT OF ORDER")
+  })
+
+  test("names both stops and their times when one starts before the last has ended", () => {
+    const signals = analyseDay(
+      day([stop("Bishop Museum", { time: "13:00", endTime: "15:30" }), stop("Shave ice", { time: "15:00" }), stop("Sunset sail", { time: "17:00" })]),
+    )
+    expect(describeSignals(signals)).toContain('OVERLAP: "Bishop Museum" (13:00–15:30) runs past the start of "Shave ice" (15:00).')
+    expect(signals.overlaps).toHaveLength(1)
+  })
+
+  test("reads overlaps on the day clock, past midnight too", () => {
+    const late = analyseDay(day([stop("Dinner", { time: "21:00", endTime: "23:30" }), stop("Bar", { time: "23:00", endTime: "02:00" }), stop("Club", { time: "01:00" })]))
+    expect(late.overlaps.map((o) => `${o.first} > ${o.second}`)).toEqual(["Dinner > Bar", "Bar > Club"])
+    const backToBack = analyseDay(day([stop("A", { time: "09:00", endTime: "10:00" }), stop("B", { time: "10:00" })]))
+    expect(backToBack.overlaps).toEqual([])
+  })
+
+  test("a stay or a booking that ends on a later date overlaps nothing", () => {
+    const hotel = stop("Moana Surfrider", { time: "15:00", endTime: "11:00", category: "hotel" })
+    const flight = { ...stop("Flight home", { time: "16:00", endTime: "06:30" }), kind: "reservation", reservation: { type: "flight", status: "confirmed", endDate: "2026-07-12" } } as ItineraryItem
+    const signals = analyseDay(day([hotel, flight, stop("Dinner", { time: "18:00" })]))
+    expect(signals.overlaps).toEqual([])
+    expect(describeSignals(signals)).not.toContain("OVERLAP")
+  })
+
   test("notes and headings are not stops", () => {
     const note = { ...stop("Bring cash"), kind: "note", location: undefined } as ItineraryItem
     expect(analyseDay(day([note])).stops).toBe(0)
@@ -90,28 +119,6 @@ describe("shorterRoute", () => {
     expect(shorterRoute(day(timed))).toBeNull()
     const line = [0, 1, 2, 3].map((i) => stop(`S${i}`, { at: [38.7, -9.2 + i * 0.03] }))
     expect(shorterRoute(day(line))).toBeNull()
-  })
-})
-
-describe("insertByTime", () => {
-  test("puts a timed item where the clock says", () => {
-    const items = [stop("A", { time: "09:00" }), stop("B", { time: "13:00" }), stop("C", { time: "19:00" })]
-    const out = insertByTime(items, stop("New", { time: "15:30" }))
-    expect(out.map((i) => i.title)).toEqual(["A", "B", "New", "C"])
-  })
-
-  test("appends untimed items and items on untimed days", () => {
-    const untimedDay = [stop("A"), stop("B")]
-    expect(insertByTime(untimedDay, stop("New", { time: "10:00" })).at(-1)!.title).toBe("New")
-    const timedDay = [stop("A", { time: "09:00" })]
-    expect(insertByTime(timedDay, stop("New")).at(-1)!.title).toBe("New")
-  })
-
-  test("keeps new stops on the route, above the places parked under To schedule", () => {
-    const heading: ItineraryItem = { ...stop("To schedule"), kind: "section" }
-    const items = [stop("A", { time: "09:00" }), stop("B", { time: "13:00" }), heading, stop("Parked")]
-    expect(insertByTime(items, stop("Late", { time: "21:00" })).map((i) => i.title)).toEqual(["A", "B", "Late", "To schedule", "Parked"])
-    expect(insertByTime(items, stop("Loose")).map((i) => i.title)).toEqual(["A", "B", "Loose", "To schedule", "Parked"])
   })
 })
 

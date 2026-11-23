@@ -29,6 +29,7 @@ const mockFollowEnhancement = vi.fn()
 const mockGenerateItinerary = vi.fn()
 const mockDeleteTrip = vi.fn()
 const mockDuplicateTrip = vi.fn()
+const mockApplySuggestions = vi.fn()
 
 vi.mock("../tripsApi", () => ({
   getTrip: (...args: unknown[]) => mockGetTrip(...args),
@@ -39,7 +40,7 @@ vi.mock("../tripsApi", () => ({
   generateItinerary: (...args: unknown[]) => mockGenerateItinerary(...args),
   deleteTrip: (...args: unknown[]) => mockDeleteTrip(...args),
   duplicateTrip: (...args: unknown[]) => mockDuplicateTrip(...args),
-  applySuggestions: vi.fn(),
+  applySuggestions: (...args: unknown[]) => mockApplySuggestions(...args),
   createInvite: vi.fn(),
   revokeInvite: vi.fn(),
   leaveTrip: vi.fn(),
@@ -1479,6 +1480,67 @@ describe("TripWorkspace", () => {
       expect(await screen.findByText("That didn’t go through. (HTTP 500)")).toBeInTheDocument()
       await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(1), { timeout: 3000 })
       expect((mockUpdateTrip.mock.calls[0]![2] as { name: string }).name).toBe("Lisbon, renamed")
+    })
+  })
+
+  describe("applying a review", () => {
+    const retime = { id: "s-time", kind: "edit", dayId: "day-1", itemId: "it-market", title: "Lunch later, after the crowds", detail: "", confidence: "high" }
+    const move = { id: "s-move", kind: "move", dayId: "day-1", toDayId: "day-2", itemId: "it-cafe", title: "Move the mystery cafe", detail: "", confidence: "medium" }
+    const run = { ...reviewRun, suggestions: [retime, move] } as EnhancementRun
+
+    it("recaps what changed, names what couldn’t be applied, and keeps it in the review", async () => {
+      mockEnhanceTrip.mockResolvedValue({ run, applied: [] })
+      const after = planned({ updatedAt: "2026-01-02T00:00:00Z" })
+      after.days[0] = { ...after.days[0]!, items: [cash, unpinned, { ...market, time: "14:00" }, fado] }
+      mockApplySuggestions.mockResolvedValue({ trip: after, applied: ["s-time"], skipped: ["s-move"], skipReasons: { "s-move": "Day 2 has no room left" } })
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Improve with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Apply 2 changes" }))
+      await waitFor(() => expect(mockApplySuggestions).toHaveBeenCalledTimes(1))
+      expect(mockApplySuggestions.mock.calls[0]![3]).toEqual(["s-time", "s-move"])
+
+      const sheet = await screen.findByRole("dialog", { name: "What changed" })
+      const changes = within(sheet).getByRole("list", { name: "Changes on Day 1" })
+      expect(within(changes).getByText("Time Out Market")).toBeInTheDocument()
+      expect(within(changes).getByText("12:30 PM → 2:00 PM")).toBeInTheDocument()
+      expect(within(sheet).getByText("Move the mystery cafe")).toBeInTheDocument()
+      expect(within(sheet).getByText("Day 2 has no room left.")).toBeInTheDocument()
+      // Reduced motion (every query matches here): nothing to replay.
+      expect(within(sheet).queryByRole("button", { name: "Replay" })).toBeNull()
+
+      // The dock names the one that failed, as an alert that stays.
+      const notice = screen.getByText("Applied 1 change. Couldn’t apply “Move the mystery cafe”: Day 2 has no room left.")
+      expect(notice.closest('[role="alert"]')).not.toBeNull()
+
+      fireEvent.click(within(sheet).getByRole("button", { name: "Done" }))
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "What changed" })).toBeNull())
+
+      // The applied one left the review; the failed one stays, unticked, with its reason.
+      const review = screen.getByRole("region", { name: "AI suggestions" })
+      expect(within(review).queryByText("Lunch later, after the crowds")).toBeNull()
+      expect(within(review).getByRole("checkbox", { name: /Move the mystery cafe/ })).not.toBeChecked()
+      expect(within(review).getByText(/Couldn’t apply: Day 2 has no room left\./)).toBeInTheDocument()
+      expect(within(review).getByRole("button", { name: "Apply 0 changes" })).toBeDisabled()
+    })
+
+    it("closes the review and says so when everything applied", async () => {
+      mockEnhanceTrip.mockResolvedValue({ run: { ...run, suggestions: [retime] }, applied: [] })
+      const after = planned({ updatedAt: "2026-01-02T00:00:00Z" })
+      after.days[0] = { ...after.days[0]!, items: [cash, unpinned, { ...market, time: "14:00" }, fado] }
+      mockApplySuggestions.mockResolvedValue({ trip: after, applied: ["s-time"], skipped: [] })
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Improve with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Apply 1 change" }))
+
+      const sheet = await screen.findByRole("dialog", { name: "What changed" })
+      expect(within(sheet).queryByText(/Couldn’t apply/)).toBeNull()
+      // Shown in the dock and spoken in the live region.
+      expect(screen.getAllByText("Applied 1 change.").length).toBeGreaterThan(0)
+      expect(screen.queryByRole("region", { name: "AI suggestions" })).toBeNull()
     })
   })
 

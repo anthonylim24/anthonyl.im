@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
-import { Check, Sparkles, X } from "lucide-react"
+import { AlertCircle, Check, Sparkles, X } from "lucide-react"
 import { sx } from "@/styles/merge"
-import type { EnhancementRun, EnhancementSuggestion, GeneratePreferences, SuggestionKind } from "../types"
+import type { EnhancementRun, EnhancementSuggestion, GeneratePreferences, SuggestionKind, Trip } from "../types"
 import type { DayOption } from "../useTripEditor"
+import { proposedTimesLine } from "./reviewTimes"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { Modal, Spinner } from "../components/kit"
@@ -375,30 +376,41 @@ const actionable = (suggestion: EnhancementSuggestion) =>
 /** What came back from an AI review: applied additions, optional changes, notes. */
 export function SuggestionsReview({
   run,
+  trip,
+  skipReasons,
   dayOptions,
   applying,
   onApply,
   onDismiss,
 }: {
   run: EnhancementRun
+  trip: Trip
+  /** Suggestions an apply couldn't carry out, with the reason: they stay listed, unticked. */
+  skipReasons?: Readonly<Record<string, string>>
   dayOptions: DayOption[]
   applying: boolean
   onApply: (ids: string[]) => void
   onDismiss: () => void
 }) {
   const applied = new Set(run.appliedSuggestionIds)
-  const added = run.suggestions.filter((sg) => applied.has(sg.id))
+  const added = run.suggestions.filter((sg) => applied.has(sg.id) && sg.kind === "add")
   const fromWishlist = added.filter((sg) => sg.fromIdeaId).length
   const pending = run.suggestions.filter((sg) => !applied.has(sg.id) && actionable(sg))
   const notes = run.suggestions.filter((sg) => !applied.has(sg.id) && !actionable(sg))
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(pending.map((sg) => sg.id)))
+  const fresh = () => new Set(pending.filter((sg) => !skipReasons?.[sg.id]).map((sg) => sg.id))
+  const [picked, setPicked] = useState<Set<string>>(fresh)
   const dayLabel = (id?: string) => dayOptions.find((d) => d.id === id)?.label.split(" · ")[0]
 
-  // A new run picks everything it can still add.
+  // A new run picks everything it can still apply. The same run back after an
+  // apply keeps what was left unticked, and leaves what failed unticked: it
+  // was just tried, so trying again is the traveller's call.
   const [pickedFor, setPickedFor] = useState(run)
   if (pickedFor !== run) {
     setPickedFor(run)
-    setPicked(new Set(pending.map((sg) => sg.id)))
+    const still = new Set(pending.map((sg) => sg.id))
+    setPicked(
+      pickedFor.id === run.id ? new Set([...picked].filter((id) => still.has(id) && !skipReasons?.[id])) : fresh(),
+    )
   }
 
   return (
@@ -435,40 +447,50 @@ export function SuggestionsReview({
           )}
           {pending.length > 0 && (
             <div>
-              {pending.map((sg) => (
-                <label key={sg.id} {...sx(s.suggestion)}>
-                  <input
-                    type="checkbox"
-                    checked={picked.has(sg.id)}
-                    disabled={applying}
-                    {...sx(s.check)}
-                    onChange={() =>
-                      setPicked((current) => {
-                        const next = new Set(current)
-                        if (next.has(sg.id)) next.delete(sg.id)
-                        else next.add(sg.id)
-                        return next
-                      })
-                    }
-                  />
-                  <span {...sx(a.stack)} style={{ gap: "0.25rem" }}>
-                    <span {...sx(a.rowWrap)}>
-                      <span {...sx(a.chip, a.chipMono, sg.kind === "remove" ? undefined : a.chipAccent)}>{KIND_LABEL[sg.kind]}</span>
-                      {dayLabel(sg.dayId) && (
-                        <span {...sx(a.mono, a.muted)}>
-                          {dayLabel(sg.dayId)}
-                          {sg.toDayId && sg.toDayId !== sg.dayId && dayLabel(sg.toDayId) ? ` → ${dayLabel(sg.toDayId)}` : ""}
+              {pending.map((sg) => {
+                const times = proposedTimesLine(sg, trip)
+                return (
+                  <label key={sg.id} {...sx(s.suggestion)}>
+                    <input
+                      type="checkbox"
+                      checked={picked.has(sg.id)}
+                      disabled={applying}
+                      {...sx(s.check)}
+                      onChange={() =>
+                        setPicked((current) => {
+                          const next = new Set(current)
+                          if (next.has(sg.id)) next.delete(sg.id)
+                          else next.add(sg.id)
+                          return next
+                        })
+                      }
+                    />
+                    <span {...sx(a.stack)} style={{ gap: "0.25rem" }}>
+                      <span {...sx(a.rowWrap)}>
+                        <span {...sx(a.chip, a.chipMono, sg.kind === "remove" ? undefined : a.chipAccent)}>{KIND_LABEL[sg.kind]}</span>
+                        {dayLabel(sg.dayId) && (
+                          <span {...sx(a.mono, a.muted)}>
+                            {dayLabel(sg.dayId)}
+                            {sg.toDayId && sg.toDayId !== sg.dayId && dayLabel(sg.toDayId) ? ` → ${dayLabel(sg.toDayId)}` : ""}
+                          </span>
+                        )}
+                        {sg.kind === "add" && sg.fromIdeaId && <span {...sx(a.mono, a.muted)}>From your wishlist</span>}
+                      </span>
+                      <span {...sx(a.body, a.ink, a.wrap)} style={{ fontWeight: 600 }}>
+                        {sg.title}
+                      </span>
+                      {sg.detail && <span {...sx(a.small, a.wrap)}>{sg.detail}</span>}
+                      {times && <span {...sx(a.mono, a.muted, a.wrap)}>{times}</span>}
+                      {skipReasons?.[sg.id] && (
+                        <span {...sx(a.small, a.ink, a.wrap)}>
+                          <AlertCircle size={13} strokeWidth={2} aria-hidden style={{ display: "inline", verticalAlign: "-2px", marginRight: 4 }} />
+                          Couldn’t apply: {skipReasons[sg.id]}
                         </span>
                       )}
-                      {sg.kind === "add" && sg.fromIdeaId && <span {...sx(a.mono, a.muted)}>From your wishlist</span>}
                     </span>
-                    <span {...sx(a.body, a.ink, a.wrap)} style={{ fontWeight: 600 }}>
-                      {sg.title}
-                    </span>
-                    {sg.detail && <span {...sx(a.small, a.wrap)}>{sg.detail}</span>}
-                  </span>
-                </label>
-              ))}
+                  </label>
+                )
+              })}
               <div {...sx(a.rowWrap)} style={{ marginTop: "0.75rem" }}>
                 <button
                   type="button"

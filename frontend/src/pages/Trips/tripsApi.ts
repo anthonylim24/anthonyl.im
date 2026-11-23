@@ -509,8 +509,16 @@ export const listEnhancements = (getToken: GetToken, id: string, options?: ReadO
     (r) => r.runs ?? [],
   )
 
+/** What an apply did. `skipReasons`: one sentence per skipped id; older servers send none. */
+export interface ApplyResult {
+  trip: Trip
+  applied: string[]
+  skipped: string[]
+  skipReasons?: Record<string, string>
+}
+
 export const applySuggestions = (getToken: GetToken, id: string, runId: string, suggestionIds: string[]) =>
-  request<{ trip: Trip; applied: string[]; skipped: string[] }>(
+  request<ApplyResult>(
     getToken,
     `/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}/apply`,
     { method: "POST", body: JSON.stringify({ suggestionIds }) },

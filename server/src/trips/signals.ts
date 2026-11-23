@@ -1,4 +1,6 @@
 import { haversineMeters } from "../data/koreaPlaces"
+import { dayEnd, outOfOrder, planStarts, splitPlan } from "./dayClock"
+import { isLodging } from "./lodging"
 import type { ItineraryItem, TripDay } from "./types"
 
 // Deterministic reading of a day, computed before any model is asked. The
@@ -29,6 +31,15 @@ export interface LongLeg {
   km: number
 }
 
+/** A stop that starts before the one before it on the clock has ended. */
+export interface Overlap {
+  first: string
+  from: string
+  to: string
+  second: string
+  at: string
+}
+
 export interface DaySignals {
   dayId: string
   /** Places + reservations (not notes or headings). */
@@ -41,7 +52,8 @@ export interface DaySignals {
   lastTime?: string
   gaps: DayGap[]
   longLegs: LongLeg[]
-  /** Timed stops appear out of clock order in the list. */
+  overlaps: Overlap[]
+  /** Timed items are listed out of order on the day's clock. */
   outOfOrder: boolean
   /** Straight-line length of the day's route through located stops, in km. */
   routeKm: number
@@ -123,9 +135,35 @@ export function analyseDay(day: TripDay): DaySignals {
     lastTime: byClock[byClock.length - 1]?.time,
     gaps,
     longLegs,
-    outOfOrder: timed.some((item, i) => i > 0 && item.time! < timed[i - 1]!.time!),
+    overlaps: overlaps(day.items),
+    outOfOrder: outOfOrder(day.items),
     routeKm: Math.round(routeMeters / 100) / 10,
   }
+}
+
+/**
+ * Timed stops on the route, in clock order, that start before the stop
+ * before them ends. A stay is left out: its end is the next morning's
+ * check-out, so it would "overlap" every stop that evening.
+ */
+function overlaps(items: readonly ItineraryItem[]): Overlap[] {
+  const { plan } = splitPlan(items)
+  const starts = planStarts(plan)
+  const timed = plan
+    .map((item, i) => ({ item, start: starts[i] }))
+    .filter((entry): entry is { item: ItineraryItem; start: number } => entry.start != null && isStop(entry.item))
+    .filter(({ item }) => !isLodging(item) && !item.reservation?.endDate)
+    .sort((a, b) => a.start - b.start)
+  const out: Overlap[] = []
+  for (let i = 1; i < timed.length; i++) {
+    const prev = timed[i - 1]!
+    const next = timed[i]!
+    const end = dayEnd(prev.start, prev.item.endTime)
+    if (end !== null && next.start < end) {
+      out.push({ first: prev.item.title, from: prev.item.time!, to: prev.item.endTime!, second: next.item.title, at: next.item.time! })
+    }
+  }
+  return out
 }
 
 /** One line per fact, phrased for a model (and readable in logs). */
@@ -150,6 +188,11 @@ export function describeSignals(signals: DaySignals): string {
   }
   for (const leg of signals.longLegs) {
     lines.push(`LONG HOP: ${leg.km} km from ${JSON.stringify(leg.from)} to ${JSON.stringify(leg.to)}.`)
+  }
+  for (const overlap of signals.overlaps) {
+    lines.push(
+      `OVERLAP: ${JSON.stringify(overlap.first)} (${overlap.from}–${overlap.to}) runs past the start of ${JSON.stringify(overlap.second)} (${overlap.at}).`,
+    )
   }
   if (signals.outOfOrder) lines.push("OUT OF ORDER: timed stops are not listed in clock order.")
   return lines.map((line, i) => `    ${i === 0 ? "·" : "!"} ${line}`).join("\n")
@@ -208,32 +251,4 @@ export function shorterRoute(day: TripDay): { order: string[]; beforeKm: number;
   }
   const order = [...lead, ...route.flatMap((item) => [item, ...(followers.get(item.id) ?? [])])].map((item) => item.id)
   return { order, beforeKm: Math.round(before / 100) / 10, afterKm: Math.round(after / 100) / 10 }
-}
-
-/** The heading the client parks unplaced stops under; everything after it is off the route. */
-const TO_SCHEDULE = "To schedule"
-const isToSchedule = (item: ItineraryItem) => item.kind === "section" && (item.title ?? "").trim() === TO_SCHEDULE
-
-/**
- * Insert a new item where its time says it belongs. Untimed items, and
- * items on a day with no times at all, go to the end of the plan: above a
- * "To schedule" heading when the day has one, so the new stop joins the
- * route instead of being parked with the places still to fit in.
- */
-export function insertByTime(items: readonly ItineraryItem[], item: ItineraryItem): ItineraryItem[] {
-  const parkedAt = items.findIndex(isToSchedule)
-  const plan = parkedAt < 0 ? items : items.slice(0, parkedAt)
-  const parked = parkedAt < 0 ? [] : items.slice(parkedAt)
-  if (!item.time || !plan.some((existing) => existing.time)) return [...plan, item, ...parked]
-  let at = plan.length
-  for (let i = 0; i < plan.length; i++) {
-    const existing = plan[i]!
-    if (existing.time && existing.time > item.time) {
-      at = i
-      break
-    }
-  }
-  // Don't strand the new item above a heading that introduces the next block.
-  while (at > 0 && plan[at - 1]!.kind === "section" && (!plan[at - 1]!.time || plan[at - 1]!.time! > item.time)) at -= 1
-  return [...plan.slice(0, at), item, ...plan.slice(at), ...parked]
 }
