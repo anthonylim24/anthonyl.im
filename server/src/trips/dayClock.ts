@@ -1,3 +1,4 @@
+import { isLodging } from "./lodging"
 import type { ItineraryItem } from "./types"
 
 // Where a day's stops sit in time, read the way the client reads them
@@ -100,10 +101,10 @@ export function firstOutOfOrder(items: readonly ItineraryItem[]): { listedFirst:
  * Insert an item where its time says it belongs on the route. Untimed items,
  * and items on a day with no times at all, go last on the route. Either way
  * they land above a "To schedule" heading, whose places stay parked.
+ * `start` overrides where the item's time reads on the day's clock.
  */
-export function insertByTime(items: readonly ItineraryItem[], item: ItineraryItem): ItineraryItem[] {
+export function insertByTime(items: readonly ItineraryItem[], item: ItineraryItem, start = clockMinutes(item.time)): ItineraryItem[] {
   const { plan, parked } = splitPlan(items)
-  const start = clockMinutes(item.time)
   const starts = dayStarts(plan)
   if (start === null || starts.every((s) => s === null)) return [...plan, item, ...parked]
   let at = plan.length
@@ -126,6 +127,8 @@ export type ProposedTimes = Record<string, { time: string; endTime?: string }>
  * cannot measure from the old start is dropped.
  */
 export function retimed(item: ItineraryItem, at: { time: string; endTime?: string }): ItineraryItem {
+  // A stay's end is its check-out, booked apart from when it starts.
+  if (isLodging(item) || item.reservation?.endDate) return { ...item, time: at.time, ...(at.endTime ? { endTime: at.endTime } : {}) }
   const { endTime: oldEnd, ...rest } = item
   const endTime = at.endTime ?? keptLength(item.time, oldEnd, at.time)
   return { ...rest, time: at.time, ...(endTime ? { endTime } : {}) }
@@ -142,23 +145,54 @@ function keptLength(oldStart: string | undefined, oldEnd: string | undefined, ne
 }
 
 /**
- * A day in the order a reorder names, at any new times it gives. Ids no
- * longer on the day's route are passed over; items it does not name (a stop
- * added since the review) go where their time says. Nothing crosses the
- * "To schedule" heading. Null when fewer than two named items are left.
+ * A stop at its new time, taken off the day and put back where that time
+ * falls on the route. A small-hours time reads as the same night when that
+ * is nearer the clock the stop had (`was`, by default where it stands on
+ * `items`): a 23:00 bar moved to 01:00 stays last, a 15:00 hike moved to
+ * 05:30 goes first. A stop under "To schedule" stays where it is.
+ */
+export function moveToTime(items: readonly ItineraryItem[], item: ItineraryItem, was?: number | null): ItineraryItem[] {
+  const { plan, parked } = splitPlan(items)
+  if (parked.some((i) => i.id === item.id)) return items.map((i) => (i.id === item.id ? item : i))
+  const from = was !== undefined ? was : (dayStarts(plan)[plan.findIndex((i) => i.id === item.id)] ?? null)
+  const raw = clockMinutes(item.time)
+  const night = raw === null ? null : raw + MINUTES_PER_DAY
+  const start = raw !== null && night !== null && raw < SMALL_HOURS_END && from !== null && Math.abs(night - from) < Math.abs(raw - from) ? night : raw
+  return insertByTime(
+    items.filter((i) => i.id !== item.id),
+    item,
+    start,
+  )
+}
+
+/**
+ * A day in the order a reorder names, at any new times it gives. The named
+ * items take the places named items held; headings and untimed items it
+ * does not name keep theirs; a timed stop it does not name (added since the
+ * review) goes where its time says. Ids no longer on the route are passed
+ * over, and nothing crosses the "To schedule" heading. Null when fewer than
+ * two named items are left.
  */
 export function reorderDay(items: readonly ItineraryItem[], order: readonly string[], times?: ProposedTimes): ItineraryItem[] | null {
   const { plan, parked } = splitPlan(items)
-  const unnamed = new Map(plan.map((item) => [item.id, item]))
+  const onRoute = new Map(plan.map((item) => [item.id, item]))
   const named: ItineraryItem[] = []
+  const namedIds = new Set<string>()
   for (const id of order) {
-    const item = unnamed.get(id)
-    if (!item) continue
-    unnamed.delete(id)
+    const item = onRoute.get(id)
+    if (!item || namedIds.has(id)) continue
+    namedIds.add(id)
     const at = times?.[id]
     named.push(at ? retimed(item, at) : item)
   }
   if (named.length < 2) return null
-  const rest = plan.filter((item) => unnamed.has(item.id))
-  return [...rest.reduce((list, item) => insertByTime(list, item), named), ...parked]
+  const next = named.values()
+  const route: ItineraryItem[] = []
+  const added: ItineraryItem[] = []
+  for (const item of plan) {
+    if (namedIds.has(item.id)) route.push(next.next().value!)
+    else if (clockMinutes(item.time) === null) route.push(item)
+    else added.push(item)
+  }
+  return [...added.reduce((list, item) => insertByTime(list, item), route), ...parked]
 }

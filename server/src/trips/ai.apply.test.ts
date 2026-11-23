@@ -123,6 +123,53 @@ describe("applying keeps each touched day in clock order", () => {
   })
 })
 
+describe("a new time puts the stop where that time falls", () => {
+  const section = (id: string, title: string): ItineraryItem => ({ id, kind: "section", title, status: "none", createdBy: "user" })
+
+  test("a sunrise start moves to the top; a later night stays at the bottom", () => {
+    const day = () => [stop("breakfast", "Breakfast", "08:00"), stop("lunch", "Lunch", "12:30"), stop("hike", "Hike", "15:00"), stop("bar", "Bar", "23:00")]
+    const run = runOf([
+      suggestion({ id: "s-hike", kind: "edit", dayId: "day-1", itemId: "hike", proposedChanges: { time: "05:30" } }),
+      suggestion({ id: "s-bar", kind: "move", dayId: "day-1", itemId: "bar", toDayId: "day-1", proposedChanges: { time: "01:00" } }),
+    ])
+    const out = applySuggestions(oahu([day()]), run, ["s-hike", "s-bar"])
+    expect(timeline(out.trip, 0)).toEqual(["Hike 05:30", "Breakfast 08:00", "Lunch 12:30", "Bar 01:00"])
+  })
+
+  test("a retimed stop leaves its old block's heading where it was", () => {
+    const trip = oahu([[section("am", "Morning"), stop("a", "A", "09:00"), stop("b", "B", "10:00"), section("pm", "Afternoon"), stop("c", "C", "14:00"), stop("d", "D", "15:00")]])
+    const run = runOf([suggestion({ id: "s-edit", kind: "edit", dayId: "day-1", itemId: "b", proposedChanges: { time: "16:00" } })])
+    expect(timeline(applySuggestions(trip, run, ["s-edit"]).trip, 0)).toEqual(["Morning", "A 09:00", "Afternoon", "C 14:00", "D 15:00", "B 16:00"])
+  })
+
+  test("a reorder that names only stops keeps the headings in place", () => {
+    const trip = oahu([[section("am", "Morning"), stop("a", "A"), stop("b", "B"), section("pm", "Afternoon"), stop("c", "C"), stop("d", "D")]])
+    const run = runOf([suggestion({ id: "s-order", kind: "reorder", dayId: "day-1", proposedOrder: ["b", "a", "d", "c"] })])
+    const out = applySuggestions(trip, run, ["s-order"])
+    expect(out.applied).toEqual(["s-order"])
+    expect(timeline(out.trip, 0)).toEqual(["Morning", "B", "A", "Afternoon", "D", "C"])
+  })
+
+  test("the time-order fix still lands when an edit on its day is applied with it", () => {
+    const trip = oahu([[stop("a", "A", "13:00"), stop("b", "B", "09:00"), stop("c", "C", "10:00")]])
+    const run = runOf([
+      suggestion({ id: "s-edit", kind: "edit", dayId: "day-1", itemId: "c", proposedChanges: { time: "08:00" } }),
+      suggestion({ id: "s-fix", kind: "reorder", dayId: "day-1", proposedOrder: ["b", "c", "a"] }),
+    ])
+    const out = applySuggestions(trip, run, ["s-edit", "s-fix"])
+    expect(out.applied).toEqual(["s-edit", "s-fix"])
+    expect(timeline(out.trip, 0)).toEqual(["C 08:00", "B 09:00", "A 13:00"])
+  })
+
+  test("a stay's new check-in keeps its check-out", () => {
+    const hotel = stop("hotel", "Hotel", "15:00", { endTime: "11:00", location: { name: "Hotel", category: "hotel", source: "user" } })
+    const trip = oahu([[stop("a", "A", "10:00"), hotel]])
+    const run = runOf([suggestion({ id: "s-edit", kind: "edit", dayId: "day-1", itemId: "hotel", proposedChanges: { time: "14:00" } })])
+    const out = applySuggestions(trip, run, ["s-edit"])
+    expect(out.trip.days[0]!.items.find((i) => i.id === "hotel")).toMatchObject({ time: "14:00", endTime: "11:00" })
+  })
+})
+
 describe("what could not be applied says why; what is already done is not a failure", () => {
   const day1 = () => [stop("iolani", "Iolani Palace", "10:00"), stop("lunch", "Helena's", "12:30"), stop("bishop", "Bishop Museum", "14:00")]
 

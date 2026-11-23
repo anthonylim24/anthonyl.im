@@ -21,12 +21,15 @@ import { baseByDay, describeBases, isFixed, isLodging } from "./lodging"
 import { analyseDay, describeSignals, shorterRoute, weekday } from "./signals"
 import {
   clockMinutes,
+  dayStarts,
   firstOutOfOrder,
   insertByTime,
+  moveToTime,
   outOfOrder,
   reorderDay,
   retimed,
   sortByTime,
+  splitPlan,
   type ProposedTimes,
 } from "./dayClock"
 
@@ -1998,12 +2001,9 @@ export function applySuggestions(
         if (!day) return STOP_GONE
         const changes = s.proposedChanges
         if (!changes || Object.keys(changes).length === 0) return "It had no change to make."
-        day.items = day.items.map((i) => {
-          if (i.id !== s.itemId) return i
-          const { time, ...rest } = structuredClone(changes)
-          const edited = { ...i, ...rest }
-          return time ? retimed(edited, { time, endTime: rest.endTime }) : edited
-        })
+        const { time, ...rest } = structuredClone(changes)
+        const edited = { ...day.items.find((i) => i.id === s.itemId)!, ...rest }
+        day.items = time ? moveToTime(day.items, retimed(edited, { time, endTime: rest.endTime })) : day.items.map((i) => (i.id === s.itemId ? edited : i))
         touched.add(day.id)
         return undefined
       }
@@ -2025,10 +2025,12 @@ export function applySuggestions(
         if (from === target) {
           // Already on that day: only a new time is left to apply.
           if (!time) return undefined
-          from.items = from.items.map((i) => (i.id === item.id ? moved : i))
+          from.items = moveToTime(from.items, moved)
         } else {
+          const route = splitPlan(from.items).plan
+          const was = dayStarts(route)[route.indexOf(item)] ?? null
           from.items = from.items.filter((i) => i.id !== s.itemId)
-          target.items = insertByTime(target.items, moved)
+          target.items = moveToTime(target.items, moved, was)
         }
         touched.add(from.id)
         touched.add(target.id)
@@ -2067,10 +2069,18 @@ export function applySuggestions(
     }
   }
 
-  for (const id of new Set(suggestionIds)) {
-    if (run.appliedSuggestionIds.includes(id)) continue
-    const s = run.suggestions.find((x) => x.id === id)
-    const why = s ? land(s) : "This suggestion is no longer part of the review."
+  const ids = [...new Set(suggestionIds)].filter((id) => !run.appliedSuggestionIds.includes(id))
+  const suggestionOf = (id: string) => run.suggestions.find((x) => x.id === id)
+  // Reorders land first: the review checked each against its day before any
+  // of the run's other changes moved a stop on it.
+  const landing = [...ids.filter((id) => suggestionOf(id)?.kind === "reorder"), ...ids.filter((id) => suggestionOf(id)?.kind !== "reorder")]
+  const outcome = new Map<string, string | undefined>()
+  for (const id of landing) {
+    const s = suggestionOf(id)
+    outcome.set(id, s ? land(s) : "This suggestion is no longer part of the review.")
+  }
+  for (const id of ids) {
+    const why = outcome.get(id)
     if (why === undefined) applied.push(id)
     else {
       skipped.push(id)
