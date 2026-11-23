@@ -78,7 +78,7 @@ Never raise the run count, drop a pinned example or loosen an assertion to make 
 
 ## Coverage record
 
-Last confirmed against the code at **2026-11-23T00:02Z**. A time, not a commit, because squash merges drop branch commits.
+Last confirmed against the code at **2026-11-23T00:17Z**. A time, not a commit, because squash merges drop branch commits.
 
 | File | What the check depends on |
 |------|---------------------------|
@@ -90,7 +90,7 @@ Last confirmed against the code at **2026-11-23T00:02Z**. A time, not a commit, 
 To see whether the check needs another look after a change:
 
 ```bash
-git log --oneline --since=2026-11-23T00:02Z -- frontend/src/pages/Trips/editorMachine.ts frontend/src/pages/Trips/tripMerge.ts frontend/src/pages/Trips/useTripEditor.ts server/src/routes/trips.ts
+git log --oneline --since=2026-11-23T00:17Z -- frontend/src/pages/Trips/editorMachine.ts frontend/src/pages/Trips/tripMerge.ts frontend/src/pages/Trips/useTripEditor.ts server/src/routes/trips.ts
 ```
 
 For each commit listed, confirm the model still matches the code (a new event, a new field in `savePatch`, a different 409 rule, a second request path in the hook) and update the test if not. The first commit listed may be the one that recorded this time. Move the time above forward only after that confirmation.
