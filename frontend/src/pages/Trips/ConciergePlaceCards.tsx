@@ -13,6 +13,7 @@ import { titleCase } from "./meta"
 import { ItemIcon } from "./ItemIcon"
 import type { TripDay } from "./types"
 import { a } from "./atlas.stylex"
+import { Select } from "./components/Select"
 import { c } from "./chat.stylex"
 import { sx } from "@/styles/merge"
 
@@ -224,23 +225,18 @@ function ConciergePlaceCard({
                 <span {...sx(a.truncate)}>{adding ? "Adding…" : `Add to ${slot}`}</span>
               </button>
               {days.length > 1 ? (
-                <span {...sx(c.dayPick)} title="Choose another day">
-                  <CalendarDays {...sx(c.icon16)} strokeWidth={1.75} aria-hidden />
-                  <select
-                    aria-label={`Day for ${place.name}`}
-                    value={dayId}
-                    disabled={adding}
-                    onChange={(e) => setDayId(e.target.value)}
-                    {...sx(c.dayPickSelect)}
-                  >
-                    {days.map((d, i) => (
-                      <option key={d.id} value={d.id}>
-                        {dayShort(d)}
-                        {d.title?.trim() ? ` · ${d.title.trim()}` : ` · Day ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </span>
+                <Select
+                  label={`Day for ${place.name}`}
+                  value={dayId}
+                  disabled={adding}
+                  options={days.map((d, i) => ({
+                    value: d.id,
+                    label: `${dayShort(d)}${d.title?.trim() ? ` · ${d.title.trim()}` : ` · Day ${i + 1}`}`,
+                  }))}
+                  onChange={setDayId}
+                  trigger={<CalendarDays {...sx(c.icon16)} strokeWidth={1.75} aria-hidden />}
+                  triggerStyle={c.dayPick}
+                />
               ) : null}
             </>
           ) : null}

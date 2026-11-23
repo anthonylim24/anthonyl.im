@@ -7,6 +7,7 @@ import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { errorMessage } from "../../../effect/errors"
 import { a } from "../atlas.stylex"
 import { DialogFrame, Spinner } from "../components/kit"
+import { Select } from "../components/Select"
 import { useClosing } from "../components/presence"
 import { AtlasMap } from "../map/AtlasMap"
 import { centroid, corePoints, distanceMeters, isLocated, type AtlasPin, type LngLat } from "../map/geo"
@@ -643,18 +644,23 @@ export function InstagramSheet({ open: requested, onClose, trip, dayId, initialU
                     )}
 
                     <div {...sx(s.foot)}>
-                      <label htmlFor="ig-target" {...sx(a.small, s.footLabel)}>
+                      <span aria-hidden {...sx(a.small, s.footLabel)}>
                         Add to
-                      </label>
-                      <select id="ig-target" value={target} {...sx(s.daySelect)} onChange={(event) => setTarget(event.target.value)}>
-                        <option value="auto">The nearest day</option>
-                        {trip.days.map((day, index) => (
-                          <option key={day.id} value={day.id}>
-                            Day {index + 1}
-                            {day.title ? ` · ${day.title}` : day.city ? ` · ${day.city}` : ""}
-                          </option>
-                        ))}
-                      </select>
+                      </span>
+                      <Select
+                        label="Add places to"
+                        value={target}
+                        shape="pill"
+                        options={[
+                          { value: "auto", label: "The nearest day" },
+                          ...trip.days.map((day, index) => ({
+                            value: day.id,
+                            label: `Day ${index + 1}${day.title ? ` · ${day.title}` : day.city ? ` · ${day.city}` : ""}`,
+                          })),
+                        ]}
+                        triggerStyle={s.daySelect}
+                        onChange={setTarget}
+                      />
                       <span {...sx(a.grow)} />
                       <button type="button" {...sx(a.btn, a.btnPrimary)} onClick={onClose}>
                         Done

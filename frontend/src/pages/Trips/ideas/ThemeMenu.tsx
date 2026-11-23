@@ -3,8 +3,9 @@ import { Check, ChevronDown } from "lucide-react"
 import { sx } from "@/styles/merge"
 import type { UndoMark } from "../editorMachine"
 import { Menu, type MenuItem } from "../components/kit"
+import { Select } from "../components/Select"
 import { setIdeaTheme } from "../tripEdits"
-import { ITEM_THEMES, type ItemTheme, type ItineraryItem, type Trip } from "../types"
+import type { ItemTheme, ItineraryItem, Trip } from "../types"
 import { ws as s } from "../workspace.stylex"
 import { ideaName } from "./contract"
 import { THEME_ORDER, THEMES, inferredTheme, themeLabel, themeOf } from "./themes"
@@ -51,9 +52,8 @@ export function ThemeTag({ idea }: { idea: ItineraryItem }) {
 }
 
 /**
- * The category as a small menu button: for the wishlist rows. Not for use
- * inside a dialog or popover: the kit menu portals to <body>, outside a
- * dialog's focus trap, and closes the moment it opens there (`ThemeSelect`).
+ * The category as a small menu button: for the wishlist rows. Inside a
+ * dialog or popover use `ThemeSelect`: the kit menu cannot layer over one.
  */
 export function ThemeMenu({ idea, locked, onEdit }: ThemeControlProps) {
   // The kit menu has no disabled state: while an AI run owns the trip, show the category, not a dead control.
@@ -95,34 +95,26 @@ export function ThemeMenu({ idea, locked, onEdit }: ThemeControlProps) {
   )
 }
 
-const AUTOMATIC = "auto"
-
 /**
- * The category as a native select: for inside the details popover or
- * sheet, where a portalled menu cannot live (a phone gets its own picker).
+ * The category as a select: for inside the details popover or sheet, where
+ * the kit Menu cannot layer over a dialog's focus trap.
  */
 export function ThemeSelect({ idea, locked, onEdit }: ThemeControlProps) {
   if (locked) return <ThemeTag idea={idea} />
   const theme = themeOf(idea)
   return (
-    <span {...sx(s.ideaThemeField)}>
-      <span {...sx(s.ideaThemeFieldIcon)}>{createElement(THEMES[theme].icon, ICON)}</span>
-      <select
-        aria-label={controlName(idea)}
-        value={idea.theme ?? AUTOMATIC}
-        {...sx(s.ideaThemeSelect)}
-        onChange={(event) => {
-          const value = event.target.value
-          fileUnder(idea, (ITEM_THEMES as readonly string[]).includes(value) ? (value as ItemTheme) : null, onEdit)
-        }}
-      >
-        <option value={AUTOMATIC}>Automatic ({themeLabel(inferredTheme(idea))})</option>
-        {THEME_ORDER.map((option) => (
-          <option key={option} value={option}>
-            {themeLabel(option)}
-          </option>
-        ))}
-      </select>
-    </span>
+    <Select
+      label={controlName(idea)}
+      value={idea.theme ?? AUTOMATIC}
+      icon={createElement(THEMES[theme].icon, ICON)}
+      options={[
+        { value: AUTOMATIC, label: `Automatic (${themeLabel(inferredTheme(idea))})` },
+        ...THEME_ORDER.map((option) => ({ value: option, label: themeLabel(option) })),
+      ]}
+      triggerStyle={s.ideaThemeSelect}
+      onChange={(value) => fileUnder(idea, value === AUTOMATIC ? null : value, onEdit)}
+    />
   )
 }
+
+const AUTOMATIC = "auto"

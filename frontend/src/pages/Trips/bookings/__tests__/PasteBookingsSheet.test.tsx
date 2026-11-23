@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { makeTrip } from "../../__tests__/tripFixtures"
 import type { ParsedBooking } from "../bookingsApi"
 import { PasteBookingsSheet } from "../PasteBookingsSheet"
+import { pickOption } from "../../__tests__/pickOption"
 
 // Trip days: 2026-07-10 (day-1) and 2026-07-11 (day-2).
 const trip = makeTrip()
@@ -78,7 +79,7 @@ describe("PasteBookingsSheet", () => {
     paste()
     await screen.findByText(/Found 2 bookings\./)
 
-    fireEvent.change(screen.getByLabelText("Day"), { target: { value: "day-2" } })
+    pickOption(screen.getByRole("combobox", { name: "Day" }), /^Day 2 · /)
     const stay = screen.getByRole("checkbox", { name: "Add Hotel in Porto" })
     expect(stay).toBeEnabled()
     expect(stay).not.toBeChecked()

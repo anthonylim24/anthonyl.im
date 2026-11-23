@@ -63,19 +63,7 @@ export const share = stylex.create({
     fontSize: "0.8125rem",
     fontWeight: 700,
   },
-  roleSelect: {
-    minHeight: "2.25rem",
-    paddingInline: "0.5rem",
-    borderRadius: "0.625rem",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--trips-line-strong)",
-    backgroundColor: "var(--trips-raised)",
-    color: "var(--trips-ink)",
-    fontSize: "0.8125rem",
-    cursor: "pointer",
-    [HOVER]: { ":hover": { borderColor: "var(--trips-ink)" } },
-  },
+  roleSelect: { width: "auto", flexShrink: 0 },
 })
 
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
@@ -1465,30 +1453,12 @@ export const ws = stylex.create({
     color: "var(--trips-ink-tertiary)",
   },
   // The details' category: a native select with the category's glyph inside its edge.
-  ideaThemeField: { position: "relative", display: "inline-flex", alignItems: "center", maxWidth: "100%" },
-  ideaThemeFieldIcon: {
-    position: "absolute",
-    insetInlineStart: "0.75rem",
-    display: "grid",
-    color: "var(--trips-ink-tertiary)",
-    pointerEvents: "none",
-  },
   ideaThemeSelect: {
+    width: "auto",
     maxWidth: "100%",
-    minHeight: "2.75rem",
-    paddingInlineStart: "2.125rem",
-    paddingInlineEnd: "0.75rem",
+    paddingInlineStart: "0.75rem",
     borderRadius: "var(--trips-radius-sm)",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--trips-line-strong)",
-    backgroundColor: "var(--trips-raised)",
-    color: "var(--trips-ink)",
     fontSize: "0.875rem",
-    cursor: "pointer",
-    outline: "none",
-    ":focus-visible": { boxShadow: ring },
-    [HOVER]: { ":hover": { borderColor: "var(--trips-ink)" } },
   },
   // Looks like the tag; a hairline pill on hover. The band takes it to 44px,
   // downward only: reaching up, it would take the bottom of the name's clicks.

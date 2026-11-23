@@ -47,6 +47,7 @@ import type { ConflictAlert } from "./stopAlerts"
 import { StopRef } from "../timeline/StopRef"
 import { Parts } from "./Parts"
 import { a } from "../atlas.stylex"
+import { Select } from "../components/Select"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
 import { ItemIcon } from "../ItemIcon"
@@ -503,18 +504,13 @@ export const ItemCard = memo(function ItemCard({
                 {item.kind !== "note" && (
                   <label>
                     <span {...sx(s.miniLabel)}>Status</span>
-                    <select
+                    <Select
+                      label="Status"
                       value={item.status}
                       disabled={locked}
-                      {...sx(a.field)}
-                      onChange={(event) => patch({ status: event.target.value as ItemStatus })}
-                    >
-                      {STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {STATUS_LABEL[status]}
-                        </option>
-                      ))}
-                    </select>
+                      options={STATUSES.map((status) => ({ value: status, label: STATUS_LABEL[status] }))}
+                      onChange={(status) => patch({ status })}
+                    />
                   </label>
                 )}
                 {item.kind !== "note" && (
@@ -523,18 +519,13 @@ export const ItemCard = memo(function ItemCard({
                 {dayOptions.length > 1 && (
                   <label>
                     <span {...sx(s.miniLabel)}>Day</span>
-                    <select
+                    <Select
+                      label="Day"
                       value={dayId}
                       disabled={locked}
-                      {...sx(a.field)}
-                      onChange={(event) => moveTo(event.target.value)}
-                    >
-                      {dayOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={dayOptions.map((option) => ({ value: option.id, label: option.label }))}
+                      onChange={moveTo}
+                    />
                   </label>
                 )}
                 <div {...sx(s.editorActions)}>

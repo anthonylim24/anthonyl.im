@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { makeTrip } from "../../__tests__/tripFixtures"
 import type { ItineraryItem } from "../../types"
 import { BookingFields } from "../../workspace/BookingFields"
+import { pickOption } from "../../__tests__/pickOption"
 
 const trip = makeTrip({ timezone: "America/Los_Angeles", startDate: "2026-12-20", endDate: "2026-12-23", days: [
   { id: "d1", date: "2026-12-20", items: [] },
@@ -33,7 +34,7 @@ describe("BookingFields", () => {
 
   it("sends the whole reservation back with each change, empty fields left out", () => {
     const onChange = renderFields(booking({ type: "flight", status: "confirmed", seat: "14A" }))
-    fireEvent.change(screen.getByLabelText("Booking status"), { target: { value: "pending" } })
+    pickOption(screen.getByRole("combobox", { name: "Booking status" }), "Pending")
     expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "pending", seat: "14A" } })
     fireEvent.change(screen.getByLabelText("Seat"), { target: { value: "" } })
     expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed" } })
@@ -49,8 +50,9 @@ describe("BookingFields", () => {
     renderFields(booking({ type: "hotel", status: "confirmed" }))
     expect(screen.getByLabelText("Check-in")).toBeInTheDocument()
     expect(screen.getByLabelText("Check-out time")).toBeInTheDocument()
-    const out = screen.getByLabelText("Check-out")
-    expect(out).toHaveDisplayValue("Not set")
+    const out = screen.getByRole("combobox", { name: "Check-out" })
+    expect(out).toHaveTextContent("Not set")
+    fireEvent.click(out)
     expect(screen.getByRole("option", { name: "Thu 24 Dec · 4 nights" })).toBeInTheDocument()
     expect(screen.queryByLabelText("Seat")).toBeNull()
   })

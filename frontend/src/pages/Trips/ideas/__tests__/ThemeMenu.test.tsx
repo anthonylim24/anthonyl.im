@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import { Modal } from "../../components/kit"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
 import { announce, prepareAnnouncer } from "../announce"
 import { ThemeSelect, ThemeTag } from "../ThemeMenu"
+import { pickOption } from "../../__tests__/pickOption"
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -26,8 +27,8 @@ describe("ThemeSelect", () => {
       </Modal>,
     )
     const select = screen.getByRole("combobox", { name: "Category for Tram 28: Other (automatic)" })
-    expect(select).toHaveValue("auto")
-    fireEvent.change(select, { target: { value: "shopping" } })
+    expect(select).toHaveTextContent("Automatic (Other)")
+    pickOption(select, "Shopping")
     expect(onEdit).toHaveBeenCalledTimes(1)
     const [fn, mark] = onEdit.mock.calls[0]!
     expect(mark).toEqual({ label: "Filed “Tram 28” under Shopping" })
@@ -39,9 +40,8 @@ describe("ThemeSelect", () => {
     const onEdit = vi.fn()
     render(<ThemeSelect idea={belem} locked={false} onEdit={onEdit} />)
     const select = screen.getByRole("combobox", { name: "Category for Pastéis de Belém: Shopping" })
-    expect(select).toHaveValue("shopping")
-    expect(screen.getByRole("option", { name: "Automatic (Food & cafés)" })).toBeInTheDocument()
-    fireEvent.change(select, { target: { value: "auto" } })
+    expect(select).toHaveTextContent("Shopping")
+    pickOption(select, "Automatic (Food & cafés)")
     const [fn, mark] = onEdit.mock.calls[0]!
     expect(mark).toEqual({ label: "Filed “Pastéis de Belém” automatically" })
     expect(fn(makeTrip({ ideas: [belem] })).ideas[0]).not.toHaveProperty("theme")

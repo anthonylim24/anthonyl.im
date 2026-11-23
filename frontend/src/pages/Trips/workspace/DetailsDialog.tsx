@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from "react"
+import { memo, useEffect, useId, useRef, useState, type KeyboardEvent } from "react"
 import { sx } from "@/styles/merge"
 import { exactCity, placeKey } from "../cityMatch"
 import { validZone } from "../dayClock"
@@ -12,6 +12,8 @@ import { CityField } from "../components/CityField"
 import { composing } from "../ime"
 import { DateRange } from "../components/DateRange"
 import { Modal } from "../components/kit"
+import { Select, type SelectOption } from "../components/Select"
+import { offsetOf, zoneParts } from "../timeZones"
 import { d } from "./details.stylex"
 import {
   applyDetailsPatch,
@@ -40,17 +42,18 @@ const STATUS_COPY: Record<TripStatus, string> = {
 /** A geocoder that has not answered by then counts as "not found": Save must not wait on it for long. */
 const LOOKUP_MS = 4000
 
-const zoneOption = (zone: string) => (
-  <option key={zone} value={zone}>
-    {zone.replace(/_/g, " ")}
-  </option>
-)
+const STATUS_OPTIONS = (Object.keys(STATUS_COPY) as TripStatus[]).map((status) => ({ value: status, label: STATUS_COPY[status] }))
 
-let supportedZones: { known: ReadonlySet<string>; options: ReactElement[] } | null = null
+function zoneOption(zone: string): SelectOption {
+  const { city, region } = zoneParts(zone)
+  return { value: zone, label: region ? `${city} · ${region}` : city, hint: offsetOf(zone), textValue: city }
+}
+
+let supportedZones: { known: ReadonlySet<string>; options: SelectOption[] } | null = null
 
 /**
- * Every zone the runtime knows, as `<option>`s: some 420 of them, so built
- * once, on the first open, and the same elements handed back after that.
+ * Every zone the runtime knows, as options: some 420 of them, each with its
+ * offset, so built once while the page is idle and the same list handed back after that.
  */
 function supportedZoneOptions() {
   if (!supportedZones) {
@@ -62,14 +65,9 @@ function supportedZoneOptions() {
 }
 
 /** The zone select's options: `current` zones the runtime doesn't list first, then every zone it does. */
-function ZoneOptions({ current }: { current: string[] }) {
+function zoneOptions(current: string[]): SelectOption[] {
   const { known, options } = supportedZoneOptions()
-  return (
-    <>
-      {[...new Set(current)].filter((zone) => !known.has(zone)).map(zoneOption)}
-      {options}
-    </>
-  )
+  return [...[...new Set(current)].filter((zone) => !known.has(zone)).map(zoneOption), ...options]
 }
 
 /** The editable fields, as the dialog shows them. */
@@ -488,26 +486,23 @@ function DetailsDialogView({
             />
           </label>
           <div {...sx(s.twoCol)}>
-            <label>
-              <span {...sx(a.label)}>Status</span>
-              <select value={form.status} {...sx(a.field)} onChange={(event) => setForm({ status: event.target.value as TripStatus })}>
-                {(Object.keys(STATUS_COPY) as TripStatus[]).map((status) => (
-                  <option key={status} value={status}>
-                    {STATUS_COPY[status]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span {...sx(a.label)}>Time zone</span>
-              <select
+            <div>
+              <label htmlFor={`${formId}-status`} {...sx(a.label)}>
+                Status
+              </label>
+              <Select id={`${formId}-status`} value={form.status} options={STATUS_OPTIONS} onChange={(status) => setForm({ status })} />
+            </div>
+            <div>
+              <label htmlFor={`${formId}-zone`} {...sx(a.label)}>
+                Time zone
+              </label>
+              <Select
+                id={`${formId}-zone`}
                 value={timezone}
-                {...sx(a.field)}
-                onChange={(event) => setSession((current) => ({ ...current, zonePicked: event.target.value }))}
-              >
-                <ZoneOptions current={[timezone, base.timezone]} />
-              </select>
-            </label>
+                options={open ? zoneOptions([timezone, base.timezone]) : []}
+                onChange={(zone) => setSession((current) => ({ ...current, zonePicked: zone }))}
+              />
+            </div>
           </div>
         </form>
       )}

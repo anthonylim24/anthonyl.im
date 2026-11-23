@@ -4,6 +4,7 @@ import { makeTrip } from "../../__tests__/tripFixtures"
 import { forgetHolidays } from "../../holidays"
 import type { ItineraryItem } from "../../types"
 import { EssentialsPanel } from "../EssentialsPanel"
+import { pickOption } from "../../__tests__/pickOption"
 
 const loadRates = vi.hoisted(() => vi.fn<(base: string, symbols: readonly string[]) => Promise<Record<string, number>>>())
 vi.mock("../../budget/rates", () => ({ loadRates }))
@@ -96,12 +97,12 @@ describe("EssentialsPanel", () => {
     expect(dollars).toHaveValue("18")
     fireEvent.change(dollars, { target: { value: "100" } })
     expect(won).toHaveValue("138,889")
-    expect(korea.getByRole("combobox", { name: "Your currency" })).toHaveValue("USD")
+    expect(korea.getByRole("combobox", { name: "Your currency" })).toHaveTextContent("USD")
     // Picking the won itself keeps the picker, to change back.
-    fireEvent.change(korea.getByRole("combobox", { name: "Your currency" }), { target: { value: "KRW" } })
-    expect(korea.getByRole("combobox", { name: "Your currency" })).toHaveValue("KRW")
+    pickOption(korea.getByRole("combobox", { name: "Your currency" }), /^KRW · /)
+    expect(korea.getByRole("combobox", { name: "Your currency" })).toHaveTextContent("KRW")
     expect(korea.getByText("₩1 ≈ ₩1 at today’s rate")).toBeInTheDocument()
-    fireEvent.change(korea.getByRole("combobox", { name: "Your currency" }), { target: { value: "USD" } })
+    pickOption(korea.getByRole("combobox", { name: "Your currency" }), /^USD · /)
     expect(await korea.findByText("₩10,000 ≈ $7.20 at today’s rate")).toBeInTheDocument()
   })
 

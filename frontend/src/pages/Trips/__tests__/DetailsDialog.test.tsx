@@ -11,6 +11,7 @@ vi.mock("../geocode", () => ({
 
 import { DetailsDialog } from "../workspace/DetailsDialog"
 import type { DetailsPatch } from "../workspace/tripDetails"
+import { pickOption } from "./pickOption"
 
 const tokyo: CityResult = { id: "1850147", name: "Tokyo", country: "Japan", lat: 35.6895, lng: 139.69171, timezone: "Asia/Tokyo" }
 
@@ -108,7 +109,7 @@ describe("DetailsDialog", () => {
     fireEvent.click(await within(matches).findByRole("option", { name: /Tokyo/ }))
 
     expect(dialog.getByRole("status")).toHaveTextContent("Times now follow Tokyo time.")
-    expect(dialog.getByRole("combobox", { name: "Time zone" })).toHaveValue("Asia/Tokyo")
+    expect(dialog.getByRole("combobox", { name: "Time zone" })).toHaveTextContent("Tokyo · Asia")
     fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
     expect(onApply).toHaveBeenCalledWith({
       destinations: ["Tokyo"],
@@ -123,7 +124,7 @@ describe("DetailsDialog", () => {
     fireEvent.click(dialog.getByRole("button", { name: "Remove Lisbon" }))
     await waitFor(() => expect(dialog.getByRole("status")).toHaveTextContent("Times now follow Tokyo time."))
 
-    fireEvent.change(dialog.getByRole("combobox", { name: "Time zone" }), { target: { value: "Asia/Seoul" } })
+    pickOption(dialog.getByRole("combobox", { name: "Time zone" }), /^Seoul · Asia/)
     expect(dialog.getByRole("status")).toHaveTextContent("")
     fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
     expect(onApply).toHaveBeenCalledWith({ destinations: ["Tokyo"], center: { lat: 35.6895, lng: 139.69171 }, timezone: "Asia/Seoul" })
@@ -166,14 +167,16 @@ describe("DetailsDialog", () => {
     const dialog = within(screen.getByRole("dialog", { name: "Trip details" }))
     expect(dialog.getByRole("textbox", { name: "Name" })).toHaveValue("Lisbon and Sintra")
     const zone = dialog.getByRole("combobox", { name: "Time zone" })
-    expect(zone).toHaveValue("Europe/Madrid")
-    expect(within(zone).getAllByRole("option").length).toBeGreaterThan(1)
+    expect(zone).toHaveTextContent("Madrid · Europe")
+    fireEvent.click(zone)
+    expect(screen.getAllByRole("option").length).toBeGreaterThan(1)
   })
 
   it("lists a zone the runtime doesn't know first, then every zone it does", () => {
     const { dialog } = renderDialog({ ...trip, timezone: "Mars/Olympus_Mons" })
-    const options = within(dialog.getByRole("combobox", { name: "Time zone" })).getAllByRole("option")
-    expect(options[0]).toHaveTextContent("Mars/Olympus Mons")
-    expect(options.map((option) => option.getAttribute("value"))).toContain("Europe/Lisbon")
+    fireEvent.click(dialog.getByRole("combobox", { name: "Time zone" }))
+    const options = screen.getAllByRole("option")
+    expect(options[0]).toHaveTextContent("Olympus Mons · Mars")
+    expect(options.some((option) => option.textContent?.startsWith("Lisbon · Europe"))).toBe(true)
   })
 })

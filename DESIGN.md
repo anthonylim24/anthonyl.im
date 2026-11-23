@@ -137,6 +137,7 @@ Vars: `--ta` (text-safe, 4.5:1 on canvas and surface), `--ta-fill` (pins, route,
 - `atlas.stylex.ts`: primitives `a` (type, buttons, fields, chips, pills, menu, dialog). Compose these before writing new styles: `{...sx(a.btn, a.btnPrimary)}`.
 - `index.stylex.ts`: `shell`, `idx`, `cover`, `create`. `workspace.stylex.ts`: `share`, `ws`. `map/map.stylex.ts`, `chat.stylex.ts`.
 - `components/kit.tsx`: `Menu`, and `Modal` (Radix dialog that becomes a bottom sheet on phones). `Modal` re-declares the `.trips` token scope on its portal via `.trips.trips-portal`, so portaled content still resolves `--trips-*` / `--brand-*` / `--ta-*`.
+- `components/Select.tsx`: every pick-one-of-a-list control (`@radix-ui/react-select`); Trips has no native `<select>`. The closed control is a 44 px field (`size="sm"` looks 36 px with a 44 px band; `shape="pill"`; `trigger` for an icon-only picker), the open list a raised sheet on `<body>` with 44 px rows, a muted mono `hint` column and a brand check, the same on phones. It layers over the kit dialogs and sheets. `short` sets what the closed field shows ("USD" for "USD · US dollar"). Tests choose with `pickOption` (`__tests__/pickOption.ts`, `e2e/trips/fixtures.ts`).
 - `meta.ts`: pure date / accent / icon helpers. `useTripEditor.ts`: document state, autosave and AI runs.
 - `index.css` `.trips` block owns tokens, accents, `.atlas-pin*`, MapLibre chrome overrides and the few rules StyleX can't express.
 

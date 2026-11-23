@@ -1,5 +1,5 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
-import { TOKYO, deleteTrip, expect as baseExpect, itemId, note, place, readTrip, seedTrip, test, uniqueName, type Item, type Trip } from './fixtures'
+import { TOKYO, deleteTrip, expect as baseExpect, itemId, note, pickOption, place, readTrip, seedTrip, test, uniqueName, type Item, type Trip } from './fixtures'
 
 // On a loaded machine a page can take several seconds to load or to send its autosave.
 test.describe.configure({ timeout: 120_000 })
@@ -147,7 +147,7 @@ test.describe('editing a stop', () => {
       await ends.press('Enter')
       await expect(ends).toHaveValue('10:15 AM')
       await stop.getByLabel('Notes').fill('Tamagoyaki at the corner stall')
-      await stop.getByLabel('Cost currency').selectOption('USD')
+      await pickOption(stop.getByLabel('Cost currency'), /^USD · /)
       const cost = stop.getByLabel('Cost', { exact: true })
       await cost.fill('12.50')
       await cost.blur()
@@ -175,7 +175,7 @@ test.describe('editing a stop', () => {
       await expect(again.getByLabel('Ends')).toHaveValue('10:15 AM')
       await expect(again.getByLabel('Notes')).toHaveValue('Tamagoyaki at the corner stall')
       await expect(again.getByLabel('Cost', { exact: true })).toHaveValue(/^12\.50?$/)
-      await expect(again.getByLabel('Cost currency')).toHaveValue('USD')
+      await expect(again.getByLabel('Cost currency')).toHaveText('USD')
     } finally {
       await deleteTrip(request, trip.id)
     }
@@ -189,7 +189,7 @@ test.describe('editing a stop', () => {
       await openDay(page, trip)
       const stop = stopOf(page, first.id)
       await headOf(stop, first.title).click()
-      await stop.getByLabel('Status').selectOption({ label: 'Skipped' })
+      await pickOption(stop.getByLabel('Status'), 'Skipped')
 
       const plan = planOf(page, 1)
       await expect(headOf(stop, first.title)).toContainText('Skipped')

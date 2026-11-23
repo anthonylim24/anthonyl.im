@@ -388,31 +388,7 @@ export const ig = stylex.create({
     color: "var(--trips-ink-secondary)",
   },
   undoText: { flex: "1 1 0%", minWidth: 0, overflowWrap: "anywhere" },
-  daySelect: {
-    appearance: "none",
-    minWidth: 0,
-    flexGrow: 1,
-    maxWidth: "15rem",
-    minHeight: "2.75rem",
-    paddingInline: "0.875rem 2rem",
-    borderRadius: "999px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--trips-line-strong)",
-    backgroundColor: "var(--trips-raised)",
-    backgroundImage:
-      "linear-gradient(45deg, transparent 50%, var(--trips-ink-tertiary) 50%), linear-gradient(135deg, var(--trips-ink-tertiary) 50%, transparent 50%)",
-    backgroundPosition: "calc(100% - 1.125rem) 50%, calc(100% - 0.8125rem) 50%",
-    backgroundSize: "5px 5px, 5px 5px",
-    backgroundRepeat: "no-repeat",
-    color: "var(--trips-ink)",
-    fontSize: "0.875rem",
-    fontWeight: 500,
-    textOverflow: "ellipsis",
-    cursor: "pointer",
-    outline: "none",
-    ":focus-visible": { boxShadow: ring },
-  },
+  daySelect: { flexGrow: 1, width: "auto", maxWidth: "15rem", fontSize: "0.875rem", fontWeight: 500 },
 
   // The places, on a map. A strip on phones, the right-hand half on desktop.
   mapStrip: {
