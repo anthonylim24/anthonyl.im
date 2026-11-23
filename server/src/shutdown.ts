@@ -3,8 +3,10 @@
 // has finished (each bounds its own wait). Two workers that each called
 // `process.exit` would cut the other short: the first to finish wins.
 //
-// PM2 sends SIGINT on a restart or deploy and kills the process about 1.6 s
-// later, so a drain must start its important writes at once.
+// systemd sends SIGTERM on a restart or deploy and kills whatever is left
+// 10 s later (TimeoutStopSec in deploy/systemd/anthonyl.im.service), so a
+// drain must start its important writes at once. The server keeps answering
+// requests until the process exits.
 
 type Drain = () => Promise<void>
 

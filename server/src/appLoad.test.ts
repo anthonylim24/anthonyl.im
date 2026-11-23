@@ -5,8 +5,8 @@ import { test, expect } from 'bun:test';
 // symbol wasn't exported, but every existing unit test mocks the
 // dependency chain so the broken import never executed under
 // `bun test`. This test forces Bun to evaluate the full route /
-// worker dependency graph the way production does at PM2 start-up,
-// so a missing/renamed export fails the gate instead of pm2.
+// worker dependency graph the way production does at start-up, so a
+// missing/renamed export fails the gate instead of the deploy.
 
 test('server/app.ts loads without throwing — catches missing-export regressions', async () => {
   // The app reads env at import time; keep the IG worker from booting.

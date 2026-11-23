@@ -1,0 +1,64 @@
+# The anthonyl.im server: Bun + Hono on :3000, behind nginx.
+#
+# Installed by deploy/install-service.sh, which every deploy runs, so a
+# change here ships with the next merge. systemd is already PID 1, so
+# supervising the server here costs no process of its own (PM2's daemon,
+# which this replaces, held about 36 MB of the 1 GB droplet).
+#
+#   journalctl -u anthonyl.im -f      logs
+#   systemctl status anthonyl.im      state, memory, last lines
+#   systemctl restart anthonyl.im     restart (the deploy and watchdog do this)
+
+[Unit]
+Description=anthonyl.im server (Bun)
+Documentation=https://github.com/anthonylim24/anthonyl.im/blob/main/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+# Keep restarting a crash loop rather than giving up after five tries. A
+# release that never answers /health is rolled back by the deploy.
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=root
+# Bun loads .env from the working directory; each deploy copies ~/.env into
+# the release. Not EnvironmentFile=: systemd parses quotes and $ differently,
+# and what it set would win over Bun's reading of the same file.
+WorkingDirectory=/root/anthonyl.im
+ExecStart=/root/.bun/bin/bun run index.ts
+
+# PM2 handed the server the deploy's SSH session environment; a system unit
+# starts from nothing, so name what the server and its tools use. PATH is the
+# one the PM2 process had: yt-dlp and ffmpeg are in /usr/local/bin.
+Environment=NODE_ENV=production
+Environment=HOME=/root
+Environment=LANG=C.UTF-8
+Environment=PATH=/root/.bun/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/usr/games:/usr/local/games:/snap/bin
+LimitNOFILE=65536
+
+# Any exit brings the server back, a clean one too (it exits 0 on SIGTERM).
+Restart=always
+RestartSec=1
+
+# A stop sends SIGTERM to the server and its children (yt-dlp, ffmpeg). The
+# old process keeps serving while server/src/shutdown.ts drains the workers;
+# whatever is left after 10 s is killed.
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+# The ceiling PM2 enforced with --max-memory-restart 700M. It covers the
+# whole unit (server, children, page cache), not the server's RSS alone.
+# Page cache is dropped first; past the limit the kernel kills the largest
+# process. If that is a child, the server keeps running and the import falls
+# back; if it is the server, Restart= starts it again. The swap cap stops a
+# runaway from hiding in swap instead of being killed.
+MemoryMax=700M
+MemorySwapMax=100M
+OOMPolicy=continue
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=anthonyl.im
+
+[Install]
+WantedBy=multi-user.target

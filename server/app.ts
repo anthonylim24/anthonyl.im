@@ -126,7 +126,7 @@ app.route(
 // The sweep picks up retries, runs whose worker died, and (with its first
 // pass, now) the runs this process's restart left behind. On shutdown the
 // runs in progress are handed back so the next process takes them at once
-// without spending an attempt; PM2 kills the process ~1.6 s after SIGINT.
+// without spending an attempt; systemd kills the process 10 s after SIGTERM.
 if (reviewWorker && config.tripsReviewWorkerEnabled) {
   reviewWorker.start(REVIEW_SWEEP_MS);
   onShutdown("trips-review", async () => {
