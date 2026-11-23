@@ -266,6 +266,26 @@ describe("the stop's own menu", () => {
     expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["tram", "lunch", "park", "reel"])
   })
 
+  it("copies a stop to the days ticked, keeping the original where it was", () => {
+    const three = tripOf(days(FUTURE.concat("2099-07-12"), [[lunch], [tram], []]), { endDate: "2099-07-12" })
+    const state = renderDay(three, "day-1")
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: /^More for / }))
+    fireEvent.click(menuItem("Copy to other days…"))
+    const dialog = screen.getByRole("dialog", { name: "Copy “Lunch”" })
+    expect(within(dialog).getByRole("checkbox", { name: /Day 1/ })).toBeDisabled()
+    const confirm = within(dialog).getByRole("button", { name: "Copy" })
+    expect(confirm).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Day 2/ }))
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Day 3/ }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy to 2 days" }))
+    expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["lunch"])
+    const copies = [...itemsOf(state, "day-2"), ...itemsOf(state, "day-3")].filter((i) => i.title === "Lunch")
+    expect(copies).toHaveLength(2)
+    expect(new Set(copies.map((i) => i.id)).size).toBe(2)
+    expect(copies.every((i) => i.id !== "lunch")).toBe(true)
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Copied “Lunch” to 2 days", toast: true })
+  })
+
   it("offers only the move when the trip can't be edited as a whole", () => {
     renderDay(tripOf(days(FUTURE, [[lunch], []])), "day-1", { wholeTrip: false })
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^More for / }))

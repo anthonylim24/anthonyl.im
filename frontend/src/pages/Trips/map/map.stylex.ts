@@ -63,6 +63,8 @@ export const mapStyles = stylex.create({
     vectorEffect: "non-scaling-stroke",
   },
   chartDot: { fill: "var(--ta-fill)", stroke: "var(--trips-raised)", strokeWidth: 1.5 },
+  // Where the traveller sleeps: the map pin's ink-ringed paper tile.
+  chartHotel: { fill: "var(--trips-canvas)", stroke: "var(--trips-ink)", strokeWidth: 1.75 },
   // A wishlist place on the chart: the map pin's hollow disc and heart, as a button.
   chartIdea: {
     color: "var(--trips-wish)",

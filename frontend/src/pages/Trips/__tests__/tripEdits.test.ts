@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   addItem,
   convertNoteToPlace,
+  copyItemToDays,
   dayHasPlaceNamed,
   duplicateItem,
   insertItemAt,
@@ -84,6 +85,50 @@ describe("tripEdits", () => {
     expect(next[0]!.items.length).toBe(3)
     expect(next[0]!.items[1]!.title).toBe("Temple")
     expect(next[0]!.items[1]!.id).not.toBe("a")
+  })
+
+  it("copies a stop to other days with fresh ids, fresh status and its time's place on each day", () => {
+    const days: TripDay[] = [
+      {
+        id: "day-1",
+        date: "2026-07-10",
+        items: [{ id: "a", kind: "place", title: "Coffee", time: "08:30", status: "completed", highlight: true, fromWishlist: true, createdBy: "user" }],
+      },
+      {
+        id: "day-2",
+        date: "2026-07-11",
+        items: [
+          { id: "x", kind: "place", title: "Breakfast", time: "08:00", status: "none", createdBy: "user" },
+          { id: "y", kind: "place", title: "Museum", time: "10:00", status: "none", createdBy: "user" },
+        ],
+      },
+      { id: "day-3", date: "2026-07-12", items: [] },
+    ]
+    const next = copyItemToDays(days, "day-1", "a", ["day-2", "day-3"])
+    expect(next[0]).toBe(days[0])
+    expect(next[1]!.items.map((i) => i.title)).toEqual(["Breakfast", "Coffee", "Museum"])
+    const copies = [next[1]!.items[1]!, next[2]!.items[0]!]
+    for (const copy of copies) {
+      expect(copy.id).not.toBe("a")
+      expect(copy).toMatchObject({ title: "Coffee", time: "08:30", status: "none" })
+      expect(copy.highlight).toBeUndefined()
+      expect(copy.fromWishlist).toBeUndefined()
+    }
+    expect(copies[0]!.id).not.toBe(copies[1]!.id)
+  })
+
+  it("keeps a copied booking's length and changes nothing when there is nowhere to copy", () => {
+    const days: TripDay[] = [
+      {
+        id: "day-1",
+        date: "2026-07-10",
+        items: [{ id: "h", kind: "reservation", title: "Hotel", status: "booked", createdBy: "user", reservation: { type: "hotel", status: "confirmed", endDate: "2026-07-12" } }],
+      },
+      { id: "day-2", date: "2026-07-14", items: [] },
+    ]
+    expect(copyItemToDays(days, "day-1", "h", ["day-2"])[1]!.items[0]!.reservation).toMatchObject({ endDate: "2026-07-16" })
+    expect(copyItemToDays(days, "day-1", "h", ["day-1", "nope"])).toBe(days)
+    expect(copyItemToDays(days, "day-1", "missing", ["day-2"])).toBe(days)
   })
 
   it("converts a note into a place with a seeded location", () => {

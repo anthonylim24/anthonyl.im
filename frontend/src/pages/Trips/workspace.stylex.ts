@@ -1342,6 +1342,9 @@ export const ws = stylex.create({
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)" } },
   },
   pickLabel: { display: "block", fontSize: "0.9375rem", fontWeight: 600 },
+  // Several days at once (copy a stop): the row is the checkbox's label, so the whole row ticks it.
+  pickRowOff: { cursor: "default", color: "var(--trips-ink-tertiary)" },
+  pickBox: { position: "relative", display: "inline-grid", placeItems: "center", flexShrink: 0 },
 
   // ── Day journal ───────────────────────────────────────
   // Paper: a hairline above, a mono eyebrow, then ruled lines to write on.

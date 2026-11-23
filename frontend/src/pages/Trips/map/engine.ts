@@ -116,6 +116,41 @@ function heart(): SVGSVGElement {
   return svg
 }
 
+/** Lucide's hotel, stroked: where the traveller sleeps. */
+const HOTEL = [
+  "M10 22v-6.57",
+  "M12 11h.01",
+  "M12 7h.01",
+  "M14 15.43V22",
+  "M15 16a5 5 0 0 0-6 0",
+  "M16 11h.01",
+  "M16 7h.01",
+  "M8 11h.01",
+  "M8 7h.01",
+  "M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z",
+]
+
+function hotel(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(ns, "svg")
+  svg.setAttribute("viewBox", "0 0 24 24")
+  svg.setAttribute("aria-hidden", "true")
+  for (const d of HOTEL) {
+    const path = document.createElementNS(ns, "path")
+    path.setAttribute("d", d)
+    svg.appendChild(path)
+  }
+  return svg
+}
+
+/** The hotel mark on a lodging stop's corner. Inside the body, so it lifts and scales with the pin. */
+function hotelMark(): HTMLSpanElement {
+  const mark = document.createElement("span")
+  mark.className = "atlas-pin__mark"
+  mark.appendChild(hotel())
+  return mark
+}
+
 function applyPin(el: HTMLButtonElement, pin: AtlasPin) {
   el.className = `atlas-pin atlas-pin--${pin.variant ?? "stop"}${pin.fresh ? " atlas-pin--fresh" : ""}`
   if (pin.accent) el.dataset.tripAccent = pin.accent
@@ -132,7 +167,13 @@ function applyPin(el: HTMLButtonElement, pin: AtlasPin) {
   }
   el.setAttribute("aria-label", pin.title)
   el.dataset.pinId = pin.id
-  body.textContent = pin.variant === "trip" ? pin.title : (pin.label ?? "")
+  if (pin.variant === "hotel") {
+    el.title = pin.title
+    if (!body.firstElementChild) body.replaceChildren(hotel())
+    return
+  }
+  if (pin.variant === "trip") body.textContent = pin.title
+  else body.replaceChildren(pin.label ?? "", ...(pin.lodging ? [hotelMark()] : []))
   if (el.classList.contains("atlas-pin--flip-keep")) el.classList.add("atlas-pin--flip")
 }
 
@@ -458,7 +499,13 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       for (const pin of next) {
         seen.add(pin.id)
         const existing = pins.get(pin.id)
-        if (existing) {
+        // One id can change kind between days (a hotel is a numbered stop on
+        // its check-in day and a hotel pin on the next), and a marker's
+        // anchor is fixed when it is made: a new kind gets a new marker.
+        if (existing && (existing.pin.variant ?? "stop") !== (pin.variant ?? "stop")) {
+          existing.marker.remove()
+          pins.delete(pin.id)
+        } else if (existing) {
           const moved = existing.pin.lat !== pin.lat || existing.pin.lng !== pin.lng
           existing.pin = pin
           applyPin(existing.el, pin)

@@ -158,3 +158,45 @@ describe("the map engine's wishlist pins", () => {
     expect(markers.every((m) => m.removed)).toBe(true)
   })
 })
+
+describe("the map engine's hotel pins", () => {
+  const hotel: AtlasPin = { id: "h1", lat: 38.71, lng: -9.13, title: "Hotel Avenida, where you’re staying", variant: "hotel" }
+
+  it("draws a hotel as a stop-set button with the hotel glyph and no number, and picks it by its id", () => {
+    const { container, handle, onSelect } = setup()
+    handle.setPins([stop("s1", "1", -9.1), hotel])
+    const pin = container.querySelector<HTMLButtonElement>('[data-pin-id="h1"]')!
+    expect(pin.className).toBe("atlas-pin atlas-pin--hotel")
+    expect(pin.getAttribute("aria-label")).toBe("Hotel Avenida, where you’re staying")
+    expect(pin.textContent).toBe("")
+    expect(pin.querySelectorAll("svg path").length).toBeGreaterThan(0)
+    pin.click()
+    expect(onSelect).toHaveBeenCalledWith("h1")
+    handle.setActive("h1")
+    expect(pin.classList.contains("atlas-pin--active")).toBe(true)
+  })
+
+  it("puts the hotel mark on a lodging stop beside its number, and takes it off again", () => {
+    const { container, handle } = setup()
+    handle.setPins([{ ...stop("h1", "2", -9.1), lodging: true }])
+    const pin = container.querySelector<HTMLButtonElement>('[data-pin-id="h1"]')!
+    expect(pin.querySelector(".atlas-pin__body")!.firstChild!.textContent).toBe("2")
+    expect(pin.querySelector(".atlas-pin__mark svg")).not.toBeNull()
+    handle.setPins([stop("h1", "2", -9.1)])
+    expect(container.querySelector('[data-pin-id="h1"]')).toBe(pin)
+    expect(pin.querySelector(".atlas-pin__mark")).toBeNull()
+    expect(pin.textContent).toBe("2")
+  })
+
+  it("gives a pin a new marker when its kind changes (the check-in stop becomes the next day's hotel)", () => {
+    const { container, handle } = setup()
+    handle.setPins([{ ...stop("h1", "2", -9.1), lodging: true }])
+    const asStop = container.querySelector('[data-pin-id="h1"]')
+    handle.setPins([hotel])
+    const asHotel = container.querySelector('[data-pin-id="h1"]')
+    expect(asHotel).not.toBe(asStop)
+    expect(asStop!.isConnected).toBe(false)
+    expect(asHotel!.className).toBe("atlas-pin atlas-pin--hotel")
+    expect(container.querySelectorAll('[data-pin-id="h1"]')).toHaveLength(1)
+  })
+})

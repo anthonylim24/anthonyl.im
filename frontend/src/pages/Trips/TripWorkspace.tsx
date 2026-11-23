@@ -34,6 +34,7 @@ import { addBookings, type BookingEntry } from "./bookings/addBookings"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { isChunkLoadError, lazyRetry } from "@/lib/lazyRetry"
 import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
+import { dayStays, framedStays, STAY_LEAD, withStays } from "./map/stayPins"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, searchCenter, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, ideaPins, isLocated, locatedItems, splitDay, tripDots, tripPins, type LngLat } from "./map/geo"
@@ -429,6 +430,11 @@ function Workspace() {
   const near = useMemo<LngLat | null>(() => (nearLat === null || nearLng === null ? null : { lat: nearLat, lng: nearLng }), [nearLat, nearLng])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
+  // Where the traveller wakes up and sleeps, drawn on the day map as its
+  // reference point. Never in `pins`: a hotel is not counted, numbered or toured.
+  const stays = useMemo(() => (trip && day ? dayStays(trip, dayIndex) : []), [trip, day, dayIndex])
+  const mapPins = useMemo(() => (day ? withStays(day, stays, pins) : pins), [day, stays, pins])
+  const hotelPins = useMemo(() => mapPins.filter((pin) => pin.variant === "hotel"), [mapPins])
   // The map chip counts stops as the day header does: "9 stops", or "7 of 9 stops" while some have no pin.
   const dayStops = day ? splitDay(day).planned.filter((item) => item.kind !== "section" && item.kind !== "note").length : 0
   const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
@@ -438,15 +444,27 @@ function Workspace() {
   // near the day). Never in `pins`: they must not frame, count or tour.
   const ideas = trip?.ideas
   const wishPins = useMemo(() => ideaPins({ ideas }), [ideas])
-  const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
+  const focusPin = focusId ? mapPins.find((p) => p.id === focusId) : undefined
   const cardCovers = !wide && focusPin !== undefined && cardInset > MAP_PADDING_NARROW.bottom
   const mapPadding = wide ? MAP_PADDING : cardCovers ? { ...MAP_PADDING_NARROW, bottom: cardInset } : MAP_PADDING_NARROW
-  const frameKey = `${day?.id ?? "all"}|${pins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}|${cardCovers ? cardInset : ""}`
+  const frameKey = `${day?.id ?? "all"}|${mapPins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}|${cardCovers ? cardInset : ""}`
+  // The day's stops, plus its hotel when it is near them (a day trip's far-off base is drawn, not framed).
+  const framePoints = useMemo(
+    () =>
+      day
+        ? [...(fresh.size > 0 ? pins : corePoints(pins)), ...framedStays(hotelPins, dayRoute(day))]
+        : [...pins, ...corePoints(dots)],
+    [day, fresh, pins, hotelPins, dots],
+  )
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
   const activeDay = trip && activeDayIndex >= 0 ? trip.days[activeDayIndex] : undefined
   const activeItem = activeDay?.items.find((it) => it.id === activeId)
   const active = activeDay && activeItem ? { item: activeItem, day: activeDay, dayNumber: activeDayIndex + 1 } : null
+  // A hotel picked on a later day of its stay: booked on another day, so the
+  // card opens that day rather than editing here.
+  const activeElsewhere = active !== null && (!day || active.day.id !== day.id)
+  const activeStay = active && hotelPins.some((pin) => pin.id === active.item.id) ? stays.find((stay) => stay.item.id === active.item.id) : undefined
 
   // Touring: step through the day's pinned stops from the place card.
   const tour = useMemo(() => {
@@ -1099,10 +1117,10 @@ function Workspace() {
         <div {...sx(s.mapPane, "trips-glass-map")} hidden={!showMap}>
           <HotMap
             hot={hot}
-            pins={pins}
+            pins={mapPins}
             routes={routes}
             frameKey={frameKey}
-            framePoints={focusPin ? [focusPin] : day ? (fresh.size > 0 ? pins : corePoints(pins)) : [...pins, ...corePoints(dots)]}
+            framePoints={focusPin ? [focusPin] : framePoints}
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
@@ -1122,7 +1140,7 @@ function Workspace() {
             onSelectIdea={(ideaId) => ideaNav.open(ideaId, "map")}
             label={
               day
-                ? `Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`
+                ? [`Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`, ...hotelPins.map((pin) => pin.title)].join(". ")
                 : `Map of the whole trip with ${plural(pins.length, "pinned place")}`
             }
           >
@@ -1150,7 +1168,11 @@ function Workspace() {
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
                     <p {...sx(a.eyebrow)}>
                       <PlaceEyebrow
-                        lead={[tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`, active.item.time ? formatClock(active.item.time) : null]}
+                        lead={
+                          activeStay
+                            ? [STAY_LEAD[activeStay.role]]
+                            : [tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`, active.item.time ? formatClock(active.item.time) : null]
+                        }
                         category={active.item.location?.category ? titleCase(active.item.location.category) : null}
                       />
                     </p>
@@ -1181,12 +1203,12 @@ function Workspace() {
                       Directions
                     </a>
                   )}
-                  {!day && (
+                  {activeElsewhere && (
                     <Link to={`${basePath}/day/${active.day.id}#item-${active.item.id}`} {...sx(a.btn, a.btnSecondary, a.btnSm)}>
                       Open day {active.dayNumber}
                     </Link>
                   )}
-                  {day && editable && (
+                  {!activeElsewhere && editable && (
                     <button
                       type="button"
                       {...sx(a.btn, a.btnSecondary, a.btnSm)}
