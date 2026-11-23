@@ -4,13 +4,13 @@ name: Build & Deploy
 #
 # Invariants (do not break):
 #   - Frontend is built on the GH runner (never on the 1 GB droplet).
-#   - Dist is SCP'd into place; PM2 only restarts after dist/index.html exists.
-#   - Post-deploy smoke hits live HTTPS routes; PM2 "online" alone is not enough.
+#   - Dist is SCP'd into place; the server only restarts after dist/index.html exists.
+#   - Post-deploy smoke hits live HTTPS routes; systemd "active" alone is not enough.
 #   - Backend install uses --frozen-lockfile so a drifted lock cannot ship.
 #
 # Deploy strategy: prepare ~/anthonyl.im.next, then atomic swap into
-# ~/anthonyl.im before PM2 restart. Avoids the old rm -rf + clone window
-# where the live path briefly disappeared.
+# ~/anthonyl.im before restarting the anthonyl.im systemd unit. Avoids the
+# old rm -rf + clone window where the live path briefly disappeared.
 
 on:
   push:
@@ -139,7 +139,7 @@ jobs:
 
             # Run the same Bun the tests ran on (.bun-version). The installer
             # swaps the binary by rename, so the live process is unaffected
-            # until the PM2 restart below.
+            # until the restart below.
             WANT_BUN="$(tr -d '[:space:]' < "$NEXT/.bun-version")"
             HAVE_BUN="$("$HOME/.bun/bin/bun" --version 2>/dev/null || echo none)"
             if [ "$HAVE_BUN" != "$WANT_BUN" ]; then
@@ -208,7 +208,7 @@ jobs:
           source: "frontend/dist"
           target: "anthonyl.im.next"
 
-      - name: Atomic swap + PM2 restart
+      - name: Atomic swap + restart
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -231,10 +231,6 @@ jobs:
             fi
             echo "dist verified: $(ls "$NEXT/frontend/dist/" | wc -l) entries"
 
-            if ! command -v pm2 >/dev/null 2>&1; then
-              bun add -g pm2
-            fi
-
             echo "[deploy] PATH=$PATH"
             echo "[deploy] yt-dlp: $(command -v yt-dlp >/dev/null && which yt-dlp || echo MISSING)"
             echo "[deploy] ffmpeg: $(command -v ffmpeg >/dev/null && which ffmpeg || echo MISSING)"
@@ -251,37 +247,36 @@ jobs:
             fi
 
             # Atomic swap: live → prev, next → live. Downtime is only the
-            # PM2 restart window, not a missing directory during clone.
+            # restart window, not a missing directory during clone.
             rm -rf "$PREV"
             if [ -d "$LIVE" ]; then
               mv "$LIVE" "$PREV"
             fi
             mv "$NEXT" "$LIVE"
 
-            # --update-env so PM2 captures the explicit PATH we just set
-            # rather than the daemon's stale environment from a previous
-            # deploy (which may not have included /usr/local/bin).
-            # --max-memory-restart: the app idles near 70 MB; a runaway
-            # process is restarted before it can push the 1 GB droplet into
-            # swap or the OOM killer.
-            # NODE_ENV=production turns off the local-dev bearer bridge
-            # (server/src/config.ts) and is what /health reports. PM2 stores
-            # it with the process, so the watchdog's `pm2 restart` and a
-            # `pm2 resurrect` after reboot keep it. The rollback path below
-            # goes through this function too.
+            # The server runs as the anthonyl.im systemd unit
+            # (deploy/systemd/anthonyl.im.service: NODE_ENV=production, the
+            # PATH yt-dlp and ffmpeg need, the 700M memory ceiling, logs in
+            # journald). install-service.sh installs that unit and the
+            # watchdog from the release being started, and the first time,
+            # hands the server over from PM2. The rollback path below goes
+            # through this function too, so a unit change rolls back with
+            # the release that brought it.
             start_app() {
-              pm2 delete anthonyl.im 2>/dev/null || true
-              cd "$LIVE"
-              NODE_ENV=production pm2 start bun --name anthonyl.im --update-env \
-                --max-memory-restart 700M -- run index.ts
+              if [ -f "$LIVE/deploy/install-service.sh" ]; then
+                bash "$LIVE/deploy/install-service.sh"
+              fi
+              systemctl restart anthonyl.im.service
             }
             # Healthy means the new process answers /health, not just that
-            # PM2 calls it online. Usually true within a second.
+            # systemd calls the unit active. Usually true within a second.
+            # The restart waits for the old process to exit, so nothing else
+            # can answer on :3000 here.
             wait_healthy() {
               for _ in $(seq 1 40); do
                 if curl -fsS --max-time 2 http://127.0.0.1:3000/health 2>/dev/null \
                     | grep -q '"status":"ok"' \
-                  && pm2 show anthonyl.im | grep -q "status.*online"; then
+                  && systemctl is-active --quiet anthonyl.im.service; then
                   return 0
                 fi
                 sleep 0.5
@@ -289,29 +284,32 @@ jobs:
               return 1
             }
 
-            start_app
-            if wait_healthy; then
-              pm2 logs anthonyl.im --lines 15 --nostream
+            # A failed `systemctl restart` (bun missing, say) takes the
+            # rollback path too instead of stopping the script under set -e.
+            if start_app && wait_healthy; then
+              journalctl -u anthonyl.im.service -n 15 --no-pager -o cat
               echo ""
               echo 'Deployment successful to Digital Ocean'
               rm -rf "$PREV"
-              # Persist the process list so a reboot resurrects this release.
-              pm2 save >/dev/null
             else
               echo "ERROR: /health did not come up — attempting rollback to prev"
-              pm2 logs anthonyl.im --lines 40 --nostream || true
-              pm2 show anthonyl.im || true
+              journalctl -u anthonyl.im.service -n 40 --no-pager -o cat || true
+              systemctl status anthonyl.im.service --no-pager || true
               if [ -d "$PREV" ]; then
                 rm -rf "$LIVE"
                 mv "$PREV" "$LIVE"
-                start_app
-                echo "[deploy] rolled back to previous release"
+                if start_app && wait_healthy; then
+                  echo "[deploy] rolled back to previous release"
+                else
+                  echo "ERROR: the previous release did not come up either"
+                  journalctl -u anthonyl.im.service -n 20 --no-pager -o cat || true
+                fi
               fi
               exit 1
             fi
 
-      # Post-deploy smoke. Last line of defense: PM2 "online" can lie if the
-      # app crashes on first request. Probe health JSON + SPA shells.
+      # Post-deploy smoke. Last line of defense: systemd "active" can lie if
+      # the app crashes on first request. Probe health JSON + SPA shells.
       - name: Post-deploy smoke (live URL healthy + SPA shell)
         run: |
           set -euo pipefail

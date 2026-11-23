@@ -5,7 +5,7 @@ import { secretsEqual } from "./agentTasks";
 
 // Request ids, a one-line access log, in-memory counters, deep health checks
 // and the browser error beacon. Everything here is process-local: a restart
-// resets it, which is fine for a single PM2 process.
+// resets it, which is fine for a single server process.
 
 const LATENCY_SAMPLES = 200;
 const startedAt = Date.now();
