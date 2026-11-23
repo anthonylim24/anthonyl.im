@@ -18,6 +18,8 @@ export interface WorkerDeps {
 
 export interface WorkerLoop {
   tick(): Promise<void>;
+  kick(): void;
+  start(sweepMs: number): void;
   stop(): void;
   inflight(): number;
 }
@@ -33,10 +35,11 @@ export function createWorkerLoop(deps: WorkerDeps): WorkerLoop {
   const slots = new Set<Promise<unknown>>();
   const staleSec = deps.staleThresholdSec ?? DEFAULT_STALE_SEC;
   const timeoutMs = deps.processTimeoutMs ?? processTimeoutFor(staleSec);
-  let stopped = false;
-  // The poll timer fires whether or not the last tick finished; a slow
-  // claim must not let two ticks fill the same free slots twice.
+  let state: 'idle' | 'running' | 'stopped' = 'idle';
+  const stopped = () => state === 'stopped';
+  let sweep: ReturnType<typeof setInterval> | undefined;
   let ticking = false;
+  let tickAgain = false;
 
   function run(job: IgJob): Promise<void> {
     const ctrl = new AbortController();
@@ -53,24 +56,50 @@ export function createWorkerLoop(deps: WorkerDeps): WorkerLoop {
       .finally(() => clearTimeout(timer));
   }
 
-  return {
-    async tick() {
-      if (stopped || ticking) return;
-      ticking = true;
-      try {
+  async function tick() {
+    if (stopped()) return;
+    if (ticking) {
+      tickAgain = true;
+      return;
+    }
+    ticking = true;
+    try {
+      do {
+        tickAgain = false;
         await deps.reapStale(staleSec).catch(err =>
           console.warn('[ig-worker] reap error', err));
-        while (!stopped && slots.size < deps.concurrency) {
+        while (!stopped() && slots.size < deps.concurrency) {
           const job = await deps.claim(deps.workerId).catch(() => null);
           if (!job) break;
-          const p: Promise<void> = run(job).finally(() => { slots.delete(p); });
+          const p: Promise<void> = run(job).finally(() => {
+            slots.delete(p);
+            kick();
+          });
           slots.add(p);
         }
-      } finally {
-        ticking = false;
-      }
+      } while (tickAgain && !stopped());
+    } finally {
+      ticking = false;
+    }
+  }
+
+  function kick() {
+    if (state === 'running') void tick();
+  }
+
+  return {
+    tick,
+    kick,
+    start(sweepMs) {
+      if (state !== 'idle') return;
+      state = 'running';
+      sweep = setInterval(() => void tick(), sweepMs);
+      void tick();
     },
-    stop() { stopped = true; },
+    stop() {
+      state = 'stopped';
+      clearInterval(sweep);
+    },
     inflight() { return slots.size; },
   };
 }

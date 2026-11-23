@@ -10,6 +10,11 @@ const DROPPED_RESPONSE_HEADERS = ["content-encoding", "content-length", "transfe
 
 const RETRY_PAUSE_MS = 150;
 
+function storedOn(host: string, cookie: string): boolean {
+  const domain = /;\s*domain=\.?([^;]+)/i.exec(cookie)?.[1].trim().toLowerCase();
+  return !domain || host === domain || host.endsWith(`.${domain}`);
+}
+
 export interface ClerkProxyDeps {
   secretKey: string;
   proxyUrl: string;
@@ -30,6 +35,7 @@ export function clerkProxyHeaders(base: Headers, { secretKey, proxyUrl }: Pick<C
 // Serves Clerk's Frontend API from our own origin, so sign-in works on
 // networks that block the clerk.<domain> subdomain.
 export function createClerkProxy({ secretKey, proxyUrl, fetch: doFetch = fetch, timeoutMs = 10_000 }: ClerkProxyDeps) {
+  const siteHost = new URL(proxyUrl).hostname.toLowerCase();
   return async (c: Context) => {
     const url = new URL(c.req.url);
     const target = `${CLERK_FRONTEND_API}${url.pathname.slice(CLERK_PROXY_PATH.length) || "/"}${url.search}`;
@@ -74,6 +80,13 @@ export function createClerkProxy({ secretKey, proxyUrl, fetch: doFetch = fetch, 
 
     const responseHeaders = new Headers(upstream.headers);
     for (const name of DROPPED_RESPONSE_HEADERS) responseHeaders.delete(name);
+    // Clerk's Cloudflare sets __cf_bm and _cfuvid for its own domains, pinned
+    // clerk-js included. Browsers here reject them, and Cloudflare will not
+    // cache a response that sets a cookie.
+    responseHeaders.delete("set-cookie");
+    for (const cookie of upstream.headers.getSetCookie()) {
+      if (storedOn(siteHost, cookie)) responseHeaders.append("set-cookie", cookie);
+    }
     return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
   };
 }
