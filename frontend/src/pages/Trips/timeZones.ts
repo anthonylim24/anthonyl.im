@@ -1,13 +1,19 @@
 import { foldText } from "./command/commands"
+import { validZone } from "./dayClock"
 
 // Every IANA time zone the browser knows, for a place the map could not find.
 
 /** Shown at once; typing narrows the rest. */
 export const ZONE_LIMIT = 40
 
+let every: string[] | null = null
+
 export function allZones(): string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] }
-  return intl.supportedValuesOf?.("timeZone") ?? ["UTC"]
+  if (!every) {
+    const intl = Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] }
+    every = intl.supportedValuesOf?.("timeZone") ?? ["UTC"]
+  }
+  return every
 }
 
 /** "America/Argentina/Buenos_Aires" → { city: "Buenos Aires", region: "America · Argentina" }. */
@@ -47,4 +53,19 @@ export function matchZones(zones: readonly string[], query: string): string[] {
     else if (foldText(zone.replace(/[_/]/g, " ")).includes(q)) contains.push(zone)
   }
   return [...starts, ...contains]
+}
+
+const cityOf = (zone: string) => zone.split("/").pop()!.replace(/_/g, " ").toLowerCase()
+
+/**
+ * What a typed zone means: an IANA name in any case ("asia/tokyo"), or a
+ * city that names exactly one zone ("Tokyo", "new york"). Null otherwise.
+ */
+export function resolveZone(text: string, zones: readonly string[]): string | null {
+  const typed = text.trim().toLowerCase()
+  if (!typed) return null
+  const exact = zones.find((zone) => zone.toLowerCase() === typed)
+  if (exact) return validZone(exact) ?? null
+  const byCity = zones.filter((zone) => cityOf(zone) === typed.replace(/_/g, " "))
+  return byCity.length === 1 ? (validZone(byCity[0]) ?? null) : null
 }

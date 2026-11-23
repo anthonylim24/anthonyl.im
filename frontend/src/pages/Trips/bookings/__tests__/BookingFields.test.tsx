@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { makeTrip } from "../../__tests__/tripFixtures"
 import type { ItineraryItem } from "../../types"
 import { BookingFields } from "../../workspace/BookingFields"
@@ -30,6 +30,44 @@ describe("BookingFields", () => {
     }
     // The trip's own zones are a tap away.
     expect(screen.getByRole("button", { name: /Honolulu/ })).toBeInTheDocument()
+  })
+
+  it("finds an arrival zone from a few letters, the trip's own zones listed first", () => {
+    const onChange = renderFields(booking({ type: "flight", status: "confirmed" }))
+    const zone = screen.getByRole("combobox", { name: "Arrival time zone" })
+    fireEvent.focus(zone)
+    const first = within(screen.getByRole("listbox", { name: "Time zones" })).getAllByRole("option")
+    expect(first[0]).toHaveTextContent(/^Los Angeles/)
+    expect(first[1]).toHaveTextContent(/^Honolulu/)
+
+    fireEvent.change(zone, { target: { value: "lisb" } })
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: /^Lisbon/ }))
+    expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed", endTimezone: "Europe/Lisbon" } })
+  })
+
+  it("reads a typed city as its zone once the field is left", () => {
+    const onChange = renderFields(booking({ type: "flight", status: "confirmed" }))
+    const zone = screen.getByRole("combobox", { name: "Arrival time zone" })
+    fireEvent.focus(zone)
+    fireEvent.change(zone, { target: { value: "Tokyo" } })
+    fireEvent.blur(zone)
+    expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed", endTimezone: "Asia/Tokyo" } })
+  })
+
+  it("says when typed text names no zone, and clears the zone when the field is emptied", () => {
+    const onChange = renderFields(booking({ type: "flight", status: "confirmed", endTimezone: "Pacific/Honolulu" }))
+    const zone = screen.getByRole("combobox", { name: "Arrival time zone" })
+    expect(zone).toHaveValue("Honolulu · Pacific")
+    fireEvent.focus(zone)
+    fireEvent.change(zone, { target: { value: "Osaka" } })
+    fireEvent.blur(zone)
+    expect(screen.getByRole("alert")).toHaveTextContent("No zone named “Osaka”.")
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.change(zone, { target: { value: "" } })
+    fireEvent.blur(zone)
+    expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed" } })
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 
   it("sends the whole reservation back with each change, empty fields left out", () => {

@@ -12,8 +12,8 @@ import { CityField } from "../components/CityField"
 import { composing } from "../ime"
 import { DateRange } from "../components/DateRange"
 import { Modal } from "../components/kit"
-import { Select, type SelectOption } from "../components/Select"
-import { offsetOf, zoneParts } from "../timeZones"
+import { Select } from "../components/Select"
+import { TimeZoneField } from "../components/TimeZoneField"
 import { d } from "./details.stylex"
 import {
   applyDetailsPatch,
@@ -32,43 +32,18 @@ import {
 // reshuffles the days, and Save sends only what was changed here
 // (`DetailsPatch`), laid onto the trip as it is by then.
 
-const STATUS_COPY: Record<TripStatus, string> = {
-  draft: "Draft — still planning",
-  active: "Confirmed — it’s happening",
-  completed: "Completed",
-  archived: "Archived",
+/** The list's words, and the closed field's. */
+const STATUS_COPY: Record<TripStatus, { label: string; short: string }> = {
+  draft: { label: "Draft — still planning", short: "Draft" },
+  active: { label: "Confirmed — it’s happening", short: "Confirmed" },
+  completed: { label: "Completed", short: "Completed" },
+  archived: { label: "Archived", short: "Archived" },
 }
 
 /** A geocoder that has not answered by then counts as "not found": Save must not wait on it for long. */
 const LOOKUP_MS = 4000
 
-const STATUS_OPTIONS = (Object.keys(STATUS_COPY) as TripStatus[]).map((status) => ({ value: status, label: STATUS_COPY[status] }))
-
-function zoneOption(zone: string): SelectOption {
-  const { city, region } = zoneParts(zone)
-  return { value: zone, label: region ? `${city} · ${region}` : city, hint: offsetOf(zone), textValue: city }
-}
-
-let supportedZones: { known: ReadonlySet<string>; options: SelectOption[] } | null = null
-
-/**
- * Every zone the runtime knows, as options: some 420 of them, each with its
- * offset, so built once while the page is idle and the same list handed back after that.
- */
-function supportedZoneOptions() {
-  if (!supportedZones) {
-    const intl = Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] }
-    const zones = intl.supportedValuesOf?.("timeZone") ?? []
-    supportedZones = { known: new Set(zones), options: zones.map(zoneOption) }
-  }
-  return supportedZones
-}
-
-/** The zone select's options: `current` zones the runtime doesn't list first, then every zone it does. */
-function zoneOptions(current: string[]): SelectOption[] {
-  const { known, options } = supportedZoneOptions()
-  return [...[...new Set(current)].filter((zone) => !known.has(zone)).map(zoneOption), ...options]
-}
+const STATUS_OPTIONS = (Object.keys(STATUS_COPY) as TripStatus[]).map((status) => ({ value: status, ...STATUS_COPY[status] }))
 
 /** The editable fields, as the dialog shows them. */
 interface Form {
@@ -85,7 +60,7 @@ interface Session {
   /** The trip's fields as the dialog opened: "changed" means different from these. */
   base: Form & { timezone: string }
   form: Form
-  /** A zone picked in the select; it wins over the one the first destination brings. */
+  /** A zone picked by hand; it wins over the one the first destination brings. */
   zonePicked: string | null
   /** The traveller's answer to "what happens to my plans"; null until they give one. */
   plan: DatePlan | null
@@ -187,17 +162,6 @@ function DetailsDialogView({
   const [session, setSession] = useState(() => startSession(trip))
   const formId = useId()
 
-  // The zone list is built while the page is idle, not in the click that opens the dialog.
-  useEffect(() => {
-    if (supportedZones) return
-    if (typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(() => supportedZoneOptions(), { timeout: 5000 })
-      return () => window.cancelIdleCallback(id)
-    }
-    const timer = setTimeout(supportedZoneOptions, 2000)
-    return () => clearTimeout(timer)
-  }, [])
-
   // Re-seed only when the dialog opens; live saves must not clobber typing.
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
@@ -242,7 +206,6 @@ function DetailsDialogView({
   // ── When: new dates, and what happens to the plans on them ──
   const badRange = form.endDate < form.startDate
   const tooLong = !badRange && dayCount(form.startDate, form.endDate) > LIMITS.days
-  const nextCount = badRange ? trip.days.length : dayCount(form.startDate, form.endDate)
   const datesChanged = form.startDate !== base.startDate || form.endDate !== base.endDate
   const datesValid = !badRange && !tooLong
   const choosing = datesChanged && datesValid && needsPlanChoice(trip.days, form.startDate, form.endDate)
@@ -383,16 +346,15 @@ function DetailsDialogView({
               invalid={tooLong}
               onChange={(startDate, endDate) => setForm({ startDate, endDate })}
             />
-            {badRange ? (
+            {badRange && (
               <p {...sx(a.errorText)} role="alert">
                 The last day is before the first. Pick a later date.
               </p>
-            ) : tooLong ? (
+            )}
+            {tooLong && (
               <p {...sx(a.errorText)} role="alert">
                 Trips can run up to {LIMITS.days} days. Shorten the range, or split it into two trips.
               </p>
-            ) : (
-              <p {...sx(a.hint)}>{plural(nextCount, "day")}.</p>
             )}
             {choosing && (
               <Choices
@@ -485,7 +447,7 @@ function DetailsDialogView({
               onChange={(event) => setForm({ description: event.target.value })}
             />
           </label>
-          <div {...sx(s.twoCol)}>
+          <div {...sx(d.pair)}>
             <div>
               <label htmlFor={`${formId}-status`} {...sx(a.label)}>
                 Status
@@ -496,10 +458,10 @@ function DetailsDialogView({
               <label htmlFor={`${formId}-zone`} {...sx(a.label)}>
                 Time zone
               </label>
-              <Select
+              <TimeZoneField
                 id={`${formId}-zone`}
                 value={timezone}
-                options={open ? zoneOptions([timezone, base.timezone]) : []}
+                suggested={cityZone ? [cityZone, base.timezone] : [base.timezone]}
                 onChange={(zone) => setSession((current) => ({ ...current, zonePicked: zone }))}
               />
             </div>

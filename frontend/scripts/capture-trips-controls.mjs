@@ -163,6 +163,17 @@ function steps(trip) {
         await p.getByRole("dialog").locator("select, [role=combobox]").last().scrollIntoViewIfNeeded()
       },
     },
+    {
+      name: "details-zone",
+      at: T,
+      run: async (p) => {
+        await menu(p, "More trip options")
+        await item(p, "Trip details")
+        const zone = p.getByRole("dialog").getByRole("combobox", { name: "Time zone" })
+        await zone.scrollIntoViewIfNeeded()
+        await zone.fill("to")
+      },
+    },
     { name: "share", at: T, run: (p) => p.getByRole("button", { name: "Share", exact: true }).first().click() },
     {
       name: "recap",

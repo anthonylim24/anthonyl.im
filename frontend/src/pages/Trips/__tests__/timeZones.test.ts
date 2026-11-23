@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { matchZones, zoneParts } from "../timeZones"
+import { matchZones, resolveZone, zoneParts } from "../timeZones"
 
 const zones = ["America/Argentina/Buenos_Aires", "America/New_York", "Asia/Seoul", "Asia/Tokyo", "Europe/Lisbon"]
 
@@ -24,5 +24,19 @@ describe("matchZones", () => {
 
   it("returns every zone for an empty query", () => {
     expect(matchZones(zones, "  ")).toEqual(zones)
+  })
+})
+
+describe("resolveZone", () => {
+  it("reads a zone by its name in any case, or by a city that names one", () => {
+    expect(resolveZone("asia/tokyo", zones)).toBe("Asia/Tokyo")
+    expect(resolveZone("new york", zones)).toBe("America/New_York")
+    expect(resolveZone("buenos_aires", zones)).toBe("America/Argentina/Buenos_Aires")
+  })
+
+  it("names nothing for a city without its own zone, a partial name or nothing", () => {
+    expect(resolveZone("Osaka", zones)).toBeNull()
+    expect(resolveZone("tok", zones)).toBeNull()
+    expect(resolveZone("  ", zones)).toBeNull()
   })
 })
