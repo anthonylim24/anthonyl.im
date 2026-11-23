@@ -40,8 +40,14 @@ describe("diagnose", () => {
     await expect(runPromise(diagnose(PROXY))).resolves.toBe("auth")
   })
 
-  it("blames the site when our own origin does not answer", async () => {
+  it("blames the network when a request to our own origin gets no answer", async () => {
     const fetchMock = stubFetch({ health: new TypeError("Failed to fetch") })
+    await expect(runPromise(diagnose(PROXY))).resolves.toBe("network")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("blames the site when our own origin answers with a 5xx", async () => {
+    const fetchMock = stubFetch({ health: 502 })
     await expect(runPromise(diagnose(PROXY))).resolves.toBe("site")
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -118,7 +124,7 @@ describe("useAuthStall", () => {
     const { result } = renderHook(() => useAuthStall(false, false))
     expect(result.current.stalled).toBe(false)
     await act(() => vi.advanceTimersByTimeAsync(STALL_AFTER_MS + 50))
-    expect(result.current).toEqual({ stalled: true, cause: "site" })
+    expect(result.current).toEqual({ stalled: true, cause: "network" })
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/telemetry"))).toBe(true)
   })
 
@@ -126,7 +132,7 @@ describe("useAuthStall", () => {
     stubFetch({ health: new TypeError("Failed to fetch") })
     const { result } = renderHook(() => useAuthStall(false, true))
     await act(() => vi.advanceTimersByTimeAsync(50))
-    expect(result.current.cause).toBe("site")
+    expect(result.current.cause).toBe("network")
   })
 
   it("reloads once when everything answers again", async () => {
