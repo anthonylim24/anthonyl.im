@@ -218,6 +218,29 @@ describe("DetailsDialog", () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it("shuts the place suggestions on Escape and leaves the dialog open", async () => {
+    mockSearchCities.mockResolvedValue([tokyo])
+    const { onClose, dialog } = renderDialog()
+    const where = dialog.getByRole("combobox", { name: "Where" })
+    fireEvent.change(where, { target: { value: "Tok" } })
+    await dialog.findByRole("option", { name: /Tokyo/ })
+
+    fireEvent.keyDown(where, { key: "Escape" })
+    expect(dialog.queryByRole("listbox", { name: "Matching places" })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("shuts the calendar on Escape and leaves the dialog open", () => {
+    const { onClose, dialog } = renderDialog()
+    const dates = dialog.getByRole("button", { name: /^Dates: / })
+    fireEvent.click(dates)
+    const day = within(screen.getByRole("dialog", { name: "Choose dates" })).getByRole("button", { name: "Thursday, June 11, 2026" })
+
+    fireEvent.keyDown(day, { key: "Escape" })
+    expect(dates).toHaveAttribute("aria-expanded", "false")
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it("says the trip's length once, on the dates", () => {
     const { dialog } = renderDialog()
     expect(dialog.getAllByText(/^3 days\.?$/)).toHaveLength(1)

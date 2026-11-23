@@ -7,6 +7,7 @@ import { composing } from "../ime"
 import { searchCities, type CityResult } from "../geocode"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
+import { useClaimEscape } from "./escape"
 import { Spinner } from "./kit"
 
 // Destinations as tokens with city autocomplete. Picking a suggestion gives
@@ -119,13 +120,17 @@ export function CityField({
     if (enterPending && !loading) submitLatest()
   }, [enterPending, loading, submitLatest])
 
+  const showList = open && searching && (results.length > 0 || loading)
+  const showFailure = open && failed
+  useClaimEscape(showList || showFailure, wrapRef)
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (composing(event)) return
     if (event.key === "Backspace" && !text && values.length > 0) {
       onRemove(values.length - 1)
       return
     }
-    if (event.key === "Escape" && open && (results.length > 0 || failed)) {
+    if (event.key === "Escape" && (showList || showFailure)) {
       event.stopPropagation()
       setOpen(false)
       setEnterPending(false)
@@ -143,8 +148,6 @@ export function CityField({
     }
   }
 
-  const showList = open && searching && (results.length > 0 || loading)
-  const showFailure = open && failed
   return (
     <div ref={wrapRef} {...sx(s.composer)}>
       <div

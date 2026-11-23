@@ -15,6 +15,7 @@ import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { composing } from "../ime"
 import { allZones, matchZones, offsetOf, resolveZone, ZONE_LIMIT, zoneParts } from "../timeZones"
+import { useClaimEscape } from "./escape"
 
 // A searchable list of every IANA time zone the browser knows. Typing part of
 // a city or region ("tok", "new york", "kolkata") narrows it, which is how a
@@ -119,16 +120,7 @@ export const TimeZoneField = forwardRef<
     }
   }
 
-  // A Radix dialog takes Escape on the document in the capture phase, before
-  // this field sees it; claiming it on window first keeps Escape to the list.
-  useEffect(() => {
-    if (!showList) return
-    const claim = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape" && event.target === inputRef.current) event.preventDefault()
-    }
-    window.addEventListener("keydown", claim, true)
-    return () => window.removeEventListener("keydown", claim, true)
-  }, [showList])
+  useClaimEscape(showList, inputRef)
 
   useEffect(() => {
     if (cursor.key) document.getElementById(`${listId}-${cursor.at}`)?.scrollIntoView?.({ block: "nearest" })
