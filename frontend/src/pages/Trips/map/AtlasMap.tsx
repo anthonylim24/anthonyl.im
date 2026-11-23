@@ -358,6 +358,8 @@ function StaticChart({
   // never shrinks the day; one stop (or none) has no frame of its own to keep.
   const project = boxProjection(spanMeters(pins) > 0 ? pins : [...pins, ...ideas], CHART_W, CHART_H, 56)
   const points = project ? pins.map(project) : []
+  // The route joins the stops; a hotel is the day's reference, not a leg of it.
+  const route = points.filter((_, i) => pins[i]!.variant !== "hotel")
   // The chart fills its box and crops the rest ("slice"): an idea in the
   // cropped band would be an invisible button that Tab still reaches.
   const chart = useRef<SVGSVGElement>(null)
@@ -398,12 +400,14 @@ function StaticChart({
         {Array.from({ length: 7 }, (_, i) => (
           <line key={`h${i}`} x1={0} y1={i * 50} x2={CHART_W} y2={i * 50} {...sx(s.chartRule)} />
         ))}
-        {points.length > 1 && (
-          <polyline points={points.map((p) => `${p.x},${p.y}`).join(" ")} {...sx(s.chartRoute)} />
+        {route.length > 1 && <polyline points={route.map((p) => `${p.x},${p.y}`).join(" ")} {...sx(s.chartRoute)} />}
+        {points.map((p, i) =>
+          pins[i]!.variant === "hotel" ? (
+            <rect key={pins[i]!.id} x={p.x - 5} y={p.y - 5} width={10} height={10} rx={2.5} {...sx(s.chartHotel)} />
+          ) : (
+            <circle key={pins[i]!.id} cx={p.x} cy={p.y} r={4} {...sx(s.chartDot)} />
+          ),
         )}
-        {points.map((p, i) => (
-          <circle key={pins[i]!.id} cx={p.x} cy={p.y} r={4} {...sx(s.chartDot)} />
-        ))}
       </svg>
       {placed.length > 0 && (
         // Same viewBox and slice as the chart, so the two layers line up exactly.

@@ -2,6 +2,7 @@ import type { ConciergePlace } from "../../lib/conciergeGrounding"
 import { clockMinutes, dayStarts } from "./dayClock"
 import { LIMITS } from "./limits"
 import { isToSchedule } from "./map/geo"
+import { addDays, daysBetween } from "./meta"
 import type { ItemStatus, ItemTheme, ItineraryItem, ItemKind, Trip, TripDay, TripLocation } from "./types"
 
 // Pure itinerary-mutation helpers behind the editor UI. Every function
@@ -155,6 +156,36 @@ export function duplicateItem(days: TripDay[], dayId: string, itemId: string): T
     items.splice(idx + 1, 0, copy)
     return { ...day, items }
   })
+}
+
+/**
+ * A copy of a stop on each of `toDayIds`: its own id, and nothing about how
+ * the original went (Done, Skip, Loved it), since the copy hasn't happened
+ * yet. A timed copy lands where its time falls on that day, an untimed one
+ * last on the route; a booking that ends on a later date (a check-out, an
+ * arrival) keeps its length. The stop's own day, a missing day and a full one
+ * are passed over; with nothing to copy the same `days` comes back, so no
+ * empty undo step is recorded.
+ */
+export function copyItemToDays(days: TripDay[], fromDayId: string, itemId: string, toDayIds: readonly string[]): TripDay[] {
+  const from = days.find((d) => d.id === fromDayId)
+  const item = from?.items.find((i) => i.id === itemId)
+  if (!from || !item) return days
+  const targets = new Set(toDayIds)
+  targets.delete(fromDayId)
+  let changed = false
+  const out = days.map((day) => {
+    if (!targets.has(day.id) || day.items.length >= LIMITS.itemsPerDay) return day
+    changed = true
+    const copy: ItineraryItem = { ...structuredClone(item), id: makeItem(item.kind).id }
+    // The wishlist lists the place once: the copy is the traveller's own.
+    delete copy.fromWishlist
+    delete copy.highlight
+    if (copy.status === "completed" || copy.status === "skipped") copy.status = restingStatus(copy)
+    if (copy.reservation?.endDate) copy.reservation.endDate = addDays(copy.reservation.endDate, daysBetween(from.date, day.date))
+    return { ...day, items: insertByTime(day.items, copy) }
+  })
+  return changed ? out : days
 }
 
 /** What a stop goes back to when Done or Skip is taken off: a booking stays booked. */

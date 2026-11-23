@@ -9,6 +9,7 @@ import {
   ChevronDown,
   CloudRain,
   Copy,
+  CopyPlus,
   ExternalLink,
   GripVertical,
   Heart,
@@ -27,7 +28,7 @@ import { externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, parseClock, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { LIMITS } from "../limits"
-import { duplicateItem, moveItem, moveItemToDay, setItemTime, toggledStatus, unparkDay, updateItem } from "../tripEdits"
+import { copyItemToDays, duplicateItem, moveItem, moveItemToDay, setItemTime, toggledStatus, unparkDay, updateItem } from "../tripEdits"
 import { Menu, type MenuItem } from "../components/kit"
 import { Presence } from "../components/presence"
 import { DayPicker } from "./DayPicker"
@@ -166,7 +167,8 @@ export const ItemCard = memo(function ItemCard({
     if (expand) setOpen(true)
   }
   const [endOpen, setEndOpen] = useState(false)
-  const [picking, setPicking] = useState(false)
+  // The day sheet open from the card's menu: send the stop to one day, or copies of it to several.
+  const [picking, setPicking] = useState<"move" | "copy" | null>(null)
   const panelId = useId()
   const rowRef = useRef<HTMLDivElement>(null)
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
@@ -174,10 +176,15 @@ export const ItemCard = memo(function ItemCard({
   const RainIcon = rainCode === null ? CloudRain : weatherKind(rainCode).icon
   const name = `“${item.title || "Untitled"}”`
   const move = (step: -1 | 1) => onChange((days) => moveItem(days, dayId, item.id, step), { label: `Moved ${name}`, key: `move:${item.id}` })
+  const dayName = (id: string) => dayOptions.find((option) => option.id === id)?.label.split(" · ")[0] ?? "another day"
   const moveTo = (to: string) => {
-    const label = dayOptions.find((option) => option.id === to)?.label.split(" · ")[0] ?? "another day"
-    onChange((days) => moveItemToDay(days, dayId, item.id, to), { label: `Moved ${name} to ${label}`, toast: true })
+    onChange((days) => moveItemToDay(days, dayId, item.id, to), { label: `Moved ${name} to ${dayName(to)}`, toast: true })
     onGone?.(index)
+  }
+  const copyTo = (to: string[]) => {
+    const where = to.length === 1 ? dayName(to[0]!) : `${to.length} days`
+    onChange((days) => copyItemToDays(days, dayId, item.id, to), { label: `Copied ${name} to ${where}`, toast: true })
+    onAnnounce?.(`${item.title || "Stop"} copied to ${where}.`)
   }
   const setTime = (time: string | undefined) => {
     onChange((days) => setItemTime(days, dayId, item.id, time))
@@ -194,7 +201,10 @@ export const ItemCard = memo(function ItemCard({
   }
   const cardMenu: MenuItem[] = [
     ...(dayOptions.length > 1
-      ? [{ label: "Move to another day…", icon: <CalendarDays size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setPicking(true) }]
+      ? [
+          { label: "Move to another day…", icon: <CalendarDays size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setPicking("move") },
+          { label: "Copy to other days…", icon: <CopyPlus size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setPicking("copy") },
+        ]
       : []),
     ...(onSaveForLater && isStop
       ? [
@@ -430,15 +440,21 @@ export const ItemCard = memo(function ItemCard({
           </div>
         )}
 
-        <Presence when={picking}>{() => (
-          <DayPicker
-            title={`Move ${name}`}
-            description="It goes last on that day’s route."
-            choices={dayOptions.map((option) => ({ id: option.id, label: option.label, off: option.id === dayId ? "This day" : undefined }))}
-            onPick={moveTo}
-            onClose={() => setPicking(false)}
-          />
-        )}</Presence>
+        <Presence when={picking}>{(mode) => {
+          const choices = dayOptions.map((option) => ({ id: option.id, label: option.label, off: option.id === dayId ? "This day" : undefined }))
+          return mode === "move" ? (
+            <DayPicker title={`Move ${name}`} description="It goes last on that day’s route." choices={choices} onPick={moveTo} onClose={() => setPicking(null)} />
+          ) : (
+            <DayPicker
+              title={`Copy ${name}`}
+              description={item.time ? `Each copy keeps ${formatClock(item.time)} and goes where that falls on its day.` : "Each copy goes last on its day’s route."}
+              choices={choices}
+              confirm={(count) => (count === 0 ? "Copy" : `Copy to ${count === 1 ? "1 day" : `${count} days`}`)}
+              onPickMany={copyTo}
+              onClose={() => setPicking(null)}
+            />
+          )
+        }}</Presence>
 
         {open && (
           <div id={panelId} {...sx(s.editor)}>

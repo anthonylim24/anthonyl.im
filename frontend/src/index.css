@@ -1251,9 +1251,62 @@ html.dark .trips .trips-sky-plate > .trips-sky-art,
   fill: currentColor;
 }
 
+/* Where the traveller sleeps, drawn on every day of the stay as the day's
+   reference point: a paper tile ringed in ink with the hotel glyph. Square
+   where stops and wishlist places are round, ink where stops wear the trip
+   accent, so it reads apart from a stop without colour. Canvas, not raised:
+   raised turns translucent in the Liquid Glass look. */
+.atlas-pin--hotel .atlas-pin__body {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--trips-canvas);
+  border-color: var(--trips-ink);
+  color: var(--trips-ink);
+  transform-origin: 50% 50%;
+}
+
+.atlas-pin--hotel .atlas-pin__body svg,
+.atlas-pin__mark svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The same tile, small, on the corner of the check-in stop, which keeps its
+   number (the list and the timeline badge it). */
+.atlas-pin__mark {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--trips-canvas);
+  color: var(--trips-ink);
+  box-shadow: 0 0 0 1.5px var(--trips-ink), 0 1px 2px rgb(0 0 0 / 0.3);
+}
+
+.atlas-pin__mark svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.25;
+}
+
+.atlas-pin--hotel:focus-visible .atlas-pin__body {
+  box-shadow: 0 0 0 3px var(--trips-raised), 0 0 0 5px var(--brand-ring);
+}
+
 /* The trip's own places stand over its wishlist. Markers stack in DOM order,
    so an idea added after the stops would otherwise sit on top of one; hover,
-   hot (2) and active (3) still lift any pin, an idea included. */
+   hot (2) and active (3) still lift any pin, an idea included. A hotel stays
+   under the stops too: a stop at the hotel's door keeps its number readable. */
 .atlas-pin--stop,
 .atlas-pin--dot {
   z-index: 1;

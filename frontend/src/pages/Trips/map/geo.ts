@@ -15,8 +15,12 @@ export interface AtlasPin extends LngLat {
   /** Text inside a stop pin (its order in the day, or the day number). */
   label?: string
   /** `stop`: numbered teardrop. `dot`: small round marker. `trip`: dot + name chip.
-   *  `idea`: a wishlist place, in the wishlist colour (`AtlasMapProps.ideaPins`, never `pins`). */
-  variant?: "stop" | "dot" | "trip" | "idea"
+   *  `idea`: a wishlist place, in the wishlist colour (`AtlasMapProps.ideaPins`, never `pins`).
+   *  `hotel`: where the traveller sleeps, from another day (`withStays`): an ink tile with
+   *  the hotel glyph, not numbered, framed or toured. */
+  variant?: "stop" | "dot" | "trip" | "idea" | "hotel"
+  /** A stop that is where the traveller sleeps (the check-in): keeps its number and wears the hotel mark. */
+  lodging?: boolean
   /** Per-pin accent (index globe: each trip keeps its own colour). */
   accent?: string
   /** Just added: plays the drop-in animation once. */
@@ -213,7 +217,9 @@ export function dayRoute(day: TripDay): LngLat[] {
 
 /** Everything a pin draws, as one string: equal keys need no map update. */
 export function pinsKey(pins: readonly AtlasPin[]): string {
-  return pins.map((p) => `${p.id}|${p.lat}|${p.lng}|${p.label ?? ""}|${p.title}|${p.variant ?? ""}|${p.accent ?? ""}|${p.fresh ? 1 : 0}`).join("\n")
+  return pins
+    .map((p) => `${p.id}|${p.lat}|${p.lng}|${p.label ?? ""}|${p.title}|${p.variant ?? ""}|${p.accent ?? ""}|${p.fresh ? 1 : 0}|${p.lodging ? 1 : 0}`)
+    .join("\n")
 }
 
 /** Route geometry as one string, for the same purpose. */
