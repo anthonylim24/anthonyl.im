@@ -32,8 +32,6 @@ put 644 "$HERE/watchdog/anthonyl-watchdog.timer" "$UNITS/anthonyl-watchdog.timer
 if [ "$changed" = 1 ]; then
   systemctl daemon-reload
 fi
-systemctl enable --quiet anthonyl.im.service
-systemctl enable --quiet --now anthonyl-watchdog.timer
 
 # Hand-over from PM2, once. Stopping pm2-root stops PM2's copy of the server
 # and the daemon; disabling it keeps a reboot from starting a second copy on
@@ -45,3 +43,8 @@ if systemctl is-enabled --quiet pm2-root.service 2>/dev/null \
   echo "[service] handing the server over from PM2"
   systemctl disable --now pm2-root.service
 fi
+
+# Enabled only after the hand-over, so a failed one never leaves both units
+# set to start at boot.
+systemctl enable --quiet anthonyl.im.service
+systemctl enable --quiet --now anthonyl-watchdog.timer
