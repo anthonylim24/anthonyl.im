@@ -204,8 +204,11 @@ function mergePlan(base: readonly TripDay[], mine: readonly TripDay[], theirs: r
   return { days, layoutFrom }
 }
 
-export function mergeDays(base: readonly TripDay[], mine: readonly TripDay[], theirs: readonly TripDay[]): TripDay[] | null {
-  const plan = mergePlan(base, mine, theirs)
+/** Null on a true clash; with `side`, that side wins only what clashes and the merge always succeeds. */
+export function mergeDays(base: readonly TripDay[], mine: readonly TripDay[], theirs: readonly TripDay[]): TripDay[] | null
+export function mergeDays(base: readonly TripDay[], mine: readonly TripDay[], theirs: readonly TripDay[], side: Side): TripDay[]
+export function mergeDays(base: readonly TripDay[], mine: readonly TripDay[], theirs: readonly TripDay[], side?: Side): TripDay[] | null {
+  const plan = mergePlan(base, mine, theirs, side)
   return plan === NO_MERGE ? null : plan.days
 }
 

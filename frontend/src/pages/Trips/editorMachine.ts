@@ -37,9 +37,11 @@ export type Sync =
   | { k: "clean" }
   | { k: "dirty" }
   /**
-   * `against`: the `updatedAt` the PATCH names as its base. `queued`: edits
-   * since, to send next. `fitted`: what had to change to fit the server's
-   * limits, as a notice (null when nothing did).
+   * `sent`: this request's own object; every save request gets a new one, so
+   * the shell sends each request once and an answer to an older request is
+   * ignored. `against`: the `updatedAt` the PATCH names as its base.
+   * `queued`: edits since, to send next. `fitted`: what had to change to fit
+   * the server's limits, as a notice (null when nothing did).
    */
   | { k: "saving"; sent: Trip; against: string; queued: boolean; fitted: string | null }
   | { k: "saveError"; message: string; failure: "network" | "server" }
@@ -180,9 +182,12 @@ const samePlanRefs = (a: Trip, b: Trip) =>
 /** Same content as far as a save is concerned (the server stamps `updatedAt`). */
 export const sameContent = (a: Trip, b: Trip) => sameJson({ ...a, updatedAt: "" }, { ...b, updatedAt: "" })
 
-/** Turn `doc` from one plan to another, keeping anything that changed since on other days. */
+/**
+ * Turn `doc` from one plan to another, keeping anything that changed since.
+ * Where a newer change clashes with the step, the step wins that field only.
+ */
 function replayPlan(doc: Trip, from: Plan, to: Plan): Trip {
-  const days = mergeDays(from.days, to.days, doc.days) ?? to.days
+  const days = mergeDays(from.days, to.days, doc.days, "mine")
   // The wishlist: a stop moved onto a day comes back to it on undo.
   const ideas = from.ideas === to.ideas ? doc.ideas : mergeItems(from.ideas ?? [], to.ideas ?? [], doc.ideas ?? [])
   // An idea scheduled since (by a review) stays on its day, the undone edit with it.
@@ -224,6 +229,17 @@ function forgetScheduled(history: History, run: EnhancementRun | null, landed: T
   return { ...history, past: history.past.map(forget), future: history.future.map(forget) }
 }
 
+/**
+ * Another copy was merged into the document: the next edit starts its own
+ * undo step. A step that spanned the merge would remember the document from
+ * before it, and undoing that step would take the other side's changes back.
+ */
+function merged(state: Ready): Ready {
+  const top = state.history.past[state.history.past.length - 1]
+  if (!top || top.key === null) return state
+  return { ...state, history: { ...state.history, past: [...state.history.past.slice(0, -1), { ...top, key: null }] } }
+}
+
 /** Where saving goes after the document changed locally. */
 function afterEdit(sync: Sync): Sync {
   switch (sync.k) {
@@ -244,7 +260,7 @@ const fit = (doc: Trip, base: Trip) => sanitizeForSave(doc, base)
 /** A save of the working copy, made against `base` (whose name stands in for a blank one). */
 function send(state: Ready, base: Trip = state.base): Sync {
   const fitted = fit(state.doc, base)
-  return { k: "saving", sent: fitted.trip, against: base.updatedAt, queued: false, fitted: describeSanitized(fitted) }
+  return { k: "saving", sent: { ...fitted.trip }, against: base.updatedAt, queued: false, fitted: describeSanitized(fitted) }
 }
 
 /** The server refused this very content: sending it again can't help until it changes. */
@@ -273,18 +289,18 @@ export function draftOutcome(server: Trip, draft: { doc: Trip; base: Trip }): "n
  * traveller hasn't saved; stop and ask only when that can't be done safely.
  */
 function rebaseOnto(state: Ready, theirs: Trip): Ready {
-  if (state.sync.k === "clean") return { ...state, doc: theirs, base: theirs }
+  if (state.sync.k === "clean") return merged({ ...state, doc: theirs, base: theirs })
   const rebased = rebaseTrip(state.base, state.doc, theirs)
   if (state.sync.k === "saving") {
     // The PATCH in flight was made against the old base, so it will 409 (or,
     // on an older server, overwrite): either way its answer brings us back
     // here. Carry the merge if it is safe and send it once that answer lands.
     if (!rebased) return state
-    return { ...state, doc: rebased, base: theirs, sync: { ...state.sync, queued: true } }
+    return merged({ ...state, doc: rebased, base: theirs, sync: { ...state.sync, queued: true } })
   }
   if (!rebased) return { ...state, sync: { k: "conflict", theirs } }
-  if (sameContent(rebased, theirs)) return { ...state, doc: theirs, base: theirs, sync: { k: "clean" } }
-  return { ...state, doc: rebased, base: theirs, sync: { k: "dirty" } }
+  if (sameContent(rebased, theirs)) return merged({ ...state, doc: theirs, base: theirs, sync: { k: "clean" } })
+  return merged({ ...state, doc: rebased, base: theirs, sync: { k: "dirty" } })
 }
 
 const isNewer = (incoming: Trip, than: Trip) => incoming.id === than.id && incoming.updatedAt > than.updatedAt
@@ -366,8 +382,8 @@ export function editorReducer(state: Editor, event: EditorEvent): Editor {
       if (theirs.updatedAt <= state.base.updatedAt) return { ...state, sync: send(state) }
       const rebased = rebaseTrip(state.base, state.doc, theirs)
       if (!rebased) return { ...state, sync: { k: "conflict", theirs } }
-      if (sameContent(rebased, theirs)) return { ...state, doc: theirs, base: theirs, sync: { k: "clean" } }
-      const next = { ...state, doc: rebased, base: theirs }
+      if (sameContent(rebased, theirs)) return merged({ ...state, doc: theirs, base: theirs, sync: { k: "clean" } })
+      const next = merged({ ...state, doc: rebased, base: theirs })
       return { ...next, sync: send(next) }
     }
 
@@ -380,8 +396,8 @@ export function editorReducer(state: Editor, event: EditorEvent): Editor {
       // Only what truly clashes goes to the chosen side; everything else
       // both sides did is kept. The next PATCH is made against their copy.
       const resolved = resolveTrip(state.base, state.doc, theirs, event.keep)
-      if (sameContent(resolved, theirs)) return { ...state, doc: theirs, base: theirs, sync: { k: "clean" } }
-      const next = { ...state, doc: resolved, base: theirs }
+      if (sameContent(resolved, theirs)) return merged({ ...state, doc: theirs, base: theirs, sync: { k: "clean" } })
+      const next = merged({ ...state, doc: resolved, base: theirs })
       return { ...next, sync: send(next) }
     }
 
@@ -428,7 +444,7 @@ export function editorReducer(state: Editor, event: EditorEvent): Editor {
       if (!trip || trip.id !== state.doc.id || trip.updatedAt < state.base.updatedAt) return { ...state, ai }
       const recorded = event.undo ? record(state.history, state.doc, trip, event.undo) : state.history
       const reviewed = event.run ?? (state.ai.k === "applying" ? state.ai.run : null)
-      return { ...state, ai, doc: trip, base: trip, sync: { k: "clean" }, history: forgetScheduled(recorded, reviewed, trip) }
+      return merged({ ...state, ai, doc: trip, base: trip, sync: { k: "clean" }, history: forgetScheduled(recorded, reviewed, trip) })
     }
 
     case "AI_FAILED":

@@ -257,6 +257,9 @@ function Popover({
     const place = () => {
       const box = liveRow(row, anchorId)?.getBoundingClientRect()
       if (!box || (box.width === 0 && box.height === 0)) return
+      // Measured unclamped: held to a max height the card reports the clamp,
+      // which would lift the clamp, then set it again, every frame.
+      node.style.maxHeight = ""
       const at = placeBeside({
         anchor: box,
         size: { width: node.offsetWidth, height: node.scrollHeight },

@@ -146,6 +146,7 @@ Read the matching skill before writing code. Effect I/O rules win over generic R
 | [`effect-ts`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
 | [`stylex`](.agents/skills/stylex/SKILL.md) | UI styling, layout, tokens, visual parity. Required for frontend UI. |
 | `vercel-react-best-practices` | React 19 render / bundle. Translate Next.js examples to Vite `React.lazy` + Hono. |
+| [`verify-trip-save`](.agents/skills/verify-trip-save/SKILL.md) | Any change to the Trips save path: `editorMachine.ts`, `tripMerge.ts`, `useTripEditor.ts`'s save effect, `PATCH /api/trips/:id`. |
 | `clerk` + `clerk-react-patterns` | Clerk auth (`@clerk/clerk-react` ^5, Core 2). See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
 
 The wrong-stack Clerk skills (Next.js, React Router SSR, Vue, Expo, mobile, billing, orgs, webhooks) are deliberately not vendored. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md).

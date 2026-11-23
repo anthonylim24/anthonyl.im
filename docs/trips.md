@@ -139,8 +139,9 @@ server's drafts, reviews and `/apply` through its mirror,
 read in `dayZone(trip, day)` (`day.timezone`, else the trip's), and
 countdowns use real instants (`zonedEpoch`, DST-correct).
 
-**Deep links:** `#item-<id>` shows the stop on the map (a phone switches to
-the map); `#stop-<id>` only picks it out in the list (the Now card uses it).
+**Deep links:** both select the stop (a wide screen's map opens its card).
+`#item-<id>` also switches a phone to the map; `#stop-<id>` keeps a phone on
+the list with the stop in view (the Now card uses it).
 
 **Print and copy:** `print/usePrintItinerary(trip)` mounts `PrintItinerary`
 on demand: it renders map stills (`renderStills`, numbered pins via

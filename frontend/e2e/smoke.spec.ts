@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test'
 
 test('backend /health responds', async ({ request }) => {
   // BACKEND_PORT default matches frontend/playwright.config.ts.
-  const port = Number(process.env.PORT ?? 3000)
+  const port = Number(process.env.PORT ?? 3210)
   const res = await request.get(`http://localhost:${port}/health`)
   expect(res.status()).toBeLessThan(500)
 })
