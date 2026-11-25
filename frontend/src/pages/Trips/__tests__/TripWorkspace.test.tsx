@@ -719,7 +719,7 @@ describe("TripWorkspace", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
       renderWorkspace("/trips/lisbon/day/day-2")
 
-      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
       expect(screen.getByText("Nothing planned yet")).toBeInTheDocument()
       fireEvent.change(input, { target: { value: "belem" } })
 
@@ -786,7 +786,7 @@ describe("TripWorkspace", () => {
       })
       renderWorkspace("/trips/lisbon/day/day-2")
 
-      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
       // Nothing is offered for the trip as it was opened.
       expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
       fireEvent.change(input, { target: { value: "pestana" } })
@@ -804,7 +804,7 @@ describe("TripWorkspace", () => {
 
     it("does not offer a rework for an ordinary stop, and “Not now” dismisses the offer", async () => {
       renderWorkspace("/trips/lisbon/day/day-2")
-      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
       fireEvent.change(input, { target: { value: "belem" } })
       fireEvent.click(await screen.findByRole("option", { name: /Belém Tower/ }))
       await screen.findByRole("button", { name: "Show Belém Tower on the map" })
@@ -822,7 +822,7 @@ describe("TripWorkspace", () => {
       let answer: (places: PlaceResult[]) => void = () => {}
       mockSearchPlaces.mockImplementation(() => new Promise<PlaceResult[]>((resolve) => (answer = resolve)))
       renderWorkspace("/trips/lisbon/day/day-2")
-      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
       fireEvent.change(input, { target: { value: "belem" } })
       fireEvent.keyDown(input, { key: "Enter" })
       // Not added "without a pin" while the search is out.
@@ -837,7 +837,7 @@ describe("TripWorkspace", () => {
       let answer: (places: PlaceResult[]) => void = () => {}
       mockSearchPlaces.mockImplementation(() => new Promise<PlaceResult[]>((resolve) => (answer = resolve)))
       renderWorkspace("/trips/lisbon/day/day-2")
-      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
       fireEvent.change(input, { target: { value: "belem" } })
       fireEvent.keyDown(input, { key: "ArrowDown" })
       expect(screen.getByRole("option", { name: "Add as a note" })).toHaveAttribute("aria-selected", "true")
@@ -856,7 +856,7 @@ describe("TripWorkspace", () => {
       mockSearchPlaces.mockResolvedValue([])
       renderWorkspace("/trips/lisbon/day/day-2")
 
-      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
       fireEvent.change(input, { target: { value: "Pack sunscreen" } })
       fireEvent.click(screen.getByRole("option", { name: "Add as a note" }))
 
@@ -1091,7 +1091,7 @@ describe("TripWorkspace", () => {
       const alert = await screen.findByRole("alert")
       expect(within(alert).getByRole("heading", { name: "That day isn’t on this trip" })).toBeInTheDocument()
       expect(within(alert).getByRole("link", { name: "Back to the overview" })).toHaveAttribute("href", "/trips/lisbon")
-      expect(screen.queryByRole("combobox", { name: "Add a place, note or booking" })).toBeNull()
+      expect(screen.queryByRole("combobox", { name: "Add a place, note or link" })).toBeNull()
       // The map falls back to the whole trip.
       expect(screen.getByRole("region", { name: "Map of the whole trip with 1 pinned place" })).toBeInTheDocument()
     })
@@ -1259,7 +1259,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText("Saved")).toBeNull()
       expect(screen.queryByRole("textbox", { name: "Day title" })).toBeNull()
       expect(screen.queryByRole("textbox", { name: "City for this day" })).toBeNull()
-      expect(screen.queryByRole("combobox", { name: "Add a place, note or booking" })).toBeNull()
+      expect(screen.queryByRole("combobox", { name: "Add a place, note or link" })).toBeNull()
       expect(screen.queryByRole("button", { name: "Ideas for this day" })).toBeNull()
       // A viewer's day menu only exports.
       fireEvent.click(screen.getByRole("button", { name: /^More for day/ }))

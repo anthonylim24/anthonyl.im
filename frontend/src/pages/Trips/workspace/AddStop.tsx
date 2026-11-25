@@ -95,7 +95,7 @@ export function AddStop({
   onAdd,
   onInstagram,
   kinds = ALL_KINDS,
-  label = "Add a place, note or booking",
+  label,
   placeholder,
   below = false,
 }: {
@@ -106,7 +106,7 @@ export function AddStop({
   onInstagram?: (urls: string[]) => void
   /** What typed text can become besides a found place (all four on a day). */
   kinds?: readonly PlainKind[]
-  /** The field's accessible name. */
+  /** The field's accessible name, when it says more than the placeholder. */
   label?: string
   placeholder?: string
   /** Open the suggestions under the field (it sits at the top of its panel). */
@@ -124,6 +124,7 @@ export function AddStop({
   const wrapRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const typed = text.trim()
+  const hint = placeholder ?? (onInstagram ? "Add a place, note or link…" : "Add a place, note or booking…")
 
   const options: Option[] = igUrls.length > 0
     ? [{ type: "instagram", urls: igUrls }]
@@ -312,10 +313,10 @@ export function AddStop({
           aria-controls={listId}
           aria-activedescendant={showList && cursor >= 0 ? `${listId}-${cursor}` : undefined}
           aria-autocomplete="list"
-          aria-label={label}
+          aria-label={label ?? hint.replace(/…$/, "")}
           autoComplete="off"
           enterKeyHint="done"
-          placeholder={placeholder ?? (onInstagram ? "Add a place, note or link…" : "Add a place, note or booking…")}
+          placeholder={hint}
           value={text}
           disabled={disabled}
           maxLength={LIMITS.itemTitle}

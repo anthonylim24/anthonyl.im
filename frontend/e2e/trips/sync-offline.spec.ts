@@ -234,7 +234,7 @@ test('a save the server refuses says why, offers no retry of the same thing, and
   const trip = await seed(request, [full, [], []])
   try {
     const plan = await openDay(page, trip, 0)
-    await page.getByRole('combobox', { name: 'Add a place, note or booking' }).fill('One stop too many')
+    await page.getByRole('combobox', { name: 'Add a place, note or link' }).fill('One stop too many')
     await page.getByRole('option', { name: 'Add as a note' }).click()
     await expect(plan.getByText('One stop too many', { exact: true })).toBeVisible()
 
@@ -316,7 +316,7 @@ test('a traveller with view access sees the plan but no way to change it', async
     const plan = page.getByRole('region', { name: 'Day 1 plan' })
     await expect(plan.getByText('Senso-ji', { exact: true })).toBeVisible()
     await expect(saveLine(page)).toHaveCount(0)
-    await expect(page.getByRole('combobox', { name: 'Add a place, note or booking' })).toHaveCount(0)
+    await expect(page.getByRole('combobox', { name: 'Add a place, note or link' })).toHaveCount(0)
     await expect(page.getByRole('textbox', { name: 'Day title' })).toHaveCount(0)
     await expect(plan.getByRole('button', { name: 'More for Senso-ji' })).toHaveCount(0)
     await plan.getByText('Senso-ji', { exact: true }).click()

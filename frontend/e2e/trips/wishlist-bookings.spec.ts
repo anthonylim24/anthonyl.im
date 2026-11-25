@@ -390,7 +390,7 @@ test.describe('wishlist', () => {
 
 test.describe('bookings by hand', () => {
   async function addBooking(page: Page, title: string) {
-    const field = page.getByRole('combobox', { name: 'Add a place, note or booking' })
+    const field = page.getByRole('combobox', { name: 'Add a place, note or link' })
     await field.fill(title)
     await pickFromEnd(page, field, 2, 'Add as a booking')
     const plan = page.getByRole('region', { name: 'Day 1 plan' })
