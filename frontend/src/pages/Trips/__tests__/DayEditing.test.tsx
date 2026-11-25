@@ -181,6 +181,7 @@ describe("Done, Skip and Loved it on the card", () => {
   it("offers Skipped among the statuses in the editor", () => {
     renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Add status" }))
     fireEvent.click(within(card("lunch")).getByRole("combobox", { name: "Status" }))
     expect(screen.getByRole("option", { name: "Skipped" })).toBeInTheDocument()
   })
@@ -236,6 +237,85 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
   })
 })
 
+describe("a stop's editor asks only for what the stop needs", () => {
+  const open = (id: string) => fireEvent.click(card(id).querySelector<HTMLElement>("[data-card-row]")!)
+
+  it("gives a place its name, time, location and notes; status, cost and links wait behind chips", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
+    open("lunch")
+    const editor = within(card("lunch"))
+    for (const name of ["Name", "Starts", "Notes"]) expect(editor.getByRole("textbox", { name })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Search for a place to pin" })).toBeInTheDocument()
+    expect(editor.queryByRole("combobox", { name: "Status" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: "Links" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: /Cost/ })).toBeNull()
+
+    fireEvent.click(editor.getByRole("button", { name: "Add link" }))
+    const links = editor.getByRole("textbox", { name: "Links" })
+    expect(links).toHaveFocus()
+    expect(editor.queryByRole("button", { name: "Add link" })).toBeNull()
+    fireEvent.change(links, { target: { value: "example.com/menu" } })
+    fireEvent.keyDown(links, { key: "Enter" })
+    expect(itemsOf(state, "day-1")[0]!.links).toEqual(["https://example.com/menu"])
+  })
+
+  it("shows a field that already holds something, with no chip for it", () => {
+    renderDay(tripOf(days(FUTURE, [[{ ...lunch, status: "optional" as const, cost: { amount: 20, currency: "EUR" } }]])), "day-1")
+    open("lunch")
+    const editor = within(card("lunch"))
+    expect(editor.getByRole("combobox", { name: "Status" })).toHaveTextContent("Optional")
+    expect(editor.queryByRole("button", { name: "Add status" })).toBeNull()
+    expect(editor.queryByRole("button", { name: "Add cost" })).toBeNull()
+    expect(editor.getByRole("button", { name: "Add link" })).toBeInTheDocument()
+  })
+
+  it("keeps a field it showed while it is emptied", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[{ ...lunch, notes: "Terrace" }]])), "day-1")
+    open("lunch")
+    const notes = within(card("lunch")).getByRole("textbox", { name: "Notes" })
+    fireEvent.change(notes, { target: { value: "" } })
+    expect(itemsOf(state, "day-1")[0]!.notes).toBeUndefined()
+    expect(within(card("lunch")).getByRole("textbox", { name: "Notes" })).toBe(notes)
+  })
+
+  it("gives a note its words, and a time, notes and a link only when asked", () => {
+    const memo = makeItem({ id: "memo", kind: "note", title: "Bring cash" })
+    renderDay(tripOf(days(FUTURE, [[memo]])), "day-1")
+    open("memo")
+    const editor = within(card("memo"))
+    expect(editor.getByRole("textbox", { name: "Note" })).toHaveValue("Bring cash")
+    expect(editor.queryByRole("textbox", { name: "Starts" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: "Notes" })).toBeNull()
+    fireEvent.click(editor.getByRole("button", { name: "Add time" }))
+    expect(editor.getByRole("textbox", { name: "Starts" })).toHaveFocus()
+    expect(editor.getByRole("button", { name: "Add notes" })).toBeInTheDocument()
+  })
+
+  it("shows a booking's type, status and times, and each detail once it is filled", () => {
+    const visit = makeItem({
+      id: "visit",
+      kind: "reservation",
+      title: "AP House",
+      time: "11:00",
+      status: "booked",
+      reservation: { type: "appointment", status: "confirmed", confirmation: "AP-221" },
+    })
+    renderDay(tripOf(days(FUTURE, [[visit]])), "day-1")
+    open("visit")
+    const editor = within(card("visit"))
+    expect(editor.getByRole("combobox", { name: "Type" })).toBeInTheDocument()
+    expect(editor.getByRole("combobox", { name: "Status" })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Time" })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Confirmation" })).toHaveValue("AP-221")
+    expect(editor.queryByRole("textbox", { name: "Contact" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: "Booking link" })).toBeNull()
+
+    fireEvent.click(editor.getByRole("button", { name: "More booking details" }))
+    expect(editor.getByRole("textbox", { name: "Contact" })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Booking link" })).toBeInTheDocument()
+  })
+})
+
 describe("a booking's status", () => {
   it("is one control, and the card's chip says what it says", () => {
     const dinner = makeItem({ id: "dinner", kind: "reservation", title: "Dinner", status: "booked", reservation: { type: "restaurant", status: "confirmed" } })
@@ -257,6 +337,7 @@ describe("stop links", () => {
   it("adds a pasted link as https, refuses anything that isn't a web link, and removes one", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Add link" }))
     const field = within(card("lunch")).getByRole("textbox", { name: "Links" })
     expect(field).toHaveAttribute("maxlength", String(LIMITS.link))
 
@@ -277,6 +358,7 @@ describe("stop links", () => {
   it("waits for the input method before taking Enter", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Add link" }))
     const field = within(card("lunch")).getByRole("textbox", { name: "Links" })
     fireEvent.change(field, { target: { value: "naver.me/abc" } })
     fireEvent.keyDown(field, { key: "Enter", keyCode: 229 })

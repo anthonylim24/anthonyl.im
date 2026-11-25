@@ -19,6 +19,7 @@ import { cleanLinkInput } from "../bookings/lines"
 import { TimeField } from "../bookings/TimeField"
 import { ZoneField } from "../bookings/ZoneField"
 import { BOOKING_STATUS_LABEL, BOOKING_STATUSES, bookingStatus, bookingStatusPatch } from "../bookings/status"
+import { isBookingDetail } from "./stopFields"
 
 export interface BookingFieldsProps {
   item: ItineraryItem
@@ -28,6 +29,12 @@ export interface BookingFieldsProps {
   /** The day the booking sits on: its start date. */
   day: TripDay
   disabled?: boolean
+  /**
+   * A stop's editor: false shows the type, status and times, and each other
+   * field once it holds something; true shows them all. Absent (pasting a
+   * booking), every field shows.
+   */
+  details?: boolean
 }
 
 /** Empty fields leave the document, so a cleared seat is gone, not "". */
@@ -43,40 +50,44 @@ function tidy(reservation: Reservation): Reservation {
  * and the booking's, `bookings/status.ts`), confirmation, contact and a https
  * link. Its start and end times are the item's own `time` / `endTime`.
  */
-export function BookingFields({ item, onChange, trip, day, disabled }: BookingFieldsProps) {
+export function BookingFields({ item, onChange, trip, day, disabled, details }: BookingFieldsProps) {
   const r = reservationOf(item)
   const form = bookingForm(r.type)
   const words = partyWords(r.type)
   const zones = useMemo(() => tripZones(trip), [trip])
   const legendId = useId()
   const set = (patch: Partial<Reservation>) => onChange({ reservation: tidy({ ...r, ...patch }) })
-  const text = (key: keyof Reservation, label: string, max: number, extra: { placeholder?: string; code?: boolean; wide?: boolean } = {}) => (
-    <TextField
-      key={key}
-      label={label}
-      value={(r[key] as string | undefined) ?? ""}
-      max={max}
-      placeholder={extra.placeholder}
-      code={extra.code}
-      wide={extra.wide}
-      disabled={disabled}
-      onChange={(value) => set({ [key]: value || undefined })}
-    />
-  )
+  // An empty detail waits behind the editor's "More booking details".
+  const waits = (key: keyof Reservation) => details === false && isBookingDetail(form, key) && !r[key]
+  const text = (key: keyof Reservation, label: string, max: number, extra: { placeholder?: string; code?: boolean; wide?: boolean } = {}) =>
+    !waits(key) && (
+      <TextField
+        key={key}
+        label={label}
+        value={(r[key] as string | undefined) ?? ""}
+        max={max}
+        placeholder={extra.placeholder}
+        code={extra.code}
+        wide={extra.wide}
+        disabled={disabled}
+        onChange={(value) => set({ [key]: value || undefined })}
+      />
+    )
   // An airport code reads in capitals; a station or a pick-up desk keeps its case.
-  const airport = (key: "from" | "to", label: string, placeholder: string) => (
-    <TextField
-      key={key}
-      label={label}
-      value={r[key] ?? ""}
-      max={LIMITS.bookingPlace}
-      placeholder={placeholder}
-      code
-      disabled={disabled}
-      normalize={(value) => (/^[a-z]{3}$/i.test(value.trim()) ? value.trim().toUpperCase() : value)}
-      onChange={(value) => set({ [key]: value || undefined })}
-    />
-  )
+  const airport = (key: "from" | "to", label: string, placeholder: string) =>
+    !waits(key) && (
+      <TextField
+        key={key}
+        label={label}
+        value={r[key] ?? ""}
+        max={LIMITS.bookingPlace}
+        placeholder={placeholder}
+        code
+        disabled={disabled}
+        normalize={(value) => (/^[a-z]{3}$/i.test(value.trim()) ? value.trim().toUpperCase() : value)}
+        onChange={(value) => set({ [key]: value || undefined })}
+      />
+    )
   const time = (key: "time" | "endTime", label: string) => (
     <TimeField key={key} label={label} value={item[key]} disabled={disabled} onChange={(value) => onChange({ [key]: value })} />
   )
@@ -102,15 +113,17 @@ export function BookingFields({ item, onChange, trip, day, disabled }: BookingFi
       time("endTime", "Lands"),
       endDate("Lands on"),
       text("terminal", "Terminal", LIMITS.terminal, { placeholder: "e.g. 2" }),
-      <ZoneField
-        key="zone"
-        label="Arrival time zone"
-        value={r.endTimezone}
-        tripZones={zones}
-        date={r.endDate ?? day.date}
-        disabled={disabled}
-        onChange={(endTimezone) => set({ endTimezone })}
-      />,
+      !waits("endTimezone") && (
+        <ZoneField
+          key="zone"
+          label="Arrival time zone"
+          value={r.endTimezone}
+          tripZones={zones}
+          date={r.endDate ?? day.date}
+          disabled={disabled}
+          onChange={(endTimezone) => set({ endTimezone })}
+        />
+      ),
       text("seat", "Seat", LIMITS.seat, { placeholder: "e.g. 14A", code: true }),
     ]
   } else if (form === "stay") {
@@ -160,8 +173,8 @@ export function BookingFields({ item, onChange, trip, day, disabled }: BookingFi
       />
       {specific}
       {text("confirmation", "Confirmation", LIMITS.confirmation, { placeholder: "Code or reference", code: true })}
-      {text("contact", "Contact", LIMITS.contact, { placeholder: "Phone or email" })}
-      <LinkField value={r.url} disabled={disabled} onChange={(url) => set({ url })} />
+      {text("contact", "Contact", LIMITS.contact, { placeholder: "Phone or email", wide: true })}
+      {!waits("url") && <LinkField value={r.url} disabled={disabled} onChange={(url) => set({ url })} />}
     </fieldset>
   )
 }

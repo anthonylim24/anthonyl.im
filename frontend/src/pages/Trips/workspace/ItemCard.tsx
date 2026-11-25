@@ -31,6 +31,8 @@ import { shownStatus } from "../bookings/status"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { scrollBehavior } from "./scroll"
+import { useFitHeight } from "./fitHeight"
+import { composing } from "../ime"
 import type { ConflictAlert } from "./stopAlerts"
 import { StopRef } from "../timeline/StopRef"
 import { Parts } from "./Parts"
@@ -100,6 +102,29 @@ export interface ItemCardProps {
 
 function firstLine(text?: string): string {
   return (text ?? "").split("\n").find((line) => line.trim().length > 0)?.trim() ?? ""
+}
+
+/** A heading's words, wrapping onto a second line on a phone rather than cut off. One line of text: Enter adds none. */
+function HeadingField({ value, disabled, onChange }: { value: string; disabled: boolean; onChange: (value: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useFitHeight(ref, value)
+  return (
+    <textarea
+      ref={ref}
+      aria-label="Heading"
+      data-card-row=""
+      rows={1}
+      value={value}
+      placeholder="Heading"
+      maxLength={LIMITS.itemTitle}
+      disabled={disabled}
+      {...sx(s.sectionInput)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && !composing(event)) event.preventDefault()
+      }}
+      onChange={(event) => onChange(event.target.value.replace(/\s*\n\s*/g, " "))}
+    />
+  )
 }
 
 /** A two-state button on the card: Done, Skip, Loved it. */
@@ -222,20 +247,11 @@ export const ItemCard = memo(function ItemCard({
           </button>
         )}
         {editable ? (
-          <input
-            aria-label="Heading"
-            data-card-row=""
-            value={item.title}
-            placeholder="Heading"
-            maxLength={LIMITS.itemTitle}
-            disabled={locked}
-            {...sx(s.sectionInput)}
-            onChange={(event) => patch({ title: event.target.value })}
-          />
+          <HeadingField value={item.title} disabled={locked} onChange={(title) => patch({ title })} />
         ) : (
-          <h3 {...sx(a.eyebrow, a.grow)}>{item.title}</h3>
+          <h3 {...sx(a.eyebrow, a.grow, a.wrap)}>{item.title}</h3>
         )}
-        {item.time && <span {...sx(a.mono, a.muted)}>{formatClock(item.time)}</span>}
+        {item.time && <span {...sx(a.mono, a.muted, s.sectionTime)}>{formatClock(item.time)}</span>}
         {canEdit && (
           <button
             type="button"

@@ -1,7 +1,7 @@
-import { useId, useRef, useState, type ReactNode } from "react"
-import { ArrowDown, ArrowUp, CalendarDays, Copy, ExternalLink, MapPin, MapPinOff, Trash2, X } from "lucide-react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { ArrowDown, ArrowUp, CalendarDays, Copy, ExternalLink, MapPin, MapPinOff, Plus, Trash2, X } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { externalMapsLink } from "@/lib/externalMaps"
+import { externalMapsAppName, externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, STATUS_LABEL } from "../meta"
 import type { LngLat } from "../map/geo"
 import { LIMITS } from "../limits"
@@ -20,6 +20,8 @@ import { BookingSummary } from "../bookings/BookingSummary"
 import { TimeField } from "../bookings/TimeField"
 import type { DayOption } from "../useTripEditor"
 import { type EditorSurface, type StopEdits } from "./stopEdits"
+import { FIELD_CHIP, holds, STOP_FIELDS, type StopField } from "./stopFields"
+import { useFitHeight } from "./fitHeight"
 import { stopTitle } from "../timeline/timeline"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
@@ -83,10 +85,35 @@ export interface StopEditorProps {
   focusName?: boolean
 }
 
-/** The fields of an editable stop. */
+/** The fields of an editable stop: what its kind needs, then chips for the rest (`stopFields.ts`). */
 export function StopEditor({ item, trip, day, locked, near, currency, edits, focusName = false }: StopEditorProps) {
   const [endOpen, setEndOpen] = useState(false)
+  const notesRef = useRef<HTMLTextAreaElement>(null)
+  useFitHeight(notesRef, item.notes ?? "")
   const { patch } = edits
+  const kind = item.kind === "reservation" || item.kind === "note" ? item.kind : "place"
+  const fields = STOP_FIELDS[kind]
+  // What showed when the editor opened stays while it is emptied.
+  const [asked, setAsked] = useState<ReadonlySet<StopField>>(() => new Set(fields.optional.filter((field) => holds(item, field))))
+  const shows = (field: StopField) =>
+    fields.always.includes(field) || (fields.optional.includes(field) && (asked.has(field) || (field !== "details" && holds(item, field))))
+  const fieldId = useId()
+  // A fresh object per request, so asking for the same field again focuses it again.
+  const [focusOn, setFocusOn] = useState<{ field: StopField } | null>(null)
+  const ask = (field: StopField) => {
+    setAsked((was) => new Set(was).add(field))
+    setFocusOn({ field })
+  }
+  useEffect(() => {
+    if (!focusOn) return
+    document
+      .querySelector(`[data-stop-field="${fieldId}-${focusOn.field}"]`)
+      ?.querySelector<HTMLElement>("input:not([type=hidden]), textarea, [role=combobox], button")
+      ?.focus()
+  }, [focusOn, fieldId])
+  const mark = (field: StopField) => ({ "data-stop-field": `${fieldId}-${field}` })
+  const chips = fields.optional.filter((field) => !shows(field) && !(field === "details" && holds(item, "details")))
+
   return (
     <>
       <label {...sx(s.span2)}>
@@ -101,9 +128,11 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, foc
           onChange={(event) => patch({ title: event.target.value })}
         />
       </label>
-      {item.kind !== "reservation" && (
+      {item.kind !== "reservation" && shows("time") && (
         <>
-          <TimeField label="Starts" value={item.time} disabled={locked} onChange={edits.setTime} />
+          <div {...mark("time")}>
+            <TimeField label="Starts" value={item.time} disabled={locked} onChange={edits.setTime} />
+          </div>
           {item.endTime || endOpen ? (
             <TimeField
               label="Ends"
@@ -124,28 +153,32 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, foc
           )}
         </>
       )}
-      {item.kind !== "note" && (
+      {item.kind === "reservation" && trip && day && (
+        <BookingFields item={item} trip={trip} day={day} disabled={locked} details={asked.has("details")} onChange={patch} />
+      )}
+      {shows("location") && (
         <div {...sx(s.span2)}>
           <span {...sx(s.miniLabel)}>Location</span>
           <LocationField item={item} near={near} locked={locked} onChange={patch} />
         </div>
       )}
-      {item.kind === "reservation" && trip && day && <BookingFields item={item} trip={trip} day={day} disabled={locked} onChange={patch} />}
-      <label {...sx(s.span2)}>
-        <span {...sx(s.miniLabel)}>Notes</span>
-        <textarea
-          value={item.notes ?? ""}
-          disabled={locked}
-          rows={2}
-          maxLength={LIMITS.notes}
-          placeholder="Opening hours, what to order, who recommended it…"
-          {...sx(a.field, a.textarea)}
-          onChange={(event) => patch({ notes: event.target.value || undefined })}
-        />
-      </label>
-      <LinksField links={item.links} disabled={locked} onChange={(links) => patch({ links: links.length > 0 ? links : undefined })} />
-      {item.kind === "place" && (
-        <label {...sx(s.span2Narrow)}>
+      {shows("notes") && (
+        <label {...sx(s.span2)} {...mark("notes")}>
+          <span {...sx(s.miniLabel)}>Notes</span>
+          <textarea
+            ref={notesRef}
+            value={item.notes ?? ""}
+            disabled={locked}
+            rows={1}
+            maxLength={LIMITS.notes}
+            placeholder="Hours, what to order, who said go…"
+            {...sx(a.field, a.textarea, s.notesField)}
+            onChange={(event) => patch({ notes: event.target.value || undefined })}
+          />
+        </label>
+      )}
+      {shows("status") && (
+        <label {...sx(s.span2Narrow)} {...mark("status")}>
           <span {...sx(s.miniLabel)}>Status</span>
           <Select
             label="Status"
@@ -156,9 +189,24 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, foc
           />
         </label>
       )}
-      {item.kind !== "note" && (
-        <div {...sx(s.span2Narrow)}>
+      {shows("cost") && (
+        <div {...sx(s.span2Narrow)} {...mark("cost")}>
           <CostField value={item.cost} defaultCurrency={currency} disabled={locked} onChange={(cost) => patch({ cost })} />
+        </div>
+      )}
+      {shows("links") && (
+        <div {...sx(s.span2)} {...mark("links")}>
+          <LinksField links={item.links} disabled={locked} onChange={(links) => patch({ links: links.length > 0 ? links : undefined })} />
+        </div>
+      )}
+      {chips.length > 0 && (
+        <div {...sx(s.fieldChips)}>
+          {chips.map((field) => (
+            <button key={field} type="button" {...sx(s.fieldChip)} disabled={locked} onClick={() => ask(field)}>
+              <Plus size={14} strokeWidth={1.75} aria-hidden />
+              {FIELD_CHIP[field]}
+            </button>
+          ))}
         </div>
       )}
     </>
@@ -273,9 +321,10 @@ export function StopDetails({ item, trip, day }: { item: ItineraryItem; trip?: T
         item.reservation?.confirmation && <p {...sx(a.mono)}>Confirmation {item.reservation.confirmation}</p>
       )}
       {maps && (
-        <a href={maps.href} target="_blank" rel="noreferrer" {...sx(a.btn, a.btnSecondary, a.btnSm)} style={{ alignSelf: "flex-start" }}>
+        // The app's name, not "Open <title> in …": a button does not wrap, and a long title would widen the page.
+        <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnSecondary, a.btnSm)} style={{ alignSelf: "flex-start" }}>
           <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
-          {maps.label}
+          {externalMapsAppName(maps.app)}
         </a>
       )}
       {links.length > 0 && (
@@ -392,10 +441,15 @@ function LocationField({
   useClaimEscape(searching, areaRef)
 
   if (pinned && !searching) {
+    // One line: the place's own name when the stop is called something else, else where it is.
+    const place = item.location?.name?.trim()
+    const where = (place && place !== item.title.trim() ? place : item.location?.address) || place || "Pinned on the map"
     return (
       <div {...sx(s.pinnedBox)}>
         <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText)} />
-        <span {...sx(a.grow, a.wrap)}>{item.location?.address || item.location?.name || "Pinned on the map"}</span>
+        <span {...sx(a.grow, a.truncate)} title={[place, item.location?.address].filter(Boolean).join(" · ")}>
+          {where}
+        </span>
         <button
           type="button"
           {...sx(a.btn, a.btnGhost, a.btnSm)}
@@ -425,6 +479,8 @@ function LocationField({
       <input
         value={searching ? query : ""}
         disabled={locked}
+        // Opened by Change: the search is what was asked for.
+        autoFocus={searching}
         placeholder={pinned ? "Search for a different place" : "Search to pin this on the map"}
         aria-label="Search for a place to pin"
         maxLength={LIMITS.locationName}
@@ -517,7 +573,7 @@ function LinksField({ links, disabled, onChange }: { links: string[] | undefined
     onChange(withLink(saved, link))
   }
   return (
-    <div {...sx(s.span2, a.stack)} style={{ gap: "0.375rem" }}>
+    <div {...sx(a.stack)} style={{ gap: "0.375rem" }}>
       <label htmlFor={id} {...sx(s.miniLabel)} style={{ marginBottom: 0 }}>
         Links
       </label>
