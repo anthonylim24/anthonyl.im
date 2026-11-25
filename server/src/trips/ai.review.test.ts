@@ -936,10 +936,10 @@ describe("retryable or final", () => {
       throw new DOMException("The operation timed out.", "TimeoutError")
     }) as LlmCall, /took too long/],
     ["an empty response", failing("gemini returned an empty response (MAX_TOKENS)"), /did not finish/],
-    ["an empty reply", (async () => "") as LlmCall, /could not use/],
-    ["an empty object", (async () => "{}") as LlmCall, /could not use/],
+    ["an empty reply", (async () => "") as LlmCall, /came back unreadable/],
+    ["an empty object", (async () => "{}") as LlmCall, /came back unreadable/],
     ["only malformed suggestions", (async () =>
-      JSON.stringify({ summary: "Added lunch.", suggestions: [{ kind: "add" }, { title: "no kind" }] })) as LlmCall, /could not use/],
+      JSON.stringify({ summary: "Added lunch.", suggestions: [{ kind: "add" }, { title: "no kind" }] })) as LlmCall, /came back unreadable/],
   ])("%s is thrown as retryable", async (_name, llm, message) => {
     const { err } = (await attempt(llm)) as { err?: unknown }
     expect(err).toBeInstanceOf(ReviewAttemptError)

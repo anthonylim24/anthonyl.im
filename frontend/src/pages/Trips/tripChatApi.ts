@@ -90,7 +90,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
   }).pipe(Effect.mapError(remapChatFailure))
 
   if (response.type === "opaqueredirect" || response.status === 0) {
-    return yield* Effect.fail(new Error("The concierge lost its connection. Please try again."))
+    return yield* Effect.fail(new Error("The concierge lost its connection. Try again."))
   }
 
   if (!response.ok) {
@@ -114,7 +114,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
     }
 
     if (response.status === 401) {
-      return yield* Effect.fail(new AuthError({ message: "Please sign in again to use the concierge." }))
+      return yield* Effect.fail(new AuthError({ message: "Sign in again to use the concierge." }))
     }
     if (response.status === 429) {
       return yield* Effect.fail(new HttpStatusError({
@@ -125,7 +125,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
     if (response.status === 502 || response.status === 504) {
       return yield* Effect.fail(new HttpStatusError({
         status: response.status,
-        message: "The concierge did not respond in time. Please try again.",
+        message: "The concierge didn’t answer in time. Try again.",
       }))
     }
     return yield* Effect.fail(new HttpStatusError({ status: response.status, message }))

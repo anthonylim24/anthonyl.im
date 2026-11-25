@@ -92,7 +92,7 @@ interface AiOutcome {
 }
 
 const STOPPING = "Stopping the AI review…"
-const STOP_UNCONFIRMED = "Stopped following the AI review. It may still finish on the server and add places to your trip."
+const STOP_UNCONFIRMED = "Stopped waiting for the AI review. It may still finish on the server and add places to your trip."
 
 export function useTripEditor() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -656,7 +656,7 @@ export function useTripEditor() {
                 added.length > 0
                   ? incompleteDays.length > 0
                     ? `Drafted ${plural(added.length, "stop")}, but not every day.${thin}`
-                    : (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}. Edit anything.`)
+                    : (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}.`)
                   : "The draft came back empty. Try again with a little more detail.",
               )
             },

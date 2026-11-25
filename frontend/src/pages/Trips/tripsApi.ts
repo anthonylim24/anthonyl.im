@@ -361,7 +361,7 @@ const askAboutRun = (getToken: GetToken, id: string, runId: string, signal: Abor
       signal,
     })
     if (res.status === 401 || res.status === 403) {
-      return yield* Effect.fail(new AuthError({ message: "Please sign in again to follow the AI review. It may still finish on the server." }))
+      return yield* Effect.fail(new AuthError({ message: "Sign in again to follow the AI review. It may still finish on the server." }))
     }
     if (res.status === 404) {
       return yield* Effect.fail(

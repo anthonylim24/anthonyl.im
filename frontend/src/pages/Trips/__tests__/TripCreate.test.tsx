@@ -169,7 +169,7 @@ describe("TripCreate", () => {
     })
 
     expect(await screen.findByTestId("path")).toHaveTextContent("/trips/lisbon-9")
-    expect(screen.getByTestId("notice")).toHaveTextContent("Drafted 3 stops across 2 days. Everything is editable.")
+    expect(screen.getByTestId("notice")).toHaveTextContent("Drafted 3 stops across 2 days.")
   })
 
   it("sends the brief and a custom name along", async () => {

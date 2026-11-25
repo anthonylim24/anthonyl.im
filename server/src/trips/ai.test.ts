@@ -314,7 +314,7 @@ describe("enhanceTrip", () => {
     }).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ReviewAttemptError)
     expect(isRetryableReviewError(err)).toBe(true)
-    expect((err as Error).message).toMatch(/could not use/i)
+    expect((err as Error).message).toMatch(/came back unreadable/i)
   })
 
   test("never puts Groq TPM dumps in the error the traveler sees", async () => {
@@ -795,7 +795,7 @@ describe("Groq TPM budget", () => {
         new Error("413 Request too large for model `openai/gpt-oss-120b` Limit 8000 https://console.groq.com"),
       ),
     ).toMatch(/try again/i)
-    expect(travelerFacingLlmError(new Error("no JSON object found in model output"))).toMatch(/could not use/i)
+    expect(travelerFacingLlmError(new Error("no JSON object found in model output"))).toMatch(/came back unreadable/i)
     expect(travelerFacingLlmError(new Error("day not found"))).toBe("day not found")
   })
 })

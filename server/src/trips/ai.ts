@@ -100,7 +100,7 @@ const GROQ_TPM_RESERVE = 200
 export const GROQ_DEFAULT_MAX_TOKENS = 2048
 
 const TRAVELER_REVIEW_ERROR = "The review did not finish. Try again in a moment."
-const TRAVELER_PARSE_ERROR = "The review came back in a form we could not use. Try again."
+const TRAVELER_PARSE_ERROR = "The review came back unreadable. Try again."
 const TRAVELER_TIMEOUT_ERROR = "The review took too long to finish. Try again in a moment."
 const TRAVELER_BUSY_ERROR = "The AI is busy right now. Try again in a moment."
 const TRAVELER_BLOCKED_ERROR = "The AI declined to review this plan as written. Nothing in your itinerary changed."
@@ -1868,25 +1868,25 @@ export function resolveEnhancementOutcome(args: {
   if (args.modelOutcome === "added_places" && addableAdds === 0) {
     return {
       outcome: "no_adds_possible",
-      outcomeReason: "Suggested adds were dropped (invalid day or missing place data).",
+      outcomeReason: "The suggested places were dropped: each was missing a day or a location.",
     }
   }
   if (addableAdds > 0 || anyAdds > 0) {
     return {
       outcome: "no_adds_possible",
-      outcomeReason: reason || "Suggested places could not be added (missing day or place data).",
+      outcomeReason: reason || "The suggested places couldn’t be added: each was missing a day or a location.",
     }
   }
   if (args.modelOutcome === "no_adds_possible") {
     return {
       outcome: "no_adds_possible",
-      outcomeReason: reason || "Could not find additional places that fit this day's pace and geography.",
+      outcomeReason: reason || "Found no more places that fit this day’s pace and route.",
     }
   }
   return {
     outcome: "no_adds_needed",
     outcomeReason:
-      reason || "The itinerary already covers meals and clustered stops; adding more would overpack the day.",
+      reason || "The plan already covers meals, and more stops would overpack the day.",
   }
 }
 

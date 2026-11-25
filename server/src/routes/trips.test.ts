@@ -1125,7 +1125,7 @@ describe("concierge chat", () => {
       body: JSON.stringify({ prompt: "hello" }),
     })
     const text = await res.text()
-    expect(text).toContain('"error":"The concierge is unavailable right now. Please try again."')
+    expect(text).toContain('"error":"The concierge isn’t available right now. Try again in a moment."')
     expect(text).toContain("data: [DONE]")
   })
 })

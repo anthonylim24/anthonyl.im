@@ -2,7 +2,7 @@ import { Schema } from "effect"
 
 /** Shared remapping for concierge SSE (Korea + trips). */
 
-export const CONCIERGE_CUTOFF_ERROR = "The concierge lost its connection. Please try again."
+export const CONCIERGE_CUTOFF_ERROR = "The concierge lost its connection. Try again."
 
 export function isLostConnection(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err)

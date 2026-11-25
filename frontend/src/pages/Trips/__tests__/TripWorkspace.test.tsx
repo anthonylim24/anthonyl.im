@@ -1867,7 +1867,7 @@ describe("TripWorkspace", () => {
       expect(mockCancelEnhancement).toHaveBeenCalledWith(expect.any(Function), "lisbon", working.id)
       expect(notice("Stopping the AI review…")).toBeInTheDocument()
       expect(
-        (await screen.findAllByText("Stopped following the AI review. It may still finish on the server and add places to your trip."))[0],
+        (await screen.findAllByText("Stopped waiting for the AI review. It may still finish on the server and add places to your trip."))[0],
       ).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Improve with AI" })).toBeEnabled()
 
