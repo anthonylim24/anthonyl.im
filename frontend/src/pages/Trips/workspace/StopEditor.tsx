@@ -14,7 +14,7 @@ import { composing } from "../ime"
 import { normalizeLink, stopLink, withLink } from "./stopLinks"
 import { LinkChip } from "./LinkChip"
 import { CostField } from "../budget/CostField"
-import type { ItemStatus, ItineraryItem, Trip, TripDay } from "../types"
+import type { ItemStatus, ItineraryItem, Trip, TripDay, TripLocation } from "../types"
 import { BookingFields } from "./BookingFields"
 import { BookingSummary } from "../bookings/BookingSummary"
 import { TimeField } from "../bookings/TimeField"
@@ -198,7 +198,7 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
       {shows("location") && (
         <div {...sx(s.span2)}>
           <span {...sx(s.miniLabel)}>Location</span>
-          <LocationField item={item} near={near} locked={locked} onChange={patch} />
+          <LocationField item={item} near={near} locked={locked} edits={edits} />
         </div>
       )}
       {shows("notes") && (
@@ -562,24 +562,20 @@ export function StopSheet({
   )
 }
 
-function LocationField({
-  item,
-  near,
-  locked,
-  onChange,
-}: {
-  item: ItineraryItem
-  near: LngLat | null
-  locked: boolean
-  onChange: (patch: Partial<Omit<ItineraryItem, "id">>) => void
-}) {
+function LocationField({ item, near, locked, edits }: { item: ItineraryItem; near: LngLat | null; locked: boolean; edits: StopEdits }) {
   const pinned = isPinned(item)
   const [searching, setSearching] = useState(false)
   // The search closed: Change replaces it, and takes the focus it had.
   const [searched, setSearched] = useState(false)
+  // The pin just removed, offered back (with the focus) until the stop has another.
+  const [removed, setRemoved] = useState<TripLocation | null>(null)
+  if (pinned && removed) setRemoved(null)
+  // Put back by Undo: Remove pin, where the focus was, takes it again.
+  const [repinned, setRepinned] = useState(false)
   const closeSearch = () => {
     setSearching(false)
     setSearched(true)
+    setRepinned(false)
   }
   const [query, setQuery] = useState("")
   const { results, loading } = usePlaceSearch(searching ? query : "", near)
@@ -593,29 +589,40 @@ function LocationField({
     const where = (place && place !== item.title.trim() ? place : item.location?.address) || place || "Pinned on the map"
     return (
       <div {...sx(s.pinnedBox)}>
-        <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText)} />
-        <span {...sx(a.grow, a.wrap)}>{where}</span>
-        <button
-          type="button"
-          {...sx(a.btn, a.btnGhost, a.btnSm)}
-          disabled={locked}
-          autoFocus={searched}
-          onClick={() => {
-            setQuery(item.location?.name ?? item.title)
-            setSearching(true)
-          }}
-        >
-          Change
-        </button>
-        <button
-          type="button"
-          {...sx(a.iconBtn, a.iconBtnSm)}
-          aria-label="Remove pin"
-          disabled={locked}
-          onClick={() => onChange({ location: { name: item.location?.name ?? item.title, source: item.location?.source ?? "user" } })}
-        >
-          <MapPinOff size={16} strokeWidth={1.75} aria-hidden />
-        </button>
+        <p {...sx(s.pinnedPlace)}>
+          <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText, s.pinnedGlyph)} />
+          <span {...sx(s.pinnedText)} title={where}>
+            {where}
+          </span>
+        </p>
+        <div {...sx(s.pinnedActions)}>
+          <button
+            type="button"
+            {...sx(a.btn, a.btnGhost, a.btnSm)}
+            disabled={locked}
+            autoFocus={searched}
+            onClick={() => {
+              setQuery(item.location?.name ?? item.title)
+              setSearching(true)
+            }}
+          >
+            Change
+          </button>
+          <button
+            type="button"
+            {...sx(a.btn, a.btnGhost, a.btnSm)}
+            disabled={locked}
+            autoFocus={repinned}
+            onClick={() => {
+              setSearched(false)
+              setRepinned(false)
+              setRemoved(edits.removePin())
+            }}
+          >
+            <MapPinOff size={14} strokeWidth={1.75} aria-hidden />
+            Remove pin
+          </button>
+        </div>
       </div>
     )
   }
@@ -648,6 +655,25 @@ function LocationField({
           }
         }}
       />
+      {removed && !searching && (
+        <p {...sx(s.pinUndo)}>
+          Pin removed.
+          <button
+            type="button"
+            {...sx(a.btn, a.btnGhost, a.btnSm)}
+            // The control that removed it has gone; this is where the focus can be useful.
+            autoFocus
+            disabled={locked}
+            onClick={() => {
+              edits.pinAgain(removed)
+              setRemoved(null)
+              setRepinned(true)
+            }}
+          >
+            Undo
+          </button>
+        </p>
+      )}
       {searching && (loading || results.length > 0 || query.trim().length >= 2) && (
         <ul {...sx(a.stack)} style={{ gap: 0, listStyle: "none", margin: 0, padding: 0 }} aria-label="Matching places">
           {results.map((place) => (
@@ -656,7 +682,7 @@ function LocationField({
                 type="button"
                 {...sx(s.result)}
                 onClick={() => {
-                  onChange({
+                  edits.patch({
                     title: item.title || place.name,
                     location: {
                       name: place.name,

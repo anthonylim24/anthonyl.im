@@ -231,6 +231,27 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(sheet.getByRole("button", { name: "Change" })).toHaveFocus()
   })
 
+  it("removes a pin with an Undo that takes the focus, and puts the pin back", () => {
+    const location = { name: "Time Out Market", address: "Av. 24 de Julho 49", lat: 38.707, lng: -9.146, source: "user" as const }
+    const state = renderDay(tripOf(days(FUTURE, [[{ ...lunch, location }]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Edit stop" }))
+    fireEvent.click(sheet.getByRole("button", { name: "Remove pin" }))
+
+    expect(itemsOf(state, "day-1")[0]!.location).toEqual({ name: "Time Out Market", source: "user" })
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Removed the pin from “Lunch”" })
+    expect(sheet.getByRole("status")).toHaveTextContent("Pin removed from Lunch.")
+    const undo = sheet.getByRole("button", { name: "Undo" })
+    expect(undo).toHaveFocus()
+
+    fireEvent.click(undo)
+    expect(itemsOf(state, "day-1")[0]!.location).toEqual(location)
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Pinned “Lunch” again" })
+    expect(sheet.getByRole("status")).toHaveTextContent("Lunch is back on the map.")
+    expect(sheet.queryByRole("button", { name: "Undo" })).toBeNull()
+    expect(sheet.getByRole("button", { name: "Remove pin" })).toHaveFocus()
+  })
+
   it("keeps Delete, More and Done in its foot, with the rest under More", () => {
     renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))

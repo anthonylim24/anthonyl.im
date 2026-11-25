@@ -931,18 +931,38 @@ export const ws = stylex.create({
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",
   },
+  // A field's surface, not the trip's colour (the glyph keeps that): the place
+  // across the full width, its actions on a line under it.
   pinnedBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.625rem",
-    minHeight: "2.75rem",
+    display: "grid",
+    rowGap: "0.25rem",
     paddingInline: "0.75rem",
-    paddingBlock: "0.5rem",
+    paddingTop: "0.625rem",
+    paddingBottom: "0.25rem",
     borderRadius: "var(--trips-field-radius)",
-    backgroundColor: "var(--ta-soft)",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: "var(--trips-line)",
+    backgroundColor: "var(--trips-raised)",
     fontSize: "0.875rem",
     color: "var(--trips-ink)",
   },
+  pinnedPlace: { display: "flex", alignItems: "flex-start", gap: "0.5rem", margin: 0, minWidth: 0 },
+  // On the first line's centre (16px glyph, 20px line).
+  pinnedGlyph: { marginTop: "0.125rem" },
+  // Two lines at most, so the actions stay close under it.
+  pinnedText: {
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    overflowWrap: "break-word",
+    lineHeight: 1.4,
+    minWidth: 0,
+  },
+  // Each button's words under the address's, past the glyph (24px in, less the button's 14px inset).
+  pinnedActions: { display: "flex", flexWrap: "wrap", columnGap: "0.25rem", rowGap: "0.5rem", paddingInlineStart: "0.625rem" },
+  pinUndo: { display: "flex", alignItems: "center", gap: "0.25rem", margin: 0, paddingInlineStart: "0.75rem", fontSize: "0.8125rem", color: "var(--trips-ink-secondary)" },
   editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.25rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
   // One line to start, growing with what is written (`field-sizing` in a.textarea).
   notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
