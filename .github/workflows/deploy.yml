@@ -347,7 +347,7 @@ jobs:
           OK=0
           for attempt in 1 2 3 4 5 6; do
             if BODY="$(curl -fsSL --max-time 10 "$BASE/health" 2>/dev/null)"; then
-              if echo "$BODY" | grep -q '"status":"ok"'; then
+              if grep -q '"status":"ok"' <<<"$BODY"; then
                 echo "[smoke] /health OK on attempt $attempt — $BODY"
                 OK=1
                 break
@@ -384,7 +384,7 @@ jobs:
             for attempt in 1 2 3; do
               echo "[smoke] attempt $attempt — GET $URL"
               if BODY="$(curl -fsSL --max-time 15 "$URL")"; then
-                if echo "$BODY" | grep -qF "$expect"; then
+                if grep -qF -- "$expect" <<<"$BODY"; then
                   echo "[smoke] OK — $path"
                   OK=1
                   break
