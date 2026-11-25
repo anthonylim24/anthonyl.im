@@ -220,6 +220,19 @@ export const ItemCard = memo(function ItemCard({
     if (active) rowRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
   }, [active])
 
+  // Opened from its own row, the editor scrolls into view under it. (One
+  // opened from elsewhere, the day scrolls to.)
+  const opening = useRef(false)
+  useEffect(() => {
+    if (!open || !opening.current) return
+    opening.current = false
+    rowRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
+  }, [open])
+  const closeEditor = () => {
+    rowRef.current?.querySelector<HTMLElement>("[data-card-row]")?.focus()
+    onToggle(item.id)
+  }
+
   // "To schedule" is the planner's own divider: a plain header, not a row to edit.
   if (isToSchedule(item)) {
     return (
@@ -314,7 +327,10 @@ export const ItemCard = memo(function ItemCard({
             aria-controls={inline && open ? panelId : undefined}
             aria-haspopup={inline ? undefined : "dialog"}
             aria-keyshortcuts={editable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
-            onClick={() => onToggle(item.id)}
+            onClick={() => {
+              opening.current = inline && !open
+              onToggle(item.id)
+            }}
             onKeyDown={(event) => {
               if (!editable || locked || !event.altKey) return
               if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
@@ -431,7 +447,16 @@ export const ItemCard = memo(function ItemCard({
         </Presence>
 
         {open && (
-          <div id={panelId} {...sx(s.editor)}>
+          <div
+            id={panelId}
+            {...sx(s.editor)}
+            // Escape closes it, as Done closes the sheet. A popup inside that took the key marks it handled.
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || event.defaultPrevented || composing(event)) return
+              event.preventDefault()
+              closeEditor()
+            }}
+          >
             {editable ? (
               <>
                 <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} />

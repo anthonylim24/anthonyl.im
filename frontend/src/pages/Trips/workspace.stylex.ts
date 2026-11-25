@@ -688,6 +688,9 @@ export const ws = stylex.create({
     display: "grid",
     gridTemplateColumns: "2rem minmax(0, 1fr)",
     columnGap: "0.75rem",
+    // Scrolled to, it clears the sticky day header above and the dock below.
+    scrollMarginTop: "9rem",
+    scrollMarginBottom: "1rem",
   },
   gutter: { position: "relative", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "0.875rem" },
   gutterLine: {

@@ -311,6 +311,27 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Lunch duplicated. The copy is next in the day.")
   })
 
+  it("closes the editor under the card on Escape and hands focus back to its row", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1")
+    fireEvent.click(row("lunch"))
+    const name = within(card("lunch")).getByRole("textbox", { name: "Name" })
+    name.focus()
+    fireEvent.keyDown(name, { key: "Escape" })
+    expect(row("lunch")).toHaveAttribute("aria-expanded", "false")
+    expect(card("lunch").querySelector("textarea")).toBeNull()
+    expect(row("lunch")).toHaveFocus()
+  })
+
+  it("keeps the editor under the card open when Escape closes a search inside it", () => {
+    const location = { name: "Time Out Market", lat: 38.707, lng: -9.146, source: "user" as const }
+    renderDay(tripOf(days(FUTURE, [[{ ...lunch, location }]])), "day-1")
+    fireEvent.click(row("lunch"))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Change" }))
+    fireEvent.keyDown(within(card("lunch")).getByRole("textbox", { name: "Search for a place to pin" }), { key: "Escape" })
+    expect(row("lunch")).toHaveAttribute("aria-expanded", "true")
+    expect(within(card("lunch")).getByRole("button", { name: "Change" })).toHaveFocus()
+  })
+
   it("duplicates under the card: the editor closes and the copy takes focus", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1")
     fireEvent.click(row("lunch"))
