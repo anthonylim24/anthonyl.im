@@ -6,7 +6,7 @@ import { Menu, type MenuItem } from "../components/kit"
 import type { UndoMark } from "../editorMachine"
 import { composing, holdEnterWhileComposing } from "../ime"
 import { LIMITS } from "../limits"
-import { plural } from "../meta"
+import { plural, tripTiming } from "../meta"
 import type { ChecklistGroup, ChecklistItem, Trip, TripPerson } from "../types"
 import {
   GROUPS,
@@ -194,6 +194,8 @@ export function ChecklistPanel({
     </div>
   )
 
+  // Packing and visa suggestions are for before the trip; after it, the list is for what is left to do.
+  const ended = tripTiming(trip).phase === "past"
   const tally = progress(list)
   const allDone = tally.total > 0 && tally.done === tally.total
   const showGroups = list.length > 0 || composing || undo !== null
@@ -216,10 +218,12 @@ export function ChecklistPanel({
             </p>
             {editable && (
               <div {...sx(a.rowWrap)}>
-                <button type="button" disabled={locked} onClick={suggest} {...sx(a.btn, a.btnSm, a.btnSecondary)}>
-                  <ListChecks size={15} strokeWidth={1.75} aria-hidden />
-                  Suggest from your plan
-                </button>
+                {!ended && (
+                  <button type="button" disabled={locked} onClick={suggest} {...sx(a.btn, a.btnSm, a.btnSecondary)}>
+                    <ListChecks size={15} strokeWidth={1.75} aria-hidden />
+                    Suggest from your plan
+                  </button>
+                )}
                 <button type="button" disabled={locked || tally.done === 0} onClick={clearChecked} {...sx(a.btn, a.btnSm, a.btnGhost)}>
                   Clear checked
                 </button>
@@ -243,19 +247,34 @@ export function ChecklistPanel({
         editable ? (
           <section {...sx(p.empty)} aria-labelledby={`${uid}-empty`}>
             <p {...sx(a.eyebrow)}>Checklist</p>
-            <h2 id={`${uid}-empty`} {...sx(a.display, p.emptyTitle)}>
-              Ready when you <em {...sx(a.italic)}>go</em>
-            </h2>
-            <p {...sx(a.body, p.measure)}>
-              Packing, documents and the jobs to do before you leave, in one list the whole trip can tick off. Suggestions
-              come from your plan: its weather, places and bookings.
-            </p>
+            {ended ? (
+              <>
+                <h2 id={`${uid}-empty`} {...sx(a.display, p.emptyTitle)}>
+                  After the <em {...sx(a.italic)}>trip</em>
+                </h2>
+                <p {...sx(a.body, p.measure)}>
+                  Anything still to do now you’re back: expenses to settle, photos to send, things to return.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 id={`${uid}-empty`} {...sx(a.display, p.emptyTitle)}>
+                  Ready when you <em {...sx(a.italic)}>go</em>
+                </h2>
+                <p {...sx(a.body, p.measure)}>
+                  Packing, documents and the jobs to do before you leave, in one list the whole trip can tick off. Suggestions
+                  come from your plan: its weather, places and bookings.
+                </p>
+              </>
+            )}
             {notice && <p {...sx(a.small)}>{notice}</p>}
             <div {...sx(a.rowWrap)}>
-              <button type="button" disabled={locked} onClick={suggest} {...sx(a.btn, a.btnPrimary)}>
-                <ListChecks size={16} strokeWidth={1.75} aria-hidden />
-                Suggest from your plan
-              </button>
+              {!ended && (
+                <button type="button" disabled={locked} onClick={suggest} {...sx(a.btn, a.btnPrimary)}>
+                  <ListChecks size={16} strokeWidth={1.75} aria-hidden />
+                  Suggest from your plan
+                </button>
+              )}
               <button
                 type="button"
                 disabled={locked}
@@ -263,7 +282,7 @@ export function ChecklistPanel({
                   setComposing(true)
                   focusSoon(`${uid}-add-packing`)
                 }}
-                {...sx(a.btn, a.btnSecondary)}
+                {...sx(a.btn, ended ? a.btnPrimary : a.btnSecondary)}
               >
                 Add your own
               </button>
