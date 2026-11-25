@@ -3,6 +3,8 @@ import { clockMinutes, dayStarts } from "./dayClock"
 import { LIMITS } from "./limits"
 import { isToSchedule } from "./map/geo"
 import { addDays, daysBetween } from "./meta"
+import { reservationOf } from "./bookings/kinds"
+import { STOP_STATUS_OF } from "./bookings/status"
 import type { ItemStatus, ItemTheme, ItineraryItem, ItemKind, Trip, TripDay, TripLocation } from "./types"
 
 // Pure itinerary-mutation helpers behind the editor UI. Every function
@@ -189,9 +191,9 @@ export function copyItemToDays(days: TripDay[], fromDayId: string, itemId: strin
   return changed ? out : days
 }
 
-/** What a stop goes back to when Done or Skip is taken off: a booking stays booked. */
+/** What a stop goes back to when Done or Skip is taken off: a booking, the status its booking's state pairs with. */
 export function restingStatus(item: Pick<ItineraryItem, "kind" | "reservation">): ItemStatus {
-  return item.kind === "reservation" || item.reservation ? "booked" : "none"
+  return item.kind === "reservation" || item.reservation ? STOP_STATUS_OF[reservationOf(item).status] : "none"
 }
 
 /** Done and Skip are toggles: pressing the one already set puts the stop back at rest. */

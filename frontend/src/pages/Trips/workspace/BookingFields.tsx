@@ -12,18 +12,17 @@ import {
   bookingTypeLabel,
   bookingTypeOptions,
   partyWords,
-  RESERVATION_STATUS_LABEL,
-  RESERVATION_STATUSES,
   reservationOf,
   type Reservation,
 } from "../bookings/kinds"
 import { cleanLinkInput } from "../bookings/lines"
 import { TimeField } from "../bookings/TimeField"
 import { ZoneField } from "../bookings/ZoneField"
+import { BOOKING_STATUS_LABEL, BOOKING_STATUSES, bookingStatus, bookingStatusPatch } from "../bookings/status"
 
 export interface BookingFieldsProps {
   item: ItineraryItem
-  /** A patch for the item: `reservation` always arrives whole, `time` / `endTime` alone. */
+  /** A patch for the item: `reservation` always arrives whole, `time` / `endTime` alone; the status moves `status` with it. */
   onChange: (patch: Partial<ItineraryItem>) => void
   trip: Trip
   /** The day the booking sits on: its start date. */
@@ -40,8 +39,9 @@ function tidy(reservation: Reservation): Reservation {
  * The booking part of a stop's editor, by kind: a flight's airline, number,
  * airports, landing (with its date and zone), terminal and seat; a stay's
  * check-in and check-out; a car's pick-up and drop-off; a train's operator,
- * stations and seat. Every booking has its status, confirmation, contact and
- * a https link. Its start and end times are the item's own `time` / `endTime`.
+ * stations and seat. Every booking has its status (one control for the stop's
+ * and the booking's, `bookings/status.ts`), confirmation, contact and a https
+ * link. Its start and end times are the item's own `time` / `endTime`.
  */
 export function BookingFields({ item, onChange, trip, day, disabled }: BookingFieldsProps) {
   const r = reservationOf(item)
@@ -152,11 +152,11 @@ export function BookingFields({ item, onChange, trip, day, disabled }: BookingFi
         onChange={(type) => set({ type })}
       />
       <SelectField
-        label="Booking status"
-        value={r.status}
+        label="Status"
+        value={bookingStatus(item)}
         disabled={disabled}
-        options={RESERVATION_STATUSES.map((status) => ({ value: status, label: RESERVATION_STATUS_LABEL[status] }))}
-        onChange={(status) => set({ status })}
+        options={BOOKING_STATUSES.map((status) => ({ value: status, label: BOOKING_STATUS_LABEL[status] }))}
+        onChange={(status) => onChange(bookingStatusPatch(item, status))}
       />
       {specific}
       {text("confirmation", "Confirmation", LIMITS.confirmation, { placeholder: "Code or reference", code: true })}

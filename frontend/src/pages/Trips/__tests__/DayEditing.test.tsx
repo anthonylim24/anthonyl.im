@@ -15,6 +15,7 @@ import type { EditorSurface } from "../workspace/stopEdits"
 import { DayRail } from "../workspace/DayRail"
 import { liveValue } from "../workspace/liveValue"
 import { makeItem, makeTrip } from "./tripFixtures"
+import { pickOption } from "./pickOption"
 
 afterEach(() => vi.clearAllMocks())
 
@@ -232,6 +233,23 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(sheet.getByText("Ask for the terrace")).toBeInTheDocument()
     expect(sheet.queryByRole("textbox")).toBeNull()
     expect(sheet.queryByRole("button", { name: "Delete" })).toBeNull()
+  })
+})
+
+describe("a booking's status", () => {
+  it("is one control, and the card's chip says what it says", () => {
+    const dinner = makeItem({ id: "dinner", kind: "reservation", title: "Dinner", status: "booked", reservation: { type: "restaurant", status: "confirmed" } })
+    const state = renderDay(tripOf(days(FUTURE, [[dinner]])), "day-1")
+    const row = card("dinner").querySelector<HTMLElement>("[data-card-row]")!
+    expect(row).toHaveTextContent("Booked")
+    fireEvent.click(row)
+    const status = within(card("dinner")).getByRole("combobox", { name: "Status" })
+    expect(within(card("dinner")).queryByRole("combobox", { name: "Booking status" })).toBeNull()
+
+    pickOption(status, "Pending")
+    expect(itemsOf(state, "day-1")[0]).toMatchObject({ status: "needs_review", reservation: { type: "restaurant", status: "pending" } })
+    expect(row).toHaveTextContent("Pending")
+    expect(row).not.toHaveTextContent("Needs review")
   })
 })
 

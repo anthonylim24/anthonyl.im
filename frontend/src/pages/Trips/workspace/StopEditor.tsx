@@ -144,7 +144,7 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, foc
         />
       </label>
       <LinksField links={item.links} disabled={locked} onChange={(links) => patch({ links: links.length > 0 ? links : undefined })} />
-      {item.kind !== "note" && (
+      {item.kind === "place" && (
         <label {...sx(s.span2Narrow)}>
           <span {...sx(s.miniLabel)}>Status</span>
           <Select

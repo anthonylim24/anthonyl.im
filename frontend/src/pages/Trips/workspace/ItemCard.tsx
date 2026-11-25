@@ -27,6 +27,7 @@ import { Presence } from "../components/presence"
 import { clockMinutes, clockRange } from "../timeline/timeline"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { bookingTypeLabel } from "../bookings/kinds"
+import { shownStatus } from "../bookings/status"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { scrollBehavior } from "./scroll"
@@ -254,7 +255,8 @@ export const ItemCard = memo(function ItemCard({
   const sub = item.location?.address || firstLine(item.notes)
   const category = item.kind === "reservation" ? bookingTypeLabel(item.reservation?.type) : item.location?.category ? titleCase(item.location.category) : null
   // Where Done / Skip / Loved it are on the card, the chip and the heart would only say it twice.
-  const shownStatus = item.status === "none" || (quick && (item.status === "completed" || item.status === "skipped")) ? null : item.status
+  const status = shownStatus(item)
+  const chip = status.status === "none" || (quick && (status.status === "completed" || status.status === "skipped")) ? null : status.label
   const lovedMark = !!item.highlight && !quick
 
   return (
@@ -316,10 +318,10 @@ export const ItemCard = memo(function ItemCard({
               <span {...sx(s.cardTitle, a.wrap, past && s.cardTitlePast, !item.title && s.cardTitleEmpty, skipped && s.cardTitleSkipped)}>
                 {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
               </span>
-              {(category || sub || shownStatus || lovedMark) && (
+              {(category || sub || chip || lovedMark) && (
                 <span {...sx(s.cardSub)}>
                   {category && <span>{category}</span>}
-                  {shownStatus && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{STATUS_LABEL[shownStatus]}</span>}
+                  {chip && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{chip}</span>}
                   {lovedMark && (
                     <span {...sx(s.loved)}>
                       <Heart size={12} strokeWidth={2} fill="currentColor" aria-hidden />
