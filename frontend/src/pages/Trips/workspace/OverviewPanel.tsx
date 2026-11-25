@@ -177,7 +177,6 @@ export function OverviewPanel({
           <h2 id="draft-title" {...sx(a.display, s.aiTitle)}>
             Let AI draft {trip.days.length === 1 ? "the day" : `all ${trip.days.length} days`}
           </h2>
-          <p {...sx(a.body)}>You can edit all of it.</p>
           <BriefFields brief={brief} onChange={setBrief} disabled={locked} />
           <div {...sx(a.rowWrap)}>
             <button type="button" {...sx(a.btn, a.btnPrimary)} disabled={locked} onClick={() => onDraft(brief)}>
