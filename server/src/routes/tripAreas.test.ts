@@ -12,15 +12,16 @@ const OWNER = { Authorization: "Bearer owner", "Content-Type": "application/json
 const VIEWER = { Authorization: "Bearer viewer", "Content-Type": "application/json" }
 const STRANGER = { Authorization: "Bearer stranger", "Content-Type": "application/json" }
 
-const GROUPED = JSON.stringify({ areas: [{ name: "Jongno", localName: "종로", localLang: "ko", city: "Seoul", summary: "Palaces and markets.", stops: ["s1", "s2"] }] })
+const GROUPED = JSON.stringify({ areas: [{ name: "Jongno", localName: "종로", city: "Seoul", summary: "Palaces and markets.", stops: ["s1", "s2"] }] })
 
-function makeApp(neighborhoods: NeighborhoodService | null) {
+function makeApp(neighborhoods: NeighborhoodService | null, more: Partial<TripsRouterDeps> = {}) {
   const deps: TripsRouterDeps = {
     store: new MemoryTripStore(),
     verifyAuth: async (header) => ({ "Bearer owner": "user-1", "Bearer viewer": "user-2", "Bearer stranger": "user-3" })[header ?? ""] ?? null,
     llm: null,
     fetchWeather: async () => [],
     neighborhoods,
+    ...more,
   }
   const app = new Hono()
   app.route("/api/trips", createTripsRouter(deps))
@@ -104,6 +105,21 @@ describe("GET /api/trips/:id/neighborhoods", () => {
     expect(((await ready.json()) as { areas: unknown[] }).areas).toHaveLength(1)
   })
 
+  test("lets one person start ten groupings in ten minutes; asking again about a grouped trip costs none", async () => {
+    let calls = 0
+    const app = makeApp(createNeighborhoods({ models: [async () => (calls++, GROUPED)] }))
+    const first = await makeTrip(app)
+    for (let i = 0; i < 20; i++) expect((await list(app, first)).status).toBe(200)
+    for (let i = 0; i < 9; i++) expect((await list(app, await makeTrip(app))).status).toBe(200)
+    expect(calls).toBe(10)
+    const res = await list(app, await makeTrip(app))
+    expect(res.status).toBe(429)
+    expect(await res.json()).toEqual({ error: "rate_limited", message: "Too many new groupings in a short while. Try again in a few minutes." })
+    expect(calls).toBe(10)
+    // Grouped already: still answered.
+    expect((await list(app, first)).status).toBe(200)
+  })
+
   test("says calmly that grouping failed, with none of the model's words, and 503 without a model", async () => {
     const app = makeApp(createNeighborhoods({ models: [async () => "Error: SECRET quota dump"] }))
     const id = await makeTrip(app)
@@ -118,14 +134,17 @@ describe("GET /api/trips/:id/neighborhoods", () => {
 })
 
 describe("GET /api/trips/:id/neighborhoods/:areaId/outline", () => {
-  test("answers the outline of a grouped area, null for one it does not know, and 400 for a malformed id", async () => {
+  test("answers the outline of a grouped area, 409 for one this server has not grouped, and 400 for a malformed id", async () => {
     const shape = { type: "Polygon" as const, coordinates: [[[126.97, 37.56], [127.01, 37.56], [127.01, 37.59], [126.97, 37.56]]] }
     const app = makeApp(createNeighborhoods({ models: [async () => GROUPED], outlines: async () => shape }))
     const id = await makeTrip(app)
-    expect(await (await outline(app, id, areaId("Jongno", "Seoul"))).json()).toEqual({ outline: null })
+    // A restart forgot the grouping: not "no outline", which the client would keep.
+    const forgotten = await outline(app, id, areaId("Jongno", "Seoul"))
+    expect(forgotten.status).toBe(409)
+    expect(await forgotten.json()).toEqual({ error: "area_unknown", message: "This neighborhood needs grouping again." })
     await list(app, id)
     expect(await (await outline(app, id, areaId("Jongno", "Seoul"))).json()).toEqual({ outline: shape })
-    expect(await (await outline(app, id, "a-0000000000")).json()).toEqual({ outline: null })
+    expect((await outline(app, id, "a-0000000000")).status).toBe(409)
     expect((await outline(app, id, "../etc")).status).toBe(404)
     expect((await outline(app, id, "not-an-area")).status).toBe(400)
     expect((await outline(app, id, areaId("Jongno", "Seoul"), STRANGER)).status).toBe(404)
@@ -145,5 +164,22 @@ describe("GET /api/trips/:id/neighborhoods/:areaId/outline", () => {
     const res = await outline(app, id, areaId("Jongno", "Seoul"))
     expect(res.status).toBe(503)
     expect(((await res.json()) as { error: string }).error).toBe("outline_unavailable")
+  })
+
+  test("gives up after its deadline with 503, so the map keeps its drawn shape", async () => {
+    const app = makeApp(
+      createNeighborhoods({
+        models: [async () => GROUPED],
+        // Nominatim's queue never reaches this one.
+        outlines: (_query, signal) => new Promise((_, reject) => signal?.addEventListener("abort", () => reject(signal.reason), { once: true })),
+      }),
+      { areaOutlineMs: 20 },
+    )
+    const id = await makeTrip(app)
+    await list(app, id)
+    const started = Date.now()
+    const res = await outline(app, id, areaId("Jongno", "Seoul"))
+    expect(res.status).toBe(503)
+    expect(Date.now() - started).toBeLessThan(1_000)
   })
 })

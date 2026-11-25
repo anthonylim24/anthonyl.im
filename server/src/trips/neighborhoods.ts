@@ -17,9 +17,11 @@ import type { Trip } from "./types"
 // a stop claimed twice, a stop far from the rest of its area), and nothing
 // it says about where things are is used: the centre and reach of an area
 // come from its member stops. Nothing is written to the trip. The grouping
-// is cached per trip, keyed by its located stops (ids and points), so an
-// unchanged trip never asks the model twice; photos and outlines have their
-// own lookups and caches (`areaPhotos.ts`, `areaOutline.ts`).
+// is kept per trip in memory and carried over as the trip changes: a stop
+// removed leaves its area, a stop added or moved inside an area's drawn
+// shape joins it, and only a stop outside every area asks the model again
+// (one grouping at a time per trip). Photos and outlines have their own
+// lookups and caches (`areaPhotos.ts`, `areaOutline.ts`).
 //
 // As in `suggestDays.ts`, the traveller's text sits in one nonce-marked data
 // block, every line of it loses booking codes and phone numbers first, stops are
@@ -31,9 +33,8 @@ export const MAX_STOPS = 240
 export const MAX_SUMMARY_CHARS = 200
 /** Gemini 4 Neon grouped the Korea trip's 135 stops in 39 s (measured). The route answers 202 long before this and the client asks again. */
 export const AREAS_TIMEOUT_MS = 75_000
-/** Model answers are kept a day: they change only when the located stops do, which changes the key. */
-const GROUPING_TTL_MS = 24 * 60 * 60_000
-const MAX_CACHED_TRIPS = 200
+/** Trips whose grouping is kept. A grouping changes only with the trip's stops, so it does not lapse; the least recently asked trip goes first. */
+export const MAX_CACHED_TRIPS = 200
 /**
  * A member further than this from the middle of its area (and
  * `OUTLIER_FACTOR` times the area's typical reach) was put there by mistake.
@@ -91,6 +92,22 @@ export class NeighborhoodsError extends Error {
   }
 }
 
+/** A new grouping would have to ask the model, and the caller has started too many lately. */
+export class GroupingLimitError extends NeighborhoodsError {
+  constructor() {
+    super("too many groupings started")
+    this.name = "GroupingLimitError"
+  }
+}
+
+/** The outline asked for is of an area this server has no grouping for (forgotten in a restart, or regrouped away). */
+export class UnknownAreaError extends Error {
+  constructor() {
+    super("unknown area")
+    this.name = "UnknownAreaError"
+  }
+}
+
 // ── The stops ──────────────────────────────────────────────────────────────
 
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value)
@@ -144,6 +161,84 @@ export function withoutStrays<T extends LatLng>(members: readonly T[]): T[] {
   const typical = [...reach].sort((a, b) => a - b)[reach.length >> 1]!
   const limit = Math.max(OUTLIER_MIN_M, OUTLIER_FACTOR * typical)
   return members.filter((_, i) => reach[i]! <= limit)
+}
+
+// ── Which area holds a stop ────────────────────────────────────────────────
+//
+// An area's shape is the one the map draws when OpenStreetMap has no
+// boundary (`areaHull` in the client's `map/geo.ts`): the convex hull of its
+// stops widened by 250 to 600 m. A stop inside that shape is in the area.
+
+const M_PER_DEG = 111_320
+
+/** How far the drawn shape reaches past the outermost stops (`hullBuffer` on the client). */
+export function hullBufferM(points: readonly LatLng[]): number {
+  if (points.length < 2) return 250
+  let [south, north, west, east] = [Infinity, -Infinity, Infinity, -Infinity]
+  for (const p of points) {
+    south = Math.min(south, p.lat)
+    north = Math.max(north, p.lat)
+    west = Math.min(west, p.lng)
+    east = Math.max(east, p.lng)
+  }
+  return Math.min(600, Math.max(250, 0.15 * haversineMeters({ lat: south, lng: west }, { lat: north, lng: east })))
+}
+
+type Xy = [number, number]
+
+function distanceToSegment([px, py]: Xy, [ax, ay]: Xy, [bx, by]: Xy): number {
+  const dx = bx - ax
+  const dy = by - ay
+  const length = dx * dx + dy * dy
+  const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / length))
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+}
+
+/** Metres from `point` to the convex hull of `members` (0 inside), on a flat projection about the members' middle. */
+export function hullDistanceM(point: LatLng, members: readonly LatLng[]): number {
+  if (members.length === 0) return Infinity
+  const mid = medianPoint(members)
+  const xScale = M_PER_DEG * Math.cos((mid.lat * Math.PI) / 180)
+  const xy = (p: LatLng): Xy => [(p.lng - mid.lng) * xScale, (p.lat - mid.lat) * M_PER_DEG]
+  const sorted = members.map(xy).sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  const cross = (o: Xy, a: Xy, b: Xy) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const half = (list: Xy[]) => {
+    const out: Xy[] = []
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, p) <= 0) out.pop()
+      out.push(p)
+    }
+    out.pop()
+    return out
+  }
+  // Anticlockwise; one point or two (a capsule's spine) when the members do not span an area.
+  const hull = sorted.length < 3 ? sorted : [...half(sorted), ...half([...sorted].reverse())]
+  const at = xy(point)
+  if (hull.length === 1) return Math.hypot(at[0] - hull[0]![0], at[1] - hull[0]![1])
+  const edges = hull.map((a, i): [Xy, Xy] => [a, hull[(i + 1) % hull.length]!])
+  if (hull.length >= 3 && edges.every(([a, b]) => cross(a, b, at) >= 0)) return 0
+  return Math.min(...edges.map(([a, b]) => distanceToSegment(at, a, b)))
+}
+
+/** Which of `areas` has `point` inside its drawn shape, the nearest when several do; -1 when none. */
+export function areaHolding(point: LatLng, areas: ReadonlyArray<readonly LatLng[]>): number {
+  let best = -1
+  let bestGap = Infinity
+  let bestInside = false
+  areas.forEach((members, i) => {
+    if (members.length === 0) return
+    const gap = hullDistanceM(point, members)
+    if (gap > hullBufferM(members)) return
+    // Inside two hulls: the one whose middle is nearer. Inside one beats near another.
+    const inside = gap === 0
+    const score = inside ? haversineMeters(point, medianPoint(members)) : gap
+    if ((inside && !bestInside) || (inside === bestInside && score < bestGap)) {
+      best = i
+      bestGap = score
+      bestInside = inside
+    }
+  })
+  return best
 }
 
 // ── The model ──────────────────────────────────────────────────────────────
@@ -309,9 +404,20 @@ export function readModelAreas(raw: string, stops: readonly AreaStop[]): AreaGro
       members,
     })
   }
-  const areas = [...byName.values()]
-    .map((area) => ({ ...area, members: withoutStrays(area.members).sort((a, b) => order.get(a.id)! - order.get(b.id)!) }))
+  const inOrder = (a: AreaStop, b: AreaStop) => order.get(a.id)! - order.get(b.id)!
+  const named = [...byName.values()]
+    .map((area) => ({ ...area, members: withoutStrays(area.members).sort(inOrder) }))
     .filter((area) => area.members.length > 0)
+  // A lone stop inside another area's drawn shape belongs to that area: the map would draw one shape inside the other.
+  for (const lone of named) {
+    if (lone.members.length !== 1) continue
+    const others = named.filter((area) => area !== lone && area.members.length > 0)
+    const into = others[areaHolding(lone.members[0]!, others.map((area) => area.members))]
+    if (!into) continue
+    into.members = [...into.members, ...lone.members].sort(inOrder)
+    lone.members = []
+  }
+  const areas = named.filter((area) => area.members.length > 0)
   const firstVisit = (area: { members: AreaStop[] }) => order.get(area.members[0]!.id)!
   const kept = areas.length > MAX_AREAS ? [...areas].sort((a, b) => b.members.length - a.members.length || firstVisit(a) - firstVisit(b)).slice(0, MAX_AREAS) : areas
   return kept
@@ -383,27 +489,113 @@ export function createGroqAreaModel(apiKey: string): AreaModel {
   }
 }
 
+// ── Keeping a grouping as the trip changes ─────────────────────────────────
+
+/** A grouping and the stops it was made for. */
+export interface Grouping {
+  /** `stopsHash` of the stops. */
+  hash: string
+  /** Every stop the grouping saw, grouped or left out, by id. */
+  points: ReadonlyMap<string, LatLng>
+  areas: AreaGroup[]
+}
+
+export const groupingOf = (stops: readonly AreaStop[], areas: AreaGroup[]): Grouping => ({
+  hash: stopsHash(stops),
+  points: new Map(stops.map((stop) => [stop.id, { lat: stop.lat, lng: stop.lng }])),
+  areas,
+})
+
+const samePoint = (a: LatLng, b: LatLng) => a.lat.toFixed(5) === b.lat.toFixed(5) && a.lng.toFixed(5) === b.lng.toFixed(5)
+
+/**
+ * `grouping` carried over to the trip's stops as they are now, with no model
+ * call; null when a stop that is new or moved lies outside every area, which
+ * only the model can name. A removed stop leaves its area, an area left with
+ * no stops goes, and a new or moved stop joins the area whose shape, as it
+ * was grouped, holds it. A stop the model left out stays out while it stays put.
+ */
+export function regroupLocally(grouping: Grouping, stops: readonly AreaStop[]): AreaGroup[] | null {
+  const shapes = grouping.areas.map((area) => area.stopIds.flatMap((id) => grouping.points.get(id) ?? []))
+  const kept = new Map<string, number>()
+  grouping.areas.forEach((area, i) => area.stopIds.forEach((id) => kept.set(id, i)))
+  const members = grouping.areas.map((): AreaStop[] => [])
+  for (const stop of stops) {
+    const before = grouping.points.get(stop.id)
+    if (before && samePoint(before, stop)) {
+      const at = kept.get(stop.id)
+      if (at !== undefined) members[at]!.push(stop)
+      continue
+    }
+    const at = areaHolding(stop, shapes)
+    if (at < 0) return null
+    members[at]!.push(stop)
+  }
+  const order = new Map(stops.map((stop, i) => [stop.id, i]))
+  return grouping.areas
+    .map((area, i) => ({ ...area, stopIds: members[i]!.map((stop) => stop.id) }))
+    .filter((area) => area.stopIds.length > 0)
+    .sort((a, b) => order.get(a.stopIds[0]!)! - order.get(b.stopIds[0]!)!)
+}
+
+/**
+ * A fresh grouping with the old one's words kept, so a regroup does not
+ * rename or reword what it did not change: an area holding exactly the same
+ * stops as before is the old area; one with the same name and city keeps its
+ * summary (it describes the place, not the stops).
+ */
+export function keepFamiliar(next: readonly AreaGroup[], previous: readonly AreaGroup[] | null): AreaGroup[] {
+  if (!previous || previous.length === 0) return [...next]
+  const live = new Set(next.flatMap((area) => area.stopIds))
+  const key = (ids: readonly string[]) => [...ids].sort().join("|")
+  const byStops = new Map(previous.map((area) => [key(area.stopIds.filter((id) => live.has(id))), area]))
+  const byId = new Map(previous.map((area) => [area.id, area]))
+  const ids = new Set(next.map((area) => area.id))
+  return next.map((area) => {
+    const old = byStops.get(key(area.stopIds))
+    // Its old id only while no other new area has it: two cards never share one.
+    if (old && (old.id === area.id || !ids.has(old.id))) return { ...old, stopIds: area.stopIds }
+    const same = byId.get(area.id)
+    return same?.summary ? { ...area, summary: same.summary } : area
+  })
+}
+
 // ── The service ────────────────────────────────────────────────────────────
 
 /** `list`'s answer: the areas, or word that the model is still at it (ask again shortly). */
 export type AreasAnswer = { areas: Neighborhood[] } | { pending: true }
+
+export interface ListOptions {
+  /** How long to wait on the model before answering `pending`. */
+  waitMs?: number
+  /** Asked only when the stops need the model (a first grouping, or a stop outside every area); false refuses with `GroupingLimitError`. */
+  mayStart?: () => boolean
+}
 
 export interface NeighborhoodService {
   /**
    * The trip's areas with photos; `[]` when no stop has a point. A grouping
    * not ready within `waitMs` answers `pending` and carries on, so the next
    * ask finds it (or its failure, once). Throws `NeighborhoodsError` when no
-   * model could group the stops.
+   * model could group the stops, `GroupingLimitError` when `mayStart` said no.
    */
-  list(trip: Trip, opts?: { waitMs?: number }): Promise<AreasAnswer>
-  /** The real outline of one of the trip's areas, or null when there is none worth drawing (or the area is not known any more). */
-  outline(trip: Trip, areaId: string): Promise<OutlineGeometry | null>
+  list(trip: Trip, opts?: ListOptions): Promise<AreasAnswer>
+  /**
+   * The real outline of one of the trip's areas, or null when there is none
+   * worth drawing. Throws `UnknownAreaError` when this server has no grouping
+   * with that area, and whatever the lookup throws (busy, down, `signal`).
+   */
+  outline(trip: Trip, areaId: string, signal?: AbortSignal): Promise<OutlineGeometry | null>
 }
 
-/** A grouping being asked for. Settled with an error, it stays until someone has been told. */
-interface Job {
-  promise: Promise<AreaGroup[]>
-  failed?: { error: unknown; until: number }
+/** One trip's grouping, and the model call that is making its next one. */
+interface TripSlot {
+  grouping: Grouping | null
+  /** Counts writes of `grouping`: a job keeps its answer only when nothing was written after it started. */
+  version: number
+  job: { hash: string; promise: Promise<AreaGroup[]> } | null
+  /** The last job's failure, kept for the request asking about those stops to be told once. */
+  failure: { hash: string; error: unknown; until: number } | null
 }
 
 /** How long a failure waits for the poll that will report it. */
@@ -435,19 +627,29 @@ export function createNeighborhoods(opts: {
   const now = opts.now ?? Date.now
   const timeoutMs = opts.timeoutMs ?? AREAS_TIMEOUT_MS
   const nonce = opts.nonce ?? (() => crypto.randomUUID().slice(0, 8))
-  /** Per trip, its latest grouping. Map order is insertion order, so the first key is the oldest. */
-  const groupings = new Map<string, { hash: string; until: number; areas: AreaGroup[] }>()
-  /** Groupings being asked for, by trip and stops, so every open of the tab shares one model call. */
-  const jobs = new Map<string, Job>()
+  /** By trip, least recently asked first (Map order is insertion order). */
+  const slots = new Map<string, TripSlot>()
 
-  const remember = (tripId: string, hash: string, areas: AreaGroup[]) => {
-    groupings.delete(tripId)
-    while (groupings.size >= MAX_CACHED_TRIPS) {
-      const oldest = groupings.keys().next().value
-      if (oldest === undefined) break
-      groupings.delete(oldest)
+  const slotFor = (tripId: string): TripSlot => {
+    const known = slots.get(tripId)
+    if (known) {
+      slots.delete(tripId)
+      slots.set(tripId, known)
+      return known
     }
-    groupings.set(tripId, { hash, until: now() + GROUPING_TTL_MS, areas })
+    // A trip whose model call is still running keeps its slot: dropping it would let a second call start.
+    for (const [id, slot] of slots) {
+      if (slots.size < MAX_CACHED_TRIPS) break
+      if (!slot.job) slots.delete(id)
+    }
+    const slot: TripSlot = { grouping: null, version: 0, job: null, failure: null }
+    slots.set(tripId, slot)
+    return slot
+  }
+
+  const write = (slot: TripSlot, grouping: Grouping) => {
+    slot.grouping = grouping
+    slot.version += 1
   }
 
   const ask = async (trip: Trip, stops: AreaStop[]): Promise<AreaGroup[]> => {
@@ -466,19 +668,21 @@ export function createNeighborhoods(opts: {
     throw first instanceof NeighborhoodsError ? first : new NeighborhoodsError("no model could group the stops")
   }
 
-  /** The job for these stops: running, failed and not yet reported, or a new one. */
-  const jobFor = (trip: Trip, stops: AreaStop[], hash: string, key: string): Job => {
-    const known = jobs.get(key)
-    if (known && (!known.failed || now() < known.failed.until)) return known
-    const job: Job = { promise: ask(trip, stops) }
-    jobs.set(key, job)
+  const start = (slot: TripSlot, trip: Trip, stops: AreaStop[], hash: string) => {
+    const base = slot.version
+    const previous = slot.grouping?.areas ?? null
+    const job = { hash, promise: ask(trip, stops).then((areas) => keepFamiliar(areas, previous)) }
+    slot.job = job
+    slot.failure = null
     job.promise.then(
       (areas) => {
-        remember(trip.id, hash, areas)
-        jobs.delete(key)
+        if (slot.job === job) slot.job = null
+        // Stops changed and were answered while the model worked: that answer is newer than this one.
+        if (slot.version === base) write(slot, groupingOf(stops, areas))
       },
       (error: unknown) => {
-        job.failed = { error, until: now() + FAILURE_KEPT_MS }
+        if (slot.job === job) slot.job = null
+        slot.failure = { hash, error, until: now() + FAILURE_KEPT_MS }
       },
     )
     return job
@@ -504,37 +708,55 @@ export function createNeighborhoods(opts: {
       }),
     )
 
+  const answer = async (job: { promise: Promise<AreaGroup[]> }, slot: TripSlot, hash: string, stops: AreaStop[], waitMs: number): Promise<AreasAnswer> => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const waited = Number.isFinite(waitMs) ? new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), waitMs))) : null
+    try {
+      const areas = await (waited ? Promise.race([job.promise, waited]) : job.promise)
+      if (!areas) return { pending: true }
+      return { areas: await withPhotos(areas, stops) }
+    } catch (err) {
+      // Told: the next ask starts again.
+      if (slot.failure?.hash === hash) slot.failure = null
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   return {
-    async list(trip, { waitMs = Infinity } = {}) {
+    async list(trip, { waitMs = Infinity, mayStart } = {}) {
       const stops = areaStops(trip)
       if (stops.length === 0) return { areas: [] }
       const hash = stopsHash(stops)
-      const cached = groupings.get(trip.id)
-      if (cached && cached.hash === hash && now() < cached.until) return { areas: await withPhotos(cached.areas, stops) }
-      if (opts.models.length === 0) throw new NeighborhoodsError("no model")
-      const key = `${trip.id}|${hash}`
-      const job = jobFor(trip, stops, hash, key)
-      let timer: ReturnType<typeof setTimeout> | undefined
-      const waited = Number.isFinite(waitMs) ? new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), waitMs))) : null
-      try {
-        const areas = await (waited ? Promise.race([job.promise, waited]) : job.promise)
-        if (!areas) return { pending: true }
-        return { areas: await withPhotos(areas, stops) }
-      } catch (err) {
-        // Told: the next ask starts again.
-        if (jobs.get(key) === job) jobs.delete(key)
-        throw err
-      } finally {
-        clearTimeout(timer)
+      const slot = slotFor(trip.id)
+      if (slot.grouping?.hash === hash) return { areas: await withPhotos(slot.grouping.areas, stops) }
+      const failure = slot.failure
+      if (failure && (failure.hash !== hash || now() >= failure.until)) slot.failure = null
+      else if (failure) {
+        slot.failure = null
+        throw failure.error
       }
+      if (slot.job?.hash === hash) return answer(slot.job, slot, hash, stops, waitMs)
+      const local = slot.grouping ? regroupLocally(slot.grouping, stops) : null
+      if (local) {
+        write(slot, groupingOf(stops, local))
+        return { areas: await withPhotos(local, stops) }
+      }
+      // One model call per trip at a time: these stops are asked about once it is done.
+      if (slot.job) return { pending: true }
+      if (opts.models.length === 0) throw new NeighborhoodsError("no model")
+      if (mayStart && !mayStart()) throw new GroupingLimitError()
+      return answer(start(slot, trip, stops, hash), slot, hash, stops, waitMs)
     },
-    async outline(trip, id) {
-      const area = groupings.get(trip.id)?.areas.find((a) => a.id === id)
-      if (!area || !opts.outlines) return null
+    async outline(trip, id, signal) {
+      const area = slots.get(trip.id)?.grouping?.areas.find((a) => a.id === id)
+      if (!area) throw new UnknownAreaError()
+      if (!opts.outlines) return null
       const members = membersOf(area, areaStops(trip))
       if (members.length === 0) return null
       const names = [area.localName, area.name].filter((name): name is string => Boolean(name))
-      return opts.outlines({ names, city: area.city, stops: members })
+      return opts.outlines({ names, city: area.city, stops: members }, signal)
     },
   }
 }
