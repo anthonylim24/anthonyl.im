@@ -71,6 +71,14 @@ describe("OverviewPanel bookings", () => {
     expect(links[2]).not.toHaveTextContent(/not confirmed/i)
   })
 
+  it("gives a pasted booking the booking's own status, though the stop says booked", () => {
+    const pasted = makeItem({ id: "pasted", kind: "reservation", title: "Ferry", status: "booked", time: "10:00", reservation: { type: "ferry", status: "pending" } })
+    renderPanel({ t: makeTrip({ ...trip, days: [{ id: "day-1", date: "2026-07-10", items: [pasted] }] }) })
+    const [link] = within(bookingsSection()).getAllByRole("link")
+    expect(link).toHaveTextContent("Pending")
+    expect(link).not.toHaveTextContent("Booked")
+  })
+
   it("offers to paste a confirmation or enter a booking by hand", () => {
     const { onAddBooking, onPasteBookings } = renderPanel()
     fireEvent.click(screen.getByRole("button", { name: "Add booking" }))

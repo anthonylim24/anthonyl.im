@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight, ChevronRight, ClipboardPaste, PenLine, Plus, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { formatTripDate, STATUS_LABEL, titleCase, todayIsoIn } from "../meta"
+import { formatTripDate, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated } from "../map/geo"
 import { walkingStat } from "../reservationView"
 import type { EnhancementRun, ItineraryItem, Trip } from "../types"
@@ -14,6 +14,8 @@ import { bookingsInOrder } from "../bookings/addBookings"
 import { BookingSummaryLines } from "../bookings/BookingSummary"
 import { bk } from "../bookings/bookings.stylex"
 import { bookingWhen } from "../bookings/lines"
+import { reservationOf } from "../bookings/kinds"
+import { BOOKING_STATUS_LABEL } from "../bookings/status"
 import { Parts } from "./Parts"
 import type { DayOption } from "../useTripEditor"
 import { a } from "../atlas.stylex"
@@ -287,10 +289,9 @@ export function OverviewPanel({
                       </span>
                       <BookingSummaryLines item={item} trip={trip} day={day} />
                     </span>
-                    {/* The day list's status chip: mono outline, never green. */}
-                    <span {...sx(a.chip, a.chipOutline, a.chipMono)}>
-                      {item.reservation?.status === "confirmed" || item.status === "booked" ? STATUS_LABEL.booked : titleCase(item.reservation?.status ?? "pending")}
-                    </span>
+                    {/* The day list's status chip: mono outline, never green. The booking's own
+                        status, as its card shows: a booking pasted as pending is still "booked" as a stop. */}
+                    <span {...sx(a.chip, a.chipOutline, a.chipMono)}>{BOOKING_STATUS_LABEL[reservationOf(item).status]}</span>
                   </Link>
                 </li>
               ))}
