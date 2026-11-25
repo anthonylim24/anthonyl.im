@@ -22,7 +22,7 @@ import type { Trip } from "./types"
 // own lookups and caches (`areaPhotos.ts`, `areaOutline.ts`).
 //
 // As in `suggestDays.ts`, the traveller's text sits in one nonce-marked data
-// block, addresses lose booking codes and phone numbers first, stops are
+// block, every line of it loses booking codes and phone numbers first, stops are
 // named by opaque keys ("s12"), and no user or model text reaches a log.
 
 export const MAX_AREAS = 12
@@ -99,12 +99,12 @@ export function areaStops(trip: Pick<Trip, "days">): AreaStop[] {
       out.push({
         id: item.id,
         key: `s${out.length + 1}`,
-        name: oneLine(where.name || item.title, 100) ?? "A stop",
+        name: privateLine(where.name || item.title, 100) ?? "A stop",
         address: privateLine(where.address, 160),
         lat: where.lat,
         lng: where.lng,
         day: index + 1,
-        city: oneLine(day.city, 60),
+        city: privateLine(day.city, 60),
       })
     }
   })
@@ -166,10 +166,10 @@ export const AREAS_SYSTEM = [
 /** The prompt: the trip's destinations, each day's city and hints, and the stops, all inside one data block. */
 export function areasPrompt(trip: Pick<Trip, "name" | "destinations" | "days">, stops: readonly AreaStop[], nonce: string): AreaPrompt {
   const data = {
-    trip: { name: oneLine(trip.name, 120), destinations: trip.destinations.slice(0, 12).map((d) => oneLine(d, 80)) },
+    trip: { name: privateLine(trip.name, 120), destinations: trip.destinations.slice(0, 12).map((d) => privateLine(d, 80)) },
     days: trip.days.flatMap((day, i) => {
-      const neighborhoods = (day.neighborhoods ?? []).flatMap((n) => oneLine(n, 60) ?? []).slice(0, 8)
-      const city = oneLine(day.city, 60)
+      const neighborhoods = (day.neighborhoods ?? []).flatMap((n) => privateLine(n, 60) ?? []).slice(0, 8)
+      const city = privateLine(day.city, 60)
       return city || neighborhoods.length > 0 ? [{ day: i + 1, city, neighborhoods: neighborhoods.length > 0 ? neighborhoods : undefined }] : []
     }),
     stops: stops.map((stop) => ({

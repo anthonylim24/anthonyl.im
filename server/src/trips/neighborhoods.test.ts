@@ -255,15 +255,16 @@ describe("createNeighborhoods", () => {
     expect(logged).not.toContain("PRIVATE")
   })
 
-  test("sends stops as keys inside the data block, without booking codes or phone numbers", async () => {
-    const trip = makeTrip([day("day-1", [place("x", "Hotel", 37.5, 127, { location: { name: "Hotel", address: "Booking K9X2Q7, call +82 10 9876 5432", lat: 37.5, lng: 127, source: "user" } })])])
+  test("sends stops as keys inside the data block, without booking codes, emails or phone numbers", async () => {
+    const hotel = place("x", "Hotel, guest a.lee@example.com", 37.5, 127, { location: { name: "", address: "Booking K9X2Q7, call +82 10 9876 5432", lat: 37.5, lng: 127, source: "user" } })
+    const trip = { ...makeTrip([day("day-1", [hotel], { neighborhoods: ["Seongsu, call +82 10 1234 5678"] })]), name: "Seoul, Booking ZX81QP" }
     const model = counting(answer([]))
     await createNeighborhoods({ models: [model], nonce: () => "n0nce" }).list(trip).catch(() => undefined)
     const prompt = model.calls[0]!
     expect(prompt.stopKeys).toEqual(["s1"])
     expect(prompt.user).toContain("===== TRIP DATA n0nce BEGINS =====")
     expect(prompt.user).not.toContain('"x"')
-    for (const secret of ["K9X2Q7", "9876 5432"]) expect(prompt.user).not.toContain(secret)
+    for (const secret of ["K9X2Q7", "9876 5432", "a.lee@example.com", "1234 5678", "ZX81QP"]) expect(prompt.user).not.toContain(secret)
   })
 
   test("adds each area's photos, and none when the lookup fails", async () => {
