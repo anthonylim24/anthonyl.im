@@ -1,0 +1,68 @@
+import type { Context, Hono, MiddlewareHandler } from "hono"
+import { createRateLimit, userOrClientKey } from "../middleware/rateLimit"
+import type { NeighborhoodService } from "../trips/neighborhoods"
+import type { Trip, TripAccess } from "../trips/types"
+
+// GET /api/trips/:id/neighborhoods — the distinct areas the trip spends time
+// in, for the Neighborhoods tab. Grouping a long trip takes the model up to a
+// minute, longer than a proxy keeps a quiet request open, so a grouping not
+// ready in `waitMs` answers 202 and the client asks again; the work carries
+// on and is cached. GET /api/trips/:id/neighborhoods/:areaId/outline — that
+// area's real outline, or null. Nothing is written to the trip. Registered on
+// the trips router, so the Clerk gate and the router's own rate limit run first.
+
+type Loaded = { trip: Trip; access: TripAccess } | { error: Response }
+
+export interface AreaRoutesDeps {
+  /** Null when the server has no model key: the list answers 503. */
+  areas: NeighborhoodService | null
+  /** The trip, with view access, or the response to send instead. */
+  load: (c: Context) => Promise<Loaded>
+  /** How long a request waits on a grouping before answering 202. */
+  waitMs?: number
+  rateLimit?: MiddlewareHandler
+  outlineRateLimit?: MiddlewareHandler
+}
+
+/** `areaId`'s shape (`a-` and ten base64url characters). */
+const AREA_ID = /^a-[A-Za-z0-9_-]{10}$/
+/** Well inside a reverse proxy's 60 s idle timeout, with room for photos. */
+const WAIT_MS = 20_000
+
+export function registerAreaRoutes(trips: Hono, deps: AreaRoutesDeps): void {
+  // A poll every few seconds while a grouping runs, and one per open of the tab.
+  const limit = deps.rateLimit ?? createRateLimit({ windowMs: 10 * 60_000, max: 120, keyPrefix: "trips-areas", key: userOrClientKey })
+  // Each outline can mean two Nominatim searches, which the whole server shares at one a second.
+  const outlineLimit =
+    deps.outlineRateLimit ?? createRateLimit({ windowMs: 10 * 60_000, max: 40, keyPrefix: "trips-area-outline", key: userOrClientKey })
+
+  trips.get("/:id/neighborhoods", limit, async (c) => {
+    const loaded = await deps.load(c)
+    if ("error" in loaded) return loaded.error
+    if (!deps.areas) {
+      return c.json({ error: "ai_not_configured", message: "Neighborhoods aren’t set up on this server." }, 503)
+    }
+    try {
+      const answer = await deps.areas.list(loaded.trip, { waitMs: deps.waitMs ?? WAIT_MS })
+      if ("pending" in answer) return c.json({ status: "grouping" }, 202)
+      return c.json({ areas: answer.areas })
+    } catch {
+      // The service has logged which model failed, without trip text.
+      return c.json({ error: "neighborhoods_failed", message: "Couldn’t group your stops into neighborhoods just now." }, 502)
+    }
+  })
+
+  trips.get("/:id/neighborhoods/:areaId/outline", outlineLimit, async (c) => {
+    const loaded = await deps.load(c)
+    if ("error" in loaded) return loaded.error
+    const areaId = c.req.param("areaId")
+    if (!AREA_ID.test(areaId)) return c.json({ error: "invalid request", message: "That isn’t one of this trip’s neighborhoods." }, 400)
+    if (!deps.areas) return c.json({ outline: null })
+    try {
+      return c.json({ outline: await deps.areas.outline(loaded.trip, areaId) })
+    } catch (err) {
+      console.warn(`[trips/neighborhoods] outline lookup failed (${err instanceof Error ? err.message : "error"})`)
+      return c.json({ error: "outline_unavailable", message: "Couldn’t look up this neighborhood’s outline just now." }, 503)
+    }
+  })
+}

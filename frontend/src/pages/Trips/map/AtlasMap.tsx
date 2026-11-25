@@ -6,7 +6,7 @@ import { layout } from "@/styles/common.stylex"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AtlasPin, type LngLat } from "./geo"
+import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AreaShape, type AtlasPin, type LngLat } from "./geo"
 import type { AtlasMapHandle, FrameOptions } from "./engine"
 import { ideaHoverHandlers, type IdeaHover, type ReportIdeaHover } from "./ideaHover"
 import { IdeaHoverCard } from "./IdeaHoverCard"
@@ -39,6 +39,8 @@ export interface AtlasMapProps {
   onSelectIdea?: (ideaId: string) => void
   /** What a wishlist pin's preview card says while it is hovered or focused; no card without it. */
   ideaPreview?: (ideaId: string, via: IdeaHover["via"]) => ReactNode
+  /** One neighborhood drawn under the pins, framed top-down while it is. Keep the object stable: a new one redraws it. */
+  area?: AreaShape | null
   /** Hero globe: slow spin, page scroll passes through, no controls. */
   ambient?: boolean
   padding?: FrameOptions["padding"]
@@ -141,6 +143,7 @@ export function AtlasMap({
   ideaPins = NO_PINS,
   onSelectIdea,
   ideaPreview,
+  area = null,
   ambient = false,
   padding,
   maxZoom,
@@ -164,9 +167,9 @@ export function AtlasMap({
   const [ideaHover, reportIdeaHover] = useIdeaHover()
   // A pin hidden from the key or taken off the wishlist sends no leave event: its preview goes with it.
   const previewed = ideaHover && ideaPreview && ideas.some((pin) => pin.id === ideaHover.id) ? ideaHover : null
-  const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
+  const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark, area })
   useLayoutEffect(() => {
-    latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
+    latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark, area }
   })
   const framedRef = useRef(false)
 
@@ -175,7 +178,7 @@ export function AtlasMap({
     if (!handle) return
     const now = latest.current
     const points = now.framePoints ?? now.pins
-    if (points.length > 0) handle.frame(points, { animate, padding: now.padding, maxZoom: now.maxZoom })
+    if (points.length > 0) handle.frame(points, { animate, padding: now.padding, maxZoom: now.maxZoom, flat: now.area !== null })
     else if (now.restCenter) handle.flyTo(now.restCenter, now.restZoom ?? 4, { animate, padding: now.padding })
   }
 
@@ -233,6 +236,7 @@ export function AtlasMap({
         handle.setDots(now.dots ?? [])
         handle.setActive(now.activeId)
         handle.setHot(now.hotId)
+        handle.setArea(now.area)
         frame(false)
         framedRef.current = true
         if (ambient) handle.setSpin(true)
@@ -290,6 +294,9 @@ export function AtlasMap({
   useEffect(() => {
     handleRef.current?.setDark(dark)
   }, [dark])
+  useEffect(() => {
+    handleRef.current?.setArea(area)
+  }, [area])
   useEffect(() => {
     if (!framedRef.current) return
     frame(true)

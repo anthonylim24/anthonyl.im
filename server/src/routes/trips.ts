@@ -5,9 +5,11 @@ import { applySuggestions, generateItinerary, type AppliedSuggestions, type Geoc
 import { streamTripChat } from "../trips/chat"
 import { createBookingParserFromKeys, type BookingParser } from "../trips/bookingParse"
 import { config } from "../config"
+import { registerAreaRoutes } from "./tripAreas"
 import { registerBookingRoutes } from "./tripBookings"
 import { registerIdeaRoutes } from "./tripIdeas"
 import { createDaySuggesterFromKeys, type DaySuggester } from "../trips/suggestDays"
+import { createNeighborhoodsFromKeys, type NeighborhoodService } from "../trips/neighborhoods"
 import { collectCatalogPlaces, groupCatalogPlaces } from "../trips/placeCatalog"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { createTripReviewWorker, type ReviewWorker } from "../trips/reviewWorker"
@@ -64,6 +66,10 @@ export interface TripsRouterDeps {
   parseBookings?: BookingParser | null
   /** Recommends days for a wishlist idea. Undefined: Gemini 4 Hydrogen from the server's Gemini key, or the distance ranking alone without one. */
   suggestDays?: DaySuggester
+  /** The Neighborhoods tab. Undefined: built from the server's Gemini / Groq / Maps keys; null: not available (503). */
+  neighborhoods?: NeighborhoodService | null
+  /** How long a neighborhoods request waits on the model before answering 202 (tests shorten it). */
+  areasWaitMs?: number
   /** Runs queued AI reviews; `/enhance` kicks it with each new run. The
    *  server passes the one worker it also sweeps with. Undefined: a worker
    *  over `store` and `llm` that only takes the runs it is kicked with (and
@@ -308,6 +314,19 @@ export function createTripsRouter(deps: TripsRouterDeps) {
   registerIdeaRoutes(trips, {
     suggest: deps.suggestDays ?? createDaySuggesterFromKeys({ geminiApiKey: config.geminiApiKey }),
     load: loadForEdit,
+  })
+
+  registerAreaRoutes(trips, {
+    areas:
+      deps.neighborhoods !== undefined
+        ? deps.neighborhoods
+        : createNeighborhoodsFromKeys({ geminiApiKey: config.geminiApiKey, groqApiKey: config.groqApiKey, googleMapsApiKey: config.googleMapsApiKey }),
+    waitMs: deps.areasWaitMs,
+    // Viewers see the tab too: the areas say nothing the trip does not.
+    load: async (c) => {
+      await ensureSeeded(deps.store)
+      return loadTrip(c, c.req.param("id") ?? "")
+    },
   })
 
   // ── Sharing: join by invite link ───────────────────────────────────────

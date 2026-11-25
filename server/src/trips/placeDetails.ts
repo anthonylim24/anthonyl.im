@@ -153,7 +153,7 @@ export const DETAILS_TIMEOUTS: PlaceDetailsTimeouts = { totalMs: 11_000, stepMs:
  * Ids are usually 27 characters; some run longer.
  */
 export const PLACE_ID = /^[A-Za-z0-9_-]{8,256}$/
-const PHOTO_NAME = /^places\/[A-Za-z0-9_-]{8,256}\/photos\/[A-Za-z0-9_-]{8,1024}$/
+export const PHOTO_NAME = /^places\/[A-Za-z0-9_-]{8,256}\/photos\/[A-Za-z0-9_-]{8,1024}$/
 
 const PRICE: Record<string, 0 | 1 | 2 | 3 | 4> = {
   PRICE_LEVEL_FREE: 0,
@@ -202,6 +202,23 @@ export function webUrl(value: string | undefined): string | undefined {
 }
 
 const text = (value: { text?: string } | undefined) => value?.text?.trim() || undefined
+
+/** One Google photo as the client shows it: its keyless URL, its size as served (scaled to fit `widthPx`), and who took it. */
+export function toPlacePhoto(photo: NonNullable<RawDetails["photos"]>[number], url: string, widthPx: number): PlacePhoto {
+  const out: PlacePhoto = { url }
+  if (photo.widthPx && photo.heightPx) {
+    const scale = Math.min(1, widthPx / photo.widthPx)
+    out.width = Math.round(photo.widthPx * scale)
+    out.height = Math.round(photo.heightPx * scale)
+  }
+  const author = photo.authorAttributions?.find((who) => who.displayName?.trim())
+  if (author) {
+    out.author = { name: author.displayName!.trim() }
+    const uri = webUrl(author.uri)
+    if (uri) out.author.uri = uri
+  }
+  return out
+}
 
 /** Raw Place Details → what the popover shows. Photos are resolved separately. */
 export function toPlaceDetails(raw: RawDetails, photos: PlacePhoto[]): PlaceDetails | null {
@@ -508,21 +525,7 @@ export function createGooglePlaceDetails(
     const photos: PlacePhoto[] = []
     wanted.forEach((photo, index) => {
       const url = uris[index]
-      if (!url) return
-      const out: PlacePhoto = { url }
-      // The served image is scaled to fit 1200 px wide; the ratio is what the layout needs.
-      if (photo.widthPx && photo.heightPx) {
-        const scale = Math.min(1, PHOTO_WIDTH_PX / photo.widthPx)
-        out.width = Math.round(photo.widthPx * scale)
-        out.height = Math.round(photo.heightPx * scale)
-      }
-      const author = photo.authorAttributions?.find((who) => who.displayName?.trim())
-      if (author) {
-        out.author = { name: author.displayName!.trim() }
-        const uri = webUrl(author.uri)
-        if (uri) out.author.uri = uri
-      }
-      photos.push(out)
+      if (url) photos.push(toPlacePhoto(photo, url, PHOTO_WIDTH_PX))
     })
     return { photos, complete: photos.length === wanted.length }
   }

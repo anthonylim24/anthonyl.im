@@ -161,10 +161,10 @@ export function centreOf(points: ReadonlyArray<{ lat: number; lng: number }>): {
 }
 
 /** What the traveller wrote, without booking codes, emails or phone numbers, as one clipped line. Redacted before clipping, so a cut never leaves half a code. */
-const privateLine = (value: string | undefined, max: number) => oneLine(value ? redactPrivate(value) : value, max)
+export const privateLine = (value: string | undefined, max: number) => oneLine(value ? redactPrivate(value) : value, max)
 
 /** One line of user text, safe to show and to send: no control or direction characters, single spaces. */
-function oneLine(value: string | undefined, max: number): string | undefined {
+export function oneLine(value: string | undefined, max: number): string | undefined {
   if (!value) return undefined
   const flat = value.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g, " ").replace(/\s+/g, " ").trim()
   if (!flat) return undefined

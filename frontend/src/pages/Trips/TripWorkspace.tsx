@@ -59,6 +59,9 @@ import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
 import { OverviewTabs, type TabBadge } from "./workspace/OverviewTabs"
 import { OVERVIEW_TABS, readOverviewTab, type OverviewTab } from "./workspace/overviewTab"
+import { AreaKey } from "./areas/AreaKey"
+import type { Neighborhood } from "./areas/contract"
+import { useAreaOnMap } from "./areas/useAreaOnMap"
 import { calendarMenuItem, exportCalendar } from "./calendar/calendarMenu"
 import { tripCommands } from "./command/tripCommands"
 import { useRegisterCommands } from "./command/CommandContext"
@@ -75,6 +78,7 @@ const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => (
 const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
 const IdeasPanel = lazyRetry(() => import("./workspace/IdeasPanel").then((m) => ({ default: m.IdeasPanel })))
 const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
+const AreasPanel = lazyRetry(() => import("./areas/AreasPanel").then((m) => ({ default: m.AreasPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
 const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
@@ -464,6 +468,17 @@ function Workspace() {
         : [...pins, ...corePoints(dots)],
     [day, fresh, pins, hotelPins, dots],
   )
+  // A neighborhood from the Neighborhoods tab, drawn and framed on the overview map.
+  const areaMap = useAreaOnMap(trip ?? null, editor.readToken, !day && tab === "neighborhoods")
+  const { show: pickArea } = areaMap
+  const showArea = useCallback(
+    (area: Neighborhood | null) => {
+      pickArea(area)
+      if (area && !wide) setView("map")
+    },
+    [pickArea, wide],
+  )
+  const areaFramed = areaMap.shape !== null && !focusPin
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
   const activeDay = trip && activeDayIndex >= 0 ? trip.days[activeDayIndex] : undefined
@@ -1046,6 +1061,9 @@ function Workspace() {
                         <ChecklistPanel trip={trip} editable={editable} locked={locked} people={trip.party} onEdit={editor.edit} />
                       )}
                       {open === "essentials" && <EssentialsPanel trip={trip} />}
+                      {open === "neighborhoods" && (
+                        <AreasPanel trip={trip} basePath={basePath} getToken={editor.readToken} shownId={areaMap.area?.id ?? null} onShow={showArea} />
+                      )}
                       {open === "wishlist" && <IdeasPanel trip={trip} basePath={basePath} editable={editable} locked={locked} near={near} onEdit={editor.edit} />}
                     </div>
                   </Suspense>
@@ -1132,8 +1150,9 @@ function Workspace() {
             hot={hot}
             pins={mapPins}
             routes={routes}
-            frameKey={frameKey}
-            framePoints={focusPin ? [focusPin] : framePoints}
+            frameKey={areaFramed ? areaMap.frameKey : frameKey}
+            framePoints={focusPin ? [focusPin] : areaFramed ? areaMap.framePoints : framePoints}
+            area={areaMap.shape}
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
@@ -1161,17 +1180,21 @@ function Workspace() {
                 : `Map of the whole trip with ${plural(pins.length, "pinned place")}`
             }
           >
-            <p {...sx(s.mapChip, "trips-glass-pill")}>
-              <span {...sx(a.truncate)}>
-                {[
-                  day ? `Day ${dayIndex + 1}` : "All days",
-                  day?.city,
-                  !day ? plural(dots.length, "place") : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </p>
+            {areaMap.area && areaMap.shape ? (
+              <AreaKey name={areaMap.area.name} shape={areaMap.shape} onClear={() => pickArea(null)} />
+            ) : (
+              <p {...sx(s.mapChip, "trips-glass-pill")}>
+                <span {...sx(a.truncate)}>
+                  {[
+                    day ? `Day ${dayIndex + 1}` : "All days",
+                    day?.city,
+                    !day ? plural(dots.length, "place") : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </p>
+            )}
             {day && photorealReady && pins.length > 0 && (
               <button type="button" {...sx(s.flyBtn)} onClick={() => fly.set(true)} title="Fly through this day in photoreal 3D">
                 <Orbit size={15} strokeWidth={1.75} aria-hidden />
