@@ -140,8 +140,12 @@ describe('the boot screen', () => {
         <BootHold world="trips" step="auth" />
       </>,
     )
+    act(() => vi.advanceTimersByTime(199))
+    expect(document.getElementById('boot')).toBeNull()
+    act(() => vi.advanceTimersByTime(1))
     const again = document.getElementById('boot')
     expect(again).not.toBeNull()
+    expect(again).toHaveAttribute('data-late')
     expect(again).not.toBe(boot)
     expect(again).toHaveAttribute('data-world', 'trips')
     expect(again).toHaveAttribute('data-step', 'auth')
@@ -151,6 +155,33 @@ describe('the boot screen', () => {
     await flush()
     expect(again).toHaveAttribute('data-state', 'leaving')
     act(() => vi.advanceTimersByTime(quickExitMs))
+    expect(document.getElementById('boot')).toBeNull()
+  })
+
+  it('does not cover the page for a short wait once the page has shown', async () => {
+    vi.useFakeTimers()
+    reducedMotion(false)
+    const { boot, BootReady, BootHold } = await paintThenLoad('/trips')
+    const view = render(<BootReady />)
+    await flush()
+    act(() => vi.advanceTimersByTime(quickExitMs))
+    expect(boot.isConnected).toBe(false)
+
+    const seen = vi.fn()
+    const observer = new MutationObserver(() => document.getElementById('boot') && seen())
+    observer.observe(document.body, { childList: true })
+    view.rerender(
+      <>
+        <BootReady />
+        <BootHold world="trips" step="auth" />
+      </>,
+    )
+    act(() => vi.advanceTimersByTime(150))
+    view.rerender(<BootReady />)
+    await flush()
+    act(() => vi.advanceTimersByTime(1_000))
+    observer.disconnect()
+    expect(seen).not.toHaveBeenCalled()
     expect(document.getElementById('boot')).toBeNull()
   })
 
@@ -199,12 +230,12 @@ describe('the boot screen', () => {
 
   it('swaps in the other app’s screen when a wait belongs to another app', async () => {
     reducedMotion(false)
-    const { boot, BootHold } = await paintThenLoad('/lab/specimen')
-    render(<BootHold world="lim" step="code" />)
+    const { boot, BootHold } = await paintThenLoad('/trips')
+    render(<BootHold world="auth" step="auth" />)
     const swapped = document.getElementById('boot')
     expect(boot.isConnected).toBe(false)
-    expect(swapped).toHaveAttribute('data-world', 'lim')
-    expect(swapped).toHaveAttribute('data-step', 'code')
+    expect(swapped).toHaveAttribute('data-world', 'auth')
+    expect(swapped).toHaveAttribute('data-step', 'auth')
     expect(document.querySelectorAll('#boot')).toHaveLength(1)
   })
 

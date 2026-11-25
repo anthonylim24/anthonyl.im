@@ -24,9 +24,12 @@ type Leaving = Extract<Screen, { phase: 'leaving' }>
 
 const QUICK_BELOW_MS = 300
 const QUICK_EXIT_MS = 160
+/** Once the page has shown, a wait shorter than this is not worth covering the page for. */
+const LATE_AFTER_MS = 200
 
 const holds: Hold[] = []
 let exit: Leaving | null = null
+let late: ReturnType<typeof setTimeout> | null = null
 
 function current(): Screen {
   const el = document.getElementById('boot')
@@ -57,19 +60,32 @@ function cancelExit(screen: Leaving) {
   exit = null
 }
 
+function mountLate() {
+  late = null
+  const want = holds[holds.length - 1]
+  if (!want || current().phase !== 'gone') return
+  const el = window.__bootMount?.(want.world)
+  if (!el) return
+  el.dataset.late = ''
+  el.dataset.step = want.step
+}
+
 function reconcile() {
   const want = holds[holds.length - 1]
   let screen = current()
   if (!want) {
+    if (late) clearTimeout(late)
+    late = null
     if (screen.phase === 'showing') leave(screen.el)
     return
   }
-  if (screen.phase !== 'gone' && screen.el.dataset.world !== want.world) {
+  if (screen.phase === 'gone') {
+    late ??= setTimeout(mountLate, LATE_AFTER_MS)
+    return
+  }
+  if (screen.el.dataset.world !== want.world) {
     if (screen.phase === 'leaving') cancelExit(screen)
     screen.el.remove()
-    screen = { phase: 'gone' }
-  }
-  if (screen.phase === 'gone') {
     const el = window.__bootMount?.(want.world)
     if (!el) return
     screen = { phase: 'showing', el }
