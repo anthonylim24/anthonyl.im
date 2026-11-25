@@ -72,6 +72,8 @@ const WIDE = "@media (min-width: 1024px)"
 /** Where the compact trip header gives way (`headCompactHide`). */
 const PHONE_W = "@media (max-width: 639.98px)"
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
+/** A ::after inset for a 44px-tall hit band whatever the border (insets count from the padding box). */
+const band44 = "calc((100% - 2.75rem) / 2)"
 
 const riseIn = stylex.keyframes({
   from: { opacity: 0, transform: "translateY(10px)" },
@@ -945,7 +947,8 @@ export const ws = stylex.create({
   // One line to start, growing with what is written (`field-sizing` in a.textarea).
   notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
   // "Add status", "Add cost", "Add link": the fields a stop can have, asked for.
-  fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", gap: "0.375rem" },
+  // Wrapped rows sit 12px apart, so each chip's 44px band is its own.
+  fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem" },
   fieldChip: {
     position: "relative",
     display: "inline-flex",
@@ -964,8 +967,8 @@ export const ws = stylex.create({
     whiteSpace: "nowrap",
     cursor: "pointer",
     outline: "none",
-    "::after": { content: '""', position: "absolute", inset: "-0.375rem 0" },
-    ":focus-visible": { boxShadow: "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)" },
+    "::after": { content: '""', position: "absolute", inset: `${band44} 0` },
+    ":focus-visible": { boxShadow: ring },
     ":disabled": { opacity: 0.4, cursor: "not-allowed" },
     "@media (hover: hover)": { ":hover": { borderColor: "var(--trips-ink-tertiary)", color: "var(--trips-ink)" } },
   },

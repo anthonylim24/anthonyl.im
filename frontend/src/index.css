@@ -1014,16 +1014,22 @@ html.dark[data-trips-scroll] {
     opacity: 1;
   }
 
-  /* A timeline block's edit button: also shown on the selected block. */
+  /* A timeline block's edit button: faint at rest, so editing can be found
+     without hovering (tertiary ink still clears 3:1), full on the block's
+     hover, focus or selection. */
   .trips .trips-tl-edit {
-    opacity: 0;
-    transition: opacity 140ms ease;
+    color: var(--trips-ink-tertiary);
+    transition: color 140ms ease;
   }
 
   .trips .trips-tl-stop:hover .trips-tl-edit,
   .trips .trips-tl-stop:focus-within .trips-tl-edit,
   .trips .trips-tl-stop[data-active] .trips-tl-edit {
-    opacity: 1;
+    color: var(--trips-ink-secondary);
+  }
+
+  .trips .trips-tl-edit:hover {
+    color: var(--trips-ink);
   }
 }
 
