@@ -751,8 +751,9 @@ export function useTripEditor() {
     void cancelEnhancement(readToken, tripDocId, runId)
       .catch(() => null)
       .then((answer) => {
-        // An AI run started since has the say now.
-        if (aiStartsRef.current !== starts) return
+        // An AI run started since, or another trip opened, has the say now.
+        const open = stateRef.current
+        if (aiStartsRef.current !== starts || open.s !== "ready" || open.doc.id !== tripDocId) return
         const run = answer?.run
         if (run?.status === "complete" && answer?.trip) dispatch({ type: "EXTERNAL_CHANGE", trip: answer.trip })
         const said =

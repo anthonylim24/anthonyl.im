@@ -1795,6 +1795,21 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText(/may still finish/)).toBeNull()
     })
 
+    it("a late answer to Stop says nothing over a review started since", async () => {
+      mockListEnhancements.mockResolvedValue([working])
+      mockFollowEnhancement.mockReturnValue(new Promise(() => undefined))
+      let answer!: (value: unknown) => void
+      mockCancelEnhancement.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+      mockEnhanceTrip.mockReturnValue(new Promise(() => undefined))
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
+      await startTripReview()
+      await act(async () => answer({ run: { ...working, status: "error" } }))
+      expect(screen.queryByText("Stopped the AI review. Nothing in your itinerary changed.")).toBeNull()
+      expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument()
+    })
+
     it("a review that finished before Stop reached it lands its places and says so", async () => {
       mockListEnhancements.mockResolvedValue([working])
       mockFollowEnhancement.mockReturnValue(new Promise(() => undefined))
