@@ -96,6 +96,7 @@ export interface ItemCardProps {
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
   /** The item left this day (moved to another): the list moves focus on. */
   onGone?: (index: number) => void
+  onDuplicated?: (index: number, spoken: string) => void
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
   onGrip?: (event: ReactPointerEvent) => void
@@ -176,12 +177,13 @@ export const ItemCard = memo(function ItemCard({
   onGrip,
   onAnnounce,
   onGone,
+  onDuplicated,
 }: ItemCardProps) {
   // The day sheet open from the card's menu: send the stop to one day, or copies of it to several.
   const [picking, setPicking] = useState<"move" | "copy" | null>(null)
   const panelId = useId()
   const rowRef = useRef<HTMLDivElement>(null)
-  const edits = stopEdits({ item, dayId, index, count, dayOptions, parked, onChange, onAnnounce, onGone })
+  const edits = stopEdits({ item, dayId, index, count, dayOptions, parked, onChange, onAnnounce, onGone, onDuplicated })
   const { patch } = edits
   const canEdit = editable && !locked
   const RainIcon = rainCode === null ? CloudRain : weatherKind(rainCode).icon

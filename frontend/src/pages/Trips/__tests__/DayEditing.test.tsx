@@ -275,6 +275,33 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(sheet.getByRole("button", { name: "Move up" })).toHaveFocus()
   })
 
+  it("duplicates from More: the sheet closes, the copy takes focus, and the undo is offered", async () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Edit stop" }))
+    fireEvent.click(sheet.getByRole("button", { name: "More" }))
+    fireEvent.click(sheet.getByRole("button", { name: "Duplicate" }))
+
+    const items = itemsOf(state, "day-1")
+    expect(items.map((i) => i.title)).toEqual(["Lunch", "Lunch", "Tram 28"])
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Duplicated “Lunch”", toast: true })
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(row(items[1]!.id)).toHaveFocus()
+    expect(screen.getByRole("status")).toHaveTextContent("Lunch duplicated. The copy is next in the day.")
+  })
+
+  it("duplicates under the card: the editor closes and the copy takes focus", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1")
+    fireEvent.click(row("lunch"))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Duplicate" }))
+
+    const copy = itemsOf(state, "day-1")[1]!
+    expect(copy.title).toBe("Lunch")
+    expect(row("lunch")).toHaveAttribute("aria-expanded", "false")
+    expect(row(copy.id)).toHaveFocus()
+    expect(screen.getByRole("status")).toHaveTextContent("Lunch duplicated. The copy is next in the day.")
+  })
+
   it("sends the stop to another day, then hands focus to the stop after it", async () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))

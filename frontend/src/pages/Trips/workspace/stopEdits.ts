@@ -30,10 +30,12 @@ export interface StopContext {
   onAnnounce?: (message: string) => void
   /** The stop left this day (moved to another): the list moves focus on. */
   onGone?: (index: number) => void
+  /** A copy went in after the stop: the editor closes, and the copy takes focus once the list has it. */
+  onDuplicated?: (index: number, spoken: string) => void
 }
 
 /** What can be done to one stop, with the undo labels and announcements each change carries. */
-export function stopEdits({ item, dayId, index, count, dayOptions, parked, onChange, onAnnounce, onGone }: StopContext) {
+export function stopEdits({ item, dayId, index, count, dayOptions, parked, onChange, onAnnounce, onGone, onDuplicated }: StopContext) {
   const name = `“${item.title || "Untitled"}”`
   const spokenName = item.title || "Stop"
   const dayName = (id: string) => dayOptions.find((option) => option.id === id)?.label.split(" · ")[0] ?? "another day"
@@ -60,7 +62,10 @@ export function stopEdits({ item, dayId, index, count, dayOptions, parked, onCha
       onChange((days) => setItemTime(days, dayId, item.id, time))
       if (parked && time) onAnnounce?.(`${spokenName} is on the route at ${formatClock(time)}.`)
     },
-    duplicate: () => onChange((days) => duplicateItem(days, dayId, item.id), { label: `Duplicated ${name}` }),
+    duplicate: () => {
+      onChange((days) => duplicateItem(days, dayId, item.id), { label: `Duplicated ${name}`, toast: true })
+      onDuplicated?.(index, `${spokenName} duplicated. The copy is next in the day.`)
+    },
   }
 }
 
