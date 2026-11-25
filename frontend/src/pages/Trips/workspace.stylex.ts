@@ -998,9 +998,9 @@ export const ws = stylex.create({
   },
   // In a sheet the body is the editor: the card's grid without its rule and inset.
   sheetEditor: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" },
-  // The dialog's one foot child: Delete, More and Done on one line at 320px.
-  // Done (alone, for a viewer) sits at the end.
-  sheetFoot: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", columnGap: "0.5rem", rowGap: "0.75rem", minWidth: 0 },
+  // The dialog's one foot child, its full width: Delete, More and Done on one
+  // line at 320px. Done (alone, for a viewer) sits at the end.
+  sheetFoot: { display: "flex", flexWrap: "wrap", flexGrow: 1, alignItems: "center", justifyContent: "flex-end", columnGap: "0.5rem", rowGap: "0.75rem", minWidth: 0 },
   // Takes the row's slack, so it sits at the far end from Done.
   sheetDelete: { marginRight: "auto" },
   sheetMoreOpen: { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" },
