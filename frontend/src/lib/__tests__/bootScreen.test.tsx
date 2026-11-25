@@ -24,7 +24,17 @@ function reducedMotion(reduce: boolean) {
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: reduce && query === '(prefers-reduced-motion: reduce)', media: query }))
 }
 
+/** The page's FontFaceSet: each face as the browser holds it after the app has drawn. */
+function fontFaces(faces: [family: string, style: string, status: FontFaceLoadStatus][]) {
+  const set = Object.assign(
+    faces.map(([family, style, status]) => ({ family, style, status })),
+    { ready: Promise.resolve() },
+  )
+  Object.defineProperty(document, 'fonts', { configurable: true, value: set })
+}
+
 afterEach(() => {
+  Reflect.deleteProperty(document, 'fonts')
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -183,6 +193,32 @@ describe('the boot screen', () => {
     observer.disconnect()
     expect(seen).not.toHaveBeenCalled()
     expect(document.getElementById('boot')).toBeNull()
+  })
+
+  it('remembers each app whose screen’s faces the page has loaded, once the app has settled', async () => {
+    vi.useFakeTimers()
+    reducedMotion(false)
+    fontFaces([
+      ['"Fragment Mono"', 'normal', 'loaded'],
+      ['"Instrument Serif"', 'normal', 'loaded'],
+      ['"Instrument Serif"', 'italic', 'loaded'],
+      ['Inter', 'normal', 'loaded'],
+      ['Geist', 'normal', 'loaded'],
+      ['Fraunces', 'italic', 'unloaded'],
+      ['Archivo', 'normal', 'loading'],
+    ])
+    localStorage.setItem('boot-fonts', '["lim"]')
+    const { boot, BootReady } = await paintThenLoad('/trips')
+    render(<BootReady />)
+    await flush()
+    act(() => vi.advanceTimersByTime(quickExitMs))
+    expect(boot.isConnected).toBe(false)
+    act(() => vi.advanceTimersByTime(3_999))
+    await flush()
+    expect(localStorage.getItem('boot-fonts')).toBe('["lim"]')
+    act(() => vi.advanceTimersByTime(1))
+    await flush()
+    expect(JSON.parse(localStorage.getItem('boot-fonts')!)).toEqual(['lim', 'trips', 'auth'])
   })
 
   it('a wait that starts during the exit keeps the screen', async () => {

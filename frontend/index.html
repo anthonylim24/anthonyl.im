@@ -139,7 +139,7 @@
       .boot[data-step="code"] .boot-steps > [data-step="code"],
       .boot[data-step="auth"] .boot-steps > [data-step="auth"] { opacity: 1; }
       .boot-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-      .boot-retry { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); translate: -50% 0; min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; border-radius: 999px; font: 500 14px/1 Inter, system-ui, sans-serif; color: inherit; text-decoration: underline; text-underline-offset: 3px; visibility: hidden; opacity: 0; animation: boot-retry 400ms ease 12s forwards; }
+      .boot-retry { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); translate: -50% 0; min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; border-radius: 999px; font: 500 14px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: inherit; text-decoration: underline; text-underline-offset: 3px; visibility: hidden; opacity: 0; animation: boot-retry 400ms ease 12s forwards; }
       .boot[data-late] { animation: boot-in 200ms ease-out both; }
       .boot[data-state="leaving"] { pointer-events: none; }
       .boot[data-state="leaving"][data-exit="quick"] { animation: boot-out 160ms ease both !important; }
@@ -174,7 +174,10 @@
     <!-- BOOT-TEMPLATES: one per world. The copy for each step sits in
          .boot-steps; data-label names the screen for assistive tech and
          data-exit-ms is how long its exit plays (lib/bootScreen.ts waits
-         that long before removing it). -->
+         that long before removing it). data-fonts lists the web faces the
+         screen draws in under .boot[data-fonts] ("Family" or "Family:italic");
+         until this browser has loaded them once, it draws in system faces,
+         because a cold download competes with the app's code. -->
 
     <!-- Lim (and the 404): the sheet LimLoader draws, so Lim's own loader takes over without a seam. -->
     <template id="boot-lim" data-label="Loading Lim" data-exit-ms="200">
@@ -186,12 +189,14 @@
     </template>
 
     <!-- Lab: a pipette lets one glass droplet fall onto the bench; it lands, ripples and dissolves in ink. -->
-    <template id="boot-lab" data-label="Loading the lab" data-exit-ms="520">
+    <template id="boot-lab" data-label="Loading the lab" data-exit-ms="520" data-fonts="Fragment Mono|Archivo">
       <style>
         .boot[data-world="lab"] { --bl-ink: #0E1024; --bl-ink-3: #5E6075; --bl-ultra: #2433E0; background: #EDE8DF; color: var(--bl-ink); }
         .bl-stage { gap: 18px; padding: 24px; }
-        .bl-mono { font: 400 11px/1.4 'Fragment Mono', ui-monospace, Menlo, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bl-ink-3); }
-        .bl-title { min-height: 1em; font: 640 clamp(30px, 6.4vw, 46px)/1 Archivo, 'Helvetica Neue', Arial, sans-serif; font-stretch: 118%; letter-spacing: -0.035em; text-wrap: balance; }
+        .bl-mono { font: 400 11px/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bl-ink-3); }
+        .bl-title { min-height: 1em; font: 700 clamp(28px, 6vw, 42px)/1.02 'Helvetica Neue', Arial, sans-serif; letter-spacing: -0.03em; text-wrap: balance; }
+        .boot[data-fonts] .bl-mono { font-family: 'Fragment Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+        .boot[data-fonts] .bl-title { font: 640 clamp(30px, 6.4vw, 46px)/1 Archivo, 'Helvetica Neue', Arial, sans-serif; font-stretch: 118%; letter-spacing: -0.035em; }
         .bl-title span { color: var(--bl-ultra); }
         .bl-rig { position: relative; width: 200px; height: 232px; }
         .bl-rig > * { position: absolute; }
@@ -266,14 +271,14 @@
 
     <!-- BreathFlow: drops of pigment bloom wet-in-wet on cotton paper while a brush lays the wash; the wash
          sits where PaintingLoader's does, so the cat is inked over the same picture. -->
-    <template id="boot-breathwork" data-label="Loading BreathFlow" data-exit-ms="480">
+    <template id="boot-breathwork" data-label="Loading BreathFlow" data-exit-ms="480" data-fonts="Geist|Fraunces:italic">
       <style>
         .boot[data-world="breathwork"] { --bb-ink: #27231F; --bb-ink-2: #6B6258; --bb-blend: multiply; background: #F7F1E6; color: var(--bb-ink); }
         .boot[data-world="breathwork"][data-theme="dark"] { --bb-ink: #EDE6DA; --bb-ink-2: #A79F93; --bb-blend: screen; background: #15161C; }
         .bb-tooth { position: absolute; inset: 0; pointer-events: none; opacity: 0.5; mix-blend-mode: multiply; background-size: 320px 320px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='p' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.042' numOctaves='5' seed='11' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23fffaf0' surfaceScale='1.25' diffuseConstant='1.08'%3E%3CfeDistantLight azimuth='225' elevation='58'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E"); }
         .boot[data-world="breathwork"][data-theme="dark"] .bb-tooth { opacity: 0.16; mix-blend-mode: soft-light; }
         .bb-stage { gap: 1rem; }
-        .bb-eyebrow { font: 500 11px/1 Geist, system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bb-ink-2); }
+        .bb-eyebrow { font: 500 11px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bb-ink-2); }
         .bb-art { position: relative; width: min(52vw, 13rem); aspect-ratio: 1; }
         .bb-art > * { position: absolute; }
         .bb-art svg { width: 100%; height: 100%; }
@@ -285,7 +290,9 @@
         .bb-brush { left: 0; top: 0; width: 150px; height: 20px; margin-top: -10px; transform-origin: 0 50%; animation: bb-dab 2.1s cubic-bezier(0.45, 0, 0.3, 1) 0.1s both; }
         .bb-brush > div { animation: bb-sway 4.8s ease-in-out 2.2s infinite; transform-origin: 0 50%; }
         .bb-brush svg { width: 150px; height: 20px; }
-        .bb-steps { font: italic 400 1.125rem/1.3 Fraunces, Georgia, serif; opacity: 0.72; }
+        .bb-steps { font: italic 400 1.125rem/1.3 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; opacity: 0.72; }
+        .boot[data-fonts] .bb-eyebrow { font-family: Geist, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+        .boot[data-fonts] .bb-steps { font-family: Fraunces, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; }
         .boot[data-world="breathwork"][data-state="leaving"] { animation: boot-out 380ms ease 100ms both; }
         .boot[data-world="breathwork"][data-state="leaving"] .bb-art { animation: bb-soak 480ms cubic-bezier(0.16, 1, 0.3, 1) both; }
         .boot[data-world="breathwork"][data-state="leaving"] .bb-brush { animation: bb-lift 300ms ease-in both; }
@@ -345,7 +352,7 @@
 
     <!-- Trips: a folded chart opens out on the desk, the stops drop on as numbered pins and the compass
          settles. The route takes the trip's own accent once a trip has been opened here before. -->
-    <template id="boot-trips" data-label="Loading Trips" data-exit-ms="560">
+    <template id="boot-trips" data-label="Loading Trips" data-exit-ms="560" data-fonts="Fragment Mono|Instrument Serif|Instrument Serif:italic|Inter">
       <style>
         .boot[data-world="trips"] { --bt-paper: #F1F0EB; --bt-surface: #FAF9F6; --bt-back: #E8E7E1; --bt-ink: #14171A; --bt-ink-2: #4D5259; --bt-ink-3: #696E75; --bt-line: rgb(20 23 26 / 0.1); --bt-shadow: rgb(20 23 26 / 0.18); --bt-fill: #F0582B; --bt-on: #FFFFFF; --bt-text: #B8400F; --bt-brand: #F0582B; background: var(--bt-paper); color: var(--bt-ink); }
         .boot[data-world="trips"][data-theme="dark"] { --bt-paper: #0B0D10; --bt-surface: #13161A; --bt-back: #07090B; --bt-ink: #ECEAE4; --bt-ink-2: #B0B4BA; --bt-ink-3: #8B9097; --bt-line: rgb(255 255 255 / 0.1); --bt-shadow: rgb(0 0 0 / 0.55); --bt-text: #FF9166; }
@@ -361,12 +368,12 @@
         .boot[data-world="trips"][data-theme="dark"][data-accent="violet"] { --bt-text: #B6A4FF; }
         .bt-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(var(--bt-line) 1px, transparent 1px), linear-gradient(90deg, var(--bt-line) 1px, transparent 1px); background-size: 48px 48px; background-position: center; -webkit-mask-image: radial-gradient(closest-side, #000 15%, transparent); mask-image: radial-gradient(closest-side, #000 15%, transparent); opacity: 0.6; }
         .bt-stage { gap: 18px; padding: 24px; }
-        .bt-eyebrow { font: 400 11px/1 'Fragment Mono', ui-monospace, Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase; color: var(--bt-ink-3); }
-        .bt-title { min-height: 1.04em; font: 400 clamp(36px, 7vw, 48px)/1.04 'Instrument Serif', 'Iowan Old Style', Georgia, serif; letter-spacing: -0.01em; }
+        .bt-eyebrow { font: 400 11px/1 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: 0.16em; text-transform: uppercase; color: var(--bt-ink-3); }
+        .bt-title { min-height: 1.04em; font: 400 clamp(30px, 6vw, 42px)/1.1 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; letter-spacing: -0.015em; }
         .bt-title em { color: var(--bt-text); }
         .bt-for-trip, .boot[data-trip] .bt-for-index { display: none; }
         .boot[data-trip] .bt-for-trip { display: inline; }
-        .bt-steps { font: 400 14px/1.4 Inter, system-ui, sans-serif; color: var(--bt-ink-2); }
+        .bt-steps { font: 400 14px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--bt-ink-2); }
         .bt-desk { --w: 62px; position: relative; width: calc(var(--w) * 4); height: 176px; margin: 6px 0 8px; perspective: 900px; }
         .bt-float { position: absolute; inset: 0; transform-style: preserve-3d; animation: bt-float 6s ease-in-out 1.6s infinite; }
         .bt-shade { position: absolute; left: 4%; right: 4%; bottom: -16px; height: 20px; border-radius: 50%; background: radial-gradient(closest-side, var(--bt-shadow), transparent); animation: bt-shade 1.3s cubic-bezier(0.34, 1.2, 0.64, 1) 0.2s both; }
@@ -388,7 +395,10 @@
         .bt-pin { position: absolute; width: 26px; height: 26px; margin: -28px 0 0 -13px; animation: bt-drop 640ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .bt-pin::before { content: ""; position: absolute; left: 50%; top: 100%; width: 22px; height: 8px; margin: -2px 0 0 -11px; border-radius: 50%; border: 1.5px solid var(--bt-fill); opacity: 0; animation: bt-pulse 2.4s ease-out infinite; animation-delay: inherit; }
         .bt-pin > span { position: absolute; inset: 0; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--bt-fill); box-shadow: 0 0 0 2px var(--bt-surface), 0 4px 8px var(--bt-shadow); }
-        .bt-pin > b { position: absolute; inset: 0 0 3px; display: grid; place-items: center; font: 600 11px/1 Inter, system-ui, sans-serif; color: var(--bt-on); }
+        .bt-pin > b { position: absolute; inset: 0 0 3px; display: grid; place-items: center; font: 600 11px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--bt-on); }
+        .boot[data-fonts] .bt-eyebrow { font-family: 'Fragment Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+        .boot[data-fonts] .bt-title { font: 400 clamp(36px, 7vw, 48px)/1.04 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; letter-spacing: -0.01em; }
+        .boot[data-fonts] .bt-steps, .boot[data-fonts] .bt-pin > b { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
         .bt-p1 { left: 38px; top: 128px; animation-delay: 1.05s; }
         .bt-p2 { left: 126px; top: 92px; animation-delay: 1.2s; }
         .bt-p3 { left: 214px; top: 114px; animation-delay: 1.35s; }
@@ -452,14 +462,17 @@
     </template>
 
     <!-- Sign-in: a passport lies open on the desk and the entry stamp comes down. -->
-    <template id="boot-auth" data-label="Loading sign-in" data-exit-ms="420">
+    <template id="boot-auth" data-label="Loading sign-in" data-exit-ms="420" data-fonts="Fragment Mono|Instrument Serif|Instrument Serif:italic|Inter">
       <style>
         .boot[data-world="auth"] { --ba-paper: #F1F0EB; --ba-page: #FAF9F6; --ba-ink: #14171A; --ba-ink-2: #4D5259; --ba-ink-3: #696E75; --ba-line: rgb(20 23 26 / 0.12); --ba-brand: #F0582B; --ba-brand-text: #B8400F; background: var(--ba-paper); color: var(--ba-ink); }
         .ba-stage { gap: 18px; padding: 24px; }
-        .ba-eyebrow { font: 400 11px/1 'Fragment Mono', ui-monospace, Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ba-ink-3); }
-        .ba-title { min-height: 1.04em; font: 400 clamp(36px, 7vw, 48px)/1.04 'Instrument Serif', 'Iowan Old Style', Georgia, serif; letter-spacing: -0.01em; }
+        .ba-eyebrow, .ba-ring-text { font: 400 11px/1 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ba-ink-3); }
+        .ba-title { min-height: 1.04em; font: 400 clamp(30px, 6vw, 42px)/1.1 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; letter-spacing: -0.015em; }
         .ba-title em { color: var(--ba-brand-text); }
-        .ba-steps { font: 400 14px/1.4 Inter, system-ui, sans-serif; color: var(--ba-ink-2); }
+        .ba-steps { font: 400 14px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--ba-ink-2); }
+        .boot[data-fonts] .ba-eyebrow, .boot[data-fonts] .ba-ring-text { font-family: 'Fragment Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+        .boot[data-fonts] .ba-title { font: 400 clamp(36px, 7vw, 48px)/1.04 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; letter-spacing: -0.01em; }
+        .boot[data-fonts] .ba-steps { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
         .ba-desk { position: relative; width: 248px; height: 196px; margin-top: 14px; }
         .ba-desk > * { position: absolute; }
         .ba-book { left: 0; bottom: 0; width: 248px; height: 156px; filter: drop-shadow(0 8px 14px rgb(20 23 26 / 0.14)); }
@@ -509,7 +522,7 @@
             <defs><path id="ba-ring" d="M41 41m-28 0a28 28 0 1 1 56 0a28 28 0 1 1-56 0"/></defs>
             <circle cx="41" cy="41" r="38" fill="none" stroke="var(--ba-brand)" stroke-width="2.6" stroke-dasharray="40 1.4 22 0.8 60 1.2"/>
             <circle cx="41" cy="41" r="22" fill="none" stroke="var(--ba-brand)" stroke-width="1.2"/>
-            <text fill="var(--ba-brand)" font-family="'Fragment Mono', ui-monospace, Menlo, monospace" font-size="7.2" letter-spacing="1.6"><textPath href="#ba-ring">TRIPS · ANTHONYL.IM · ENTRY ·</textPath></text>
+            <text class="ba-ring-text" fill="var(--ba-brand)" font-size="7.2" letter-spacing="1.6"><textPath href="#ba-ring">TRIPS · ANTHONYL.IM · ENTRY ·</textPath></text>
             <path d="M41 26L44 38L56 41L44 44L41 56L38 44L26 41L38 38Z" fill="var(--ba-brand)"/>
           </svg>
           <div class="ba-shadow"></div>
@@ -569,6 +582,12 @@
           try { return JSON.parse(read('trips-boot-accent') || '{}')[id] || null; } catch { return null; }
         };
 
+        // Worlds whose web fonts this browser has loaded before (lib/bootScreen.ts records them): only
+        // those draw in their own faces, read from the HTTP cache instead of competing with the app's code.
+        const fontsCached = (world) => {
+          try { return JSON.parse(read('boot-fonts') || '[]').includes(world); } catch { return false; }
+        };
+
         window.__bootMount = (world) => {
           const template = document.getElementById('boot-' + world);
           if (!template) return null;
@@ -582,6 +601,7 @@
           boot.dataset.state = 'showing';
           boot.dataset.exitMs = template.dataset.exitMs || '300';
           boot.dataset.shownAt = String(Math.round(performance.now()));
+          if (fontsCached(world)) boot.dataset.fonts = '';
           if (world === 'trips' && tripIdOf(path)) {
             boot.dataset.trip = '';
             const accent = accentFor(path);

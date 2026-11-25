@@ -2,10 +2,13 @@
 // is up (#root holds something other than a loading status), when the boot screen leaves, and whether its
 // animation keeps drawing while the main thread is busy (frames the compositor drew inside long tasks).
 //
-//   node scripts/boot-perf.mjs [--base http://localhost:3230] [--routes /,/lab,/breathwork] [--throttle 4] [--net fast3g|slow4g|none] [--runs 3] [--json out.json]
+//   node scripts/boot-perf.mjs [--base http://localhost:3230] [--routes /,/lab,/breathwork] [--throttle 4] [--net fast3g|slow4g|none] [--runs 3] [--json out.json] [--repeat]
 //
 // Serve a build first (`bun start` from the repo root serves frontend/dist). Each run is a fresh browser
-// with an empty cache. Works against a build without a boot screen too, so it measures the old page.
+// with an empty cache; --repeat visits the route once first, so the run measures a returning visitor
+// (HTTP cache and localStorage warm). Service workers are blocked: their fetches skip the network
+// throttling, which would make whichever build registered its worker sooner look faster. Works against
+// a build without a boot screen too, so it measures the old page.
 import { createRequire } from 'node:module'
 import { writeFile } from 'node:fs/promises'
 
@@ -13,7 +16,7 @@ const require = createRequire(import.meta.url)
 const { chromium } = require('@playwright/test')
 
 const args = Object.fromEntries(
-  process.argv.slice(2).reduce((pairs, a, i, all) => (a.startsWith('--') ? [...pairs, [a.slice(2), all[i + 1]]] : pairs), []),
+  process.argv.slice(2).reduce((pairs, a, i, all) => (a.startsWith('--') ? [...pairs, [a.slice(2), all[i + 1]?.startsWith('--') ? true : all[i + 1]]] : pairs), []),
 )
 const BASE = args.base ?? 'http://localhost:3230'
 const ROUTES = (args.routes ?? '/,/lab,/breathwork,/trips,/trips/korea-2026,/sign-in').split(',')
@@ -25,6 +28,7 @@ const NETS = {
   none: null,
 }
 const NET = NETS[args.net ?? 'slow4g']
+const REPEAT = 'repeat' in args
 
 /** Records the boot screen's life in page time (performance.now()), from before the first byte is parsed. */
 function watchBoot() {
@@ -51,6 +55,10 @@ function watchBoot() {
     if (!window.__appAt && root?.firstElementChild && !root.querySelector(WAITING)) {
       window.__appAt = performance.now()
       log('app')
+      requestAnimationFrame(() => requestAnimationFrame(() => document.fonts.ready.then(() => {
+        window.__appFontsAt = performance.now()
+        log('app fonts')
+      })))
     }
   }).observe(document, { childList: true, subtree: true })
 }
@@ -59,7 +67,14 @@ const ms = (v) => (v == null ? null : Math.round(v))
 
 async function measure(route) {
   const browser = await chromium.launch()
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' })
+  if (REPEAT) {
+    const first = await context.newPage()
+    await first.goto(BASE + route, { waitUntil: 'load', timeout: 60_000 })
+    await first.waitForFunction(() => !document.getElementById('boot'), null, { timeout: 30_000 }).catch(() => {})
+    await first.waitForTimeout(6_000)
+    await first.close()
+  }
   const page = await context.newPage()
   const cdp = await context.newCDPSession(page)
   if (NET) {
@@ -73,7 +88,7 @@ async function measure(route) {
   })
   await page.goto(BASE + route, { waitUntil: 'load', timeout: 60_000 })
   await page
-    .waitForFunction(() => !document.getElementById('boot') && document.querySelector('#root > *'), null, { timeout: 30_000 })
+    .waitForFunction(() => !document.getElementById('boot') && window.__appFontsAt, null, { timeout: 30_000 })
     .catch(() => {})
   await page.waitForTimeout(500)
   const trace = JSON.parse((await browser.stopTracing()).toString())
@@ -81,6 +96,7 @@ async function measure(route) {
     fp: performance.getEntriesByName('first-paint')[0]?.startTime ?? null,
     fcp: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
     app: window.__appAt ?? null,
+    appFonts: window.__appFontsAt ?? null,
     log: window.__bootLog,
   }))
   await browser.close()
@@ -108,6 +124,7 @@ async function measure(route) {
     fp: ms(timing.fp),
     fcp: ms(timing.fcp),
     appReady: ms(timing.app),
+    appFontsReady: ms(timing.appFonts),
     bootMount: ms(mount),
     bootLeaving: ms(leaving),
     bootRemoved: ms(removed),

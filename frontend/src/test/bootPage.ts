@@ -10,7 +10,7 @@ const script = indexHtml.match(/<script data-boot>([\s\S]*?)<\/script>/)?.[1]
 /** How long index.html's quick exit animation runs. */
 export const quickExitMs = Number(style?.match(/\[data-exit="quick"\]\s*\{\s*animation:\s*boot-out (\d+)ms/)?.[1])
 
-const STORAGE_KEYS = ['korea-theme', 'breathwork-settings', 'lim-chat-night', 'trips-boot-accent']
+const STORAGE_KEYS = ['korea-theme', 'breathwork-settings', 'lim-chat-night', 'trips-boot-accent', 'boot-fonts']
 
 export function paintBoot(path: string): HTMLElement {
   if (!style || !templates || !script) throw new Error('index.html no longer ships the boot screen')

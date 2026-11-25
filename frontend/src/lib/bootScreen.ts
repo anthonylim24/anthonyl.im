@@ -27,6 +27,10 @@ const QUICK_EXIT_MS = 160
 /** Once the page has shown, a wait shorter than this is not worth covering the page for. */
 const LATE_AFTER_MS = 200
 
+/** By this long after the screen goes, the app has drawn its first screen and fetched that screen's fonts. */
+const FONTS_SETTLE_MS = 4_000
+const FONTS_KEY = 'boot-fonts'
+
 const holds: Hold[] = []
 let exit: Leaving | null = null
 let late: ReturnType<typeof setTimeout> | null = null
@@ -49,10 +53,38 @@ function leave(el: HTMLElement) {
     () => {
       el.remove()
       if (exit?.el === el) exit = null
+      setTimeout(() => void document.fonts.ready.then(rememberLoadedFonts), FONTS_SETTLE_MS)
     },
     quick ? QUICK_EXIT_MS : Number(el.dataset.exitMs),
   )
   exit = { phase: 'leaving', el, timer }
+}
+
+function hasLoaded(face: string): boolean {
+  const [family, style = 'normal'] = face.split(':')
+  for (const font of document.fonts) {
+    if (font.family.replace(/["']/g, '') === family && font.style === style && font.status === 'loaded') return true
+  }
+  return false
+}
+
+/**
+ * Records each world whose web fonts this page has loaded, so the boot script
+ * draws that world's next screen in them: they come from the HTTP cache then,
+ * not over a network the app's code needs.
+ */
+export function rememberLoadedFonts(): void {
+  try {
+    const known: unknown = JSON.parse(localStorage.getItem(FONTS_KEY) ?? '[]')
+    const worlds = new Set(Array.isArray(known) ? known.filter((w): w is string => typeof w === 'string') : [])
+    const before = worlds.size
+    for (const template of document.querySelectorAll<HTMLTemplateElement>('template[id^="boot-"][data-fonts]')) {
+      if (template.dataset.fonts!.split('|').every(hasLoaded)) worlds.add(template.id.slice('boot-'.length))
+    }
+    if (worlds.size !== before) localStorage.setItem(FONTS_KEY, JSON.stringify([...worlds]))
+  } catch {
+    // Unreadable storage: every screen keeps drawing in system faces.
+  }
 }
 
 function cancelExit(screen: Leaving) {

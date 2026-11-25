@@ -78,6 +78,45 @@ describe('the boot screen index.html paints', () => {
     expect(paintBoot(path)).toHaveAttribute('data-theme', theme)
   })
 
+  it('draws in web faces only for a world whose fonts this browser has loaded before', () => {
+    prefersDark(false)
+    expect(paintBoot('/trips')).not.toHaveAttribute('data-fonts')
+    clearBoot()
+    localStorage.setItem('boot-fonts', '["trips","lab"]')
+    expect(paintBoot('/trips/korea-2026')).toHaveAttribute('data-fonts')
+    clearBoot()
+    localStorage.setItem('boot-fonts', '["trips","lab"]')
+    expect(paintBoot('/breathwork')).not.toHaveAttribute('data-fonts')
+    clearBoot()
+    localStorage.setItem('boot-fonts', 'not json')
+    expect(paintBoot('/lab')).not.toHaveAttribute('data-fonts')
+  })
+
+  it('names web faces only under [data-fonts], and lists them on the template', () => {
+    const webFace = /Fragment Mono|Instrument Serif|Archivo|Fraunces|Geist|Inter\b/
+    const page = new DOMParser().parseFromString(indexHtml.slice(indexHtml.indexOf('</head>')), 'text/html')
+    const headCss = [...indexHtml.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).find((css) => css!.includes('.boot {'))!
+    const sources = [
+      { id: 'head', css: headCss, markup: '', fonts: '' },
+      ...[...page.querySelectorAll<HTMLTemplateElement>('template[id^="boot-"]')].map((template) => ({
+        id: template.id,
+        css: [...template.content.querySelectorAll('style')].map((style) => style.textContent).join(''),
+        markup: template.innerHTML,
+        fonts: template.dataset.fonts ?? '',
+      })),
+    ]
+    for (const { id, css, markup, fonts } of sources) {
+      const unguarded = css
+        .split('}')
+        .map((rule) => rule.split('{').slice(-2))
+        .filter(([selector, body]) => body && webFace.test(body) && !selector!.includes('[data-fonts]'))
+        .map(([selector]) => selector!.trim())
+      expect(unguarded, id).toEqual([])
+      expect(markup.match(/font-family="[^"]*"/g)?.filter((attr) => webFace.test(attr)) ?? [], id).toEqual([])
+      if (webFace.test(css)) expect(fonts, id).not.toBe('')
+    }
+  })
+
   it('paints nothing without JavaScript: the noscript page is all a visitor sees', () => {
     const body = indexHtml.slice(indexHtml.indexOf('</head>'))
     const page = new DOMParser().parseFromString(body, 'text/html')
