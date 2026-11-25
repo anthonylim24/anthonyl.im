@@ -84,7 +84,6 @@ function Checking() {
   return (
     <div {...sx(s.gate)} role="status" aria-label="Checking sign-in">
       <BootHold world="trips" step="auth" />
-      <span {...sx(a.eyebrow)}>Loading…</span>
     </div>
   )
 }

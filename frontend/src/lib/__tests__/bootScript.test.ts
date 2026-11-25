@@ -24,6 +24,13 @@ describe('the boot screen index.html paints', () => {
     ['/preview/pr/12/trips', 'trips', 'Loading Trips'],
     ['/preview/pr/12', 'lim', 'Loading Lim'],
     ['/some-404', 'lim', 'Loading Lim'],
+    ['/lab/', 'lab', 'Loading the lab'],
+    ['/lab/specimen', 'lim', 'Loading Lim'],
+    ['/trips/', 'trips', 'Loading Trips'],
+    ['/tripsfoo', 'lim', 'Loading Lim'],
+    ['/breathworks', 'lim', 'Loading Lim'],
+    ['/sign-in/', 'auth', 'Loading sign-in'],
+    ['/sign-in-help', 'lim', 'Loading Lim'],
   ])('at %s is the %s screen', (path, world, label) => {
     prefersDark(false)
     const boot = paintBoot(path)
