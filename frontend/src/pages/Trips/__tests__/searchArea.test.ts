@@ -44,9 +44,9 @@ describe("tripPlaces", () => {
     ])
   })
 
-  it("adds the days' own cities", () => {
-    const named = { ...tokyoKyoto, destinations: ["Japan"], days: tokyoKyoto.days.map((day, i) => ({ ...day, city: i < 3 ? "Tokyo" : "Kyoto" })) }
-    expect(tripPlaces(named).anchors.towns).toEqual(["japan", "tokyo", "kyoto"])
+  it("adds the days' own cities, and never a country", () => {
+    const named = { ...tokyoKyoto, destinations: ["Japan", "South Korea"], days: tokyoKyoto.days.map((day, i) => ({ ...day, city: i < 3 ? "Tokyo" : "Kyoto, Japan" })) }
+    expect(tripPlaces(named).anchors.towns).toEqual(["tokyo", "kyoto"])
   })
 
   it("knows nothing without a trip", () => {

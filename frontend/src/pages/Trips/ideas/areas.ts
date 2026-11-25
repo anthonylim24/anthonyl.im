@@ -114,7 +114,8 @@ function countryNames(): Set<string> {
   return names
 }
 
-const isCountry = (part: string) => countryNames().has(normaliseName(withoutNumbers(part)))
+/** Whether a name, or a part of an address, is a country ("Japan", "South Korea", "대한민국"). */
+export const isCountry = (part: string) => countryNames().has(normaliseName(withoutNumbers(part)))
 /** A part that is a postcode and nothing else ("603-8361", "〒150-0041"); "1-chōme-22-7" is a street. */
 const isPostcode = (part: string) => /^〒?\s*\d[\d\s-]*$/.test(part)
 

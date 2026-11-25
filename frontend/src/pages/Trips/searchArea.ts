@@ -1,6 +1,7 @@
 import { NO_ANCHORS, nameKey, townKey, type PlaceResult, type TripAnchors } from "./geocode"
 import { dayRoute, distanceMeters, isLocated, searchCenter, type LngLat } from "./map/geo"
 import { dayStays } from "./map/stayPins"
+import { isCountry } from "./ideas/areas"
 import type { Trip } from "./types"
 
 // Where a place search on a trip's page looks, and what it measures "near
@@ -52,7 +53,9 @@ export function tripPlaces(trip: TripForSearch | null): TripPlaces {
     }
   })
   for (const idea of trip.ideas ?? []) if (isLocated(idea)) points.push({ lat: idea.location.lat, lng: idea.location.lng })
-  const towns = new Set([...trip.destinations, ...trip.days.map((day) => day.city ?? "")].map(townKey).filter(Boolean))
+  // A country is no town: "Japan" would make every same-named place in it near.
+  const named = [...trip.destinations, ...trip.days.map((day) => day.city ?? "")].filter((name) => !isCountry(name.split(",")[0]!))
+  const towns = new Set(named.map(townKey).filter(Boolean))
   return { anchors: { points, towns: [...towns] }, stops }
 }
 
