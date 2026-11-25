@@ -133,3 +133,77 @@ test("never repeats a write", async () => {
   expect(res.status).toBe(502);
   expect(calls()).toBe(1);
 });
+
+test("drops hop-by-hop headers, so the connection to Clerk stays open for the next request", async () => {
+  const { app, calls } = proxiedApp();
+  await app.fetch(new Request("https://anthonyl.im/__clerk/v1/client", {
+    headers: { connection: "close, x-hop", "keep-alive": "timeout=5", "x-hop": "1", te: "trailers", "x-kept": "1" },
+  }));
+  const sent = new Headers(calls[0].init.headers);
+  for (const name of ["connection", "keep-alive", "x-hop", "te"]) expect(sent.has(name)).toBe(false);
+  expect(sent.get("x-kept")).toBe("1");
+});
+
+function recordingApp(answers: Array<Response | Error | "hang">, deps: { repeatableWriteTimeoutMs?: number } = {}) {
+  const bodies: string[] = [];
+  const app = new Hono();
+  app.all(`${CLERK_PROXY_PATH}/*`, createClerkProxy({
+    secretKey: "sk_live_test",
+    proxyUrl: "https://anthonyl.im/__clerk",
+    ...deps,
+    fetch: (async (_url: string, init: RequestInit) => {
+      bodies.push(init.body === undefined ? "" : await new Response(init.body).text());
+      const next = answers[Math.min(bodies.length - 1, answers.length - 1)];
+      if (next === "hang") {
+        return new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+      }
+      if (next instanceof Error) throw next;
+      return next;
+    }) as unknown as typeof fetch,
+  }));
+  return { app, bodies };
+}
+
+const quietly = async <T>(run: () => Promise<T>) => {
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    return await run();
+  } finally {
+    console.error = originalError;
+  }
+};
+
+test("sends a session token request again, body and all, when the first never arrives", async () => {
+  const { app, bodies } = recordingApp([new Error("ECONNRESET"), new Response('{"jwt":"t"}')]);
+  const res = await app.fetch(new Request("https://anthonyl.im/__clerk/v1/client/sessions/sess_1/tokens?_clerk_js_version=5", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: "organization_id=",
+  }));
+  expect(res.status).toBe(200);
+  expect(bodies).toEqual(["organization_id=", "organization_id="]);
+});
+
+test("gives a stalled token request a short deadline, then tries once more", async () => {
+  const { app, bodies } = recordingApp(["hang", new Response('{"jwt":"t"}')], { repeatableWriteTimeoutMs: 20 });
+  const res = await app.fetch(new Request("https://anthonyl.im/__clerk/v1/client/sessions/sess_1/tokens", { method: "POST" }));
+  expect(res.status).toBe(200);
+  expect(bodies.length).toBe(2);
+});
+
+test("retries a session touch on a gateway error", async () => {
+  const { app, bodies } = recordingApp([new Response("bad gateway", { status: 502 }), new Response("{}")]);
+  const res = await app.fetch(new Request("https://anthonyl.im/__clerk/v1/client/sessions/sess_1/touch", { method: "POST", body: "a=b" }));
+  expect(res.status).toBe(200);
+  expect(bodies).toEqual(["a=b", "a=b"]);
+});
+
+test("still never repeats a sign-in or any other write", async () => {
+  for (const path of ["/v1/client/sign_ins", "/v1/client/sessions/sess_1/remove", "/v1/client/sessions/sess_1/tokens/x/y"]) {
+    const { app, bodies } = recordingApp([new Error("ECONNRESET"), new Response("{}")]);
+    const res = await quietly(() => app.fetch(new Request(`https://anthonyl.im/__clerk${path}`, { method: "POST", body: "a=b" })));
+    expect(res.status).toBe(502);
+    expect(bodies.length).toBe(1);
+  }
+});
