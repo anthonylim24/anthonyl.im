@@ -1238,7 +1238,7 @@ describe("trip summary geography", () => {
     expect(summary.placeCount).toBe(0)
   })
 
-  test("derives center, [lng, lat] points and placeCount from located items", async () => {
+  test("derives center and [lng, lat] points from located items, and counts every place, pinned or not", async () => {
     const { app } = makeApp()
     const trip = await createTrip(app)
     const patch = await app.request(`/api/trips/${trip.id}`, {
@@ -1261,7 +1261,7 @@ describe("trip summary geography", () => {
     })
     expect(patch.status).toBe(200)
     const summary = (await summaryOf(app, trip.id))!
-    expect(summary.placeCount).toBe(2)
+    expect(summary.placeCount).toBe(3)
     expect(summary.points).toEqual([
       [139.6543, 35.1235],
       [140, 36],

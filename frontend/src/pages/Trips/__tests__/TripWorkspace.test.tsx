@@ -290,8 +290,8 @@ describe("TripWorkspace", () => {
         "Pin 2: Day 2, Belém: 1 pinned stop",
       ])
       expect(map.getByText("3 dots, 0 routes")).toBeInTheDocument()
-      // The chip counts places (dots), not day pins.
-      expect(map.getByText("All days · 3 places")).toBeInTheDocument()
+      // The chip counts places as the overview does, and how many are on the map.
+      expect(map.getByText("All days · 3 of 4 places")).toBeInTheDocument()
       expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
     })
 
@@ -300,7 +300,7 @@ describe("TripWorkspace", () => {
       const map = within(await screen.findByRole("region", { name: "Map of the whole trip with 1 pinned place" }))
       expect(map.getAllByRole("button").map((b) => b.textContent)).toEqual(["Pin 1: Day 1, Arrival: 2 pinned stops"])
       expect(map.getByText("2 dots, 0 routes")).toBeInTheDocument()
-      expect(map.getByText("All days · 2 places")).toBeInTheDocument()
+      expect(map.getByText("All days · 2 of 3 places")).toBeInTheDocument()
     })
 
     it("opens the day when its map pin is clicked", async () => {

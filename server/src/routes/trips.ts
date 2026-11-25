@@ -130,7 +130,8 @@ function summarize(trip: Trip, userId: string) {
     itemCount: trip.days.reduce((n, d) => n + d.items.length, 0),
     center,
     points: downsample(located, MAX_SUMMARY_POINTS).map((p) => [round4(p.lng), round4(p.lat)] as [number, number]),
-    placeCount: located.length,
+    // The overview's "Places": every place and booking, pinned or not.
+    placeCount: trip.days.reduce((n, d) => n + d.items.filter((i) => i.kind === "place" || i.kind === "reservation").length, 0),
     access: accessFor(trip, userId),
     updatedAt: trip.updatedAt,
   }

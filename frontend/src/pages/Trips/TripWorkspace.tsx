@@ -441,6 +441,7 @@ function Workspace() {
   const dayStops = day ? splitDay(day).planned.filter((item) => item.kind !== "section" && item.kind !== "note").length : 0
   const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
+  const tripStops = trip && !day ? trip.days.reduce((n, d) => n + d.items.filter((i) => i.kind === "place" || i.kind === "reservation").length, 0) : 0
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
   // Wishlist places ride their own prop, on the overview and on a day (what is
   // near the day). Never in `pins`: they must not frame, count or tour.
@@ -1157,7 +1158,7 @@ function Workspace() {
                 {[
                   day ? `Day ${dayIndex + 1}` : "All days",
                   day?.city,
-                  !day ? plural(dots.length, "place") : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
+                  !day ? (dots.length < tripStops ? `${dots.length} of ${plural(tripStops, "place")}` : plural(tripStops, "place")) : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
