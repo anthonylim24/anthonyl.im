@@ -280,6 +280,8 @@ export function toBooking(raw: ModelBooking): ParsedBooking | null {
   const placeName = JOURNEY.has(type) ? undefined : clip(raw.placeName, 200)
   const address = JOURNEY.has(type) ? undefined : clip(raw.address, 400)
   const status: "confirmed" | "tentative" | "pending" = raw.status === "tentative" || raw.status === "pending" ? raw.status : "confirmed"
+  // The stop's status says the same as the booking's, as the editor's status menu pairs them.
+  const stopStatus = ({ confirmed: "booked", tentative: "optional", pending: "needs_review" } as const)[status]
   const reservation = {
     type,
     status,
@@ -301,7 +303,7 @@ export function toBooking(raw: ModelBooking): ParsedBooking | null {
     time: cleanClock(raw.time),
     endTime: cleanClock(raw.endTime),
     notes: clip(raw.notes, 1000),
-    status: "booked",
+    status: stopStatus,
     location: placeName || address ? { name: placeName ?? clip(raw.title, 200) ?? DEFAULT_TITLE[type], address, source: "ai", confidence: "medium" } : undefined,
     reservation: Object.fromEntries(Object.entries(reservation).filter(([, value]) => value !== undefined)) as typeof reservation,
     createdBy: "ai",

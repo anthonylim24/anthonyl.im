@@ -80,6 +80,15 @@ describe("readModelAnswer", () => {
     expect(out[0]!.item.title).toBe("Flight to Honolulu")
   })
 
+  test("gives a stop the status its booking has", () => {
+    const out = readModelAnswer(JSON.stringify({ bookings: [stay, { ...stay, status: "tentative" }, { ...stay, status: "pending" }] }))
+    expect(out.map(({ item }) => [item.reservation?.status, item.status])).toEqual([
+      ["confirmed", "booked"],
+      ["tentative", "optional"],
+      ["pending", "needs_review"],
+    ])
+  })
+
   test("lets one bad optional field fall away on its own", () => {
     const [out] = readModelAnswer(
       JSON.stringify({
