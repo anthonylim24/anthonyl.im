@@ -1,5 +1,5 @@
 import type { ItemTheme, ItineraryItem, Trip } from "../types"
-import { ELSEWHERE, areaOf, normaliseName } from "./areas"
+import { ELSEWHERE, areaOf, normaliseName, streetFirst } from "./areas"
 import { ideaName, type PlacePhoto } from "./contract"
 import { cachedPlaceDetails, detailsTarget } from "./placeDetailsApi"
 import { themeOf } from "./themes"
@@ -23,9 +23,13 @@ export interface IdeaPreview {
 
 const plain = (part: string) => normaliseName(part.replace(/\S*\d\S*/g, ""))
 
-/** "161 Sajik-ro, Jongno District, Seoul, South Korea" in Seoul → "161 Sajik-ro, Jongno District". */
+/**
+ * "161 Sajik-ro, Jongno District, Seoul, South Korea" in Seoul → "161
+ * Sajik-ro, Jongno District"; "Japan, 〒150-0041 Tokyo, Shibuya, Jinnan,
+ * 1-chōme-22-7" in Tokyo → "1-chōme-22-7, Jinnan". Never the country or a postcode.
+ */
 export function streetLine(address: string | undefined, area: string | null, name: string): string | null {
-  const parts = (address ?? "").split(",").map((part) => part.trim()).filter(Boolean)
+  const parts = streetFirst(address)
   const town = area ? parts.findIndex((part) => plain(part) === normaliseName(area)) : -1
   const before = (town >= 0 ? parts.slice(0, town) : parts.slice(0, 2)).filter((part) => normaliseName(part) !== normaliseName(name))
   return before.length > 0 ? before.slice(0, 2).join(", ") : null

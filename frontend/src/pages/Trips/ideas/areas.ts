@@ -114,6 +114,23 @@ function countryNames(): Set<string> {
   return names
 }
 
+const isCountry = (part: string) => countryNames().has(normaliseName(withoutNumbers(part)))
+/** A part that is a postcode and nothing else ("603-8361", "〒150-0041"); "1-chōme-22-7" is a street. */
+const isPostcode = (part: string) => /^〒?\s*\d[\d\s-]*$/.test(part)
+
+/**
+ * An address's parts street first, without the country or a part that is
+ * only a postcode. Google writes some addresses country first ("Japan,
+ * 〒150-0041 Tokyo, Shibuya, Jinnan, 1-chōme-22-7"): those are turned round
+ * ("1-chōme-22-7, Jinnan, Shibuya, 〒150-0041 Tokyo").
+ */
+export function streetFirst(address: string | undefined): string[] {
+  const parts = (address ?? "").split(",").map((part) => part.trim()).filter(Boolean)
+  if (parts.length > 1 && isCountry(parts[0]!)) parts.reverse()
+  while (parts.length > 0 && isCountry(parts[parts.length - 1]!)) parts.pop()
+  return parts.filter((part) => !isPostcode(part))
+}
+
 /**
  * The town an address ends in: the last part before the country, without
  * its postcode, skipping a state code ("New York, NY 10001, USA" → "New
@@ -123,9 +140,8 @@ function countryNames(): Set<string> {
 export function addressLocality(address: string | undefined): string | null {
   const parts = (address ?? "").split(",").map((part) => part.trim()).filter(Boolean)
   if (parts.length < 2) return null
-  const known = countryNames()
-  const rest = parts.map(withoutNumbers)
-  while (rest.length > 0 && (rest[rest.length - 1] === "" || known.has(normaliseName(rest[rest.length - 1]!)))) rest.pop()
+  const rest = streetFirst(address).map(withoutNumbers)
+  while (rest.length > 0 && rest[rest.length - 1] === "") rest.pop()
   while (rest.length > 1 && (rest[rest.length - 1] === "" || /^[A-Z]{2,3}$/.test(rest[rest.length - 1]!))) rest.pop()
   const town = rest[rest.length - 1]
   return town && !/^[A-Z]{2,3}$/.test(town) ? town : null
