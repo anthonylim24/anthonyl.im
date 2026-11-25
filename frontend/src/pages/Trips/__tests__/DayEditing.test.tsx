@@ -310,7 +310,7 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(state.marks[state.marks.length - 1]).toEqual({ label: "Duplicated “Lunch”", toast: true })
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(row(items[1]!.id)).toHaveFocus()
-    expect(screen.getByRole("status")).toHaveTextContent("Lunch duplicated. The copy is next in the day.")
+    expect(screen.getByText("Lunch duplicated. The copy is next in the day.", { selector: '[role="status"]' })).toBeInTheDocument()
   })
 
   it("closes the editor under the card on Escape and hands focus back to its row", () => {
@@ -343,7 +343,7 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(copy.title).toBe("Lunch")
     expect(row("lunch")).toHaveAttribute("aria-expanded", "false")
     expect(row(copy.id)).toHaveFocus()
-    expect(screen.getByRole("status")).toHaveTextContent("Lunch duplicated. The copy is next in the day.")
+    expect(screen.getByText("Lunch duplicated. The copy is next in the day.", { selector: '[role="status"]' })).toBeInTheDocument()
   })
 
   it("sends the stop to another day, then hands focus to the stop after it", async () => {
