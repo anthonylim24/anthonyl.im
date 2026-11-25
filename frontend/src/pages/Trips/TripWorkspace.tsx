@@ -28,6 +28,7 @@ import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAcce
 import { AtlasMap, canRenderMap, loadMapEngine, type AtlasMapProps } from "./map/AtlasMap"
 import { IDEA_PARAM } from "./ideas/contract"
 import { useIdeaNav } from "./ideas/ideaNav"
+import { IdeaPreview } from "./ideas/IdeaPreview"
 import { liveValue, useLiveValue, type LiveValue } from "./workspace/liveValue"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
@@ -1144,6 +1145,10 @@ function Workspace() {
             ideaPins={wishPins}
             // One history entry per opening: Back closes the wishlist place again.
             onSelectIdea={(ideaId) => ideaNav.open(ideaId, "map")}
+            ideaPreview={(ideaId, via) => {
+              const idea = trip.ideas?.find((i) => i.id === ideaId)
+              return idea ? <IdeaPreview idea={idea} trip={trip} via={via} /> : null
+            }}
             label={
               day
                 ? [`Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`, ...hotelPins.map((pin) => pin.title)].join(". ")

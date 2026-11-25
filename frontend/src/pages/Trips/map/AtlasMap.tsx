@@ -7,6 +7,9 @@ import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AtlasPin, type LngLat } from "./geo"
 import type { AtlasMapHandle, FrameOptions } from "./engine"
+import { ideaHoverHandlers, type IdeaHover, type ReportIdeaHover } from "./ideaHover"
+import { IdeaHoverCard } from "./IdeaHoverCard"
+import { useIdeaHover } from "./useIdeaHover"
 import { mapStyles as s } from "./map.stylex"
 
 // React host for the Trips map. The MapLibre engine is a lazy chunk; until it
@@ -33,6 +36,8 @@ export interface AtlasMapProps {
   ideaPins?: readonly AtlasPin[]
   /** An idea pin was picked; the id is the idea's (`trip.ideas[].id`). */
   onSelectIdea?: (ideaId: string) => void
+  /** What a wishlist pin's preview card says while it is hovered or focused; no card without it. */
+  ideaPreview?: (ideaId: string, via: IdeaHover["via"]) => ReactNode
   /** Hero globe: slow spin, page scroll passes through, no controls. */
   ambient?: boolean
   padding?: FrameOptions["padding"]
@@ -134,6 +139,7 @@ export function AtlasMap({
   onHover,
   ideaPins = NO_PINS,
   onSelectIdea,
+  ideaPreview,
   ambient = false,
   padding,
   maxZoom,
@@ -154,6 +160,9 @@ export function AtlasMap({
   const selectIdea = useLatestCallback((id: string) => onSelectIdea?.(id))
   const [ideasShown, setIdeasShown] = useIdeasShown()
   const ideas = ideasShown && !ambient ? ideaPins : NO_PINS
+  const [ideaHover, reportIdeaHover] = useIdeaHover()
+  // A pin hidden from the key or taken off the wishlist sends no leave event: its preview goes with it.
+  const previewed = ideaHover && ideaPreview && ideas.some((pin) => pin.id === ideaHover.id) ? ideaHover : null
   const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
   useLayoutEffect(() => {
     latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
@@ -203,10 +212,16 @@ export function AtlasMap({
           onSelect: select,
           onHover: hover,
           onSelectIdea: selectIdea,
-          onError: () => setStatus("static"),
+          onIdeaHover: reportIdeaHover,
+          onError: () => {
+            reportIdeaHover(null)
+            setStatus("static")
+          },
           onTilt: setTilted,
           onReady: () => {
             if (cancelled) return
+            // The chart's pins, one of which may be previewed, give way to the map's.
+            reportIdeaHover(null)
             setStatus("ready")
           },
         })
@@ -237,6 +252,7 @@ export function AtlasMap({
       clearTimeout(timer)
       observer?.disconnect()
       handle?.destroy()
+      reportIdeaHover(null)
       handleRef.current = null
       framedRef.current = false
     }
@@ -285,7 +301,7 @@ export function AtlasMap({
     <div {...sx(s.root, ambient && s.rootAmbient)} role="region" aria-label={ideas.length > 0 ? `${label} and ${ideas.length} wishlist place${ideas.length === 1 ? "" : "s"}` : label}>
       <div ref={hostRef} {...sx(s.canvas, !ambient && s.canvasQuick, status === "ready" && s.canvasReady)} />
       {status !== "ready" && !(ambient && status === "loading") && (
-        <StaticChart pins={pins} ideas={ideas} loading={status === "loading"} onSelectIdea={selectIdea} />
+        <StaticChart pins={pins} ideas={ideas} loading={status === "loading"} onSelectIdea={selectIdea} onIdeaHover={reportIdeaHover} />
       )}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
       {(showControls || showLegend) && (
@@ -330,6 +346,11 @@ export function AtlasMap({
           )}
         </div>
       )}
+      {previewed && (
+        <IdeaHoverCard key={previewed.id} hover={previewed}>
+          {ideaPreview?.(previewed.id, previewed.via)}
+        </IdeaHoverCard>
+      )}
       {children}
     </div>
   )
@@ -348,11 +369,13 @@ function StaticChart({
   ideas,
   loading,
   onSelectIdea,
+  onIdeaHover,
 }: {
   pins: readonly AtlasPin[]
   ideas: readonly AtlasPin[]
   loading: boolean
   onSelectIdea: (ideaId: string) => void
+  onIdeaHover: ReportIdeaHover
 }) {
   // The stops set the frame and the ideas are placed in it, so a far-off idea
   // never shrinks the day; one stop (or none) has no frame of its own to keep.
@@ -421,9 +444,9 @@ function StaticChart({
               transform={`translate(${x} ${y})`}
               onClick={() => onSelectIdea(idea.id)}
               onKeyDown={(event) => onKey(event, idea.id)}
+              {...ideaHoverHandlers(idea.id, onIdeaHover)}
               {...sx(stylex.defaultMarker(), s.chartIdea)}
             >
-              <title>{idea.title}</title>
               <circle r={11} {...sx(s.chartIdeaHit)} />
               <circle r={8.5} {...sx(s.chartIdeaFocus)} />
               <circle r={6} {...sx(s.chartIdeaRing)} />

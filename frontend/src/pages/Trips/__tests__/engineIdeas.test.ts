@@ -5,9 +5,10 @@ import type { AtlasPin } from "../map/geo"
 // markers and record camera moves, so the wishlist's marker set can be
 // checked against the stops' without WebGL.
 
-const { markers, camera } = vi.hoisted(() => ({
+const { markers, camera, mapEvents } = vi.hoisted(() => ({
   markers: [] as Array<{ el: HTMLElement; removed: boolean }>,
   camera: { moves: 0 },
+  mapEvents: new Map<string, Array<() => void>>(),
 }))
 
 vi.mock("maplibre-gl", () => {
@@ -17,7 +18,9 @@ vi.mock("maplibre-gl", () => {
       this.container = options.container
     }
     addControl() {}
-    on() {}
+    on(type: string, fn: () => void) {
+      mapEvents.set(type, [...(mapEvents.get(type) ?? []), fn])
+    }
     once() {}
     getSource() {
       return undefined
@@ -90,13 +93,15 @@ const idea = (id: string, lng: number, title = `Idea ${id}`): AtlasPin => ({ id,
 function setup() {
   markers.length = 0
   camera.moves = 0
+  mapEvents.clear()
   const container = document.createElement("div")
   document.body.appendChild(container)
   const onSelect = vi.fn()
   const onSelectIdea = vi.fn()
   const onHover = vi.fn()
-  const handle = createAtlasMap(container, { dark: false, reducedMotion: true, onSelect, onSelectIdea, onHover })
-  return { container, handle, onSelect, onSelectIdea, onHover }
+  const onIdeaHover = vi.fn()
+  const handle = createAtlasMap(container, { dark: false, reducedMotion: true, onSelect, onSelectIdea, onHover, onIdeaHover })
+  return { container, handle, onSelect, onSelectIdea, onHover, onIdeaHover }
 }
 
 describe("the map engine's wishlist pins", () => {
@@ -108,7 +113,8 @@ describe("the map engine's wishlist pins", () => {
     const pin = container.querySelector<HTMLButtonElement>('[data-idea-id="ramen"]')!
     expect(pin.className).toBe("atlas-pin atlas-pin--idea")
     expect(pin.getAttribute("aria-label")).toBe("Ramen Jiro, on the wishlist")
-    expect(pin.title).toBe("Ramen Jiro")
+    // Named for screen readers; hovering shows the map's preview card, not a second, native tooltip.
+    expect(pin.title).toBe("")
     expect(pin.querySelector("svg")).not.toBeNull()
 
     pin.click()
@@ -117,6 +123,27 @@ describe("the map engine's wishlist pins", () => {
     // Hovering an idea never lights up a stop.
     pin.dispatchEvent(new MouseEvent("mouseenter"))
     pin.focus()
+    expect(onHover).not.toHaveBeenCalled()
+  })
+
+  it("reports a mouse or keyboard focus resting on an idea for its preview, and never a tap", () => {
+    const { container, handle, onIdeaHover, onHover } = setup()
+    handle.setIdeaPins([idea("ramen", -9.12, "Ramen Jiro")])
+    const pin = container.querySelector<HTMLButtonElement>('[data-idea-id="ramen"]')!
+
+    pin.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "touch" }))
+    expect(onIdeaHover).not.toHaveBeenCalled()
+
+    pin.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }))
+    expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "pointer" })
+    pin.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }))
+    expect(onIdeaHover).toHaveBeenLastCalledWith(null)
+
+    pin.focus()
+    expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "focus" })
+    // Once the camera moves, the pin is somewhere else: the preview goes.
+    for (const fn of mapEvents.get("movestart") ?? []) fn()
+    expect(onIdeaHover).toHaveBeenLastCalledWith(null)
     expect(onHover).not.toHaveBeenCalled()
   })
 

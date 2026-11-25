@@ -1,0 +1,78 @@
+import * as stylex from "@stylexjs/stylex"
+
+// The content of a wishlist pin's preview on the map (`IdeaPreview.tsx`):
+// set like a chart's legend entry. The frame is the map's (`map/hoverCard.stylex.ts`).
+
+export const pv = stylex.create({
+  frame: {
+    aspectRatio: "2 / 1",
+    width: "100%",
+    backgroundColor: "var(--trips-sunken)",
+    overflow: "hidden",
+  },
+  img: { display: "block", width: "100%", height: "100%", objectFit: "cover" },
+  credit: {
+    margin: 0,
+    paddingInline: "0.875rem",
+    paddingTop: "0.25rem",
+    fontSize: "0.6875rem",
+    lineHeight: 1.4,
+    color: "var(--trips-ink-tertiary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  body: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+    paddingInline: "0.875rem",
+    paddingTop: "0.625rem",
+    paddingBottom: "0.75rem",
+  },
+  eyebrow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.375rem",
+    minWidth: 0,
+  },
+  // The wishlist's colour ties the card to its heart pin; the words stay ink.
+  mark: { flexShrink: 0, color: "var(--trips-wish)" },
+  eyebrowText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
+  name: {
+    fontSize: "1.25rem",
+    lineHeight: 1.1,
+    overflowWrap: "anywhere",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  },
+  street: {
+    margin: 0,
+    fontSize: "0.8125rem",
+    lineHeight: 1.4,
+    color: "var(--trips-ink-secondary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  note: {
+    margin: 0,
+    fontSize: "0.8125rem",
+    lineHeight: 1.45,
+    color: "var(--trips-ink-secondary)",
+    overflowWrap: "anywhere",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  },
+  hint: {
+    marginTop: "0.375rem",
+    paddingTop: "0.5rem",
+    borderTopWidth: "1px",
+    borderTopStyle: "solid",
+    borderTopColor: "var(--trips-line)",
+  },
+})

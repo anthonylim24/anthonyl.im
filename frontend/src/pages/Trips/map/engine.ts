@@ -4,6 +4,7 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { buildMapStyle } from "./mapStyle"
 import { centroid, distanceMeters, spanMeters, spreadPins, type AtlasPin, type LngLat } from "./geo"
+import { ideaHoverHandlers, type IdeaHover } from "./ideaHover"
 
 // Imperative MapLibre wrapper. Lazy-imported by AtlasMap so the map library
 // stays out of the initial Trips chunk. Pins are DOM markers (real buttons:
@@ -26,6 +27,8 @@ export interface AtlasMapOptions {
   onHover?: (id: string | null) => void
   /** A wishlist pin was picked, with the idea's id. */
   onSelectIdea?: (ideaId: string) => void
+  /** A wishlist pin was hovered or focused (null: no longer, or the camera moved). */
+  onIdeaHover?: (hover: IdeaHover | null) => void
   onReady?: () => void
   /** Fires when the camera settles, with whether it is tilted into 3D. */
   onTilt?: (tilted: boolean) => void
@@ -151,6 +154,18 @@ function hotelMark(): HTMLSpanElement {
   return mark
 }
 
+/** Reports a wishlist pin's hover and keyboard focus, for the map's preview card. */
+function watchIdeaHover(el: HTMLButtonElement, id: string, options: AtlasMapOptions) {
+  const report = options.onIdeaHover
+  if (!report) return
+  const on = ideaHoverHandlers(id, report)
+  el.addEventListener("pointerenter", on.onPointerEnter)
+  el.addEventListener("pointerleave", on.onPointerLeave)
+  el.addEventListener("pointerdown", on.onPointerDown)
+  el.addEventListener("focus", on.onFocus)
+  el.addEventListener("blur", on.onBlur)
+}
+
 function applyPin(el: HTMLButtonElement, pin: AtlasPin) {
   el.className = `atlas-pin atlas-pin--${pin.variant ?? "stop"}${pin.fresh ? " atlas-pin--fresh" : ""}`
   if (pin.accent) el.dataset.tripAccent = pin.accent
@@ -158,9 +173,8 @@ function applyPin(el: HTMLButtonElement, pin: AtlasPin) {
   const body = el.firstElementChild ?? el.appendChild(document.createElement("span"))
   body.className = "atlas-pin__body"
   if (pin.variant === "idea") {
-    // A wishlist place: named as one, with the plain name on hover.
+    // A wishlist place, named as one. No `title`: hovering shows the map's preview card instead.
     el.setAttribute("aria-label", `${pin.title}, on the wishlist`)
-    el.title = pin.title
     el.dataset.ideaId = pin.id
     if (!body.firstElementChild) body.replaceChildren(heart())
     return
@@ -430,6 +444,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     }
   }
   map.on("moveend", declutter)
+  // A preview sits beside where its pin was: once the camera moves, it goes.
+  map.on("movestart", () => options.onIdeaHover?.(null))
   map.on("error", (event) => {
     // Tile hiccups are routine; only a dead GL context ends the map.
     if (map.getCanvas().getContext("webgl2")?.isContextLost()) options.onError?.()
@@ -561,6 +577,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
           event.stopPropagation()
           options.onSelectIdea?.(pin.id)
         })
+        watchIdeaHover(el, pin.id, options)
         const marker = new Marker({ element: el, anchor: "center", subpixelPositioning: true }).setLngLat([pin.lng, pin.lat]).addTo(map)
         ideas.set(pin.id, { pin, marker, el })
       }
