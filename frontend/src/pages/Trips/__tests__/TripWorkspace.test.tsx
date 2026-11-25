@@ -246,6 +246,13 @@ describe("TripWorkspace", () => {
       expect(rail.getByRole("link", { name: /^Day 2, .*0 items$/ })).not.toHaveAttribute("aria-current")
     })
 
+    it("remembers the trip's accent under its address, for the boot screen of the next visit", async () => {
+      localStorage.removeItem("trips-boot-accent")
+      renderWorkspace("/trips/lisbon/day/day-1", planned({ appearance: { accent: "violet" } }))
+      await screen.findByRole("navigation", { name: "Days" })
+      expect(JSON.parse(localStorage.getItem("trips-boot-accent") ?? "null")).toEqual({ lisbon: "violet" })
+    })
+
     it("opens the tab named in ?tab=, counts what is left to tick, and goes back to the itinerary", async () => {
       const trip = planned()
       trip.checklist = [

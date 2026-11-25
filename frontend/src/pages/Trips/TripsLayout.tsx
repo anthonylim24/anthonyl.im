@@ -7,6 +7,7 @@ import { stylex, sx } from "@/styles/merge"
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { syncManifest } from "@/lib/routeMetadata"
 import { useAuthStall, type StallCause } from "@/lib/authStall"
+import { BootHold } from "@/lib/bootScreen"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 import { a } from "./atlas.stylex"
@@ -82,7 +83,7 @@ function useKeptOwner(store: DeviceStore): string | null | undefined {
 function Checking() {
   return (
     <div {...sx(s.gate)} role="status" aria-label="Checking sign-in">
-      <span {...sx(a.eyebrow)}>Loading…</span>
+      <BootHold world="trips" step="auth" />
     </div>
   )
 }

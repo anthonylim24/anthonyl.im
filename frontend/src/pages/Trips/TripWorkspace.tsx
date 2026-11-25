@@ -47,6 +47,7 @@ import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
 import { daySky, useForecast } from "./forecast"
 import { useHolidays } from "./holidays"
+import { rememberTripAccent } from "./bootAccent"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { Presence } from "./components/presence"
 import { ShareDialog } from "./components/ShareDialog"
@@ -200,7 +201,7 @@ export function TripWorkspace() {
 
 function Workspace() {
   const editor = useTripEditor()
-  const { dayId } = useParams<{ dayId?: string }>()
+  const { tripId, dayId } = useParams<{ tripId: string; dayId?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
   const viewer = useViewer()
@@ -689,6 +690,11 @@ function Workspace() {
     [trip, basePath, navigate, dayId, editable, locked, importFromInstagram, printFromPalette, copyFromPalette, paletteDay, setTab],
   )
   useRegisterCommands("trip", paletteCommands)
+
+  const shownAccent = trip ? resolveAccent(trip.appearance?.accent) : null
+  useEffect(() => {
+    if (tripId && shownAccent) rememberTripAccent(tripId, shownAccent)
+  }, [tripId, shownAccent])
 
   if (editor.state.s === "loading") {
     return (

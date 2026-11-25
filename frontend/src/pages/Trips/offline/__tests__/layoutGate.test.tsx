@@ -1,11 +1,12 @@
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { makeTrip } from "../../__tests__/tripFixtures"
 import { memoryStore } from "../deviceStore"
 import { claimDevice, deviceOwner, keepTrip } from "../tripCopies"
 import { useTripsDevice } from "../tripsDevice"
+import { clearBoot, paintBoot } from "@/test/bootPage"
 
 // The sign-in gate decides whose kept trips may be shown. Clerk, the stall
 // probe and the device store are stand-ins; the decisions are real.
@@ -40,8 +41,8 @@ function Page({ name }: { name: string }) {
   return <p>{`${name} · ${device.mode} · ${device.owner ?? "nobody"}`}</p>
 }
 
-function open(path = "/trips") {
-  return render(
+function layout(path: string) {
+  return (
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/trips" element={<TripsLayout />}>
@@ -50,8 +51,12 @@ function open(path = "/trips") {
           <Route path=":tripId" element={<Page name="Trip" />} />
         </Route>
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
+}
+
+function open(path = "/trips") {
+  return render(layout(path))
 }
 
 const token = (sub: string) => `h.${btoa(JSON.stringify({ sub })).replace(/=+$/, "")}.s`
@@ -70,6 +75,7 @@ describe("the Trips sign-in gate and this device", () => {
     vi.restoreAllMocks()
     document.cookie = "__client_uat=; max-age=0"
     document.cookie = "__session=; max-age=0"
+    clearBoot()
   })
 
   it("signed in: the pages are live, for that account", async () => {
@@ -147,5 +153,20 @@ describe("the Trips sign-in gate and this device", () => {
     open()
     expect(await screen.findByRole("button", { name: "Sign in to continue" })).toBeInTheDocument()
     expect(store.size()).toBeGreaterThan(0)
+  })
+
+  it("holds the boot screen at its sign-in step while checking, and gives way to the stall screen", async () => {
+    const boot = paintBoot("/trips")
+    const view = open()
+    expect(screen.getByRole("status", { name: "Checking sign-in" })).toBeInTheDocument()
+    expect(boot).toHaveAttribute("data-step", "auth")
+    expect(boot).toHaveAttribute("data-state", "showing")
+
+    stall.stalled = true
+    view.rerender(layout("/trips"))
+    await act(async () => {})
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible()
+    expect(boot).toHaveAttribute("data-state", "leaving")
+    await waitFor(() => expect(document.getElementById("boot")).toBeNull(), { timeout: 2_000 })
   })
 })

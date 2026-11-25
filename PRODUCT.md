@@ -19,6 +19,20 @@ How to design here, step by step, is the [`design-craft`](.agents/skills/design-
 5. **Motion is physics with a reason.** Springs for anything touched; every animation orients, reveals or confirms. Decorative-only motion is cut.
 6. **Every state is designed:** empty, loading, error, long content, phone, dark, reduced motion.
 
+### Boot screens
+
+Each app's first paint is a small scene in its own world, drawn in `index.html` and held until the app can take over (engineering rules in `AGENTS.md`, Routing). It says what is really loading in the app's voice and hands off without a seam.
+
+| App | Scene | Hands off to |
+|-----|-------|--------------|
+| `/` Lim, and the 404 | LimLoader's sheet, no art | LimLoader |
+| `/lab` | A pipette lets a glass droplet fall onto the bench; it ripples and dissolves in ultramarine | The hero's painted still |
+| `/breathwork` | Three pigments bloom wet-in-wet under a brush; the wash sits where PaintingLoader's does | PaintingLoader on Home and Session |
+| `/trips` | A folded chart opens out, the stops drop on as numbered pins, the compass settles; a trip opened here before is drawn in its own accent | The index or workspace skeletons |
+| `/sign-in`, `/sign-up` | An entry stamp comes down on an open passport | Clerk's form |
+
+`/home`, `/privacy` and `/terms` are static pages and need none.
+
 ### Standards
 
 - **Contrast:** WCAG AA. 4.5:1 for text, 3:1 for control edges and focus rings, in both themes.
