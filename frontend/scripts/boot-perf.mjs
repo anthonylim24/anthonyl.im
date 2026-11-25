@@ -1,6 +1,6 @@
-// The boot screen on a cold load of a built app: when the first pixels of content appear, how long the
-// boot screen stays and when it leaves, and whether its animation keeps drawing while the main thread is
-// busy (frames the compositor drew inside long main-thread tasks).
+// The boot screen on a cold load of a built app: when the first pixels appear, when the app's own content
+// is up (#root holds something other than a loading status), when the boot screen leaves, and whether its
+// animation keeps drawing while the main thread is busy (frames the compositor drew inside long tasks).
 //
 //   node scripts/boot-perf.mjs [--base http://localhost:3230] [--routes /,/lab,/breathwork] [--throttle 4] [--net fast3g|slow4g|none] [--runs 3] [--json out.json]
 //
@@ -28,6 +28,8 @@ const NET = NETS[args.net ?? 'slow4g']
 
 /** Records the boot screen's life in page time (performance.now()), from before the first byte is parsed. */
 function watchBoot() {
+  // The loading surfaces #root shows on either build: main's text fallbacks and the Trips sign-in check.
+  const WAITING = '[role="status"][aria-label^="Loading"], [role="status"][aria-label="Checking sign-in"]'
   window.__bootLog = []
   const log = (what) => window.__bootLog.push([performance.now(), what])
   let seen = null
@@ -44,6 +46,11 @@ function watchBoot() {
     if (!boot && seen) {
       seen = null
       log('removed')
+    }
+    const root = document.getElementById('root')
+    if (!window.__appAt && root?.firstElementChild && !root.querySelector(WAITING)) {
+      window.__appAt = performance.now()
+      log('app')
     }
   }).observe(document, { childList: true, subtree: true })
 }
@@ -71,7 +78,9 @@ async function measure(route) {
   await page.waitForTimeout(500)
   const trace = JSON.parse((await browser.stopTracing()).toString())
   const timing = await page.evaluate(() => ({
+    fp: performance.getEntriesByName('first-paint')[0]?.startTime ?? null,
     fcp: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
+    app: window.__appAt ?? null,
     log: window.__bootLog,
   }))
   await browser.close()
@@ -96,12 +105,15 @@ async function measure(route) {
   const framesInBlocked = blocked.map(([s, d]) => drawn.filter((f) => f >= s && f <= s + d).length)
   return {
     route,
+    fp: ms(timing.fp),
     fcp: ms(timing.fcp),
+    appReady: ms(timing.app),
     bootMount: ms(mount),
     bootLeaving: ms(leaving),
     bootRemoved: ms(removed),
     steps: timing.log.map(([t, w]) => `${ms(t)} ${w}`),
     longTasksWhileShowing: blocked.length,
+    longTasks: blocked.map(([s, d], i) => `${ms(s)}+${ms(d)} (${framesInBlocked[i]} frames)`),
     blockedMs: ms(blocked.reduce((sum, [, d]) => sum + d, 0)),
     framesDrawnInsideLongTasks: framesInBlocked.reduce((a, b) => a + b, 0),
     framesPerBlockedSecond: blocked.length ? +((framesInBlocked.reduce((a, b) => a + b, 0) * 1000) / blocked.reduce((sum, [, d]) => sum + d, 0)).toFixed(1) : null,
