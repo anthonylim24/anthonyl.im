@@ -5,19 +5,26 @@ import * as stylex from "@stylexjs/stylex"
 
 export const pv = stylex.create({
   frame: {
+    position: "relative",
     aspectRatio: "2 / 1",
     width: "100%",
     backgroundColor: "var(--trips-sunken)",
     overflow: "hidden",
   },
   img: { display: "block", width: "100%", height: "100%", objectFit: "cover" },
+  // On the photo, not under it: the card is the same height before and after the photo lands.
   credit: {
+    position: "absolute",
+    insetInline: 0,
+    bottom: 0,
     margin: 0,
     paddingInline: "0.875rem",
-    paddingTop: "0.25rem",
+    paddingTop: "1rem",
+    paddingBottom: "0.25rem",
     fontSize: "0.6875rem",
     lineHeight: 1.4,
-    color: "var(--trips-ink-tertiary)",
+    color: "#fff",
+    backgroundImage: "linear-gradient(to bottom, transparent, rgb(0 0 0 / 0.6))",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -42,6 +49,8 @@ export const pv = stylex.create({
   name: {
     fontSize: "1.25rem",
     lineHeight: 1.1,
+    // Korean names break between words, not inside them.
+    wordBreak: "keep-all",
     overflowWrap: "anywhere",
     display: "-webkit-box",
     WebkitLineClamp: 2,
@@ -67,12 +76,5 @@ export const pv = stylex.create({
     WebkitLineClamp: 2,
     WebkitBoxOrient: "vertical",
     overflow: "hidden",
-  },
-  hint: {
-    marginTop: "0.375rem",
-    paddingTop: "0.5rem",
-    borderTopWidth: "1px",
-    borderTopStyle: "solid",
-    borderTopColor: "var(--trips-line)",
   },
 })

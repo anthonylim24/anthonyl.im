@@ -37,6 +37,7 @@ describe("ideaPreview", () => {
       street: "88 Changgyeonggung-ro, Jongno District",
       note: "Try the bindaetteok at stall 17",
       photo: null,
+      lookup: detailsTarget(market()),
     })
   })
 
@@ -44,18 +45,22 @@ describe("ideaPreview", () => {
     expect(ideaPreview(market({ theme: "shopping" }), trip).theme).toBe("shopping")
   })
 
-  it("never asks for a photo, and shows one already loaded for its details", async () => {
+  it("asks for nothing itself: it names what to look up, then shows the photo the session's answer holds", async () => {
     const photo = { url: "https://images.example/market.jpg", author: { name: "Min Ji" } }
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({ place: { name: "Gwangjang Market", photos: [photo] } }), { headers: { "content-type": "application/json" } }),
     )
-    expect(ideaPreview(market(), trip).photo).toBeNull()
+    expect(ideaPreview(market(), trip)).toMatchObject({ photo: null, lookup: detailsTarget(market()) })
     expect(fetchSpy).not.toHaveBeenCalled()
 
     await loadPlaceDetails(getToken, detailsTarget(market())!)
     const calls = fetchSpy.mock.calls.length
-    expect(ideaPreview(market(), trip).photo).toEqual(photo)
+    expect(ideaPreview(market(), trip)).toMatchObject({ photo, lookup: null })
     expect(fetchSpy.mock.calls.length).toBe(calls)
+  })
+
+  it("has nothing to look up for a place with neither an id nor a point", () => {
+    expect(ideaPreview(market({ location: { name: "Somewhere", source: "user" } }), trip).lookup).toBeNull()
   })
 
   it("names no area for a place far from the trip with no town in its address", () => {

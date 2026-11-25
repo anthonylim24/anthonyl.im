@@ -14,22 +14,29 @@ export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hol
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const card = ref.current
-    const map = card?.offsetParent
-    if (!card || !map) return
-    const box = map.getBoundingClientRect()
-    const pin = hover.anchor.getBoundingClientRect()
-    const at = placePreview({
-      anchor: { top: pin.top - box.top, bottom: pin.bottom - box.top, left: pin.left - box.left, right: pin.right - box.left },
-      size: { width: card.offsetWidth, height: card.offsetHeight },
-      bounds: { width: box.width, height: box.height },
-    })
-    // Above the pin the card hangs from its foot, so a photo that fails to load shrinks it toward the pin.
-    if (at.side === "above") {
-      card.style.top = "auto"
-      card.style.bottom = `${box.height - at.top - card.offsetHeight}px`
-    } else card.style.top = `${at.top}px`
-    card.style.left = `${at.left}px`
-    card.style.transformOrigin = { above: "bottom center", below: "top center", right: "center left", left: "center right" }[at.side]
+    if (!card) return
+    const place = () => {
+      const map = card.offsetParent
+      if (!map) return
+      const box = map.getBoundingClientRect()
+      const pin = hover.anchor.getBoundingClientRect()
+      const at = placePreview({
+        anchor: { top: pin.top - box.top, bottom: pin.bottom - box.top, left: pin.left - box.left, right: pin.right - box.left },
+        size: { width: card.offsetWidth, height: card.offsetHeight },
+        bounds: { width: box.width, height: box.height },
+      })
+      // Above the pin the card hangs from its foot, so a photo that fails to load shrinks it toward the pin.
+      card.style.top = at.side === "above" ? "auto" : `${at.top}px`
+      card.style.bottom = at.side === "above" ? `${box.height - at.top - card.offsetHeight}px` : "auto"
+      card.style.left = `${at.left}px`
+      card.style.transformOrigin = { above: "bottom center", below: "top center", right: "center left", left: "center right" }[at.side]
+    }
+    place()
+    // A photo's frame given back when a place has none: placed again, still beside the pin.
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(place)
+    observer.observe(card)
+    return () => observer.disconnect()
   }, [hover])
   return (
     <div ref={ref} id={previewId(hover.id)} role="tooltip" {...sx(s.card, "trips-glass-sheet")} {...hold}>

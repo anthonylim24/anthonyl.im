@@ -412,10 +412,19 @@ export function cachedPlaceDetails(target: DetailsTarget, now = Date.now()): Pla
   return wikiMayAnswer(target) ? keptIn(fromWiki, target.place, now) : null
 }
 
+/** Lookups made ahead of the details (`prefetchPlaceDetails`), by `DetailsTarget.key`, while they are out. */
+const inFlight = new Map<string, Promise<PlaceDetails | null>>()
+/** When a place whose look-ahead failed may be looked up ahead again, by `DetailsTarget.key`. */
+const resting = new Map<string, number>()
+/** A failed look-ahead (a rate limit, no connection) is not asked again on every hover. */
+const PREFETCH_REST_MS = 60_000
+
 /** Forget every answer (tests). */
 export function clearPlaceDetailsCache() {
   fromGoogle.clear()
   fromWiki.clear()
+  inFlight.clear()
+  resting.clear()
 }
 
 const loadEffect = Effect.fn("PlaceDetails.load")(function* (getToken: GetToken, target: DetailsTarget, signal?: AbortSignal) {
@@ -441,11 +450,35 @@ const loadEffect = Effect.fn("PlaceDetails.load")(function* (getToken: GetToken,
 /**
  * Photos and facts for one idea. Resolves null when nothing is known about the
  * place (the popover shows the idea's own notes); rejects with
- * `PlaceDetailsError` when the server could not be asked (Retry). Each call
- * makes its own requests, so one caller aborting never fails another.
+ * `PlaceDetailsError` when the server could not be asked (Retry). A lookup
+ * the map's preview already started is joined, never repeated; otherwise each
+ * call makes its own requests, so one caller aborting never fails another.
  */
 export function loadPlaceDetails(getToken: GetToken, target: DetailsTarget, signal?: AbortSignal): Promise<PlaceDetails | null> {
   const known = cachedPlaceDetails(target)
   if (known !== undefined) return Promise.resolve(known)
-  return runPromise(loadEffect(getToken, target, signal))
+  return inFlight.get(target.key) ?? runPromise(loadEffect(getToken, target, signal))
+}
+
+/**
+ * Look a place up before its details are opened, for the map's preview once
+ * a mouse or keyboard focus has rested on its pin: one request per place
+ * however often it is hovered, never cut short by the mouse moving on, and
+ * kept for the details. Resolves null without asking while a failed
+ * look-ahead for the place rests.
+ */
+export function prefetchPlaceDetails(getToken: GetToken, target: DetailsTarget, now = Date.now()): Promise<PlaceDetails | null> {
+  const known = cachedPlaceDetails(target, now)
+  if (known !== undefined) return Promise.resolve(known)
+  const pending = inFlight.get(target.key)
+  if (pending) return pending
+  if ((resting.get(target.key) ?? 0) > now) return Promise.resolve(null)
+  const lookup = runPromise(loadEffect(getToken, target))
+    .catch((err: unknown) => {
+      resting.set(target.key, Date.now() + PREFETCH_REST_MS)
+      throw err
+    })
+    .finally(() => inFlight.delete(target.key))
+  inFlight.set(target.key, lookup)
+  return lookup
 }
