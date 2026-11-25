@@ -8,7 +8,7 @@ import { BootHold, BootReady } from './lib/bootScreen'
 import { tripsPageAt } from './pages/Trips/routePages'
 
 // Every route is lazy: the entry holds only the router, the boundaries and
-// the boot screen's holds, so no app's code or vendor groups load with another app.
+// the fallbacks, so no app's code or vendor groups load with another app.
 // `scripts/check-entry-preloads.mjs` fails the build if that slips.
 const App = lazyRetry(() => import('./App'))
 const Landing = lazyRetry(() =>

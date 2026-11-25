@@ -1,5 +1,3 @@
-// The boot screen exactly as index.html ships it: its styles, its templates
-// and the inline script that paints one before any bundle runs.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -9,9 +7,11 @@ const style = [...indexHtml.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => 
 const templates = [...indexHtml.matchAll(/<template id="boot-\w+"[\s\S]*?<\/template>/g)].map((m) => m[0]).join('')
 const script = indexHtml.match(/<script data-boot>([\s\S]*?)<\/script>/)?.[1]
 
+/** How long index.html's quick exit animation runs. */
+export const quickExitMs = Number(style?.match(/\[data-exit="quick"\]\s*\{\s*animation:\s*boot-out (\d+)ms/)?.[1])
+
 const STORAGE_KEYS = ['korea-theme', 'breathwork-settings', 'lim-chat-night', 'trips-boot-accent']
 
-/** Loads index.html's boot parts into the page at `path` and runs the boot script, as a browser would. Returns the painted screen. */
 export function paintBoot(path: string): HTMLElement {
   if (!style || !templates || !script) throw new Error('index.html no longer ships the boot screen')
   window.history.replaceState(null, '', path)

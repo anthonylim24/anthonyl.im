@@ -1234,7 +1234,6 @@ export const stage = stylex.create({
   },
 })
 
-/** The sign-in and sign-up pages' frame (pages/Auth/AuthPage.tsx). */
 export const authPage = stylex.create({
   shell: {
     display: 'flex',

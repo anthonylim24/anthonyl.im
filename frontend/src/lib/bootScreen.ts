@@ -1,15 +1,11 @@
 import { useLayoutEffect } from 'react'
 
-// The boot screen (#boot) is painted by the script at the end of index.html
-// before any bundle runs. This module keeps it up while something on the page
-// is still on its way (the first React commit, a route's code, the sign-in
-// check) and lets it play its exit once nothing is.
-
 export type BootWorld = 'lim' | 'lab' | 'breathwork' | 'trips' | 'auth'
 export type BootStep = 'start' | 'code' | 'auth'
 
 declare global {
   interface Window {
+    // Defined by the boot script at the end of index.html, which paints #boot before any bundle runs.
     __bootMount?: (world: BootWorld) => HTMLElement | null
   }
 }
@@ -26,12 +22,9 @@ type Screen =
 
 type Leaving = Extract<Screen, { phase: 'leaving' }>
 
-/** Below this long on screen, the full exit would only delay the page. */
 const QUICK_BELOW_MS = 300
-/** index.html's `boot-out` animation, which the quick exit plays. */
 const QUICK_EXIT_MS = 160
 
-/** Oldest first; the newest names the world and step on screen. */
 const holds: Hold[] = []
 let exit: Leaving | null = null
 
@@ -92,7 +85,6 @@ function reconcile() {
   screen.el.dataset.step = want.step
 }
 
-/** Keeps the boot screen up (bringing it back if it left) until the returned release is called. */
 export function holdBoot(world: BootWorld, step: BootStep): () => void {
   const hold: Hold = { world, step }
   holds.push(hold)
@@ -110,13 +102,11 @@ export function holdBoot(world: BootWorld, step: BootStep): () => void {
 const painted = document.getElementById('boot')
 const releasePaint = painted ? holdBoot(painted.dataset.world as BootWorld, 'start') : () => {}
 
-/** Mount once: React's first commit lets go of the screen the page painted. */
 export function BootReady(): null {
   useLayoutEffect(releasePaint, [])
   return null
 }
 
-/** Holds the boot screen at `step` for as long as it is mounted. */
 export function BootHold({ world, step }: Hold): null {
   useLayoutEffect(() => holdBoot(world, step), [world, step])
   return null

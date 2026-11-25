@@ -2,13 +2,9 @@ import { lazy, StrictMode, type ComponentType } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { clearBoot, paintBoot } from '@/test/bootPage'
+import { clearBoot, paintBoot, quickExitMs } from '@/test/bootPage'
 
-/**
- * Paints the boot screen at `path`, then loads the app's modules fresh, the
- * order a browser runs them in: the inline script first, the bundle after.
- */
-async function bootAt(path: string) {
+async function paintThenLoad(path: string) {
   const boot = paintBoot(path)
   vi.resetModules()
   const [screenModule, routes] = await Promise.all([import('../bootScreen'), import('../../AppRoutes')])
@@ -17,7 +13,6 @@ async function bootAt(path: string) {
 
 const flush = () => act(async () => {})
 
-/** Every value the screen's `data-state` has held, so an exit that started and was taken back still shows. */
 function stateHistory(boot: HTMLElement) {
   const seen: (string | null)[] = []
   const observer = new MutationObserver((records) => seen.push(...records.map((record) => record.oldValue)))
@@ -40,14 +35,15 @@ describe('the boot screen', () => {
   it('leaves after React’s first commit when nothing waits, quickly when it was barely up', async () => {
     vi.useFakeTimers()
     reducedMotion(false)
-    const { boot, BootReady } = await bootAt('/lab')
+    const { boot, BootReady } = await paintThenLoad('/lab')
     render(<BootReady />)
     await flush()
     expect(boot).toHaveAttribute('data-state', 'leaving')
     expect(boot).toHaveAttribute('data-exit', 'quick')
     expect(boot).toHaveAttribute('inert')
     expect(boot).not.toHaveAttribute('aria-busy')
-    act(() => vi.advanceTimersByTime(159))
+    expect(quickExitMs).toBeGreaterThan(0)
+    act(() => vi.advanceTimersByTime(quickExitMs - 1))
     expect(boot.isConnected).toBe(true)
     act(() => vi.advanceTimersByTime(1))
     expect(boot.isConnected).toBe(false)
@@ -56,14 +52,14 @@ describe('the boot screen', () => {
   it('plays its own exit, for as long as it says, when it has been up a while', async () => {
     vi.useFakeTimers()
     reducedMotion(false)
-    const { boot, BootReady } = await bootAt('/trips')
+    const { boot, BootReady } = await paintThenLoad('/trips')
     act(() => vi.advanceTimersByTime(1_000))
     render(<BootReady />)
     await flush()
     expect(boot).toHaveAttribute('data-state', 'leaving')
     expect(boot).not.toHaveAttribute('data-exit')
     const exitMs = Number(boot.dataset.exitMs)
-    expect(exitMs).toBeGreaterThan(160)
+    expect(exitMs).toBeGreaterThan(quickExitMs)
     act(() => vi.advanceTimersByTime(exitMs - 1))
     expect(boot.isConnected).toBe(true)
     act(() => vi.advanceTimersByTime(1))
@@ -73,18 +69,18 @@ describe('the boot screen', () => {
   it('takes the quick exit under reduced motion, however long it was up', async () => {
     vi.useFakeTimers()
     reducedMotion(true)
-    const { boot, BootReady } = await bootAt('/breathwork')
+    const { boot, BootReady } = await paintThenLoad('/breathwork')
     act(() => vi.advanceTimersByTime(1_000))
     render(<BootReady />)
     await flush()
     expect(boot).toHaveAttribute('data-exit', 'quick')
-    act(() => vi.advanceTimersByTime(160))
+    act(() => vi.advanceTimersByTime(quickExitMs))
     expect(boot.isConnected).toBe(false)
   })
 
   it('stays at the code step while a route’s code is on its way, and leaves once the route renders', async () => {
     reducedMotion(false)
-    const { boot, BootReady, BootHold, Guarded } = await bootAt('/breathwork')
+    const { boot, BootReady, BootHold, Guarded } = await paintThenLoad('/breathwork')
     let arrive!: (module: { default: ComponentType }) => void
     const Page = lazy(() => new Promise<{ default: ComponentType }>((resolve) => (arrive = resolve)))
     const states = stateHistory(boot)
@@ -111,7 +107,7 @@ describe('the boot screen', () => {
   it('gets out of the way of the error screen when a route’s code fails', async () => {
     reducedMotion(false)
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const { boot, BootReady, BootHold, Guarded } = await bootAt('/trips')
+    const { boot, BootReady, BootHold, Guarded } = await paintThenLoad('/trips')
     const Page = lazy(() => Promise.reject(new Error('boom')))
     render(
       <MemoryRouter initialEntries={['/trips']}>
@@ -131,10 +127,10 @@ describe('the boot screen', () => {
   it('comes back for a later wait, and leaves again when it is over', async () => {
     vi.useFakeTimers()
     reducedMotion(false)
-    const { boot, BootReady, BootHold } = await bootAt('/trips')
+    const { boot, BootReady, BootHold } = await paintThenLoad('/trips')
     const view = render(<BootReady />)
     await flush()
-    act(() => vi.advanceTimersByTime(160))
+    act(() => vi.advanceTimersByTime(quickExitMs))
     expect(boot.isConnected).toBe(false)
 
     view.rerender(
@@ -153,14 +149,14 @@ describe('the boot screen', () => {
     view.rerender(<BootReady />)
     await flush()
     expect(again).toHaveAttribute('data-state', 'leaving')
-    act(() => vi.advanceTimersByTime(160))
+    act(() => vi.advanceTimersByTime(quickExitMs))
     expect(document.getElementById('boot')).toBeNull()
   })
 
   it('a wait that starts during the exit keeps the screen', async () => {
     vi.useFakeTimers()
     reducedMotion(false)
-    const { boot, BootReady, BootHold } = await bootAt('/breathwork')
+    const { boot, BootReady, BootHold } = await paintThenLoad('/breathwork')
     act(() => vi.advanceTimersByTime(1_000))
     const view = render(<BootReady />)
     await flush()
@@ -185,7 +181,7 @@ describe('the boot screen', () => {
 
   it('shows the newest wait, and a second release lets go of nothing more', async () => {
     reducedMotion(false)
-    const { boot, holdBoot, BootReady } = await bootAt('/trips')
+    const { boot, holdBoot, BootReady } = await paintThenLoad('/trips')
     render(<BootReady />)
     const releaseCode = holdBoot('trips', 'code')
     const releaseAuth = holdBoot('trips', 'auth')
@@ -202,7 +198,7 @@ describe('the boot screen', () => {
 
   it('swaps in the other app’s screen when a wait belongs to another app', async () => {
     reducedMotion(false)
-    const { boot, BootHold } = await bootAt('/lab/specimen')
+    const { boot, BootHold } = await paintThenLoad('/lab/specimen')
     render(<BootHold world="lim" step="code" />)
     const swapped = document.getElementById('boot')
     expect(boot.isConnected).toBe(false)
@@ -213,7 +209,7 @@ describe('the boot screen', () => {
 
   it('lets go when the app renders without a sign-in provider', async () => {
     reducedMotion(false)
-    const { boot, AppRoutes } = await bootAt('/some-404')
+    const { boot, AppRoutes } = await paintThenLoad('/some-404')
     render(
       <StrictMode>
         <AppRoutes />
