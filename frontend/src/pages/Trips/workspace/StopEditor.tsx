@@ -482,15 +482,13 @@ function LocationField({
   useClaimEscape(searching, areaRef)
 
   if (pinned && !searching) {
-    // One line: the place's own name when the stop is called something else, else where it is.
+    // The place's own name when the stop is called something else, else where it is.
     const place = item.location?.name?.trim()
     const where = (place && place !== item.title.trim() ? place : item.location?.address) || place || "Pinned on the map"
     return (
       <div {...sx(s.pinnedBox)}>
         <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText)} />
-        <span {...sx(a.grow, a.truncate)} title={[place, item.location?.address].filter(Boolean).join(" · ")}>
-          {where}
-        </span>
+        <span {...sx(a.grow, a.wrap)}>{where}</span>
         <button
           type="button"
           {...sx(a.btn, a.btnGhost, a.btnSm)}
