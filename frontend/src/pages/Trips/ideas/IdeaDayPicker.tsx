@@ -135,7 +135,7 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
       lead={lead}
       // The heart or row that opened the picker leaves with the place: its
       // entry under "On your days", or its new stop or day, shows where it went.
-      returnFocus={() => ideaFocusReturn(idea.id, picked.current)}
+      returnFocus={() => ideaFocusReturn(idea.id, { dayId: picked.current })}
       onPick={choose}
       onClose={onClose}
     />

@@ -35,13 +35,21 @@ describe("ideaFocusReturn", () => {
 
   it("is the overview's pin for the day the place went to", () => {
     add(`<button data-pin-id="day:d1">1</button><button data-pin-id="day:d2">2</button>`)
-    expect(ideaFocusReturn("a", "d2")).toBe(document.querySelector('[data-pin-id="day:d2"]'))
+    expect(ideaFocusReturn("a", { dayId: "d2" })).toBe(document.querySelector('[data-pin-id="day:d2"]'))
     expect(ideaFocusReturn("a")).toBeNull()
   })
 
-  it("is the map the heart was on once the place is gone, and nothing on a page without one", () => {
+  it("is the heart nearest where a removed place's was, else the map it was on, else nothing", () => {
     expect(ideaFocusReturn("gone")).toBeNull()
-    add(`<button data-idea-id="other">B</button><canvas class="maplibregl-canvas" tabindex="0"></canvas>`)
+    add(`<canvas class="maplibregl-canvas" tabindex="0"></canvas>`)
     expect(ideaFocusReturn("gone")).toBe(document.querySelector("canvas"))
+    add(`<button data-idea-id="far">B</button><button data-idea-fold="c d">2</button>`)
+    const at = (el: Element, x: number, y: number) => {
+      el.getBoundingClientRect = () => ({ left: x - 13, top: y - 13, width: 26, height: 26 }) as DOMRect
+    }
+    at(document.querySelector('[data-idea-id="far"]')!, 600, 400)
+    at(document.querySelector("[data-idea-fold]")!, 120, 90)
+    expect(ideaFocusReturn("gone", { near: { x: 100, y: 100 } })).toBe(document.querySelector("[data-idea-fold]"))
+    expect(ideaFocusReturn("gone", { near: { x: 590, y: 380 } })).toBe(document.querySelector('[data-idea-id="far"]'))
   })
 })
