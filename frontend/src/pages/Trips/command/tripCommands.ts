@@ -10,6 +10,7 @@ import {
   List,
   ListChecks,
   Map as MapIcon,
+  MapPinned,
   Printer,
   Settings2,
   Share2,
@@ -26,7 +27,7 @@ import type { Command } from "./commands"
 // Palette commands built from a trip document and the workspace's actions.
 // Pure: the workspace passes callbacks in and registers what comes out.
 
-export type TripTab = "itinerary" | "budget" | "checklist" | "essentials"
+export type TripTab = "itinerary" | "budget" | "checklist" | "essentials" | "neighborhoods"
 
 /** What the workspace can do. An action left out is not offered. */
 export interface TripCommandActions {
@@ -67,6 +68,7 @@ const TAB_ACTIONS: ReadonlyArray<{ tab: TripTab; title: string; icon: Command["i
   { tab: "budget", title: "Budget", icon: Wallet, keywords: ["money", "costs", "expenses", "spend", "split"] },
   { tab: "checklist", title: "Checklist", icon: ListChecks, keywords: ["packing", "to do", "todo", "documents"] },
   { tab: "essentials", title: "Essentials", icon: Info, keywords: ["info", "emergency", "currency", "visa", "plugs"] },
+  { tab: "neighborhoods", title: "Neighborhoods", icon: MapPinned, keywords: ["areas", "districts", "parts of town", "where"] },
 ]
 
 export function tripCommands({ trip, basePath, navigate, actions = {}, dayId = null, locked = false, now = Date.now }: TripCommandsInput): Command[] {

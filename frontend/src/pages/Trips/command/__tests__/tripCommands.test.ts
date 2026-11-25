@@ -83,7 +83,7 @@ describe("tripCommands", () => {
     expect(share).toHaveBeenCalledTimes(1)
     byId(commands, "trip:tab-budget").run()
     expect(openTab).toHaveBeenLastCalledWith("budget")
-    expect(commands.filter((c) => c.group === "Go to").map((c) => c.title)).toEqual(["Itinerary", "Budget", "Checklist", "Essentials"])
+    expect(commands.filter((c) => c.group === "Go to").map((c) => c.title)).toEqual(["Itinerary", "Budget", "Checklist", "Essentials", "Neighborhoods"])
     byId(commands, "trip:tab-itinerary").run()
     expect(openTab).toHaveBeenLastCalledWith("itinerary")
   })
