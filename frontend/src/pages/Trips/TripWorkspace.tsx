@@ -28,7 +28,6 @@ import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAcce
 import { AtlasMap, canRenderMap, loadMapEngine, type AtlasMapProps } from "./map/AtlasMap"
 import { IDEA_PARAM } from "./ideas/contract"
 import { useIdeaNav } from "./ideas/ideaNav"
-import { IdeaPreview } from "./ideas/IdeaPreview"
 import { liveValue, useLiveValue, type LiveValue } from "./workspace/liveValue"
 import { addItem, makeItem } from "./tripEdits"
 import { addBookings, type BookingEntry } from "./bookings/addBookings"
@@ -80,6 +79,9 @@ const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
 const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
 const IdeaOverlay = lazyRetry(() => import("./ideas/IdeaOverlay").then((m) => ({ default: m.IdeaOverlay })))
+// The wishlist's place categories, areas and details cache ride with it, off the first paint;
+// warmed at idle when the map has hearts and the device can hover.
+const IdeaPreview = lazyRetry(() => import("./ideas/IdeaPreview").then((m) => ({ default: m.IdeaPreview })))
 const ChangesSheet = lazyRetry(() => import("./changes/ChangesSheet").then((m) => ({ default: m.ChangesSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
@@ -446,6 +448,10 @@ function Workspace() {
   // near the day). Never in `pins`: they must not frame, count or tour.
   const ideas = trip?.ideas
   const wishPins = useMemo(() => ideaPins({ ideas }), [ideas])
+  const hasWishPins = wishPins.length > 0
+  useEffect(() => {
+    if (idle && hasWishPins && window.matchMedia("(hover: hover)").matches) IdeaPreview.preload()
+  }, [idle, hasWishPins])
   const focusPin = focusId ? mapPins.find((p) => p.id === focusId) : undefined
   const cardCovers = !wide && focusPin !== undefined && cardInset > MAP_PADDING_NARROW.bottom
   const mapPadding = wide ? MAP_PADDING : cardCovers ? { ...MAP_PADDING_NARROW, bottom: cardInset } : MAP_PADDING_NARROW

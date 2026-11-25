@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { Box, Heart, Minus, Plus, Scan } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { layout } from "@/styles/common.stylex"
+import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AtlasPin, type LngLat } from "./geo"
@@ -347,9 +348,12 @@ export function AtlasMap({
         </div>
       )}
       {previewed && (
-        <IdeaHoverCard key={previewed.id} hover={previewed}>
-          {ideaPreview?.(previewed.id, previewed.via)}
-        </IdeaHoverCard>
+        // The content may load lazily: no empty frame while it does, and no broken page if it cannot.
+        <OverlayBoundary key={previewed.id} onError={() => reportIdeaHover(null)}>
+          <Suspense fallback={null}>
+            <IdeaHoverCard hover={previewed}>{ideaPreview?.(previewed.id, previewed.via)}</IdeaHoverCard>
+          </Suspense>
+        </OverlayBoundary>
       )}
       {children}
     </div>
