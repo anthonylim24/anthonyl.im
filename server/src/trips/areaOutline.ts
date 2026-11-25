@@ -10,7 +10,7 @@ import { foldName } from "./placeDetails"
 // Village are points), and sometimes the wrong one (삼성동 first answers the
 // Samseong-dong in Gwanak-gu, 10 km from the one in Gangnam). So a shape is
 // used only when it is a boundary of a part of a city, not too big, and
-// holds at least half of the area's stops; otherwise the answer is null and
+// holds most of the area's stops; otherwise the answer is null and
 // the client draws a soft shape around the stops, labelled as approximate.
 //
 // Nominatim's usage policy: at most one request a second from the whole
@@ -119,12 +119,12 @@ export function acceptablePart(results: readonly NominatimResult[], city: string
   return null
 }
 
-/** The parts joined, when together they hold at least half of the stops (and at least one). */
+/** The parts joined, when together they hold most of the stops: a boundary that leaves half of them out is not this area. */
 export function joinParts(parts: readonly Ring[][][], stops: readonly LatLng[]): OutlineGeometry | null {
   const polygons = parts.flat()
   if (polygons.length === 0) return null
   const inside = stops.filter((stop) => inPolygons(stop, polygons)).length
-  if (inside === 0 || inside < Math.ceil(stops.length / 2)) return null
+  if (inside * 2 <= stops.length) return null
   return polygons.length === 1 ? { type: "Polygon", coordinates: polygons[0]! } : { type: "MultiPolygon", coordinates: polygons }
 }
 

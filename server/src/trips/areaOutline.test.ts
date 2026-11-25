@@ -48,9 +48,10 @@ describe("acceptablePart", () => {
 })
 
 describe("joinParts", () => {
-  test("needs at least half of the area's stops inside", () => {
+  test("needs most of the area's stops inside", () => {
     const outside = { lat: 37.6, lng: 127.2 }
     expect(joinParts([[square(37.525, 127.048, 0.01)]], [...CHEONGDAM_STOPS, outside])).toEqual({ type: "Polygon", coordinates: square(37.525, 127.048, 0.01) })
+    expect(joinParts([[square(37.525, 127.048, 0.01)]], [CHEONGDAM_STOPS[0]!, outside])).toBeNull()
     expect(joinParts([[square(37.525, 127.048, 0.01)]], [CHEONGDAM_STOPS[0]!, outside, outside])).toBeNull()
     expect(joinParts([], CHEONGDAM_STOPS)).toBeNull()
   })
