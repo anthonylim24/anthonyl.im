@@ -39,6 +39,24 @@ afterEach(() => {
 })
 
 describe("IdeaDayPicker", () => {
+  it("marks a day that already has the place, and never recommends it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      json({ source: "distance", picks: [{ dayId: "day-1", reason: "Already nearby" }, { dayId: "day-2", reason: "A free day" }] }),
+    )
+    const holding = makeTrip({
+      ...trip,
+      days: trip.days.map((day) =>
+        day.id === "day-1" ? { ...day, items: [...day.items, makeItem({ id: "tom", title: "Time Out Market", location: { name: "Time Out Market", lat: 38.7071, lng: -9.1461, source: "user" } })] } : day,
+      ),
+    })
+    render(<IdeaDayPicker trip={holding} idea={idea} getToken={getToken} onPick={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByRole("button", { name: /Day 1 · .*Already on this day/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /Day 2 · / })).toBeEnabled()
+    await act(async () => {})
+    const picks = within(recommended()).getAllByRole("button")
+    expect(picks.map((b) => b.textContent)).toEqual([expect.stringContaining("A free day")])
+  })
+
   it("shows every day at once, then up to three recommended days with their reasons", async () => {
     let answer!: (res: Response) => void
     const fetchMock = vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise<Response>((resolve) => (answer = resolve)))
