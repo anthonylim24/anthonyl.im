@@ -242,6 +242,7 @@ export function Modal({
   accent,
   wide,
   footer,
+  returnFocus,
   children,
 }: {
   open: boolean
@@ -251,11 +252,12 @@ export function Modal({
   accent?: TripAccent
   wide?: boolean
   footer?: ReactNode
+  returnFocus?: () => HTMLElement | null
   children: ReactNode
 }) {
   const [scrolled, setScrolled] = useState(false)
   return (
-    <DialogFrame open={open} onClose={onClose} accent={accent} content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}>
+    <DialogFrame open={open} onClose={onClose} accent={accent} returnFocus={returnFocus} content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}>
       <div {...sx(a.dialogHead, scrolled && a.dialogHeadRuled)}>
         <div {...sx(a.stack)}>
           <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
@@ -290,6 +292,7 @@ export function DialogFrame({
   accent,
   content,
   onOpenAutoFocus,
+  returnFocus,
   children,
 }: {
   open: boolean
@@ -298,6 +301,8 @@ export function DialogFrame({
   /** The Content's styles and classes, as `sx` takes them. */
   content: Parameters<typeof sx>
   onOpenAutoFocus?: (event: Event) => void
+  /** Where focus goes on close when what opened the dialog is gone (the row it scheduled, say). */
+  returnFocus?: () => HTMLElement | null
   children: ReactNode
 }) {
   const closing = useClosing()
@@ -335,7 +340,7 @@ export function DialogFrame({
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
-              const target = opener.current
+              const target = opener.current?.isConnected ? opener.current : returnFocus?.()
               if (!target?.isConnected) return
               event.preventDefault()
               target.focus({ preventScroll: true })

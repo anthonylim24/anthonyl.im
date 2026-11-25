@@ -3,7 +3,7 @@ import { useState } from "react"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { Menu, Modal } from "../components/kit"
 
-function Page({ dropOpener = false }: { dropOpener?: boolean }) {
+function Page({ dropOpener = false, fallback = false }: { dropOpener?: boolean; fallback?: boolean }) {
   const [open, setOpen] = useState(false)
   const [gone, setGone] = useState(false)
   return (
@@ -14,8 +14,12 @@ function Page({ dropOpener = false }: { dropOpener?: boolean }) {
         </button>
       )}
       <Menu label="Trip actions" trigger="…" items={[{ label: "Edit details", onSelect: () => setOpen(true) }]} />
+      <a href="#saved" id="saved">
+        Where it went
+      </a>
       <Modal
         open={open}
+        returnFocus={fallback ? () => document.getElementById("saved") : undefined}
         onClose={() => {
           if (dropOpener) setGone(true)
           setOpen(false)
@@ -52,6 +56,17 @@ describe("Modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it("sends focus to the fallback when the opener is gone", async () => {
+    render(<Page dropOpener fallback />)
+    const opener = screen.getByRole("button", { name: "Trip details" })
+    opener.focus()
+    fireEvent.click(opener)
+    expect(await screen.findByRole("dialog", { name: "Details" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.getByRole("link", { name: "Where it went" })).toHaveFocus())
   })
 
   it("leaves focus alone when the opener is gone", async () => {

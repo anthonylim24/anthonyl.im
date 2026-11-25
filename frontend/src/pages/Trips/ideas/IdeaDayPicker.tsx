@@ -126,6 +126,9 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
       description="It joins that day’s route, above anything still to schedule."
       choices={choices}
       lead={lead}
+      // The row that opened the picker leaves the list with the place; its
+      // entry under "On your days" shows where it went.
+      returnFocus={() => document.querySelector<HTMLElement>(`[data-scheduled-idea="${CSS.escape(idea.id)}"]`)}
       onPick={onPick}
       onClose={onClose}
     />

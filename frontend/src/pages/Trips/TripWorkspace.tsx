@@ -505,6 +505,12 @@ function Workspace() {
     }
   }
 
+  // "I'll add stops myself" lands on a day whose only next step is its composer.
+  const composeOn = day && (location.state as { compose?: unknown } | null)?.compose === true ? location.key : null
+  useEffect(() => {
+    if (composeOn) paneRef.current?.querySelector<HTMLElement>('input[role="combobox"]')?.focus()
+  }, [composeOn])
+
   const onAdded = useCallback((id: string) => {
     setFresh(new Set([id]))
   }, [])

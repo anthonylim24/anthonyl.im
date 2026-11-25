@@ -358,6 +358,7 @@ function ScheduledRow({
         <Link
           to={`${basePath}/day/${day.id}#stop-${encodeURIComponent(item.id)}`}
           aria-label={`${name}: ${when}. Open the day`}
+          data-scheduled-idea={item.id}
           {...sx(s.ideaDayLink)}
         >
           {when}

@@ -358,6 +358,12 @@ describe("TripWorkspace", () => {
       expect(stat("Walking")).toHaveTextContent(/^Walking\d(\.\d)? km$/)
     })
 
+    it("“I’ll add stops myself” opens day 1 with the composer focused", async () => {
+      renderWorkspace("/trips/lisbon", makeTrip())
+      fireEvent.click(await screen.findByRole("link", { name: "I’ll add stops myself" }))
+      await waitFor(() => expect(screen.getByRole("combobox", { name: "Add a place, note or link" })).toHaveFocus())
+    })
+
     it("drafts an empty trip with AI from the overview", async () => {
       const empty = makeTrip()
       const drafted = planned()
