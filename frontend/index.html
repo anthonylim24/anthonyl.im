@@ -121,6 +121,36 @@
          position:fixed/sticky elements transparent (done in components). */
       html { background-color: #F5F2ED; }
       html.dark { background-color: #171613; }
+
+      /* The boot screen (#boot): painted by the script at the end of <body>
+         from the route's <template id="boot-…">, before any bundle runs, and
+         held open by lib/bootScreen.ts while a route's code or the sign-in
+         check is still on its way. Each template carries its own art and
+         styles, so a page pays for one world's CSS, and only while it shows.
+         Motion is transform and opacity on HTML layers: the compositor keeps
+         it moving while the bundles parse. */
+      .boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: hidden; contain: strict; font-synthesis: none; -webkit-font-smoothing: antialiased; }
+      .boot *, .boot *::before, .boot *::after { box-sizing: border-box; margin: 0; }
+      .boot svg { display: block; overflow: visible; }
+      .boot-stage { position: relative; display: grid; justify-items: center; text-align: center; animation: boot-in 480ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both; }
+      .boot-steps { display: grid; }
+      .boot-steps > * { grid-area: 1 / 1; opacity: 0; transition: opacity 320ms ease; }
+      .boot[data-step="start"] .boot-steps > [data-step="start"],
+      .boot[data-step="code"] .boot-steps > [data-step="code"],
+      .boot[data-step="auth"] .boot-steps > [data-step="auth"] { opacity: 1; }
+      .boot-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      .boot-retry { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); translate: -50% 0; min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; border-radius: 999px; font: 500 14px/1 Inter, system-ui, sans-serif; color: inherit; text-decoration: underline; text-underline-offset: 3px; visibility: hidden; opacity: 0; animation: boot-retry 400ms ease 12s forwards; }
+      .boot[data-state="leaving"] { pointer-events: none; }
+      .boot[data-state="leaving"][data-exit="quick"] { animation: boot-out 160ms ease both !important; }
+      .boot[data-state="leaving"][data-exit="quick"] * { animation-play-state: paused !important; }
+      @keyframes boot-in { from { opacity: 0; transform: translateY(10px); } }
+      @keyframes boot-out { to { opacity: 0; } }
+      @keyframes boot-retry { to { visibility: visible; opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        .boot *, .boot *::before, .boot *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+        .boot-retry { animation-delay: 12s !important; }
+        .boot[data-state="leaving"] { animation: boot-out 160ms ease both !important; }
+      }
     </style>
   </head>
   <body>
@@ -139,6 +169,100 @@
         <p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>
       </main>
     </noscript>
+
+    <!-- BOOT-TEMPLATES: one per world. The copy for each step sits in
+         .boot-steps; data-label names the screen for assistive tech and
+         data-exit-ms is how long its exit plays (lib/bootScreen.ts waits
+         that long before removing it). -->
+    <template id="boot-lim" data-label="Loading Lim" data-exit-ms="200">
+      <div class="boot-stage"></div>
+    </template>
+    <template id="boot-lab" data-label="Loading the lab" data-exit-ms="520">
+      <div class="boot-stage">
+        <p class="boot-steps"><span data-step="start">Warming the instruments</span><span data-step="code">Mounting the specimen</span><span data-step="auth">Mounting the specimen</span></p>
+      </div>
+    </template>
+    <template id="boot-breathwork" data-label="Loading BreathFlow" data-exit-ms="480">
+      <div class="boot-stage">
+        <p class="boot-steps"><span data-step="start">Wetting the paper</span><span data-step="code">Mixing the pigments</span><span data-step="auth">Mixing the pigments</span></p>
+      </div>
+    </template>
+    <template id="boot-trips" data-label="Loading Trips" data-exit-ms="560">
+      <div class="boot-stage">
+        <p class="boot-steps"><span data-step="start">Unfolding the chart</span><span data-step="code">Laying out the atlas</span><span data-step="auth">Checking you’re signed in</span></p>
+      </div>
+    </template>
+    <template id="boot-auth" data-label="Loading sign-in" data-exit-ms="420">
+      <div class="boot-stage">
+        <p class="boot-steps"><span data-step="start">Opening the desk</span><span data-step="code">Opening the desk</span><span data-step="auth">Fetching the sign-in form</span></p>
+      </div>
+    </template>
+
+    <!-- Paints the boot screen before any bundle runs. lib/bootScreen.ts
+         calls window.__bootMount again to bring it back for a later wait. -->
+    <script data-boot>
+      (() => {
+        const read = (key) => {
+          try { return localStorage.getItem(key); } catch { return null; }
+        };
+        const appPath = () => location.pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, '') || '/';
+        const worldOf = (path) =>
+          path === '/lab' || path.startsWith('/lab/') ? 'lab'
+          : path.startsWith('/breathwork') ? 'breathwork'
+          : path.startsWith('/sign-in') || path.startsWith('/sign-up') ? 'auth'
+          : path.startsWith('/trips') || path.startsWith('/korea') ? 'trips'
+          : 'lim';
+        const systemDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+        // Each app's own saved choice, so the screen is already in the theme the app paints next.
+        const darkFor = (world) => {
+          if (world === 'lim') return read('lim-chat-night') === '1';
+          if (world === 'trips') {
+            const theme = read('korea-theme');
+            return theme === 'dark' || ((theme === null || theme === 'system') && systemDark());
+          }
+          if (world === 'breathwork') {
+            try { return JSON.parse(read('breathwork-settings') || '{}').state.theme === 'dark'; } catch { return false; }
+          }
+          return false;
+        };
+        // The trip's own accent, remembered by the workspace the last time it opened (trip id → accent name).
+        const accentFor = (path) => {
+          const id = (path.match(/^\/trips\/([^/]+)/) || [])[1];
+          if (!id || id === 'new' || id === 'join') return null;
+          try { return JSON.parse(read('trips-boot-accent') || '{}')[id] || null; } catch { return null; }
+        };
+
+        window.__bootMount = (world) => {
+          const template = document.getElementById('boot-' + world);
+          if (!template) return null;
+          const path = appPath();
+          const boot = document.createElement('div');
+          boot.id = 'boot';
+          boot.className = 'boot';
+          boot.dataset.world = world;
+          boot.dataset.theme = darkFor(world) ? 'dark' : 'light';
+          boot.dataset.step = 'start';
+          boot.dataset.state = 'showing';
+          boot.dataset.exitMs = template.dataset.exitMs || '300';
+          boot.dataset.shownAt = String(Math.round(performance.now()));
+          const accent = world === 'trips' ? accentFor(path) : null;
+          if (accent) boot.dataset.accent = accent;
+          boot.setAttribute('role', 'status');
+          boot.setAttribute('aria-busy', 'true');
+          boot.setAttribute('aria-label', template.dataset.label || 'Loading');
+          boot.append(template.content.cloneNode(true));
+          const retry = document.createElement('a');
+          retry.className = 'boot-retry';
+          retry.href = location.href;
+          retry.textContent = 'Taking a while? Reload';
+          boot.append(retry);
+          document.body.insertBefore(boot, document.getElementById('root'));
+          return boot;
+        };
+        window.__bootWorld = worldOf(appPath());
+        window.__bootMount(window.__bootWorld);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
