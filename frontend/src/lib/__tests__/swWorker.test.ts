@@ -45,8 +45,10 @@ function loadWorker(fetchImpl: (req: string | Req) => Promise<Response>) {
     },
   }
   const listeners: Record<string, Listener> = {}
+  const enablePreload = vi.fn(async () => undefined)
   const self = {
     location: new URL(ORIGIN),
+    registration: { navigationPreload: { enable: enablePreload } },
     addEventListener: (type: string, fn: Listener) => {
       listeners[type] = fn
     },
@@ -54,28 +56,50 @@ function loadWorker(fetchImpl: (req: string | Req) => Promise<Response>) {
     clients: { claim: vi.fn(async () => undefined), matchAll: vi.fn(async () => []) },
   }
   const fetch = vi.fn(fetchImpl)
-  runInNewContext(source, { self, caches, fetch, URL, Response, Promise, Set })
+  // Looked up at call time, so vi.useFakeTimers() reaches the worker too.
+  const timers = {
+    setTimeout: (...args: Parameters<typeof setTimeout>) => setTimeout(...args),
+    clearTimeout: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+  }
+  runInNewContext(source, { self, caches, fetch, URL, Response, Promise, Set, ...timers })
 
   const extend = async (type: string, data: object = {}) => {
     let pending: Promise<unknown> = Promise.resolve()
     listeners[type]!({ ...data, waitUntil: (p: Promise<unknown>) => (pending = p) })
     await pending
   }
-  const request = async (path: string, init: Partial<Req> = {}) => {
+  /** Dispatch a fetch event; `settled` waits for the work the worker kept going with waitUntil. */
+  const dispatch = (path: string, init: Partial<Req> = {}, extra: object = {}) => {
     let response: Promise<Response> | undefined
     const background: Promise<unknown>[] = []
     listeners.fetch!({
       request: { url: new URL(path, ORIGIN).href, method: 'GET', mode: 'no-cors', destination: '', ...init },
       respondWith: (p: Promise<Response>) => (response = p),
       waitUntil: (p: Promise<unknown>) => background.push(p),
+      ...extra,
     })
+    // waitUntil can be called again while earlier work is pending: wait until a pass adds nothing.
+    const settled = async () => {
+      let seen = -1
+      while (seen !== background.length) {
+        seen = background.length
+        await Promise.all(background)
+      }
+    }
+    return { response, settled }
+  }
+  const request = async (path: string, init: Partial<Req> = {}) => {
+    const { response, settled } = dispatch(path, init)
     const res = response ? await response : undefined
-    await Promise.all(background)
+    await settled()
     return res
   }
-  const navigate = (path: string) => request(path, { mode: 'navigate', destination: 'document' })
+  const NAVIGATE = { mode: 'navigate', destination: 'document' }
+  const navigate = (path: string) => request(path, NAVIGATE)
+  const startNavigation = (path: string, extra: object = {}) => dispatch(path, NAVIGATE, extra)
   const cached = (name: string) => [...(store.get(name)?.keys() ?? [])].map((url) => url.replace(ORIGIN, ''))
-  return { self, fetch, store, extend, request, navigate, cached }
+  const cachedText = (name: string, path: string) => store.get(name)?.get(`${ORIGIN}${path}`)?.clone().text()
+  return { self, fetch, store, extend, request, navigate, startNavigation, cached, cachedText, enablePreload }
 }
 
 describe('sw.js', () => {
@@ -127,6 +151,64 @@ describe('sw.js', () => {
     online = false
     expect(await (await sw.navigate('/breathwork/progress'))!.text()).toBe(`<html>${ORIGIN}/breathwork`)
     expect(await (await sw.navigate('/trips/join/abc'))!.text()).toBe(`<html>${ORIGIN}/`)
+  })
+
+  it('answers a stalled navigation from its cached shell, then stores the late answer', async () => {
+    vi.useFakeTimers()
+    try {
+      let release = (): void => undefined
+      let stalled = false
+      const sw = loadWorker(async () =>
+        stalled ? new Promise<Response>((resolve) => (release = () => resolve(basic('<html>v2')))) : basic('<html>v1'),
+      )
+      await sw.navigate('/trips')
+      stalled = true
+
+      const { response, settled } = sw.startNavigation('/trips/abc/day/2')
+      await vi.advanceTimersByTimeAsync(3999)
+      let answered = false
+      void response!.then(() => (answered = true))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(answered).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(await (await response!).text()).toBe('<html>v1')
+
+      release()
+      await settled()
+      expect(await sw.cachedText(version, '/trips')).toBe('<html>v2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps waiting on a slow page that has no shell of its own', async () => {
+    vi.useFakeTimers()
+    try {
+      let release = (): void => undefined
+      let stalled = false
+      const sw = loadWorker(async () =>
+        stalled ? new Promise<Response>((resolve) => (release = () => resolve(basic('<html>invite')))) : basic('<html>root'),
+      )
+      await sw.navigate('/')
+      stalled = true
+      const { response } = sw.startNavigation('/trips/join/secret')
+      await vi.advanceTimersByTimeAsync(10_000)
+      release()
+      expect(await (await response!).text()).toBe('<html>invite')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('answers with the navigation preload when the browser made one', async () => {
+    const sw = loadWorker(async () => basic('<html>fetched'))
+    await sw.extend('activate')
+    expect(sw.enablePreload).toHaveBeenCalled()
+    const { response, settled } = sw.startNavigation('/lab', { preloadResponse: Promise.resolve(basic('<html>preloaded')) })
+    expect(await (await response!).text()).toBe('<html>preloaded')
+    await settled()
+    expect(sw.fetch).not.toHaveBeenCalled()
+    expect(await sw.cachedText(version, '/lab')).toBe('<html>preloaded')
   })
 
   it('refreshes unhashed public files behind a cached answer', async () => {

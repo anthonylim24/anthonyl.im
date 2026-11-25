@@ -6,6 +6,7 @@ import { useFavicon } from "./hooks/useFavicon";
 import { useLatestCallback } from "./hooks/useLatestCallback";
 import { useReducedMotion } from "./hooks/useReducedMotion";
 import { getPostHogConfig } from "./lib/analytics";
+import { reportClientEvent } from "./lib/telemetry";
 import { syncThemeColor } from "./lib/themeColor";
 import { chatbot } from "./styles/chatbot.stylex";
 import { captionAfterCheer } from "./styles/limLoader.stylex";
@@ -17,7 +18,7 @@ import { Transcript } from "./chat/Transcript";
 import { SUGGESTIONS, followUps, prefillFrom } from "./chat/suggestions";
 import { LimStage, canRender3D, type LimStageHandle, type StageLoad } from "./chat/LimStage";
 import { LimLoader, LoadPill } from "./chat/LimLoader";
-import { blocking, initialLoader, loaderEvent, loaderReducer, revealed } from "./chat/loader";
+import { LOAD_DEADLINE_MS, blocking, initialLoader, loaderEvent, loaderReducer, revealed } from "./chat/loader";
 import { ToyCard, useThumbs } from "./chat/ToyCard";
 import { TOY_ART } from "./chat/toyArt";
 import { LimArt } from "./chat/LimArt";
@@ -317,6 +318,18 @@ function App() {
   });
   const skipLoader = useCallback(() => sendLoader({ type: "skip" }), []);
   const loaderExited = useCallback(() => sendLoader({ type: "exited" }), []);
+
+  const loaderOverdue = useLatestCallback(() => {
+    if (loader.phase !== "loading") return;
+    reportClientEvent("lim_stage_slow", "Lim's stage missed the loading deadline", { step: loader.step, done: Number(loader.done.toFixed(2)) });
+    sendLoader({ type: "skip" });
+  });
+  const loadingSince = loader.phase === "loading" ? loader.since : null;
+  useEffect(() => {
+    if (loadingSince === null) return;
+    const timer = setTimeout(loaderOverdue, Math.max(0, LOAD_DEADLINE_MS - (performance.now() - loadingSince)));
+    return () => clearTimeout(timer);
+  }, [loadingSince, loaderOverdue]);
 
   // The loading screen let go of the page: focus comes out of it (unless the visitor already moved it),
   // into the composer when they chose to chat first. On a phone that would shrink the stage and raise

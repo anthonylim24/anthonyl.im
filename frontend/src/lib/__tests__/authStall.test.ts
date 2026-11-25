@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, renderHook } from "@testing-library/react"
 import { runPromise } from "@/effect/runtime"
-import { STALL_AFTER_MS, diagnose, probeDelay, reloadToRecover, useAuthStall } from "../authStall"
+import { PROBE_DEADLINE_MS, STALL_AFTER_MS, diagnose, probeDelay, reloadToRecover, useAuthStall } from "../authStall"
 import { reloadOnce } from "../lazyRetry"
 import { resetClientEvents } from "../telemetry"
 
@@ -44,6 +44,22 @@ describe("diagnose", () => {
     const fetchMock = stubFetch({ health: new TypeError("Failed to fetch") })
     await expect(runPromise(diagnose(PROXY))).resolves.toBe("network")
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("blames the network when our own origin never answers, once the probe deadline passes", async () => {
+    const deadline = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_input: RequestInfo | URL, init?: RequestInit) =>
+          new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal!.reason))),
+      ),
+    )
+    const found = runPromise(diagnose(PROXY))
+    expect(timeout).toHaveBeenCalledWith(PROBE_DEADLINE_MS)
+    deadline.abort(new DOMException("signal timed out", "TimeoutError"))
+    await expect(found).resolves.toBe("network")
   })
 
   it("blames the site when our own origin answers with a 5xx", async () => {

@@ -44,6 +44,11 @@ export function reloadToRecover(): boolean {
 
 type Probe = "up" | "down" | "unreached"
 
+/** A probe with no answer by then counts as unreached. Without a deadline a
+ *  request the network swallows would keep the stall screen from ever saying
+ *  why. */
+export const PROBE_DEADLINE_MS = 6_000
+
 // Cloudflare answers for this site even when the server behind it is down,
 // with a 5xx. A request that gets no answer at all was stopped on the way:
 // a Wi-Fi filter, DNS, a captive portal.
@@ -56,14 +61,18 @@ const probe = (request: Effect.Effect<Response, Error>) =>
 /** `null` means everything answers, so a reload should bring sign-in back. */
 export const diagnose = Effect.fn("AuthStall.diagnose")(function* (proxyUrl: string | undefined = CLERK_PROXY_URL) {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return "offline" as StallCause
-  const site = yield* probe(fetchApi("/health", { cache: "no-store" }))
+  const site = yield* probe(fetchApi("/health", { cache: "no-store", signal: AbortSignal.timeout(PROBE_DEADLINE_MS) }))
   if (site === "unreached") return "network" as StallCause
   if (site === "down") return "site" as StallCause
   // Without the proxy Clerk is served from its own host, which we cannot probe
   // across origins; the site answering means that host is the part that failed.
   if (!proxyUrl) return "auth" as StallCause
   const auth = yield* probe(
-    fetchExternal(`${proxyUrl}/v1/environment`, { cache: "no-store", credentials: "omit" }),
+    fetchExternal(`${proxyUrl}/v1/environment`, {
+      cache: "no-store",
+      credentials: "omit",
+      signal: AbortSignal.timeout(PROBE_DEADLINE_MS),
+    }),
   )
   return auth === "up" ? null : ("auth" as StallCause)
 })

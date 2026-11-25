@@ -28,6 +28,13 @@ export type LoaderEvent =
 /** A stage ready sooner than this gets a quick fade rather than the whole exit. */
 export const QUICK_MS = 700
 
+/**
+ * The scene's download and GPU start have no deadline of their own, and a stalled one would hold the
+ * screen for good. Past this the screen lets the visitor into the chat, as "Chat first" does, and Lim
+ * arrives behind the drawing when it can.
+ */
+export const LOAD_DEADLINE_MS = 12_000
+
 /** `seen`: the screen has already been and gone during this visit. */
 export const initialLoader = (now: number, seen: boolean): LoaderState =>
   seen ? { phase: 'gone', late: false } : { phase: 'loading', step: 'code', done: 0, since: now }
