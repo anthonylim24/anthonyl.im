@@ -353,7 +353,7 @@ describe("TripCreate", () => {
   it("carries a shared Instagram post onto the new trip", async () => {
     const post = "https://www.instagram.com/p/ABC123/"
     renderCreate(`/trips/new?instagram=${encodeURIComponent(post)}`)
-    expect(screen.getByText(/the places from the Instagram post you shared go straight onto it/)).toBeInTheDocument()
+    expect(screen.getByText(/adds the places from the Instagram post you shared/)).toBeInTheDocument()
     await pickCity("Lis", /Lisbon/)
     fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
 

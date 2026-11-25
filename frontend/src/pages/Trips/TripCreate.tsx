@@ -333,7 +333,7 @@ export function TripCreate() {
           {!wide && <div {...sx(c.strip)}>{map}</div>}
 
           {sharedPost && (
-            <p {...sx(a.notice)}>Once the trip exists, the places from the Instagram post you shared go straight onto it.</p>
+            <p {...sx(a.notice)}>Creating the trip adds the places from the Instagram post you shared.</p>
           )}
 
           <section>
@@ -356,7 +356,7 @@ export function TripCreate() {
                   Add at least one place to plan around.
                 </p>
               ) : (
-                <p {...sx(a.small)}>Add as many stops as the trip has. The first one sets the time zone.</p>
+                <p {...sx(a.small)}>Add every destination. The first sets the time zone.</p>
               )}
               {askZone && (
                 <div {...sx(a.stack)} style={{ gap: "0.5rem", marginTop: "0.25rem" }}>
@@ -427,7 +427,7 @@ export function TripCreate() {
                 value={name}
                 maxLength={LIMITS.tripName}
                 disabled={busy}
-                placeholder={autoName(places) || "We’ll name it after the destination"}
+                placeholder={autoName(places) || "Defaults to the destination"}
                 {...sx(a.field)}
                 onChange={(event) => setName(event.target.value)}
               />
@@ -449,7 +449,7 @@ export function TripCreate() {
                   Draft the itinerary with AI
                 </span>
                 <span {...sx(a.small)} style={{ display: "block" }}>
-                  Real places, pinned and grouped into days. Takes a minute or two, and you can edit all of it.
+                  Takes a minute or two. You can edit all of it.
                 </span>
               </span>
               <span {...sx(c.switch, useAi && c.switchOn)} aria-hidden>
