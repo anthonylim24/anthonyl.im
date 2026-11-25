@@ -26,11 +26,23 @@ export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hol
       const map = card.offsetParent
       if (!map) return
       const box = map.getBoundingClientRect()
-      const pin = hover.anchor.getBoundingClientRect()
+      const inMap = (el: Element) => {
+        const at = el.getBoundingClientRect()
+        return { top: at.top - box.top, bottom: at.bottom - box.top, left: at.left - box.left, right: at.right - box.left }
+      }
+      // Another pin is covered when the middle of its body is: a stem or a rim under the card still shows and takes a click.
+      const middleOf = (el: Element) => {
+        const at = inMap(el.firstElementChild ?? el)
+        const x = (at.left + at.right) / 2
+        const y = (at.top + at.bottom) / 2
+        return { top: y, bottom: y, left: x, right: x }
+      }
+      const others = [...map.querySelectorAll("button.atlas-pin")].filter((el) => el !== hover.anchor && el.getClientRects().length > 0)
       const at = placePreview({
-        anchor: { top: pin.top - box.top, bottom: pin.bottom - box.top, left: pin.left - box.left, right: pin.right - box.left },
+        anchor: inMap(hover.anchor),
         size: { width: card.offsetWidth, height: card.offsetHeight },
         bounds: { width: box.width, height: box.height },
+        avoid: others.map(middleOf),
       })
       // Above the pin the card hangs from its foot, so a photo that fails to load shrinks it toward the pin.
       card.style.top = at.side === "above" ? "auto" : `${at.top}px`

@@ -26,6 +26,18 @@ describe("placePreview", () => {
     expect(placePreview({ anchor: pin(700, 100), size, bounds: short })).toMatchObject({ side: "left", left: 700 - 14 - 10 - 256 })
   })
 
+  it("takes the first side with room that covers no other pin, else the one covering fewest", () => {
+    // Day pins just above the heart: the card goes below it.
+    const crowd = [pin(400, 250), pin(380, 200)]
+    expect(placePreview({ anchor: pin(400, 300), size, bounds, avoid: crowd })).toMatchObject({ side: "below" })
+    // Pins on both sides of it above and below: beside it, on the right.
+    const ring = [...crowd, pin(400, 360)]
+    expect(placePreview({ anchor: pin(400, 300), size, bounds, avoid: ring })).toMatchObject({ side: "right" })
+    // Covered wherever it goes: the side covering fewest, above on a tie.
+    const everywhere = [pin(400, 250), pin(400, 360), pin(550, 300), pin(250, 300)]
+    expect(placePreview({ anchor: pin(400, 300), size, bounds, avoid: everywhere })).toMatchObject({ side: "above" })
+  })
+
   it("stays inside a map too small to hold it beside the pin either", () => {
     const tiny = { width: 300, height: 160 }
     const at = placePreview({ anchor: pin(150, 120), size, bounds: tiny })
