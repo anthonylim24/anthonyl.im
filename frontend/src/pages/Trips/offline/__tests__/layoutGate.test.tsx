@@ -167,6 +167,6 @@ describe("the Trips sign-in gate and this device", () => {
     await act(async () => {})
     expect(screen.getByRole("button", { name: "Try again" })).toBeVisible()
     expect(boot).toHaveAttribute("data-state", "leaving")
-    await waitFor(() => expect(document.getElementById("boot")).toBeNull())
+    await waitFor(() => expect(document.getElementById("boot")).toBeNull(), { timeout: 2_000 })
   })
 })

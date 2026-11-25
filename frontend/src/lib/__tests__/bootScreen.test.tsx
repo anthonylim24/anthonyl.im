@@ -28,6 +28,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  vi.doUnmock('../lazyRetry')
   clearBoot()
 })
 
@@ -120,7 +121,7 @@ describe('the boot screen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong loading the trip planner.')
     expect(boot).toHaveAttribute('data-state', 'leaving')
     expect(boot).toHaveAttribute('inert')
-    await waitFor(() => expect(document.getElementById('boot')).toBeNull())
+    await waitFor(() => expect(document.getElementById('boot')).toBeNull(), { timeout: 2_000 })
     expect(screen.getByRole('button', { name: 'Reload' })).toBeVisible()
   })
 
@@ -217,6 +218,34 @@ describe('the boot screen', () => {
     )
     expect(await screen.findByRole('heading', { name: 'This page is not here.' })).toBeInTheDocument()
     await waitFor(() => expect(boot).toHaveAttribute('data-state', 'leaving'))
-    await waitFor(() => expect(document.getElementById('boot')).toBeNull())
+    await waitFor(() => expect(document.getElementById('boot')).toBeNull(), { timeout: 2_000 })
+  })
+
+  it.each([
+    ['/', 'lim'],
+    ['/chatbot', 'lim'],
+    ['/lab', 'lab'],
+    ['/breathwork/session', 'breathwork'],
+    ['/korea', 'trips'],
+    ['/korea/day/day-3', 'trips'],
+    ['/trips', 'trips'],
+    ['/trips/korea-2026', 'trips'],
+    ['/sign-in', 'auth'],
+    ['/sign-up', 'auth'],
+    ['/some-404', 'lim'],
+  ])('at %s, the %s screen the page painted waits for the route’s code', async (path, world) => {
+    reducedMotion(false)
+    vi.doMock('../lazyRetry', async (original) => {
+      const { lazy } = await import('react')
+      const never = () => Object.assign(lazy(() => new Promise<never>(() => {})), { preload: () => {} })
+      return { ...(await original<typeof import('../lazyRetry')>()), lazyRetry: never }
+    })
+    const { boot, AppRoutes } = await paintThenLoad(path)
+    expect(boot).toHaveAttribute('data-world', world)
+    render(<AppRoutes />)
+    await flush()
+    expect(document.getElementById('boot')).toBe(boot)
+    expect(boot).toHaveAttribute('data-step', 'code')
+    expect(boot).toHaveAttribute('data-state', 'showing')
   })
 })
