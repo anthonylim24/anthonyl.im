@@ -3,7 +3,7 @@ import type { FeatureCollection } from "geojson"
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { buildMapStyle } from "./mapStyle"
-import { centroid, distanceMeters, spanMeters, spreadPins, type AtlasPin, type LngLat } from "./geo"
+import { centroid, distanceMeters, spanMeters, spreadPins, type AreaShape, type AtlasPin, type LngLat } from "./geo"
 
 // Imperative MapLibre wrapper. Lazy-imported by AtlasMap so the map library
 // stays out of the initial Trips chunk. Pins are DOM markers (real buttons:
@@ -52,6 +52,8 @@ export interface AtlasMapHandle {
   setDots(points: readonly LngLat[]): void
   setActive(id: string | null): void
   setHot(id: string | null): void
+  /** One neighborhood under the pins: a soft fill and a hairline edge, dashed when `approximate`. Null clears it. */
+  setArea(area: AreaShape | null): void
   frame(points: readonly LngLat[], opts?: FrameOptions): void
   flyTo(point: LngLat, zoom: number, opts?: FrameOptions): void
   setDark(dark: boolean): void
@@ -65,6 +67,7 @@ export interface AtlasMapHandle {
 const ROUTE_SOURCE = "atlas-route"
 const DOTS_SOURCE = "atlas-dots"
 const GUARD_SOURCE = "atlas-guard"
+const AREA_SOURCE = "atlas-area"
 /** The ambient globe's spin step (see `spinStep`). */
 const SPIN_STEP_MS = 66
 
@@ -183,6 +186,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   let destroyed = false
   let route: readonly LngLat[][] = []
   let dots: readonly LngLat[] = []
+  let area: AreaShape | null = null
   let lastFrame: { points: readonly LngLat[]; opts: FrameOptions } | null = null
   let active: string | null = null
   let hot: string | null = null
@@ -373,7 +377,35 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     )
   }
 
+  const areaData = (): FeatureCollection => ({
+    type: "FeatureCollection",
+    features: area ? [{ type: "Feature", properties: { approximate: area.approximate }, geometry: area.geometry }] : [],
+  })
+
+  // Over the streets and under the 3D buildings and the route, so a tilted
+  // camera sees the area on the ground between the houses.
+  const installArea = () => {
+    if (map.getSource(AREA_SOURCE)) return
+    map.addSource(AREA_SOURCE, { type: "geojson", data: areaData() })
+    const color = accent()
+    map.addLayer(
+      { id: "atlas-area-fill", type: "fill", source: AREA_SOURCE, paint: { "fill-color": color, "fill-opacity": dark ? 0.2 : 0.13 } },
+      map.getLayer("building-3d") ? "building-3d" : undefined,
+    )
+    const edge = map.getLayer("atlas-route-case") ? "atlas-route-case" : undefined
+    const line = { "line-color": color, "line-width": 1.5, "line-opacity": 0.9 }
+    map.addLayer(
+      { id: "atlas-area-edge", type: "line", source: AREA_SOURCE, filter: ["!=", ["get", "approximate"], true], layout: { "line-join": "round" }, paint: line },
+      edge,
+    )
+    map.addLayer(
+      { id: "atlas-area-guess", type: "line", source: AREA_SOURCE, filter: ["==", ["get", "approximate"], true], paint: { ...line, "line-dasharray": [2, 2] } },
+      edge,
+    )
+  }
+
   map.on("style.load", installRoute)
+  map.on("style.load", installArea)
   map.once("load", () => {
     if (destroyed) return
     // A frame requested before the style loaded may not have taken: redo it.
@@ -588,6 +620,11 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     setHot(id) {
       hot = id
       for (const entry of pins.values()) classes(entry)
+    },
+    setArea(next) {
+      area = next
+      const source = map.getSource(AREA_SOURCE) as GeoJSONSource | undefined
+      source?.setData(areaData())
     },
     frame(points, opts = {}) {
       if (points.length === 0) return

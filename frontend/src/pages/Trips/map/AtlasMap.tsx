@@ -5,7 +5,7 @@ import { sx } from "@/styles/merge"
 import { layout } from "@/styles/common.stylex"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AtlasPin, type LngLat } from "./geo"
+import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AreaShape, type AtlasPin, type LngLat } from "./geo"
 import type { AtlasMapHandle, FrameOptions } from "./engine"
 import { mapStyles as s } from "./map.stylex"
 
@@ -33,6 +33,8 @@ export interface AtlasMapProps {
   ideaPins?: readonly AtlasPin[]
   /** An idea pin was picked; the id is the idea's (`trip.ideas[].id`). */
   onSelectIdea?: (ideaId: string) => void
+  /** One neighborhood drawn under the pins. Keep the object stable: a new one redraws it. */
+  area?: AreaShape | null
   /** Hero globe: slow spin, page scroll passes through, no controls. */
   ambient?: boolean
   padding?: FrameOptions["padding"]
@@ -134,6 +136,7 @@ export function AtlasMap({
   onHover,
   ideaPins = NO_PINS,
   onSelectIdea,
+  area = null,
   ambient = false,
   padding,
   maxZoom,
@@ -154,9 +157,9 @@ export function AtlasMap({
   const selectIdea = useLatestCallback((id: string) => onSelectIdea?.(id))
   const [ideasShown, setIdeasShown] = useIdeasShown()
   const ideas = ideasShown && !ambient ? ideaPins : NO_PINS
-  const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
+  const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark, area })
   useLayoutEffect(() => {
-    latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
+    latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark, area }
   })
   const framedRef = useRef(false)
 
@@ -217,6 +220,7 @@ export function AtlasMap({
         handle.setDots(now.dots ?? [])
         handle.setActive(now.activeId)
         handle.setHot(now.hotId)
+        handle.setArea(now.area)
         frame(false)
         framedRef.current = true
         if (ambient) handle.setSpin(true)
@@ -273,6 +277,9 @@ export function AtlasMap({
   useEffect(() => {
     handleRef.current?.setDark(dark)
   }, [dark])
+  useEffect(() => {
+    handleRef.current?.setArea(area)
+  }, [area])
   useEffect(() => {
     if (!framedRef.current) return
     frame(true)
