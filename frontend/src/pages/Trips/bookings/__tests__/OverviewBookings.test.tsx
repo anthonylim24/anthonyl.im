@@ -79,6 +79,17 @@ describe("OverviewPanel bookings", () => {
     expect(link).not.toHaveTextContent("Booked")
   })
 
+  it("says Done or Skipped once the stop is, as its card does", () => {
+    const done = booking("done", "Ferry", "10:00", { type: "ferry", status: "confirmed" })
+    const skipped = booking("skipped", "Museum", "12:00", { type: "experience", status: "pending" })
+    const day = { id: "day-1", date: "2026-07-10", items: [{ ...done, status: "completed" as const }, { ...skipped, status: "skipped" as const }] }
+    renderPanel({ t: makeTrip({ ...trip, days: [day] }) })
+    const [first, second] = within(bookingsSection()).getAllByRole("link")
+    expect(first).toHaveTextContent("Done")
+    expect(first).not.toHaveTextContent("Booked")
+    expect(second).toHaveTextContent("Skipped")
+  })
+
   it("offers to paste a confirmation or enter a booking by hand", () => {
     const { onAddBooking, onPasteBookings } = renderPanel()
     fireEvent.click(screen.getByRole("button", { name: "Add booking" }))
