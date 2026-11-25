@@ -856,6 +856,15 @@ export const ws = stylex.create({
     placeItems: "center",
     width: "1.75rem",
     height: "2.25rem",
+    position: "relative",
+    // 44px for a finger without widening the row; a mouse keeps the 28px grip,
+    // so a click beside it still opens the card.
+    "::after": {
+      content: '""',
+      position: "absolute",
+      inset: "-4px -8px",
+      display: { default: "none", "@media (pointer: coarse)": "block" },
+    },
     borderRadius: "0.375rem",
     color: "var(--trips-ink-tertiary)",
     cursor: "grab",

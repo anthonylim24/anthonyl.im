@@ -93,6 +93,9 @@ export const d = stylex.create({
     textUnderlineOffset: "2px",
     borderRadius: "3px",
     outline: "none",
+    position: "relative",
+    // A 44 px target around a short name; the caption and photo around it are not controls.
+    "::after": { content: '""', position: "absolute", inset: "-0.9375rem -0.75rem" },
     ":focus-visible": { boxShadow: ring },
     [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
   },
