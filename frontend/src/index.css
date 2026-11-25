@@ -1315,13 +1315,47 @@ html.dark .trips .trips-sky-plate > .trips-sky-art,
   box-shadow: 0 0 0 3px var(--trips-raised), 0 0 0 5px var(--brand-ring);
 }
 
-/* The trip's own places stand over its wishlist. Markers stack in DOM order,
-   so an idea added after the stops would otherwise sit on top of one; hover,
-   hot (2) and active (3) still lift any pin, an idea included. A hotel stays
-   under the stops too: a stop at the hotel's door keeps its number readable. */
+/* Wishlist hearts stand over the stops: a heart is small and a stop's body
+   reaches above its point, so a stop under a heart is still mostly in view,
+   while a heart under a stop could not be reached at all. Stops and hearts
+   share a layer and markers stack in DOM order, so the engine puts every
+   stop before the first heart; hover, hot (2) and active (3) still lift any
+   pin over the hearts. A hotel stays under the stops too: a stop at the
+   hotel's door keeps its number readable. */
 .atlas-pin--stop,
-.atlas-pin--dot {
+.atlas-pin--dot,
+.atlas-pin--idea {
   z-index: 1;
+}
+
+/* A heart drawn into a fold (several that would sit on each other at this
+   zoom): the fold's counted heart stands for it. */
+.atlas-pin--idea.atlas-pin--folded {
+  display: none;
+}
+
+.atlas-pin--fold .atlas-pin__body {
+  position: relative;
+}
+
+/* How many places a fold holds, on its heart's shoulder. */
+.atlas-pin__count {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 2px solid var(--trips-canvas);
+  background: var(--trips-wish);
+  color: var(--trips-canvas);
+  font-family: var(--trips-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
 }
 
 .atlas-pin--trip {

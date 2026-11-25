@@ -66,6 +66,16 @@ export const pv = stylex.create({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+  // A fold's card: the places under its heart, one per line.
+  names: { margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "0.125rem" },
+  foldName: {
+    fontSize: "0.875rem",
+    lineHeight: 1.35,
+    color: "var(--trips-ink)",
+    wordBreak: "keep-all",
+    overflowWrap: "anywhere",
+  },
+  foldMore: { fontSize: "0.8125rem", lineHeight: 1.4, color: "var(--trips-ink-secondary)" },
   note: {
     margin: 0,
     fontSize: "0.8125rem",

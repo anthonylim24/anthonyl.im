@@ -1,5 +1,8 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react"
+import { Heart } from "lucide-react"
 import { sx } from "@/styles/merge"
+import { a } from "../atlas.stylex"
+import { pv } from "../ideas/preview.stylex"
 import { hoverCard as s } from "./hoverCard.stylex"
 import { previewId, type IdeaHover } from "./ideaHover"
 import type { HoldIdeaHover } from "./useIdeaHover"
@@ -7,7 +10,11 @@ import { placePreview } from "./previewPlacement"
 
 // The card of the map's one wishlist preview, drawn inside the map beside
 // its pin. Which pin, if any, is `useIdeaHover`'s; the mouse may rest on
-// the card (`hold`) as on the pin.
+// the card (`hold`) as on the pin. A fold of several hearts lists their
+// names instead: nothing about one place is looked up for it.
+
+/** A fold's card names this many places, then says how many more. */
+const FOLD_NAMES = 6
 
 /** The preview's frame: placed beside its pin inside the map, under the id the pin names as its description. */
 export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hold?: HoldIdeaHover; children: ReactNode }) {
@@ -40,7 +47,27 @@ export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hol
   }, [hover])
   return (
     <div ref={ref} id={previewId(hover.id)} role="tooltip" {...sx(s.card, "trips-glass-sheet")} {...hold}>
-      {children}
+      {hover.names ? <FoldNames names={hover.names} /> : children}
+    </div>
+  )
+}
+
+function FoldNames({ names }: { names: readonly string[] }) {
+  const more = names.length - FOLD_NAMES
+  return (
+    <div {...sx(pv.body)}>
+      <p {...sx(a.eyebrow, pv.eyebrow)}>
+        <Heart size={12} strokeWidth={2} aria-hidden {...sx(pv.mark)} />
+        <span {...sx(pv.eyebrowText)}>{`${names.length} wishlist places`}</span>
+      </p>
+      <ul {...sx(pv.names)}>
+        {names.slice(0, more > 1 ? FOLD_NAMES : names.length).map((name, index) => (
+          <li key={index} {...sx(pv.foldName)}>
+            {name}
+          </li>
+        ))}
+        {more > 1 && <li {...sx(pv.foldMore)}>{`and ${more} more`}</li>}
+      </ul>
     </div>
   )
 }

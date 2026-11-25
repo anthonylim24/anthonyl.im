@@ -6,8 +6,8 @@ import type { AtlasPin } from "../map/geo"
 // checked against the stops' without WebGL.
 
 const { markers, camera, mapEvents } = vi.hoisted(() => ({
-  markers: [] as Array<{ el: HTMLElement; removed: boolean }>,
-  camera: { moves: 0 },
+  markers: [] as Array<{ el: HTMLElement; removed: boolean; dx: number; dy: number }>,
+  camera: { moves: 0, zoom: 16, fitted: null as unknown, eased: null as unknown },
   mapEvents: new Map<string, Array<() => void>>(),
 }))
 
@@ -37,11 +37,25 @@ vi.mock("maplibre-gl", () => {
     getCenter() {
       return { lat: 0, lng: 0 }
     }
+    getZoom() {
+      return camera.zoom
+    }
+    getBearing() {
+      return 0
+    }
+    getPitch() {
+      return 0
+    }
+    cameraForBounds(bounds: unknown, options: { maxZoom: number }) {
+      camera.fitted = bounds
+      return { center: [0, 0], zoom: options.maxZoom }
+    }
     jumpTo() {
       camera.moves++
     }
-    easeTo() {
+    easeTo(options: unknown) {
       camera.moves++
+      camera.eased = options
     }
     flyTo() {
       camera.moves++
@@ -49,10 +63,10 @@ vi.mock("maplibre-gl", () => {
     remove() {}
   }
   class FakeMarker {
-    entry: { el: HTMLElement; removed: boolean }
+    entry: { el: HTMLElement; removed: boolean; dx: number; dy: number }
     offset = { x: 0, y: 0 }
     constructor(options: { element: HTMLElement }) {
-      this.entry = { el: options.element, removed: false }
+      this.entry = { el: options.element, removed: false, dx: 0, dy: 0 }
       markers.push(this.entry)
     }
     setLngLat() {
@@ -67,6 +81,8 @@ vi.mock("maplibre-gl", () => {
     }
     setOffset([x, y]: [number, number]) {
       this.offset = { x, y }
+      this.entry.dx = x
+      this.entry.dy = y
       return this
     }
     remove() {
@@ -93,6 +109,9 @@ const idea = (id: string, lng: number, title = `Idea ${id}`): AtlasPin => ({ id,
 function setup() {
   markers.length = 0
   camera.moves = 0
+  camera.zoom = 16
+  camera.fitted = null
+  camera.eased = null
   mapEvents.clear()
   const container = document.createElement("div")
   document.body.appendChild(container)
@@ -189,6 +208,96 @@ describe("the map engine's wishlist pins", () => {
 
     handle.destroy()
     expect(markers.every((m) => m.removed)).toBe(true)
+  })
+})
+
+describe("the map engine's wishlist folds", () => {
+  const moveEnd = () => {
+    for (const fn of mapEvents.get("moveend") ?? []) fn()
+  }
+  const fold = (container: HTMLElement) => container.querySelector<HTMLButtonElement>(".atlas-pin--fold")
+  const folded = (container: HTMLElement) => [...container.querySelectorAll(".atlas-pin--folded")].map((el) => (el as HTMLElement).dataset.ideaId)
+
+  it("draws hearts over the stops, a stop made after them included", () => {
+    const { container, handle } = setup()
+    handle.setPins([stop("s1", "1", -9.1)])
+    handle.setIdeaPins([idea("a", -9.11)])
+    handle.setPins([stop("s1", "1", -9.1), stop("s2", "2", -9.2)])
+    // The check-in stop becomes the next day's hotel: a new marker, still under the hearts.
+    handle.setPins([{ id: "s2", lat: 38.7, lng: -9.2, title: "Hotel", variant: "hotel" }, stop("s3", "3", -9.3)])
+    const order = [...container.children].map((el) => (el as HTMLElement).dataset.pinId ?? `idea:${(el as HTMLElement).dataset.ideaId}`)
+    expect(order[order.length - 1]).toBe("idea:a")
+  })
+
+  it("steps a heart down off a stop's body, so a tap on either lands on its own pin", () => {
+    const { handle } = setup()
+    const offsetOf = (id: string) => markers.find((m) => !m.removed && m.el.dataset.ideaId === id)!
+    // On this map a stop's body is centred 22 px above its point: y -38722 for s1.
+    handle.setIdeaPins([idea("on", -9.1), idea("clear", -9.3)])
+    expect(offsetOf("on").dy).toBe(0)
+    handle.setPins([stop("s1", "1", -9.1)])
+    expect(offsetOf("on").dy).toBe(12)
+    expect(offsetOf("clear").dy).toBe(0)
+    // The stop goes, and the heart stands on its own place again.
+    handle.setPins([])
+    expect(offsetOf("on").dy).toBe(0)
+  })
+
+  it("folds hearts that would sit on each other into one counted heart, which zooms in to them", () => {
+    const { container, handle, onSelectIdea } = setup()
+    camera.zoom = 11
+    // 10 px apart on this map, and one well clear.
+    handle.setIdeaPins([idea("a", -9.12, "Ramen Jiro"), idea("b", -9.11, "Café Bica"), idea("c", -9.0, "Belém")])
+    const heart = fold(container)!
+    expect(heart.getAttribute("aria-label")).toBe("2 wishlist places here: zoom in")
+    expect(heart.textContent).toBe("2")
+    expect(heart.getAttribute("aria-describedby")).toBe("idea-preview-a")
+    expect(folded(container)).toEqual(["a", "b"])
+
+    heart.click()
+    expect(onSelectIdea).not.toHaveBeenCalled()
+    expect(camera.fitted).toEqual([
+      [-9.12, 38.71],
+      [-9.11, 38.71],
+    ])
+    expect(camera.eased).toMatchObject({ zoom: 16, duration: 0 })
+
+    // Zoomed in, the hearts stand on their own again, spread apart where they still meet.
+    camera.zoom = 15.995
+    moveEnd()
+    expect(fold(container)).toBeNull()
+    expect(folded(container)).toEqual([])
+    expect(heart.isConnected).toBe(false)
+  })
+
+  it("names a fold's places when it is hovered, and folds no more past its zoom", () => {
+    const { container, handle, onIdeaHover } = setup()
+    camera.zoom = 11
+    // On one spot: they fold at any zoom below the last one, and spread at it.
+    handle.setIdeaPins([idea("a", -9.12, "Ramen Jiro"), idea("b", -9.12, "Café Bica")])
+    const heart = fold(container)!
+    heart.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }))
+    expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "a", anchor: heart, via: "pointer", names: ["Ramen Jiro", "Café Bica"] })
+
+    camera.zoom = 16
+    moveEnd()
+    expect(fold(container)).toBeNull()
+    const offsets = markers.filter((m) => !m.removed && m.el.dataset.ideaId).map((m) => m.dx)
+    expect(new Set(offsets).size).toBe(2)
+  })
+
+  it("keeps keyboard focus on the place it was on as hearts fold and unfold", () => {
+    const { container, handle } = setup()
+    handle.setIdeaPins([idea("a", -9.12), idea("b", -9.11)])
+    const a = container.querySelector<HTMLButtonElement>('[data-idea-id="a"]')!
+    a.focus()
+    camera.zoom = 11
+    moveEnd()
+    expect(document.activeElement).toBe(fold(container))
+
+    camera.zoom = 16
+    moveEnd()
+    expect(document.activeElement).toBe(a)
   })
 })
 
