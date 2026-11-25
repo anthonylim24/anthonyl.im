@@ -96,8 +96,8 @@ const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
 const WIDE_QUERY = "(min-width: 1024px)"
 const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
 const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
-/** A neighborhood on a phone's map: clear of its key (top left) and the map's buttons (top right); nothing covers the bottom. */
-const AREA_PADDING_NARROW = { top: 84, right: 64, bottom: 40, left: 20 }
+/** A neighborhood on a phone's map: clear of its key (top left), the map's buttons (top right) and, in Liquid Glass, the dock over the map's foot. */
+const AREA_PADDING_NARROW = { top: 84, right: 64, bottom: 96, left: 24 }
 /** One empty set of wishlist pins, so the map does not redraw its markers each render. */
 const NO_PINS: ReturnType<typeof ideaPins> = []
 /** The least map kept clear above a tall place card on a phone. */

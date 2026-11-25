@@ -77,6 +77,7 @@ const ROUTE_SOURCE = "atlas-route"
 const DOTS_SOURCE = "atlas-dots"
 const GUARD_SOURCE = "atlas-guard"
 const AREA_SOURCE = "atlas-area"
+const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 }
 /** The ambient globe's spin step (see `spinStep`). */
 const SPIN_STEP_MS = 66
 
@@ -732,7 +733,20 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       }
       let fit: ReturnType<typeof map.cameraForBounds>
       try {
-        fit = map.cameraForBounds(bounds, { padding, maxZoom: opts.maxZoom ?? 15.8, bearing: view.bearing })
+        const fitOpts = { padding, maxZoom: opts.maxZoom ?? 15.8, bearing: view.bearing }
+        if (opts.flat) {
+          // MapLibre fits inside the map's own padding plus `padding`, and the move below sets `padding`
+          // on the map again: a pin's padding absorbs the error, an outline lands off-centre and smaller
+          // on each later frame. An area is measured with none on the map, between two jumps that are
+          // never drawn, and moves to none (`absolutePadding` would do, but the globe's fit ignores it).
+          const was = { center: map.getCenter(), padding: map.getPadding() }
+          map.jumpTo({ center: map.unproject([container.clientWidth / 2, container.clientHeight / 2]), padding: NO_PADDING })
+          try {
+            fit = map.cameraForBounds(bounds, fitOpts)
+          } finally {
+            map.jumpTo(was)
+          }
+        } else fit = map.cameraForBounds(bounds, fitOpts)
       } catch {
         return
       }
@@ -746,7 +760,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         ...fit,
         pitch: view.pitch,
         bearing: view.bearing,
-        padding: { ...padding, top: padding.top + lift, bottom: Math.max(24, padding.bottom - lift / 2) },
+        padding: opts.flat ? NO_PADDING : { ...padding, top: padding.top + lift, bottom: Math.max(24, padding.bottom - lift / 2) },
       }
       if (animate) map.easeTo({ ...target, duration: 1600, essential: true })
       else map.jumpTo(target)
