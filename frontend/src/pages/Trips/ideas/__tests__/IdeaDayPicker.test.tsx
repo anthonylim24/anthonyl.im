@@ -115,7 +115,7 @@ describe("IdeaDayPicker", () => {
   it("on a failure, says so in one quiet line and leaves the full list", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ error: "unauthorized" }, 401))
     renderPicker()
-    expect(await screen.findByText("Couldn’t suggest days just now. Any day below works.")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn’t suggest days. Any day below works.")).toBeInTheDocument()
     expect(within(recommended()).queryAllByRole("button")).toHaveLength(0)
     expect(screen.getByRole("button", { name: /Day 2 · / })).toBeEnabled()
     expect(screen.getByRole("status")).toHaveTextContent("")

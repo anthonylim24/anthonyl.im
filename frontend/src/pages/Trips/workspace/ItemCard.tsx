@@ -205,7 +205,7 @@ export const ItemCard = memo(function ItemCard({
     ...(onSaveForLater && isStop
       ? [
           {
-            label: ideasFull ? "Save for later (ideas list is full)" : "Save for later",
+            label: ideasFull ? "Save for later (wishlist is full)" : "Save for later",
             icon: <Bookmark size={16} strokeWidth={1.75} aria-hidden />,
             disabled: ideasFull,
             onSelect: () => onSaveForLater(dayId, item, index),

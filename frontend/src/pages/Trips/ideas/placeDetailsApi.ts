@@ -49,9 +49,9 @@ export class PlaceDetailsError extends Schema.TaggedError<PlaceDetailsError>()("
 }) {}
 
 export function detailsErrorMessage(status: number): string {
-  if (status === 429) return "That’s a lot of places looked up in a short while. Try again in a few minutes."
+  if (status === 429) return "Too many places looked up in a short while. Try again in a few minutes."
   if (status === 401) return "Your session ended. Sign in again to see this place’s details."
-  return "Couldn’t load this place’s details just now."
+  return "Couldn’t load this place’s details."
 }
 
 const OFFLINE = "Couldn’t reach the server. Check your connection and try again."

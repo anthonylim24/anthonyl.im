@@ -178,7 +178,7 @@ describe("IdeaDetails", () => {
     openDetails()
     const dialog = screen.getByRole("dialog", { name: "Gyeongbokgung" })
     const alert = await within(dialog).findByRole("alert")
-    expect(alert).toHaveTextContent("Couldn’t load this place’s details just now.")
+    expect(alert).toHaveTextContent("Couldn’t load this place’s details.")
     // The idea's own notes stay readable.
     expect(within(dialog).getByText("Go early, before the tour buses.")).toBeInTheDocument()
 

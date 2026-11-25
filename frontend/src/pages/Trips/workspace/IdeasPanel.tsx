@@ -190,9 +190,6 @@ export function IdeasPanel({ trip, basePath, editable, locked, near, onEdit }: I
         <h2 id={`${uid}-title`} {...sx(a.eyebrow)}>
           Wishlist
         </h2>
-        <p {...sx(a.body, a.muted, a.wrap)} style={{ margin: 0 }}>
-          Places you might fit in. Add one to a day when you know where it goes.
-        </p>
         {ideas.length > 0 && onDays.length > 0 && (
           <p {...sx(a.mono, a.muted, a.wrap)} style={{ margin: 0 }}>
             {plural(ideas.length, "place")} to fit in · {onDays.length} on your days

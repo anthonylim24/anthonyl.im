@@ -284,7 +284,7 @@ describe("loadPlaceDetails", () => {
   })
 
   it.each([
-    [429, "a lot of places"],
+    [429, "Too many places looked up"],
     [502, "Couldn’t load this place’s details"],
     [401, "Sign in again"],
   ])("fails with a sentence on %i, and keeps nothing", async (status, sentence) => {

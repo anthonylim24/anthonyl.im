@@ -95,7 +95,7 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
               ))}
             </ul>
           ) : failed ? (
-            <p {...sx(a.small)}>Couldn’t suggest days just now. Any day below works.</p>
+            <p {...sx(a.small)}>Couldn’t suggest days. Any day below works.</p>
           ) : (
             <ul {...sx(s.pickList)}>
               {picks.map(({ pick: recommended, choice }) => (
@@ -123,7 +123,7 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   return (
     <DayPicker
       title={`Add “${name}” to a day`}
-      description="It joins that day’s route, above anything still to schedule."
+      description="It goes on that day’s route, above anything still to schedule."
       choices={choices}
       lead={lead}
       // The row that opened the picker leaves the list with the place; its

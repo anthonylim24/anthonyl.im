@@ -62,7 +62,7 @@ export type DetailsLoad =
   | { status: "ready"; details: PlaceDetails | null }
   | { status: "error"; message: string }
 
-const FAILED = "Couldn’t load this place’s details just now."
+const FAILED = "Couldn’t load this place’s details."
 
 /** The details for `target`, from this session's cache when it has them; `retry` asks again after a failure. */
 function usePlaceDetails(target: DetailsTarget | null, getToken: IdeaDetailsProps["getToken"]) {
