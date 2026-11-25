@@ -793,6 +793,8 @@ export const ws = stylex.create({
   gripRow: { "@media (max-width: 639.98px)": { display: "none" } },
   wideOnly: { "@media (max-width: 479.98px)": { display: "none" } },
   addEnd: { display: "flex", alignItems: "flex-end", paddingBottom: "0.25rem" },
+  startAt: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.5rem", rowGap: "0.25rem", marginTop: "-0.25rem" },
+  startReason: { flexBasis: "12rem", flexGrow: 1, minWidth: 0, fontSize: "0.8125rem", color: "var(--trips-ink-secondary)", overflowWrap: "anywhere" },
   cardText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
   cardTitlePast: { color: "var(--trips-ink-secondary)", fontWeight: 500 },

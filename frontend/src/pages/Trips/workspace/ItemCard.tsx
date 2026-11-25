@@ -35,6 +35,7 @@ import { useFitHeight } from "./fitHeight"
 import { composing } from "../ime"
 import type { ConflictAlert } from "./stopAlerts"
 import { StopRef } from "../timeline/StopRef"
+import type { StartSuggestion } from "../timeline/suggestStart"
 import { Parts } from "./Parts"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
@@ -89,6 +90,8 @@ export interface ItemCardProps {
   dayOptions: DayOption[]
   /** Currency a new cost starts in (the trip's budget, else its local money). */
   currency: string
+  /** When its editor is open and it has no time: a start read off the day (`suggestStart`). */
+  startAt?: StartSuggestion | null
   onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
   /** The item left this day (moved to another): the list moves focus on. */
@@ -165,6 +168,7 @@ export const ItemCard = memo(function ItemCard({
   near,
   dayOptions,
   currency,
+  startAt = null,
   onChange,
   onDelete,
   onHover,
@@ -428,7 +432,7 @@ export const ItemCard = memo(function ItemCard({
           <div id={panelId} {...sx(s.editor)}>
             {editable ? (
               <>
-                <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} />
+                <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} />
                 <StopActions
                   item={item}
                   dayId={dayId}

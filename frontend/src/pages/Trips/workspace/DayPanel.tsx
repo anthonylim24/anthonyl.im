@@ -52,6 +52,7 @@ import { DayTimeline, ModeIcon, type DayTimelineProps } from "../timeline/DayTim
 import { useHolds, useLiveValue, type LiveValue } from "./liveValue"
 import { DoneFold } from "../timeline/DoneFold"
 import { stopTitle } from "../timeline/timeline"
+import { suggestStart } from "../timeline/suggestStart"
 import type { DayView } from "./dayView"
 import { scrollBehavior } from "./scroll"
 import { StopSheet } from "./StopEditor"
@@ -131,7 +132,7 @@ type SortableProps = Omit<ItemCardProps, "hot" | "onHover"> & {
 }
 
 /** Rebuilt with every edit to the day, so compared by their words, not by identity. */
-const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict"])
+const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict", "startAt"])
 const sameProps = (prev: SortableProps, next: SortableProps) =>
   (Object.keys(next) as (keyof SortableProps)[]).every(
     (key) => Object.is(prev[key], next[key]) || (BY_VALUE.has(key) && JSON.stringify(prev[key]) === JSON.stringify(next[key])),
@@ -451,6 +452,7 @@ export function DayPanel({
   })
   const editingAt = editing ? day.items.findIndex((item) => item.id === editing) : -1
   const editingItem = editingAt >= 0 ? day.items[editingAt] : undefined
+  const startAt = editable && editingItem ? suggestStart(day, editingItem.id) : null
   const sheetEdits =
     editingItem && editable
       ? stopEdits({
@@ -787,6 +789,7 @@ export function DayPanel({
                   near={near}
                   dayOptions={dayOptions}
                   currency={currency}
+                  startAt={editing === item.id ? startAt : null}
                   onChange={onChange}
                   onDelete={removeStop}
                   onGone={leave}
@@ -844,6 +847,7 @@ export function DayPanel({
               dayOptions={dayOptions}
               spoken={spoken}
               edits={item && item.id === editingItem?.id ? sheetEdits : null}
+              startAt={item && item.id === editingItem?.id ? startAt : null}
               onDelete={() => {
                 if (!item) return
                 leaveSheet(at)

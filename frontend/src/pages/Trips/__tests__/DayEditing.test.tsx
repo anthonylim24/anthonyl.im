@@ -316,6 +316,46 @@ describe("a stop's editor asks only for what the stop needs", () => {
   })
 })
 
+describe("a suggested start for a stop with no time", () => {
+  const museum = makeItem({ id: "museum", title: "Gulbenkian" })
+  const row = (id: string) => card(id).querySelector<HTMLElement>("[data-card-row]")!
+
+  it("follows the stop before, says why, and takes focus to the time it set", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, museum]])), "day-1")
+    fireEvent.click(row("museum"))
+    const editor = within(card("museum"))
+    const start = editor.getByRole("button", { name: "Start at 1:30 PM" })
+    expect(start).toHaveAccessibleDescription("after Lunch (about 1 h there)")
+
+    fireEvent.click(start)
+    expect(itemsOf(state, "day-1").map((item) => [item.id, item.time])).toEqual([
+      ["lunch", "12:30"],
+      ["museum", "13:30"],
+    ])
+    expect(editor.getByRole("textbox", { name: "Starts" })).toHaveFocus()
+    expect(editor.getByRole("textbox", { name: "Starts" })).toHaveValue("1:30 PM")
+    expect(editor.queryByRole("button", { name: /^Start at/ })).toBeNull()
+  })
+
+  it("is offered in the sheet too", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, museum]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("museum"))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Start at 1:30 PM" })).toBeInTheDocument()
+  })
+
+  it("is not offered with no timed stop before it", () => {
+    renderDay(tripOf(days(FUTURE, [[reel, museum]])), "day-1")
+    fireEvent.click(row("museum"))
+    expect(within(card("museum")).queryByRole("button", { name: /^Start at/ })).toBeNull()
+  })
+
+  it("waits while the AI is working on the day", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, museum]])), "day-1", { locked: true })
+    fireEvent.click(row("museum"))
+    expect(within(card("museum")).getByRole("button", { name: "Start at 1:30 PM" })).toBeDisabled()
+  })
+})
+
 describe("a booking's status", () => {
   it("is one control, and the card's chip says what it says", () => {
     const dinner = makeItem({ id: "dinner", kind: "reservation", title: "Dinner", status: "booked", reservation: { type: "restaurant", status: "confirmed" } })

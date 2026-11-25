@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
-import { ArrowDown, ArrowUp, CalendarDays, Copy, ExternalLink, MapPin, MapPinOff, Plus, Trash2, X } from "lucide-react"
+import { ArrowDown, ArrowUp, CalendarDays, Clock, Copy, ExternalLink, MapPin, MapPinOff, Plus, Trash2, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsAppName, externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, STATUS_LABEL } from "../meta"
@@ -23,6 +23,7 @@ import { type EditorSurface, type StopEdits } from "./stopEdits"
 import { FIELD_CHIP, holds, STOP_FIELDS, type StopField } from "./stopFields"
 import { useFitHeight } from "./fitHeight"
 import { stopTitle } from "../timeline/timeline"
+import { startReason, type StartSuggestion } from "../timeline/suggestStart"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
@@ -81,12 +82,14 @@ export interface StopEditorProps {
   /** Currency a new cost starts in (the trip's budget, else its local money). */
   currency: string
   edits: StopEdits
+  /** A start for it while it has none, read off its day (`suggestStart`). */
+  startAt?: StartSuggestion | null
   /** Focus the name on mount: a sheet opened to edit this stop. Untitled, it always is. */
   focusName?: boolean
 }
 
 /** The fields of an editable stop: what its kind needs, then chips for the rest (`stopFields.ts`). */
-export function StopEditor({ item, trip, day, locked, near, currency, edits, focusName = false }: StopEditorProps) {
+export function StopEditor({ item, trip, day, locked, near, currency, edits, startAt = null, focusName = false }: StopEditorProps) {
   const [endOpen, setEndOpen] = useState(false)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   useFitHeight(notesRef, item.notes ?? "")
@@ -149,6 +152,26 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, foc
               <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} disabled={locked} onClick={() => setEndOpen(true)}>
                 Add end time
               </button>
+            </div>
+          )}
+          {startAt && !item.time && (
+            <div {...sx(s.span2, s.startAt)}>
+              <button
+                type="button"
+                {...sx(a.btn, a.btnSecondary, a.btnSm)}
+                disabled={locked}
+                aria-describedby={`${fieldId}-start-reason`}
+                onClick={() => {
+                  edits.setTime(startAt.time)
+                  setFocusOn({ field: "time" })
+                }}
+              >
+                <Clock size={14} strokeWidth={1.75} aria-hidden />
+                Start at {formatClock(startAt.time)}
+              </button>
+              <span id={`${fieldId}-start-reason`} {...sx(s.startReason)}>
+                {startReason(startAt)}
+              </span>
             </div>
           )}
         </>
@@ -359,6 +382,7 @@ export function StopSheet({
   dayOptions,
   spoken,
   edits,
+  startAt,
   onDelete,
   onClose,
   returnFocus,
@@ -375,6 +399,7 @@ export function StopSheet({
   dayOptions: DayOption[]
   spoken: string
   edits: StopEdits | null
+  startAt: StartSuggestion | null
   onDelete: () => void
   onClose: () => void
   returnFocus: () => HTMLElement | null | undefined
@@ -384,7 +409,7 @@ export function StopSheet({
   if (item) {
     body = editable && edits ? (
       <div {...sx(s.sheetEditor)}>
-        <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} focusName />
+        <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} focusName />
       </div>
     ) : (
       <StopDetails item={item} trip={trip} day={day} />
