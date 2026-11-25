@@ -37,6 +37,12 @@ export interface FrameOptions {
   /** Space kept clear of pins, in CSS pixels. */
   padding?: { top: number; right: number; bottom: number; left: number }
   maxZoom?: number
+  /**
+   * Top-down whatever the tilt. A tilted camera magnifies the near edge of
+   * a fitted box past the sides of the view, which a pin's padding absorbs
+   * but a drawn area's outline does not.
+   */
+  flat?: boolean
 }
 
 export interface AtlasMapHandle {
@@ -398,8 +404,9 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       { id: "atlas-area-edge", type: "line", source: AREA_SOURCE, filter: ["!=", ["get", "approximate"], true], layout: { "line-join": "round" }, paint: line },
       edge,
     )
+    // A dashed edge carries half the ink of a solid one, so it draws heavier to read as clearly.
     map.addLayer(
-      { id: "atlas-area-guess", type: "line", source: AREA_SOURCE, filter: ["==", ["get", "approximate"], true], paint: { ...line, "line-dasharray": [2, 2] } },
+      { id: "atlas-area-guess", type: "line", source: AREA_SOURCE, filter: ["==", ["get", "approximate"], true], paint: { ...line, "line-width": 2, "line-dasharray": [3, 2] } },
       edge,
     )
   }
@@ -645,7 +652,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       if (points.length === 1 || spanMeters(points) < 60) {
         const only = points[0]!
         const zoom = opts.maxZoom ?? 14.5
-        const close = tilted && zoom > 11
+        const close = tilted && zoom > 11 && !opts.flat
         const target = {
           center: [only.lng, only.lat] as [number, number],
           zoom,
@@ -659,7 +666,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       }
       const bounds = new LngLatBounds()
       for (const point of points) bounds.extend([point.lng, point.lat])
-      const view = cameraFor(points)
+      const view = opts.flat ? { pitch: 0, bearing: 0 } : cameraFor(points)
       // A host that has not been laid out yet (or is smaller than its
       // padding) makes MapLibre throw on a NaN camera; the resize observer
       // frames again once there is room.
@@ -711,7 +718,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       map.easeTo({ zoom: map.getZoom() + delta, duration: reducedMotion ? 0 : 260 })
     },
     toggleTilt() {
-      tilted = !tilted
+      // From what the camera shows: a flat frame leaves the preference tilted.
+      tilted = map.getPitch() <= 5
       map.easeTo({ pitch: tilted ? 52 : 0, bearing: tilted ? -14 : 0, duration: reducedMotion ? 0 : 600 })
       return tilted
     },

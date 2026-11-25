@@ -33,7 +33,7 @@ export interface AtlasMapProps {
   ideaPins?: readonly AtlasPin[]
   /** An idea pin was picked; the id is the idea's (`trip.ideas[].id`). */
   onSelectIdea?: (ideaId: string) => void
-  /** One neighborhood drawn under the pins. Keep the object stable: a new one redraws it. */
+  /** One neighborhood drawn under the pins, framed top-down while it is. Keep the object stable: a new one redraws it. */
   area?: AreaShape | null
   /** Hero globe: slow spin, page scroll passes through, no controls. */
   ambient?: boolean
@@ -168,7 +168,7 @@ export function AtlasMap({
     if (!handle) return
     const now = latest.current
     const points = now.framePoints ?? now.pins
-    if (points.length > 0) handle.frame(points, { animate, padding: now.padding, maxZoom: now.maxZoom })
+    if (points.length > 0) handle.frame(points, { animate, padding: now.padding, maxZoom: now.maxZoom, flat: now.area !== null })
     else if (now.restCenter) handle.flyTo(now.restCenter, now.restZoom ?? 4, { animate, padding: now.padding })
   }
 
