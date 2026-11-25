@@ -62,7 +62,7 @@ export function OverviewPanel({
   drafting: boolean
   /** A review is running, whichever part of the trip it covers. */
   enhancing: boolean
-  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line steps through its copy. */
+  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line says what is running. */
   progress?: ReviewProgress
   applying: boolean
   run: EnhancementRun | null
@@ -152,14 +152,14 @@ export function OverviewPanel({
 
       {drafting && (
         <AiBusy
-          steps={["Reading up on the area…", "Choosing places worth the detour…", "Arranging each day so the route flows…", "Pinning everything to the map…"]}
+          line="Drafting the itinerary…"
           hint={trip.days.length > 4 ? LONG_DRAFT_HINT : undefined}
           onStop={onStopAi}
         />
       )}
       {enhancing && (
         <AiBusy
-          steps={["Reading the whole itinerary…", "Checking pacing and routes…", "Scouting what’s missing…", "Writing up suggestions…"]}
+          line="Reviewing your trip…"
           progress={progress}
           onStop={onStopAi}
         />
@@ -175,11 +175,8 @@ export function OverviewPanel({
             Start with a draft
           </p>
           <h2 id="draft-title" {...sx(a.display, s.aiTitle)}>
-            Let AI sketch {trip.days.length === 1 ? "the day" : `all ${trip.days.length} days`}
+            Let AI draft {trip.days.length === 1 ? "the day" : `all ${trip.days.length} days`}
           </h2>
-          <p {...sx(a.body)}>
-            You get real places pinned on the map, grouped so each day flows. Keep what you like, change the rest.
-          </p>
           <BriefFields brief={brief} onChange={setBrief} disabled={locked} />
           <div {...sx(a.rowWrap)}>
             <button type="button" {...sx(a.btn, a.btnPrimary)} disabled={locked} onClick={() => onDraft(brief)}>
@@ -229,9 +226,7 @@ export function OverviewPanel({
                     <span {...sx(a.small, a.truncate)}>
                       {preview.length > 0
                         ? `${preview.join(" · ")}${stops.length > preview.length ? ` · +${stops.length - preview.length}` : ""}`
-                        : editable
-                          ? "Nothing yet. Open to add stops."
-                          : "Nothing planned"}
+                        : "Nothing planned yet"}
                     </span>
                   </span>
                   <span {...sx(a.row)}>
@@ -275,7 +270,7 @@ export function OverviewPanel({
             </span>
           </div>
           {bookings.length === 0 ? (
-            <p {...sx(a.small, bk.empty)}>Flights, stays, cars and tables you’ve booked show up here, in the order they happen.</p>
+            <p {...sx(a.small, bk.empty)}>Flights, stays, cars and tables go here, in date order.</p>
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {bookings.map(({ day, item }) => (

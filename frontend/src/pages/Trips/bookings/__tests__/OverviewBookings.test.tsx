@@ -92,7 +92,7 @@ describe("OverviewPanel bookings", () => {
   it("keeps an empty bookings section for an editor only", () => {
     const empty = makeTrip()
     renderPanel({ t: empty })
-    expect(within(bookingsSection()).getByText(/show up here, in the order they happen/)).toBeInTheDocument()
+    expect(within(bookingsSection()).getByText(/go here, in date order/)).toBeInTheDocument()
   })
 
   it("has no empty bookings section for a viewer", () => {

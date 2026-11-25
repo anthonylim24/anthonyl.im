@@ -1110,7 +1110,7 @@ function Failure({
           <p {...sx(a.body)}>
             {stops.length
               ? "Your stops are all still here. Open any of them in Maps, or head back to the day."
-              : "This day has no pinned stops yet. Add a place to the day and it will stand on the map."}
+              : "This day has no pinned stops yet. Add a place to the day to see it here."}
           </p>
         </div>
         {stops.length > 0 && (

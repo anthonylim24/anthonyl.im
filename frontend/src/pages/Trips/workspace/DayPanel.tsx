@@ -75,7 +75,7 @@ export interface DayPanelProps {
   locked: boolean
   /** A review is running, whichever part of the trip it covers. */
   enhancing: boolean
-  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line steps through its copy. */
+  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line says what is running. */
   progress?: ReviewProgress
   applying: boolean
   run: EnhancementRun | null
@@ -421,7 +421,7 @@ export function DayPanel({
   const keepForLater = useLatestCallback((dayId: string, item: ItineraryItem, index: number) => {
     leave(index)
     onEditTrip?.((doc) => saveForLater(doc, dayId, item.id), { label: `Saved “${item.title || "Untitled"}” for later`, toast: true })
-    setSpoken(`${item.title || "Stop"} saved for later, in the trip’s ideas.`)
+    setSpoken(`${item.title || "Stop"} saved to the wishlist.`)
   })
   const onSaveForLater = onEditTrip ? keepForLater : undefined
   const noRoomForIdeas = ideasFull(trip)
@@ -690,7 +690,7 @@ export function DayPanel({
 
       {enhancing && (
         <AiBusy
-          steps={["Reading what’s already planned…", "Scouting places near your route…", "Checking they fit the day…", "Pinning the best ones…"]}
+          line="Reviewing this day…"
           progress={progress}
           onStop={onStopAi}
         />
@@ -708,11 +708,7 @@ export function DayPanel({
             <p {...sx(a.body, a.ink)} style={{ fontWeight: 600 }}>
               Nothing planned yet
             </p>
-            <p {...sx(a.small)}>
-              {editable
-                ? "Search for a place below and it drops onto the map, or let AI sketch the day."
-                : "Whoever’s planning hasn’t added anything to this day."}
-            </p>
+            {editable && <p {...sx(a.small)}>Search for a place below to add the first stop.</p>}
           </div>
         ) : dayView === "timeline" ? (
           <HotTimeline

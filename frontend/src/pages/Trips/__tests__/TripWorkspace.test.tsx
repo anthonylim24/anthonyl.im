@@ -232,7 +232,7 @@ describe("TripWorkspace", () => {
       expect(rows[0]).not.toHaveTextContent("Lisbon")
       expect(rows[1]).toHaveAttribute("href", "/trips/lisbon/day/day-2")
       expect(rows[1]).toHaveTextContent("Day 2")
-      expect(rows[1]).toHaveTextContent("Nothing yet. Open to add stops.")
+      expect(rows[1]).toHaveTextContent("Nothing planned yet")
 
       const bookings = within(screen.getByRole("region", { name: "Bookings" }))
       const booking = bookings.getByRole("link", { name: /Fado dinner/ })
@@ -373,7 +373,7 @@ describe("TripWorkspace", () => {
       mockGenerateItinerary.mockResolvedValue({ trip: drafted, summary: "Drafted a food-first weekend.", incompleteDays: [] })
       renderWorkspace("/trips/lisbon", empty)
 
-      expect(await screen.findByRole("heading", { name: "Let AI sketch all 2 days" })).toBeInTheDocument()
+      expect(await screen.findByRole("heading", { name: "Let AI draft all 2 days" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "I’ll add stops myself" })).toHaveAttribute("href", "/trips/lisbon/day/day-1")
       fireEvent.click(screen.getByRole("radio", { name: "Packed" }))
       fireEvent.click(screen.getByRole("button", { name: "Coffee" }))
@@ -1371,7 +1371,7 @@ describe("TripWorkspace", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
       expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Export to calendar", "Print itinerary", "Trip recap", "Copy itinerary", "Duplicate trip"])
-      expect(within(screen.getByRole("region", { name: "Day by day" })).getByText("Nothing planned")).toBeInTheDocument()
+      expect(within(screen.getByRole("region", { name: "Day by day" })).getByText("Nothing planned yet")).toBeInTheDocument()
     })
 
     it("copies the itinerary as text and says so", async () => {

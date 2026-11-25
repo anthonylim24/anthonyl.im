@@ -170,7 +170,9 @@ export function ShareDialog({
         trip
           ? trip.sharedWithAllUsers
             ? `Everyone with an account can already see and edit ${trip.name}.`
-            : `Invite people to ${trip.name}.`
+            : owner
+              ? `Invite people to ${trip.name}.`
+              : undefined
           : undefined
       }
       accent={trip ? resolveAccent(trip.appearance?.accent) : undefined}
@@ -295,7 +297,7 @@ export function ShareDialog({
               })}
             </ul>
             {trip.collaborators.length === 0 && !trip.sharedWithAllUsers && (
-              <p {...sx(a.small)}>Only you so far. Copy the link above to bring someone along.</p>
+              <p {...sx(a.small)}>Only you so far. Copy the link above to invite someone.</p>
             )}
           </section>
 

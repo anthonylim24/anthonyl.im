@@ -79,7 +79,7 @@ export function ShortcutsDialog({
           </section>
         ))}
       </div>
-      <p {...sx(a.small)}>Stops move when they have focus. Single-key shortcuts wait while you are typing in a field.</p>
+      <p {...sx(a.small)}>Moving a stop acts on the stop that has focus. Single-key shortcuts are off while you type in a field.</p>
     </Modal>
   )
 }

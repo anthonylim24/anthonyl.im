@@ -261,7 +261,7 @@ describe("DetailsDialog", () => {
     const { onApply, dialog } = renderDialog()
     const status = dialog.getByRole("combobox", { name: "Status" })
     expect(status).toHaveTextContent(/^Confirmed$/)
-    pickOption(status, "Draft — still planning")
+    pickOption(status, "Draft · still planning")
     expect(status).toHaveTextContent(/^Draft$/)
     fireEvent.click(dialog.getByRole("button", { name: "Save details" }))
     expect(onApply).toHaveBeenCalledWith({ status: "draft" })

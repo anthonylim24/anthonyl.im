@@ -69,7 +69,7 @@ describe("ShareDialog", () => {
     resolve({ trip: makeTrip(), access: "owner" })
     expect(await within(dialog).findByText("Invite people to Lisbon Long Weekend.")).toBeInTheDocument()
     expect(mockGetTrip).toHaveBeenCalledWith(getToken, "lisbon")
-    expect(within(dialog).getByText("Only you so far. Copy the link above to bring someone along.")).toBeInTheDocument()
+    expect(within(dialog).getByText("Only you so far. Copy the link above to invite someone.")).toBeInTheDocument()
   })
 
   it("shows an error when sharing can't be loaded", async () => {
