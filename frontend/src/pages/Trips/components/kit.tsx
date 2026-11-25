@@ -252,7 +252,8 @@ export function Modal({
   accent?: TripAccent
   wide?: boolean
   footer?: ReactNode
-  returnFocus?: () => HTMLElement | null
+  /** Where focus goes on close when what opened the dialog has gone (see `DialogFrame`). */
+  returnFocus?: () => HTMLElement | null | undefined
   children: ReactNode
 }) {
   const [scrolled, setScrolled] = useState(false)
@@ -284,7 +285,8 @@ export function Modal({
  * re-declares the `.trips` tokens, a scrim, and a Content that animates out
  * (`trips-scrim` / `trips-dialog` in index.css), is inert while it does, and
  * keeps showing what it showed while open. Focus goes back to whatever
- * opened it. Inside a `Presence`, it closes when the caller lets go.
+ * opened it, or, when that has gone (the dialog deleted it), to
+ * `returnFocus()`. Inside a `Presence`, it closes when the caller lets go.
  */
 export function DialogFrame({
   open,
@@ -302,7 +304,7 @@ export function DialogFrame({
   content: Parameters<typeof sx>
   onOpenAutoFocus?: (event: Event) => void
   /** Where focus goes on close when what opened the dialog is gone (the row it scheduled, say). */
-  returnFocus?: () => HTMLElement | null
+  returnFocus?: () => HTMLElement | null | undefined
   children: ReactNode
 }) {
   const closing = useClosing()

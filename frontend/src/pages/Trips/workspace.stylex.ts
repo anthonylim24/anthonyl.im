@@ -658,9 +658,15 @@ export const ws = stylex.create({
     paddingTop: "1.125rem",
     paddingBottom: "0.5rem",
   },
+  sectionTime: { flexShrink: 0, whiteSpace: "nowrap" },
   sectionInput: {
     flexGrow: 1,
     minWidth: 0,
+    resize: "none",
+    overflow: "hidden",
+    fieldSizing: "content",
+    lineHeight: 1.4,
+    fontWeight: "inherit",
     padding: 0,
     borderWidth: 0,
     backgroundColor: "transparent",
@@ -797,6 +803,8 @@ export const ws = stylex.create({
   gripRow: { "@media (max-width: 639.98px)": { display: "none" } },
   wideOnly: { "@media (max-width: 479.98px)": { display: "none" } },
   addEnd: { display: "flex", alignItems: "flex-end", paddingBottom: "0.25rem" },
+  startAt: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.5rem", rowGap: "0.25rem", marginTop: "-0.25rem" },
+  startReason: { flexBasis: "12rem", flexGrow: 1, minWidth: 0, fontSize: "0.8125rem", color: "var(--trips-ink-secondary)", overflowWrap: "anywhere" },
   cardText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
   cardTitlePast: { color: "var(--trips-ink-secondary)", fontWeight: 500 },
@@ -934,6 +942,42 @@ export const ws = stylex.create({
     color: "var(--trips-ink)",
   },
   editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.25rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
+  // One line to start, growing with what is written (`field-sizing` in a.textarea).
+  notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
+  // "Add status", "Add cost", "Add link": the fields a stop can have, asked for.
+  fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", gap: "0.375rem" },
+  fieldChip: {
+    position: "relative",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    minHeight: "2rem",
+    paddingInline: "0.625rem 0.75rem",
+    borderRadius: "999px",
+    borderWidth: "1px",
+    borderStyle: "dashed",
+    borderColor: "var(--trips-line-strong)",
+    backgroundColor: "transparent",
+    color: "var(--trips-ink-secondary)",
+    fontSize: "0.8125rem",
+    fontWeight: 500,
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+    outline: "none",
+    "::after": { content: '""', position: "absolute", inset: "-0.375rem 0" },
+    ":focus-visible": { boxShadow: "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)" },
+    ":disabled": { opacity: 0.4, cursor: "not-allowed" },
+    "@media (hover: hover)": { ":hover": { borderColor: "var(--trips-ink-tertiary)", color: "var(--trips-ink)" } },
+  },
+  // In a sheet the body is the editor: the card's grid without its rule and inset.
+  sheetEditor: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" },
+  // One child of the dialog's foot (which shares its row between children on a phone):
+  // the stop's actions, then Done, on one line at 375px; a narrower screen wraps Done, never widens the page.
+  sheetFoot: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.25rem", rowGap: "0.5rem", minWidth: 0 },
+  // 36px icons 8px apart: each one's 44px hit area (iconBtnSm's ::after) is its own.
+  sheetActions: { display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 },
+  // At the row's end, or the end of a line of its own once it wraps.
+  sheetDone: { marginLeft: "auto", paddingInline: "0.75rem" },
 
   // ── Add composer ──────────────────────────────────────
   composer: { position: "relative" },

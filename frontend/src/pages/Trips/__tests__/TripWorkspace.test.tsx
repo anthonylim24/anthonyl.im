@@ -549,6 +549,85 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Time Out Market")
     })
 
+    describe("in the Timeline layout", () => {
+      beforeEach(() => localStorage.setItem("trips-day-view", "timeline"))
+      afterEach(() => localStorage.removeItem("trips-day-view"))
+
+      it("opens the editor from the place card and stays on the timeline", async () => {
+        renderWorkspace("/trips/lisbon/day/day-1")
+        fireEvent.click(await screen.findByRole("button", { name: "Pin 1: Time Out Market" }))
+        fireEvent.click(within(screen.getByRole("complementary", { name: "Selected place" })).getByRole("button", { name: "Edit stop" }))
+
+        const name = within(screen.getByRole("dialog", { name: "Time Out Market" })).getByRole("textbox", { name: "Name" })
+        expect(name).toHaveValue("Time Out Market")
+        expect(name).toHaveFocus()
+        expect(screen.getByRole("radio", { name: "Timeline", hidden: true })).toHaveAttribute("aria-checked", "true")
+      })
+
+      it("edits a stop from its block, and Done closes the editor", async () => {
+        renderWorkspace("/trips/lisbon/day/day-1")
+        const timeline = within(await screen.findByRole("region", { name: "Day 1 timeline" }))
+        fireEvent.click(timeline.getByRole("button", { name: "Edit Fado dinner" }))
+
+        const sheet = within(screen.getByRole("dialog", { name: "Fado dinner" }))
+        fireEvent.change(sheet.getByRole("textbox", { name: "Name" }), { target: { value: "Fado at Clube" } })
+        expect(timeline.getByRole("button", { name: /^8:00 PM, Fado at Clube/, hidden: true })).toBeInTheDocument()
+
+        fireEvent.click(sheet.getByRole("button", { name: "Done" }))
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+        expect(timeline.getByRole("button", { name: "Edit Fado at Clube" })).toHaveFocus()
+      })
+
+      it("opens a stop with no pin from its block, and keeps the layout", async () => {
+        renderWorkspace("/trips/lisbon/day/day-1")
+        const timeline = within(await screen.findByRole("region", { name: "Day 1 timeline" }))
+        fireEvent.click(timeline.getByRole("button", { name: /^Anytime, Mystery cafe/ }))
+        expect(within(screen.getByRole("dialog", { name: "Mystery cafe" })).getByRole("textbox", { name: "Name" })).toHaveValue("Mystery cafe")
+        expect(localStorage.getItem("trips-day-view")).toBe("timeline")
+      })
+
+      it("opens a stop's editor on its day from the budget", async () => {
+        renderWorkspace(
+          "/trips/lisbon?tab=budget",
+          planned({
+            days: [
+              { id: "day-1", date: "2026-07-10", items: [market, { ...fado, cost: { amount: 60, currency: "EUR" } }] },
+              { id: "day-2", date: "2026-07-11", items: [] },
+            ],
+          }),
+        )
+        fireEvent.click(await screen.findByRole("button", { name: "Open “Fado dinner” on day 1" }))
+        expect(within(await screen.findByRole("dialog", { name: "Fado dinner" })).getByRole("textbox", { name: "Name" })).toHaveValue("Fado dinner")
+      })
+
+      it("edits a stop waiting under Anytime", async () => {
+        renderWorkspace("/trips/lisbon/day/day-1")
+        const timeline = within(await screen.findByRole("region", { name: "Day 1 timeline" }))
+        fireEvent.click(timeline.getByRole("button", { name: "Edit Mystery cafe" }))
+        expect(within(screen.getByRole("dialog", { name: "Mystery cafe" })).getByRole("textbox", { name: "Name" })).toHaveValue("Mystery cafe")
+      })
+
+      it("offers no edit to a viewer", async () => {
+        renderWorkspace("/trips/lisbon/day/day-1", planned(), "view")
+        const timeline = within(await screen.findByRole("region", { name: "Day 1 timeline" }))
+        expect(timeline.queryByRole("button", { name: /^Edit / })).toBeNull()
+      })
+    })
+
+    it("opens a stop's editor on its day from the budget", async () => {
+      renderWorkspace(
+        "/trips/lisbon?tab=budget",
+        planned({
+          days: [
+            { id: "day-1", date: "2026-07-10", items: [market, { ...fado, cost: { amount: 60, currency: "EUR" } }] },
+            { id: "day-2", date: "2026-07-11", items: [] },
+          ],
+        }),
+      )
+      fireEvent.click(await screen.findByRole("button", { name: "Open “Fado dinner” on day 1" }))
+      expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("Fado dinner")
+    })
+
     it("reorders a stop with Alt+Arrow and announces the move", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
       const plan = () => within(screen.getByRole("region", { name: "Day 1 plan" }))
@@ -680,10 +759,12 @@ describe("TripWorkspace", () => {
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
 
-      // "Edit stop" comes back to the list with that stop's editor open.
+      // "Edit stop" opens that stop's editor in a sheet over the map, ready to type.
       fireEvent.click(card.getByRole("button", { name: "Edit stop" }))
-      expect(views.getByRole("radio", { name: "Itinerary" })).toHaveAttribute("aria-checked", "true")
-      expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Fado dinner")
+      const name = within(screen.getByRole("dialog", { name: "Fado dinner" })).getByRole("textbox", { name: "Name" })
+      expect(name).toHaveValue("Fado dinner")
+      expect(name).toHaveFocus()
+      expect(views.getByRole("radio", { name: "Map", hidden: true })).toHaveAttribute("aria-checked", "true")
     })
 
     it("opens the stop named in the URL hash", async () => {
@@ -698,6 +779,20 @@ describe("TripWorkspace", () => {
       const card = within(await screen.findByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
       expect(screen.getByRole("radio", { name: "Map" })).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("opens a stop with no pin named in the URL hash in the itinerary on a phone", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1#item-it-cafe")
+      expect(within(await screen.findByRole("dialog", { name: "Mystery cafe" })).getByRole("textbox", { name: "Name" })).toHaveValue("Mystery cafe")
+      expect(screen.getByRole("radio", { name: "Itinerary", hidden: true })).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("offers no directions to a stop with no pin or address", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1#item-it-cafe")
+      const card = within(await screen.findByRole("complementary", { name: "Selected place" }))
+      expect(card.getByRole("heading", { name: "Mystery cafe" })).toBeInTheDocument()
+      expect(card.queryByRole("link", { name: "Directions" })).toBeNull()
     })
 
     it("picks out the stop named by #stop- in the list on a phone", async () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { useState } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 
@@ -14,9 +14,11 @@ import { LIMITS } from "../limits"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { AddStop } from "../workspace/AddStop"
 import { DayPanel } from "../workspace/DayPanel"
+import type { EditorSurface } from "../workspace/stopEdits"
 import { DayRail } from "../workspace/DayRail"
 import { liveValue } from "../workspace/liveValue"
 import { makeItem, makeTrip } from "./tripFixtures"
+import { pickOption } from "./pickOption"
 
 afterEach(() => vi.clearAllMocks())
 
@@ -40,10 +42,12 @@ interface Options {
   locked?: boolean
   /** Hand the panel `onEditTrip` (day operations, Save for later). */
   wholeTrip?: boolean
+  /** Where a stop's editor opens: under its card (a wide list) or in a sheet. */
+  surface?: EditorSurface
 }
 
 /** One day of a live trip: every edit lands, and the marks and the URL are kept. */
-function renderDay(trip: Trip, dayId: string, { editable = true, locked = false, wholeTrip = true }: Options = {}) {
+function renderDay(trip: Trip, dayId: string, { editable = true, locked = false, wholeTrip = true, surface = "inline" }: Options = {}) {
   const state: { trip: Trip; marks: (UndoMark | undefined)[]; path: string } = { trip, marks: [], path: "" }
   function Probe() {
     state.path = useLocation().pathname
@@ -75,6 +79,9 @@ function renderDay(trip: Trip, dayId: string, { editable = true, locked = false,
         hot={liveValue<string | null>(null)}
         activeId={null}
         edit={null}
+        dayView="list"
+        onDayView={noop}
+        surface={surface}
         near={null}
         onChange={(fn, mark) => commit({ ...state.trip, days: fn(state.trip.days) }, mark)}
         onEditTrip={wholeTrip ? (fn, mark) => commit(fn(state.trip), mark) : undefined}
@@ -177,8 +184,210 @@ describe("Done, Skip and Loved it on the card", () => {
   it("offers Skipped among the statuses in the editor", () => {
     renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Add status" }))
     fireEvent.click(within(card("lunch")).getByRole("combobox", { name: "Status" }))
     expect(screen.getByRole("option", { name: "Skipped" })).toBeInTheDocument()
+  })
+})
+
+describe("a stop's editor in a sheet (the timeline, a phone)", () => {
+  const row = (id: string) => card(id).querySelector<HTMLElement>("[data-card-row]")!
+
+  it("opens from the card, titled with the stop and ready to type; Done hands focus back", async () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
+    expect(row("lunch")).toHaveAttribute("aria-haspopup", "dialog")
+    expect(row("lunch")).not.toHaveAttribute("aria-expanded")
+    row("lunch").focus()
+    fireEvent.click(row("lunch"))
+
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    expect(sheet.getByRole("textbox", { name: "Name" })).toHaveFocus()
+    expect(card("lunch").querySelector("input")).toBeNull()
+    fireEvent.click(sheet.getByRole("button", { name: "Done" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(row("lunch")).toHaveFocus()
+  })
+
+  it("closes a pinned stop's place search on Escape, keeps the sheet, and hands focus back to Change", () => {
+    const pinnedLunch = { ...lunch, location: { name: "Time Out Market", lat: 38.707, lng: -9.146, source: "user" as const } }
+    renderDay(tripOf(days(FUTURE, [[pinnedLunch]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    fireEvent.click(sheet.getByRole("button", { name: "Change" }))
+    const search = sheet.getByRole("textbox", { name: "Search for a place to pin" })
+    expect(search).toHaveFocus()
+
+    fireEvent.keyDown(search, { key: "Escape" })
+    expect(screen.getByRole("dialog", { name: "Lunch" })).toBeInTheDocument()
+    expect(sheet.queryByRole("textbox", { name: "Search for a place to pin" })).toBeNull()
+    expect(sheet.getByRole("button", { name: "Change" })).toHaveFocus()
+  })
+
+  it("moves the stop from its foot and says so inside the sheet", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    expect(sheet.getByRole("button", { name: "Move up" })).toBeDisabled()
+    fireEvent.click(sheet.getByRole("button", { name: "Move down" }))
+    expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["tram", "lunch"])
+    expect(sheet.getByRole("status")).toHaveTextContent("Lunch moved down, now 2 of 2.")
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Moved “Lunch”", key: "move:lunch" })
+  })
+
+  it("sends the stop to another day, then hands focus to the stop after it", async () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Lunch" })).getByRole("button", { name: "Move to another day…" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Move “Lunch”" })).getByRole("button", { name: /Day 2/ }))
+
+    expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["lunch"])
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(row("tram")).toHaveFocus()
+  })
+
+  it("shows a viewer the stop's details, with nothing to change", () => {
+    renderDay(tripOf(days(FUTURE, [[{ ...lunch, notes: "Ask for the terrace" }]])), "day-1", { surface: "sheet", editable: false })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    expect(sheet.getByText("Ask for the terrace")).toBeInTheDocument()
+    expect(sheet.queryByRole("textbox")).toBeNull()
+    expect(sheet.queryByRole("button", { name: "Delete" })).toBeNull()
+  })
+})
+
+describe("a stop's editor asks only for what the stop needs", () => {
+  const open = (id: string) => fireEvent.click(card(id).querySelector<HTMLElement>("[data-card-row]")!)
+
+  it("gives a place its name, time, location and notes; status, cost and links wait behind chips", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
+    open("lunch")
+    const editor = within(card("lunch"))
+    for (const name of ["Name", "Starts", "Notes"]) expect(editor.getByRole("textbox", { name })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Search for a place to pin" })).toBeInTheDocument()
+    expect(editor.queryByRole("combobox", { name: "Status" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: "Links" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: /Cost/ })).toBeNull()
+
+    fireEvent.click(editor.getByRole("button", { name: "Add link" }))
+    const links = editor.getByRole("textbox", { name: "Links" })
+    expect(links).toHaveFocus()
+    expect(editor.queryByRole("button", { name: "Add link" })).toBeNull()
+    fireEvent.change(links, { target: { value: "example.com/menu" } })
+    fireEvent.keyDown(links, { key: "Enter" })
+    expect(itemsOf(state, "day-1")[0]!.links).toEqual(["https://example.com/menu"])
+  })
+
+  it("shows a field that already holds something, with no chip for it", () => {
+    renderDay(tripOf(days(FUTURE, [[{ ...lunch, status: "optional" as const, cost: { amount: 20, currency: "EUR" } }]])), "day-1")
+    open("lunch")
+    const editor = within(card("lunch"))
+    expect(editor.getByRole("combobox", { name: "Status" })).toHaveTextContent("Optional")
+    expect(editor.queryByRole("button", { name: "Add status" })).toBeNull()
+    expect(editor.queryByRole("button", { name: "Add cost" })).toBeNull()
+    expect(editor.getByRole("button", { name: "Add link" })).toBeInTheDocument()
+  })
+
+  it("keeps a field it showed while it is emptied", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[{ ...lunch, notes: "Terrace" }]])), "day-1")
+    open("lunch")
+    const notes = within(card("lunch")).getByRole("textbox", { name: "Notes" })
+    fireEvent.change(notes, { target: { value: "" } })
+    expect(itemsOf(state, "day-1")[0]!.notes).toBeUndefined()
+    expect(within(card("lunch")).getByRole("textbox", { name: "Notes" })).toBe(notes)
+  })
+
+  it("gives a note its words, and a time, notes and a link only when asked", () => {
+    const memo = makeItem({ id: "memo", kind: "note", title: "Bring cash" })
+    renderDay(tripOf(days(FUTURE, [[memo]])), "day-1")
+    open("memo")
+    const editor = within(card("memo"))
+    expect(editor.getByRole("textbox", { name: "Note" })).toHaveValue("Bring cash")
+    expect(editor.queryByRole("textbox", { name: "Starts" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: "Notes" })).toBeNull()
+    fireEvent.click(editor.getByRole("button", { name: "Add time" }))
+    expect(editor.getByRole("textbox", { name: "Starts" })).toHaveFocus()
+    expect(editor.getByRole("button", { name: "Add notes" })).toBeInTheDocument()
+  })
+
+  it("shows a booking's type, status and times, and each detail once it is filled", () => {
+    const visit = makeItem({
+      id: "visit",
+      kind: "reservation",
+      title: "AP House",
+      time: "11:00",
+      status: "booked",
+      reservation: { type: "appointment", status: "confirmed", confirmation: "AP-221" },
+    })
+    renderDay(tripOf(days(FUTURE, [[visit]])), "day-1")
+    open("visit")
+    const editor = within(card("visit"))
+    expect(editor.getByRole("combobox", { name: "Type" })).toBeInTheDocument()
+    expect(editor.getByRole("combobox", { name: "Status" })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Time" })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Confirmation" })).toHaveValue("AP-221")
+    expect(editor.queryByRole("textbox", { name: "Contact" })).toBeNull()
+    expect(editor.queryByRole("textbox", { name: "Booking link" })).toBeNull()
+
+    fireEvent.click(editor.getByRole("button", { name: "More booking details" }))
+    expect(editor.getByRole("textbox", { name: "Contact" })).toHaveFocus()
+    expect(editor.getByRole("textbox", { name: "Booking link" })).toBeInTheDocument()
+  })
+})
+
+describe("a suggested start for a stop with no time", () => {
+  const museum = makeItem({ id: "museum", title: "Gulbenkian" })
+  const row = (id: string) => card(id).querySelector<HTMLElement>("[data-card-row]")!
+
+  it("follows the stop before, says why, and takes focus to the time it set", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, museum]])), "day-1")
+    fireEvent.click(row("museum"))
+    const editor = within(card("museum"))
+    const start = editor.getByRole("button", { name: "Start at 1:30 PM" })
+    expect(start).toHaveAccessibleDescription("after Lunch (about 1 h there)")
+
+    fireEvent.click(start)
+    expect(itemsOf(state, "day-1").map((item) => [item.id, item.time])).toEqual([
+      ["lunch", "12:30"],
+      ["museum", "13:30"],
+    ])
+    expect(editor.getByRole("textbox", { name: "Starts" })).toHaveFocus()
+    expect(editor.getByRole("textbox", { name: "Starts" })).toHaveValue("1:30 PM")
+    expect(editor.queryByRole("button", { name: /^Start at/ })).toBeNull()
+  })
+
+  it("is offered in the sheet too", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, museum]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("museum"))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Start at 1:30 PM" })).toBeInTheDocument()
+  })
+
+  it("is not offered with no timed stop before it", () => {
+    renderDay(tripOf(days(FUTURE, [[reel, museum]])), "day-1")
+    fireEvent.click(row("museum"))
+    expect(within(card("museum")).queryByRole("button", { name: /^Start at/ })).toBeNull()
+  })
+
+  it("waits while the AI is working on the day", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, museum]])), "day-1", { locked: true })
+    fireEvent.click(row("museum"))
+    expect(within(card("museum")).getByRole("button", { name: "Start at 1:30 PM" })).toBeDisabled()
+  })
+})
+
+describe("a booking's status", () => {
+  it("is one control, and the card's chip says what it says", () => {
+    const dinner = makeItem({ id: "dinner", kind: "reservation", title: "Dinner", status: "booked", reservation: { type: "restaurant", status: "confirmed" } })
+    const state = renderDay(tripOf(days(FUTURE, [[dinner]])), "day-1")
+    const row = card("dinner").querySelector<HTMLElement>("[data-card-row]")!
+    expect(row).toHaveTextContent("Booked")
+    fireEvent.click(row)
+    const status = within(card("dinner")).getByRole("combobox", { name: "Status" })
+    expect(within(card("dinner")).queryByRole("combobox", { name: "Booking status" })).toBeNull()
+
+    pickOption(status, "Pending")
+    expect(itemsOf(state, "day-1")[0]).toMatchObject({ status: "needs_review", reservation: { type: "restaurant", status: "pending" } })
+    expect(row).toHaveTextContent("Pending")
+    expect(row).not.toHaveTextContent("Needs review")
   })
 })
 
@@ -186,6 +395,7 @@ describe("stop links", () => {
   it("adds a pasted link as https, refuses anything that isn't a web link, and removes one", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Add link" }))
     const field = within(card("lunch")).getByRole("textbox", { name: "Links" })
     expect(field).toHaveAttribute("maxlength", String(LIMITS.link))
 
@@ -206,6 +416,7 @@ describe("stop links", () => {
   it("waits for the input method before taking Enter", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
+    fireEvent.click(within(card("lunch")).getByRole("button", { name: "Add link" }))
     const field = within(card("lunch")).getByRole("textbox", { name: "Links" })
     fireEvent.change(field, { target: { value: "naver.me/abc" } })
     fireEvent.keyDown(field, { key: "Enter", keyCode: 229 })
@@ -258,15 +469,16 @@ describe("the stop's own menu", () => {
     expect(state.marks[state.marks.length - 1]).toEqual({ label: "Saved “Tram 28” for later", toast: true })
   })
 
-  it("moves a stop to another day, above that day's To schedule heading", () => {
+  it("moves a stop to another day where its time falls, above that day's To schedule heading", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch], [tram, heading, reel]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^More for / }))
     fireEvent.click(menuItem("Move to another day…"))
     const dialog = screen.getByRole("dialog", { name: "Move “Lunch”" })
+    expect(dialog).toHaveAccessibleDescription("It keeps 12:30 PM and goes where that falls on that day’s route.")
     expect(within(dialog).getByRole("button", { name: /Day 1/ })).toBeDisabled()
     fireEvent.click(within(dialog).getByRole("button", { name: /Day 2/ }))
     expect(itemsOf(state, "day-1")).toEqual([])
-    expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["tram", "lunch", "park", "reel"])
+    expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["lunch", "tram", "park", "reel"])
   })
 
   it("copies a stop to the days ticked, keeping the original where it was", () => {
@@ -330,8 +542,8 @@ describe("the day's menu", () => {
   it("moves the day's plan a day later, trading dates with the next", () => {
     const state = renderDay(three(), "day-1")
     openDayMenu()
-    expect(menuItem("Move a day earlier")).toBeDisabled()
-    fireEvent.click(menuItem("Move a day later"))
+    expect(menuItem("Move this day earlier")).toBeDisabled()
+    fireEvent.click(menuItem("Move this day later"))
     expect(state.trip.days.map((d) => d.id)).toEqual(["day-2", "day-1", "day-3"])
     expect(state.trip.days.map((d) => d.date)).toEqual(["2099-07-10", "2099-07-11", "2099-07-12"])
     expect(state.marks[state.marks.length - 1]).toEqual({ label: "Moved day 1 later", toast: true })
@@ -391,6 +603,22 @@ describe("the day's menu", () => {
     openDayMenu()
     fireEvent.click(menuItem("Sort stops by time"))
     expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["lunch", "late", "park", "reel"])
+  })
+})
+
+describe("the day's notes", () => {
+  it("takes focus from the day's menu when there are notes already", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch]]).map((d) => ({ ...d, notes: "Pack the adapter" }))), "day-1")
+    openDayMenu()
+    fireEvent.click(menuItem("Edit day notes"))
+    expect(screen.getByRole("textbox", { name: "Day notes" })).toHaveFocus()
+  })
+
+  it("opens ready to write when there are none", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
+    openDayMenu()
+    fireEvent.click(menuItem("Add day notes"))
+    expect(screen.getByRole("textbox", { name: "Day notes" })).toHaveFocus()
   })
 })
 

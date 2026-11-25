@@ -53,6 +53,9 @@ import { Presence } from "./components/presence"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, reviewProgress, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
+import { useDayView } from "./workspace/dayView"
+import { INLINE_EDITOR_QUERY, type EditorSurface } from "./workspace/stopEdits"
+import { useMedia } from "./useMedia"
 import { DayRail } from "./workspace/DayRail"
 import { Parts } from "./workspace/Parts"
 import { DetailsDialog } from "./workspace/DetailsDialog"
@@ -95,19 +98,6 @@ const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
 const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
 /** The least map kept clear above a tall place card on a phone. */
 const MIN_MAP_BAND = 160
-
-function useWide(): boolean {
-  const [wide, setWide] = useState(() => typeof window === "undefined" || !window.matchMedia || window.matchMedia(WIDE_QUERY).matches)
-  useEffect(() => {
-    if (!window.matchMedia) return
-    const query = window.matchMedia(WIDE_QUERY)
-    const sync = () => setWide(query.matches)
-    sync()
-    query.addEventListener("change", sync)
-    return () => query.removeEventListener("change", sync)
-  }, [])
-  return wide
-}
 
 /**
  * True once the page has painted and the browser is idle. Work nobody needs
@@ -212,7 +202,10 @@ function Workspace() {
   const navigate = useNavigate()
   const location = useLocation()
   const viewer = useViewer()
-  const wide = useWide()
+  const wide = useMedia(WIDE_QUERY, true)
+  const roomy = useMedia(INLINE_EDITOR_QUERY, true)
+  const [dayView, setDayView] = useDayView()
+  const surface: EditorSurface = roomy && dayView === "list" ? "inline" : "sheet"
   const idle = useIdle()
   // Probing for the 3D view creates a WebGL context: never on the way to first paint.
   const photorealReady = idle && photorealAvailable()
@@ -246,9 +239,17 @@ function Workspace() {
   const [fly, setFly] = useState(() => liveValue(false))
   /** An overlay failed to open. `stale`: its code is gone because a newer build is live. */
   const [overlayProblem, setOverlayProblem] = useState<{ text: string; stale: boolean } | null>(null)
-  /** "Edit stop" from the map; `n` changes on every request so the same stop can be asked for twice. */
-  const [edit, setEdit] = useState<{ id: string; n: number } | null>(null)
-  const requestEdit = (id: string) => setEdit((last) => ({ id, n: (last?.n ?? 0) + 1 }))
+  /**
+   * A stop whose editor was asked for from outside its day's list (the map,
+   * the 3D view, the budget, a booking added by hand); `n` changes on every
+   * request so the same stop can be asked for twice.
+   */
+  const [edit, setEdit] = useState<{ dayId: string; id: string; n: number } | null>(null)
+  const openEditor = (onDay: string, id: string) => {
+    setEdit((last) => ({ dayId: onDay, id, n: (last?.n ?? 0) + 1 }))
+    // A sheet opens over whatever is showing; an editor under its card needs the list.
+    if (surface === "inline") setView("list")
+  }
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -343,12 +344,13 @@ function Workspace() {
   }, [nextStep, locked, editor.redo])
 
   // Whatever was open for one day (3D view, "Clear day", the day's AI sheet,
-  // an edit request) does not follow the traveller to another day.
+  // an edit request) does not follow the traveller to another day. A request
+  // made on the way to a day (the budget, a booking added by hand) is for it.
   const [shownDayId, setShownDayId] = useState(dayId)
   if (shownDayId !== dayId) {
     setShownDayId(dayId)
     setFly(liveValue(false))
-    setEdit(null)
+    if (edit && edit.dayId !== dayId) setEdit(null)
     if (dialog === "clear" || (typeof dialog === "object" && dialog !== null && dialog.ai === "day")) setDialog(null)
   }
   const dayIndex = trip && dayId ? trip.days.findIndex((d) => d.id === dayId) : -1
@@ -520,10 +522,15 @@ function Workspace() {
     const hash = location.hash
     const onMap = hash.startsWith("#item-")
     const id = day && (onMap || hash.startsWith("#stop-")) ? decodeURIComponent(hash.slice(6)) : null
-    if (day && id && day.items.some((i) => i.id === id)) {
-      setActiveId(id)
-      setFocusId(id)
-      if (onMap && !wide) setView("map")
+    const item = id ? day?.items.find((i) => i.id === id) : undefined
+    if (day && item) {
+      setActiveId(item.id)
+      setFocusId(item.id)
+      // A stop with no pin has nothing to show on the map: it opens where it can be read.
+      if (onMap && !isLocated(item)) {
+        if (!wide) setView("list")
+        openEditor(day.id, item.id)
+      } else if (onMap && !wide) setView("map")
     }
   }
 
@@ -600,8 +607,7 @@ function Workspace() {
   const addBookingByHand = (dayId: string, item: ItineraryItem) => {
     editor.setDays((days) => addItem(days, dayId, item), { label: "Added a booking" })
     navigate(`${basePath}/day/${dayId}`)
-    requestEdit(item.id)
-    setView("list")
+    openEditor(dayId, item.id)
   }
 
 
@@ -847,14 +853,16 @@ function Workspace() {
       : []),
   ]
 
-  const activeMaps = active
-    ? externalMapsLink({
-        name: active.item.location?.name ?? active.item.title,
-        address: active.item.location?.address,
-        lat: active.item.location?.lat,
-        lng: active.item.location?.lng,
-      })
-    : undefined
+  // A title alone would send Directions to a search of the whole world.
+  const activeMaps =
+    active && (isLocated(active.item) || active.item.location?.address)
+      ? externalMapsLink({
+          name: active.item.location?.name ?? active.item.title,
+          address: active.item.location?.address,
+          lat: active.item.location?.lat,
+          lng: active.item.location?.lng,
+        })
+      : undefined
 
   return (
     <div {...sx(s.root)} data-trip-accent={accent}>
@@ -1020,7 +1028,10 @@ function Workspace() {
             recentIds={editor.recentIds}
             hot={hot}
             activeId={activeId}
-            edit={edit}
+            edit={edit?.dayId === day.id ? edit : null}
+            dayView={dayView}
+            onDayView={setDayView}
+            surface={surface}
             near={near}
             onChange={editor.setDays}
             onEditTrip={editor.edit}
@@ -1081,8 +1092,7 @@ function Workspace() {
                           onEdit={editor.edit}
                           onOpenItem={(itemDayId, itemId) => {
                             navigate(`${basePath}/day/${itemDayId}`)
-                            requestEdit(itemId)
-                            setView("list")
+                            openEditor(itemDayId, itemId)
                           }}
                         />
                       )}
@@ -1281,10 +1291,7 @@ function Workspace() {
                     <button
                       type="button"
                       {...sx(a.btn, a.btnSecondary, a.btnSm)}
-                      onClick={() => {
-                        requestEdit(active.item.id)
-                        setView("list")
-                      }}
+                      onClick={() => openEditor(active.day.id, active.item.id)}
                     >
                       Edit stop
                     </button>
@@ -1493,8 +1500,7 @@ function Workspace() {
                   editable
                     ? (itemId) => {
                         fly.set(false)
-                        requestEdit(itemId)
-                        setView("list")
+                        openEditor(day.id, itemId)
                       }
                     : undefined
                 }

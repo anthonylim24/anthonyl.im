@@ -19,6 +19,7 @@ import { IgGlyph } from "./IgGlyph"
 import { ig as s } from "./instagram.stylex"
 import { listSaved, removeSaved, type GetToken, type IgJob, type IgPlace, type SavedPlace } from "./instagramApi"
 import { useInstagramImport } from "./useInstagramImport"
+import { useMedia } from "../useMedia"
 
 // "From Instagram": paste a post or Reel, watch it being read, and drop the
 // places it names onto a day. Everything found is kept under Saved, so a
@@ -26,19 +27,6 @@ import { useInstagramImport } from "./useInstagramImport"
 
 const WIDE_QUERY = "(min-width: 900px)"
 const PIPELINE = ["fetching", "bundling", "extracting", "geocoding"]
-
-function useMedia(query: string): boolean {
-  const [matches, setMatches] = useState(() => typeof window !== "undefined" && Boolean(window.matchMedia?.(query).matches))
-  useEffect(() => {
-    if (!window.matchMedia) return
-    const media = window.matchMedia(query)
-    const sync = () => setMatches(media.matches)
-    sync()
-    media.addEventListener("change", sync)
-    return () => media.removeEventListener("change", sync)
-  }, [query])
-  return matches
-}
 
 export interface InstagramSheetProps {
   open: boolean

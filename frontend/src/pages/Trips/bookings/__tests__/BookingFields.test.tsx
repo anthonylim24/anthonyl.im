@@ -72,8 +72,10 @@ describe("BookingFields", () => {
 
   it("sends the whole reservation back with each change, empty fields left out", () => {
     const onChange = renderFields(booking({ type: "flight", status: "confirmed", seat: "14A" }))
-    pickOption(screen.getByRole("combobox", { name: "Booking status" }), "Pending")
-    expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "pending", seat: "14A" } })
+    const status = screen.getByRole("combobox", { name: "Status" })
+    expect(status).toHaveTextContent("Booked")
+    pickOption(status, "Pending")
+    expect(onChange).toHaveBeenLastCalledWith({ status: "needs_review", reservation: { type: "flight", status: "pending", seat: "14A" } })
     fireEvent.change(screen.getByLabelText("Seat"), { target: { value: "" } })
     expect(onChange).toHaveBeenLastCalledWith({ reservation: { type: "flight", status: "confirmed" } })
   })

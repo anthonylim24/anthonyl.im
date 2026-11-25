@@ -166,6 +166,26 @@ export const tl = stylex.create({
     [HOVER]: { ":hover": { borderColor: "var(--trips-ink-tertiary)" } },
     [REDUCE]: { transitionDuration: "0ms" },
   },
+  // Room on the right for the edit button over the block's corner.
+  blockEditable: { paddingRight: "2.125rem" },
+  // Looks 28px in the block's corner; its band reaches a 44px target.
+  edit: {
+    position: "absolute",
+    top: "0.25rem",
+    right: "0.25rem",
+    zIndex: 1,
+    display: "grid",
+    placeItems: "center",
+    width: "1.75rem",
+    height: "1.75rem",
+    borderRadius: "999px",
+    color: "var(--trips-ink-secondary)",
+    backgroundColor: "var(--trips-surface)",
+    cursor: "pointer",
+    "::after": { content: '""', position: "absolute", inset: "-0.5rem -0.25rem -0.5rem -0.5rem" },
+    [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" } },
+  },
+  editRow: { top: "50%", transform: "translateY(-50%)" },
   // Side by side with an overlapping stop the column is narrow: tighter padding, same grid.
   // Side by side the column is narrow, but the badge and title keep the full cards' indent.
   blockStacked: { paddingRight: "0.3125rem" },
@@ -415,6 +435,7 @@ export const tl = stylex.create({
   // ── Anytime list ─────────────────────────────────────
   anytime: { display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0, marginTop: "0.5rem" },
   anyList: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.375rem" },
+  anyItem: { position: "relative" },
   anyRow: { display: "flex", alignItems: "center", gap: "0.5rem", minHeight: "2.75rem", height: "auto", paddingBlock: "0.5rem" },
   anyTitle: { display: "block", fontSize: "0.875rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)", overflowWrap: "anywhere" },
 
