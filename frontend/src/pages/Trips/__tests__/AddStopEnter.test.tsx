@@ -17,7 +17,8 @@ vi.mock("../geocode", async (importOriginal) => {
   }
 })
 
-import { AddStop, TripPlacesContext } from "../workspace/AddStop"
+import { AddStop } from "../workspace/AddStop"
+import { TripPlacesContext } from "../workspace/tripPlacesContext"
 import type { TripPlaces } from "../searchArea"
 
 const jagalchi: PlaceResult = {

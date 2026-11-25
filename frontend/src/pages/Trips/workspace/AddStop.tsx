@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
 import { MapPin, Plus, Search, StickyNote, Ticket } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { confidentPick, searchPlaces, withPoint, type PlaceResult, type RankedPlaces } from "../geocode"
 import { announce, prepareAnnouncer } from "../ideas/announce"
-import { NO_TRIP_PLACES, dayHolding, type TripPlaces } from "../searchArea"
+import { dayHolding } from "../searchArea"
+import { TripPlacesContext } from "./tripPlacesContext"
 import { extractInstagramUrls } from "../instagram/instagram"
 import { IgGlyph } from "../instagram/IgGlyph"
 import { itemIcon } from "../meta"
@@ -22,13 +23,6 @@ import { composing } from "../ime"
 // the map the moment you pick one); the same text can instead become a note,
 // a booking, or a heading. An Instagram link is handed to the import sheet,
 // which pins every place the post names.
-
-/**
- * What the trip already has, for every place field on its page: the
- * workspace provides it, so a day's composer, the wishlist and a stop's
- * location all count the trip's other city as near.
- */
-export const TripPlacesContext = createContext<TripPlaces>(NO_TRIP_PLACES)
 
 const NO_RESULTS: RankedPlaces = { places: [], lead: 0 }
 
