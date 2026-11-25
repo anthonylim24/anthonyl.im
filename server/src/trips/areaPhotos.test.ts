@@ -69,10 +69,10 @@ function fakeGoogle(answers: Record<string, RawAreaPlace[]>) {
 }
 
 describe("createGoogleAreaPhotos", () => {
-  test("answers up to three credited photos with keyless URLs, the key only in a header", async () => {
+  test("answers one credited photo with a keyless URL, the key only in a header", async () => {
     const google = fakeGoogle({ "Seongsu-dong, Seoul": [hit("Seongsu-dong", ["sublocality"], 37.545, 127.056, 5)] })
     const photos = await createGoogleAreaPhotos(KEY, google.fetchImpl)(SEONGSU)
-    expect(photos).toEqual([0, 1, 2].map((i) => ({
+    expect(photos).toEqual([0].map((i) => ({
       url: `https://lh3.googleusercontent.com/places/photo${i}=s800`,
       width: 800,
       height: 600,
@@ -94,6 +94,17 @@ describe("createGoogleAreaPhotos", () => {
     const before = google.calls.length
     await lookup(query)
     expect(google.calls.length).toBe(before)
+  })
+
+  test("refreshes lapsed photo links without searching for the area again", async () => {
+    let clock = 0
+    const google = fakeGoogle({ "Seongsu-dong, Seoul": [hit("Seongsu-dong", ["sublocality"], 37.545, 127.056, 5)] })
+    const lookup = createGoogleAreaPhotos(KEY, google.fetchImpl, { ttlMs: 1_000, placeTtlMs: 60_000, now: () => clock })
+    await lookup(SEONGSU)
+    clock = 2_000
+    expect(await lookup(SEONGSU)).toHaveLength(1)
+    expect(google.calls.filter((call) => call.query).length).toBe(1)
+    expect(google.calls.filter((call) => call.url.includes("/media?")).length).toBe(2)
   })
 
   test("answers no photos when nothing found is the area", async () => {

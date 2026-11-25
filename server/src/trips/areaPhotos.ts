@@ -24,7 +24,7 @@ export interface AreaPhotoQuery {
   reachM: number
 }
 
-/** Up to three photos of the area, or none when no hit can be trusted. */
+/** The area's photo, or none when no hit can be trusted. */
 export type AreaPhotoLookup = (query: AreaPhotoQuery) => Promise<PlacePhoto[]>
 
 /** Google's types for a part of a city. Not `locality` (the whole city), and not parks or landmarks. */
@@ -39,7 +39,8 @@ export const AREA_PLACE_TYPES = new Set([
   "sublocality_level_5",
 ])
 
-export const AREA_PHOTOS = 3
+/** The Neighborhoods card shows one photo; each more is a paid media call nobody sees. */
+export const AREA_PHOTOS = 1
 const PHOTO_WIDTH_PX = 800
 /** A district's point can sit a couple of kilometres from where a trip spends its time there (Jongno District, 2.2 km; measured). */
 const NEAR_MIN_M = 2_500
@@ -108,10 +109,14 @@ export function createGoogleAreaPhotos(
   {
     // Photo URIs carry no documented lifetime; `placeDetails.ts` keeps them half an hour.
     ttlMs = 30 * 60_000,
+    // Which place is the area changes far more slowly than its photo links, so the
+    // searches (up to four per area) are not repeated each time the links lapse.
+    placeTtlMs = 24 * 60 * 60_000,
     now = Date.now,
-  }: { ttlMs?: number; now?: () => number } = {},
+  }: { ttlMs?: number; placeTtlMs?: number; now?: () => number } = {},
 ): AreaPhotoLookup {
   const answers = lapsing<PlacePhoto[]>(500, now)
+  const places = lapsing<RawAreaPlace | null>(500, now)
 
   const call = async (url: string, init: RequestInit) => {
     const res = await fetchImpl(url, {
@@ -160,12 +165,16 @@ export function createGoogleAreaPhotos(
     const key = `${foldName(query.name)}|${foldName(query.city)}|${query.centre.lat.toFixed(2)},${query.centre.lng.toFixed(2)}`
     const known = answers.get(key)
     if (known) return known
-    // Each part of a two-name area, in English first, then its local name.
-    const texts = [...nameParts(query.name), ...(query.localName ? nameParts(query.localName) : [])]
-    let place: RawAreaPlace | null = null
-    for (const text of new Set(texts)) {
-      place = await search(text, query)
-      if (place) break
+    let place = places.get(key)
+    if (place === undefined) {
+      // Each part of a two-name area, in English first, then its local name.
+      const texts = [...nameParts(query.name), ...(query.localName ? nameParts(query.localName) : [])]
+      place = null
+      for (const text of new Set(texts)) {
+        place = await search(text, query)
+        if (place) break
+      }
+      places.set(key, place, placeTtlMs)
     }
     const wanted = (place?.photos ?? []).filter((photo) => photo.name).slice(0, AREA_PHOTOS)
     const uris = await Promise.all(wanted.map((photo) => photoUri(photo.name!)))
