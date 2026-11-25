@@ -10,13 +10,18 @@ export interface Neighborhood {
   name: string
   /** The name in the local language and script, when it differs ("성수동"). */
   localName?: string
+  /** `localName`'s language as a BCP 47 tag ("ko", "ja", "zh-TW"), for its `lang`. */
+  localLang?: string
+  /** Empty when neither the model nor the plan named one. */
   city: string
-  /** One or two plain sentences: what the area is like, and what the trip does there. */
+  /** One plain sentence about the place: what kind of place it is and where it lies. */
   summary: string
   /** The trip's stops in it, in trip order. Read against the live trip: a stop deleted since is simply gone. */
   stopIds: string[]
-  /** Up to three, each credited. Often none: a photo is shown only when Google's match is surely the area. */
+  /** At most one, credited. None when Google has nothing that is surely the area or one of its stops. */
   photos: PlacePhoto[]
+  /** Set when the photo is of one of the area's stops, not the area: that stop's name. */
+  photoOf?: string
 }
 
 /** GET /api/trips/:id/neighborhoods/:areaId/outline: OpenStreetMap's boundary, or null when there is none worth drawing. */
