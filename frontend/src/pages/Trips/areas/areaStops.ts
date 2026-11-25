@@ -1,3 +1,4 @@
+import { isLodgingType } from "../lodging"
 import type { LngLat } from "../map/geo"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 
@@ -61,8 +62,24 @@ export function dayRuns(numbers: readonly number[]): string {
   return `${sorted.length === 1 ? "Day" : "Days"} ${parts.join(", ")}`
 }
 
-/** "Days 2, 9 · 7 stops". */
+/**
+ * A night's stay, not a visit: a lodging booking, or a hotel stop that is no
+ * booking at all ("Stay: Park Hyatt Seoul"). A dinner or a wedding booked at
+ * a hotel is a visit.
+ */
+export function isStay(item: ItineraryItem): boolean {
+  const booked = item.kind === "reservation" || item.reservation !== undefined
+  return booked ? isLodgingType(item.reservation?.type) : item.location?.category === "hotel"
+}
+
+/**
+ * "Days 2, 9 · 7 stops", and "· Where you stay" when the hotel is in it. A
+ * stay is listed on each night, so it neither counts as a stop nor stretches
+ * the days: the area where the hotel is would read "Days 1–9" otherwise.
+ */
 export function areaMeta(days: readonly AreaDay[]): string {
-  const stops = days.reduce((n, { stops: list }) => n + list.length, 0)
-  return `${dayRuns(days.map((d) => d.dayNumber))} · ${stops === 1 ? "1 stop" : `${stops} stops`}`
+  const visits = days.flatMap(({ dayNumber, stops }) => stops.filter((stop) => !isStay(stop)).map(() => dayNumber))
+  const stays = days.filter(({ stops }) => stops.some(isStay)).map((d) => d.dayNumber)
+  if (visits.length === 0) return `Where you stay · ${dayRuns(stays)}`
+  return [dayRuns(visits), visits.length === 1 ? "1 stop" : `${visits.length} stops`, stays.length > 0 ? "Where you stay" : null].filter(Boolean).join(" · ")
 }
