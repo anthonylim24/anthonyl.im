@@ -274,6 +274,12 @@ export function StopActions({
   const sheet = surface === "sheet"
   return (
     <div {...sx(sheet ? s.sheetActions : s.editorActions)}>
+      {sheet && (
+        // First, as far from Done as the row allows.
+        <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Delete" title="Delete" disabled={locked} onClick={onDelete}>
+          <Trash2 size={16} strokeWidth={1.75} aria-hidden />
+        </button>
+      )}
       <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Move up" title="Move up" disabled={locked || index === 0} onClick={() => edits.move(-1)}>
         <ArrowUp size={16} strokeWidth={1.75} aria-hidden />
       </button>
@@ -306,11 +312,7 @@ export function StopActions({
             Maps
           </a>
         ))}
-      {sheet ? (
-        <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Delete" title="Delete" disabled={locked} onClick={onDelete}>
-          <Trash2 size={16} strokeWidth={1.75} aria-hidden />
-        </button>
-      ) : (
+      {!sheet && (
         <>
           <span {...sx(a.grow)} />
           <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} disabled={locked} onClick={onDelete}>
@@ -429,8 +431,7 @@ export function StopSheet({
             onDelete={onDelete}
           />
         )}
-        <span {...sx(a.grow)} />
-        <button type="button" {...sx(a.btn, a.btnPrimary)} onClick={onClose}>
+        <button type="button" {...sx(a.btn, a.btnPrimary, s.sheetDone)} onClick={onClose}>
           Done
         </button>
       </div>

@@ -953,9 +953,12 @@ export const ws = stylex.create({
   // In a sheet the body is the editor: the card's grid without its rule and inset.
   sheetEditor: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" },
   // One child of the dialog's foot (which shares its row between children on a phone):
-  // the stop's actions, then Done, on one line at 375px.
-  sheetFoot: { display: "flex", alignItems: "center", gap: "0.25rem", minWidth: 0 },
-  sheetActions: { display: "flex", alignItems: "center", gap: "0.125rem", minWidth: 0 },
+  // the stop's actions, then Done, on one line at 375px; a narrower screen wraps Done, never widens the page.
+  sheetFoot: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.25rem", rowGap: "0.5rem", minWidth: 0 },
+  // 36px icons 8px apart: each one's 44px hit area (iconBtnSm's ::after) is its own.
+  sheetActions: { display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 },
+  // At the row's end, or the end of a line of its own once it wraps.
+  sheetDone: { marginLeft: "auto", paddingInline: "0.75rem" },
 
   // ── Add composer ──────────────────────────────────────
   composer: { position: "relative" },
