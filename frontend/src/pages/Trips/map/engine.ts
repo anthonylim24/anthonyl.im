@@ -587,6 +587,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       existing?.marker.remove()
       const el = foldElement()
       el.setAttribute("aria-label", `${ids.length} wishlist places here: zoom in`)
+      el.dataset.ideaFold = ids.join(" ")
       el.querySelector(".atlas-pin__count")!.textContent = String(ids.length)
       el.addEventListener("click", (event) => {
         event.stopPropagation()

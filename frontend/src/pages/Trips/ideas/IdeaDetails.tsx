@@ -24,6 +24,7 @@ import { ExitSignal, useClosing, useLeaving } from "../components/presence"
 import type { ItineraryItem } from "../types"
 import { IDEA_ANCHOR_ATTR, ideaName, type IdeaDetailsProps, type PlaceDetails, type PlacePhoto } from "./contract"
 import { d } from "./details.stylex"
+import { ideaFocusReturn } from "./focusReturn"
 import { placeBeside } from "./popoverPlacement"
 import {
   cachedPlaceDetails,
@@ -157,7 +158,7 @@ export function IdeaDetails({ trip, idea, from, editable, locked, getToken, them
     )
   }
   return (
-    <DialogFrame open onClose={onClose} accent={accent} content={[a.dialog, d.sheet, "trips-glass-sheet"]}>
+    <DialogFrame open onClose={onClose} accent={accent} returnFocus={() => ideaFocusReturn(idea.id)} content={[a.dialog, d.sheet, "trips-glass-sheet"]}>
       <DialogPrimitive.Description {...sx(a.srOnly)}>Details, photos and links for {name}</DialogPrimitive.Description>
       {content(<DialogPrimitive.Title asChild>{heading()}</DialogPrimitive.Title>)}
     </DialogFrame>
