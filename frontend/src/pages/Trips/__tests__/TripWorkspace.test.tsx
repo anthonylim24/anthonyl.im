@@ -642,6 +642,16 @@ describe("TripWorkspace", () => {
       ])
     })
 
+    it("ends the day rail with Share and the trip menu, for phones where the compact header is hidden", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      const rail = within(await screen.findByRole("navigation", { name: "Days" }))
+      fireEvent.click(rail.getByRole("button", { name: "Share and trip options" }))
+      const items = screen.getAllByRole("menuitem").map((item) => item.textContent)
+      expect(items.slice(0, 4)).toEqual(["Share", "Improve whole trip with AI", "Add places from Instagram", "Trip details"])
+      fireEvent.click(screen.getByRole("menuitem", { name: "Share" }))
+      expect(await screen.findByRole("dialog", { name: "Share this trip" })).toBeInTheDocument()
+    })
+
     it("switches between the itinerary and the map on a phone", async () => {
       stubMatchMedia(false)
       renderWorkspace("/trips/lisbon/day/day-1")

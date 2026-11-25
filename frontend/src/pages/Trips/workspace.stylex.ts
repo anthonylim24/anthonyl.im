@@ -184,9 +184,17 @@ export const ws = stylex.create({
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
     paddingTop: "0.5rem",
   },
-  // Phones: the top bar already has Back and the rail has Overview (where
-  // Share and trip options live), so day pages start with the days.
+  // Phones: the top bar already has Back, the rail has Overview and ends in
+  // the trip menu (with Share), so day pages start with the days.
   headCompactHide: { "@media (max-width: 639.98px)": { display: "none" } },
+  /** The trip menu at the rail's end, on phone day pages only (wider screens have the compact header). */
+  railEnd: {
+    display: { default: "none", "@media (max-width: 639.98px)": "flex" },
+    alignItems: "center",
+    flexShrink: 0,
+    gap: "0.25rem",
+    paddingInlineEnd: "0.75rem",
+  },
   compactTitle: {
     fontFamily: "var(--trips-display)",
     fontSize: "1.5rem",

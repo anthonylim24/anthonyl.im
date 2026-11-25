@@ -950,7 +950,27 @@ function Workspace() {
           </header>
         )}
 
-        <DayRail trip={trip} basePath={basePath} dayId={dayId} />
+        <DayRail
+          trip={trip}
+          basePath={basePath}
+          dayId={dayId}
+          end={
+            dayId && (
+              <span {...sx(s.railEnd)}>
+                <span {...sx(s.railRule)} aria-hidden />
+                <Menu
+                  label="Share and trip options"
+                  trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
+                  triggerStyle={[a.iconBtn, a.iconBtnSm]}
+                  items={[
+                    ...(onDevice ? [] : [{ label: "Share", icon: <Share2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setDialog("share") }]),
+                    ...menu,
+                  ]}
+                />
+              </span>
+            )
+          }
+        />
 
         {dayId && !day ? (
           <div {...sx(s.content)} role="alert">
