@@ -210,4 +210,17 @@ describe('the boot screen', () => {
     expect(swapped).toHaveAttribute('data-step', 'code')
     expect(document.querySelectorAll('#boot')).toHaveLength(1)
   })
+
+  it('lets go when the app renders without a sign-in provider', async () => {
+    reducedMotion(false)
+    const { boot, AppRoutes } = await bootAt('/some-404')
+    render(
+      <StrictMode>
+        <AppRoutes />
+      </StrictMode>,
+    )
+    expect(await screen.findByRole('heading', { name: 'This page is not here.' })).toBeInTheDocument()
+    await waitFor(() => expect(boot).toHaveAttribute('data-state', 'leaving'))
+    await waitFor(() => expect(document.getElementById('boot')).toBeNull())
+  })
 })

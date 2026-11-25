@@ -4,12 +4,11 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { routerBasename } from './lib/routerBasename'
 import { notifyRouteChange } from './lib/serviceWorker'
-import { sx } from './lib/utils'
-import { routeFallback } from './styles/chatbot.stylex'
+import { BootHold, BootReady } from './lib/bootScreen'
 import { tripsPageAt } from './pages/Trips/routePages'
 
 // Every route is lazy: the entry holds only the router, the boundaries and
-// the fallbacks, so no app's code or vendor groups load with another app.
+// the boot screen's holds, so no app's code or vendor groups load with another app.
 // `scripts/check-entry-preloads.mjs` fails the build if that slips.
 const App = lazyRetry(() => import('./App'))
 const Landing = lazyRetry(() =>
@@ -81,45 +80,6 @@ const TripsNotFound = lazyRetry(() =>
   import('./pages/Trips/TripsNotFound').then((module) => ({ default: module.TripsNotFound })),
 )
 
-// Route-aware skeletons so a lazy chunk that's still streaming (or hung on a
-// stale SW transition) shows recognizable parchment instead of a blank canvas
-// the user reads as "site is down."
-function ChatbotFallback() {
-  return (
-    <div
-      {...sx(routeFallback.shell)}
-      role="status"
-      aria-label="Loading chatbot"
-    >
-      <span {...sx(routeFallback.label)}>Loading…</span>
-    </div>
-  )
-}
-
-function BreathworkShellFallback() {
-  return (
-    <div
-      {...sx(routeFallback.shell, routeFallback.breathworkShell, 'breathwork')}
-      role="status"
-      aria-label="Loading BreathFlow"
-    >
-      <span {...sx(routeFallback.label)}>Loading BreathFlow…</span>
-    </div>
-  )
-}
-
-function TripsShellFallback() {
-  return (
-    <div
-      {...sx(routeFallback.shell, 'trips')}
-      role="status"
-      aria-label="Loading trip planner"
-    >
-      <span {...sx(routeFallback.label)}>Loading trips…</span>
-    </div>
-  )
-}
-
 // Wraps the element in <boundary><suspense>{element}</suspense></boundary> so
 // that BOTH a chunk-load rejection (handled by the boundary) and a slow chunk
 // stream (handled by Suspense's fallback) have a visible, recoverable surface.
@@ -176,12 +136,13 @@ function RouteChangeSignal() {
 export function AppRoutes() {
   return (
     <BrowserRouter basename={routerBasename()}>
+      <BootReady />
       <RouteChangeSignal />
       <Routes>
         <Route
           path="/"
           element={
-            <Guarded app="chatbot" fallback={<ChatbotFallback />}>
+            <Guarded app="chatbot" fallback={<BootHold world="lim" step="code" />}>
               <App />
             </Guarded>
           }
@@ -189,7 +150,7 @@ export function AppRoutes() {
         <Route
           path="/lab"
           element={
-            <Guarded app="chatbot" fallback={<ChatbotFallback />}>
+            <Guarded app="chatbot" fallback={<BootHold world="lab" step="code" />}>
               <Landing />
             </Guarded>
           }
@@ -199,7 +160,7 @@ export function AppRoutes() {
         <Route
           path="/breathwork"
           element={
-            <Guarded app="breathwork" fallback={<BreathworkShellFallback />}>
+            <Guarded app="breathwork" fallback={<BootHold world="breathwork" step="code" />}>
               <BreathworkLayout />
             </Guarded>
           }
@@ -214,7 +175,7 @@ export function AppRoutes() {
         <Route
           path="/korea"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
+            <Guarded app="trips" fallback={<BootHold world="trips" step="code" />}>
               <KoreaIndexRedirect />
             </Guarded>
           }
@@ -222,7 +183,7 @@ export function AppRoutes() {
         <Route
           path="/korea/day/:slug"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
+            <Guarded app="trips" fallback={<BootHold world="trips" step="code" />}>
               <KoreaDayRedirect />
             </Guarded>
           }
@@ -230,7 +191,7 @@ export function AppRoutes() {
         <Route
           path="/korea/places"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
+            <Guarded app="trips" fallback={<BootHold world="trips" step="code" />}>
               <KoreaPlacesRedirect />
             </Guarded>
           }
@@ -238,7 +199,7 @@ export function AppRoutes() {
         <Route
           path="/korea/ingest"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
+            <Guarded app="trips" fallback={<BootHold world="trips" step="code" />}>
               <KoreaIngestRedirect />
             </Guarded>
           }
@@ -246,7 +207,7 @@ export function AppRoutes() {
         <Route
           path="/korea/*"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
+            <Guarded app="trips" fallback={<BootHold world="trips" step="code" />}>
               <KoreaCatchRedirect />
             </Guarded>
           }
@@ -257,7 +218,7 @@ export function AppRoutes() {
           element={
             <>
               <TripsPagePreload />
-              <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <Guarded app="trips" fallback={<BootHold world="trips" step="code" />}>
                 <TripsLayout />
               </Guarded>
             </>
@@ -276,7 +237,7 @@ export function AppRoutes() {
         <Route
           path="/sign-in"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
+            <Guarded app="trips" fallback={<BootHold world="auth" step="code" />}>
               <AuthPage mode="sign-in" />
             </Guarded>
           }
@@ -284,7 +245,7 @@ export function AppRoutes() {
         <Route
           path="/sign-up"
           element={
-            <Guarded app="trips" fallback={<TripsShellFallback />}>
+            <Guarded app="trips" fallback={<BootHold world="auth" step="code" />}>
               <AuthPage mode="sign-up" />
             </Guarded>
           }
@@ -293,7 +254,7 @@ export function AppRoutes() {
         <Route
           path="*"
           element={
-            <Guarded app="chatbot" fallback={<ChatbotFallback />}>
+            <Guarded app="chatbot" fallback={<BootHold world="lim" step="code" />}>
               <SiteNotFound />
             </Guarded>
           }

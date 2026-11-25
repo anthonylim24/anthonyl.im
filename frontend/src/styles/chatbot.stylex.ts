@@ -1234,8 +1234,8 @@ export const stage = stylex.create({
   },
 })
 
-/** Route shell fallbacks (AppRoutes.tsx). */
-export const routeFallback = stylex.create({
+/** The sign-in and sign-up pages' frame (pages/Auth/AuthPage.tsx). */
+export const authPage = stylex.create({
   shell: {
     display: 'flex',
     minHeight: '100dvh',
@@ -1247,13 +1247,6 @@ export const routeFallback = stylex.create({
       backgroundColor: '#0c0a09',
       color: '#a8a29e',
     },
-  },
-  breathworkShell: {
-    backgroundColor: 'var(--bw-canvas)',
-  },
-  label: {
-    fontSize: '0.875rem',
-    lineHeight: '1.25rem',
   },
 })
 
