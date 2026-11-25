@@ -182,7 +182,8 @@ export const tl = stylex.create({
     color: "var(--trips-ink-secondary)",
     backgroundColor: "var(--trips-surface)",
     cursor: "pointer",
-    "::after": { content: '""', position: "absolute", inset: "-0.5rem -0.25rem -0.5rem -0.5rem" },
+    // 44px each way: 12px out to the left, 4px to the block's edge on the right.
+    "::after": { content: '""', position: "absolute", inset: "-0.5rem -0.25rem -0.5rem -0.75rem" },
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" } },
   },
   editRow: { top: "50%", transform: "translateY(-50%)" },

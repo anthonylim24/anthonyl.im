@@ -5,9 +5,11 @@ import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
 import type { ItineraryItem, Trip } from "../../types"
 import { OverviewPanel } from "../../workspace/OverviewPanel"
 import { pickOption } from "../../__tests__/pickOption"
+import { STOP_STATUS_OF } from "../status"
 
+// The stop's status paired with the booking's, as the editor and an import leave them.
 const booking = (id: string, title: string, time: string | undefined, reservation: ItineraryItem["reservation"]): ItineraryItem =>
-  makeItem({ id, kind: "reservation", title, status: "booked", time, reservation })
+  makeItem({ id, kind: "reservation", title, status: STOP_STATUS_OF[reservation?.status ?? "confirmed"], time, reservation })
 
 const trip = makeTrip({
   days: [
@@ -64,7 +66,28 @@ describe("OverviewPanel bookings", () => {
       "/trips/lisbon/day/day-2#item-train",
     ])
     expect(links[0]).toHaveTextContent("TP 202 · BOS → LIS")
-    expect(links[2]).toHaveTextContent("Pending: not confirmed yet")
+    // Its chip says Pending; the lines do not say it again.
+    expect(links[2]).toHaveTextContent("Pending")
+    expect(links[2]).not.toHaveTextContent(/not confirmed/i)
+  })
+
+  it("gives a pasted booking the booking's own status, though the stop says booked", () => {
+    const pasted = makeItem({ id: "pasted", kind: "reservation", title: "Ferry", status: "booked", time: "10:00", reservation: { type: "ferry", status: "pending" } })
+    renderPanel({ t: makeTrip({ ...trip, days: [{ id: "day-1", date: "2026-07-10", items: [pasted] }] }) })
+    const [link] = within(bookingsSection()).getAllByRole("link")
+    expect(link).toHaveTextContent("Pending")
+    expect(link).not.toHaveTextContent("Booked")
+  })
+
+  it("says Done or Skipped once the stop is, as its card does", () => {
+    const done = booking("done", "Ferry", "10:00", { type: "ferry", status: "confirmed" })
+    const skipped = booking("skipped", "Museum", "12:00", { type: "experience", status: "pending" })
+    const day = { id: "day-1", date: "2026-07-10", items: [{ ...done, status: "completed" as const }, { ...skipped, status: "skipped" as const }] }
+    renderPanel({ t: makeTrip({ ...trip, days: [day] }) })
+    const [first, second] = within(bookingsSection()).getAllByRole("link")
+    expect(first).toHaveTextContent("Done")
+    expect(first).not.toHaveTextContent("Booked")
+    expect(second).toHaveTextContent("Skipped")
   })
 
   it("offers to paste a confirmation or enter a booking by hand", () => {

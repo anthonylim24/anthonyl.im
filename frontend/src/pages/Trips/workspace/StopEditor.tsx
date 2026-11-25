@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
-import { ArrowDown, ArrowUp, CalendarDays, Clock, Copy, ExternalLink, MapPin, MapPinOff, Plus, Trash2, X } from "lucide-react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { ArrowDown, ArrowUp, CalendarDays, Clock, Copy, ExternalLink, MapPin, MapPinOff, MoreHorizontal, Plus, Trash2, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsAppName, externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, STATUS_LABEL } from "../meta"
@@ -14,12 +14,12 @@ import { composing } from "../ime"
 import { normalizeLink, stopLink, withLink } from "./stopLinks"
 import { LinkChip } from "./LinkChip"
 import { CostField } from "../budget/CostField"
-import type { ItemStatus, ItineraryItem, Trip, TripDay } from "../types"
+import type { ItemStatus, ItineraryItem, Trip, TripDay, TripLocation } from "../types"
 import { BookingFields } from "./BookingFields"
 import { BookingSummary } from "../bookings/BookingSummary"
 import { TimeField } from "../bookings/TimeField"
 import type { DayOption } from "../useTripEditor"
-import { type EditorSurface, type StopEdits } from "./stopEdits"
+import { type StopEdits } from "./stopEdits"
 import { FIELD_CHIP, holds, STOP_FIELDS, type StopField } from "./stopFields"
 import { useFitHeight } from "./fitHeight"
 import { stopTitle } from "../timeline/timeline"
@@ -84,8 +84,6 @@ export interface StopEditorProps {
   edits: StopEdits
   /** A start for it while it has none, read off its day (`suggestStart`). */
   startAt?: StartSuggestion | null
-  /** Focus the name on mount: a sheet opened to edit this stop. Untitled, it always is. */
-  focusName?: boolean
 }
 
 /** The controls of one of an editor's fields (`data-stop-field`), in order. */
@@ -93,8 +91,10 @@ const controlsOf = (fieldId: string, field: StopField) =>
   document.querySelectorAll<HTMLElement>(`[data-stop-field="${fieldId}-${field}"] :is(input:not([type=hidden]), textarea, [role=combobox], button)`)
 
 /** The fields of an editable stop: what its kind needs, then chips for the rest (`stopFields.ts`). */
-export function StopEditor({ item, trip, day, locked, near, currency, edits, startAt = null, focusName = false }: StopEditorProps) {
+export function StopEditor({ item, trip, day, locked, near, currency, edits, startAt = null }: StopEditorProps) {
   const [endOpen, setEndOpen] = useState(false)
+  const nameRef = useRef<HTMLTextAreaElement>(null)
+  useFitHeight(nameRef, item.title)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   useFitHeight(notesRef, item.notes ?? "")
   const { patch } = edits
@@ -128,14 +128,21 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
     <>
       <label {...sx(s.span2)}>
         <span {...sx(s.miniLabel)}>{item.kind === "note" ? "Note" : "Name"}</span>
-        <input
+        {/* Wraps rather than scrolls, so a long name is read whole. One line of text: Enter adds none. */}
+        <textarea
+          ref={nameRef}
           value={item.title}
           disabled={locked}
+          rows={1}
           placeholder={item.kind === "note" ? "What to remember" : "Name this stop"}
-          autoFocus={focusName || !item.title}
+          // Only a stop with nothing to call it opens on its name: on a phone a focused field raises the keyboard.
+          autoFocus={!item.title}
           maxLength={LIMITS.itemTitle}
-          {...sx(a.field)}
-          onChange={(event) => patch({ title: event.target.value })}
+          {...sx(a.field, a.textarea, s.nameField, a.wrapName)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !composing(event)) event.preventDefault()
+          }}
+          onChange={(event) => patch({ title: event.target.value.replace(/\s*\n\s*/g, " ") })}
         />
       </label>
       {item.kind !== "reservation" && shows("time") && (
@@ -191,7 +198,7 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
       {shows("location") && (
         <div {...sx(s.span2)}>
           <span {...sx(s.miniLabel)}>Location</span>
-          <LocationField item={item} near={near} locked={locked} onChange={patch} />
+          <LocationField item={item} near={near} locked={locked} edits={edits} />
         </div>
       )}
       {shows("notes") && (
@@ -245,6 +252,8 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
   )
 }
 
+const EDIT_TITLE: Record<ItineraryItem["kind"], string> = { place: "Edit stop", reservation: "Edit booking", note: "Edit note", section: "Edit heading" }
+
 const mapsOf = (item: ItineraryItem) =>
   isPinned(item) || item.location?.address
     ? externalMapsLink({ name: item.location?.name ?? item.title, address: item.location?.address, lat: item.location?.lat, lng: item.location?.lng })
@@ -253,20 +262,102 @@ const mapsOf = (item: ItineraryItem) =>
 const isPinned = (item: ItineraryItem) => typeof item.location?.lat === "number" && typeof item.location?.lng === "number"
 
 /**
- * Move up / down (the drag grip is hidden on phones), duplicate, open in maps
- * and delete, in one row. In a sheet the card's own menu is out of reach, so
- * the row also sends the stop to another day.
+ * Up and down one place (the drag grip is hidden on phones). A move to either
+ * end disables the button pressed, so focus goes to the other one, not the page.
  */
+function MoveButtons({ index, count, locked, edits, named }: { index: number; count: number; locked: boolean; edits: StopEdits; named: boolean }) {
+  const up = useRef<HTMLButtonElement>(null)
+  const down = useRef<HTMLButtonElement>(null)
+  // The other button is still disabled until the stop has moved.
+  const refocus = useRef<HTMLButtonElement | null>(null)
+  useLayoutEffect(() => {
+    refocus.current?.focus()
+    refocus.current = null
+  }, [index])
+  const move = (step: -1 | 1) => {
+    if (!edits.move(step)) return
+    if (step < 0 && index === 1) refocus.current = down.current
+    if (step > 0 && index === count - 2) refocus.current = up.current
+  }
+  const look = named ? sx(a.btn, a.btnSecondary, a.btnSm) : sx(a.iconBtn, a.iconBtnSm)
+  return (
+    <>
+      <button ref={up} type="button" {...look} aria-label={named ? undefined : "Move up"} title={named ? undefined : "Move up"} disabled={locked || index === 0} onClick={() => move(-1)}>
+        <ArrowUp size={named ? 14 : 16} strokeWidth={1.75} aria-hidden />
+        {named && "Move up"}
+      </button>
+      <button
+        ref={down}
+        type="button"
+        {...look}
+        aria-label={named ? undefined : "Move down"}
+        title={named ? undefined : "Move down"}
+        disabled={locked || index === count - 1}
+        onClick={() => move(1)}
+      >
+        <ArrowDown size={named ? 14 : 16} strokeWidth={1.75} aria-hidden />
+        {named && "Move down"}
+      </button>
+    </>
+  )
+}
+
+/** Under a card: move up / down, duplicate and open in maps, then Delete at the far end. */
 export function StopActions({
+  item,
+  index,
+  count,
+  locked,
+  edits,
+  onDelete,
+}: {
+  item: ItineraryItem
+  index: number
+  count: number
+  locked: boolean
+  edits: StopEdits
+  onDelete: () => void
+}) {
+  const maps = mapsOf(item)
+  return (
+    <div {...sx(s.editorActions)}>
+      <MoveButtons index={index} count={count} locked={locked} edits={edits} named={false} />
+      <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} disabled={locked} onClick={edits.duplicate}>
+        <Copy size={14} strokeWidth={1.75} aria-hidden />
+        Duplicate
+      </button>
+      {maps && (
+        <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnGhost, a.btnSm)}>
+          <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
+          Maps
+        </a>
+      )}
+      <span {...sx(a.grow)} />
+      <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm, a.btnDangerGhost)} disabled={locked} onClick={onDelete}>
+        <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+        Delete
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The sheet's foot, one row on the narrowest phone: Delete as far from Done
+ * as it goes, and everything else under More, each action by name (a touch
+ * screen shows no tooltip). More opens above the row, so nothing under the
+ * finger moves; the card's own menu is out of reach here, so it also holds
+ * the move to another day.
+ */
+function SheetFoot({
   item,
   dayId,
   index,
   count,
   dayOptions,
   locked,
-  surface,
   edits,
   onDelete,
+  onDone,
 }: {
   item: ItineraryItem
   dayId: string
@@ -274,62 +365,67 @@ export function StopActions({
   count: number
   dayOptions: DayOption[]
   locked: boolean
-  surface: EditorSurface
   edits: StopEdits
   onDelete: () => void
+  onDone: () => void
 }) {
+  const [more, setMore] = useState(false)
   const [picking, setPicking] = useState(false)
+  const footRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLButtonElement>(null)
+  const panelId = useId()
+  // Escape folds More away before it closes the sheet.
+  useClaimEscape(more, footRef)
   const maps = mapsOf(item)
-  const sheet = surface === "sheet"
   return (
-    <div {...sx(sheet ? s.sheetActions : s.editorActions)}>
-      {sheet && (
-        // First, as far from Done as the row allows.
-        <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Delete" title="Delete" disabled={locked} onClick={onDelete}>
-          <Trash2 size={16} strokeWidth={1.75} aria-hidden />
-        </button>
-      )}
-      <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Move up" title="Move up" disabled={locked || index === 0} onClick={() => edits.move(-1)}>
-        <ArrowUp size={16} strokeWidth={1.75} aria-hidden />
+    <div
+      ref={footRef}
+      {...sx(s.sheetFoot)}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !more) return
+        setMore(false)
+        moreRef.current?.focus()
+      }}
+    >
+      <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm, a.btnDangerGhost, s.sheetDelete)} disabled={locked} onClick={onDelete}>
+        <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+        Delete
       </button>
-      <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Move down" title="Move down" disabled={locked || index === count - 1} onClick={() => edits.move(1)}>
-        <ArrowDown size={16} strokeWidth={1.75} aria-hidden />
+      <button
+        ref={moreRef}
+        type="button"
+        aria-expanded={more}
+        aria-controls={more ? panelId : undefined}
+        {...sx(a.btn, a.btnGhost, a.btnSm, more && s.sheetMoreOpen)}
+        onClick={() => setMore((open) => !open)}
+      >
+        <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
+        More
       </button>
-      <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Duplicate" title="Duplicate" disabled={locked} onClick={edits.duplicate}>
-        <Copy size={16} strokeWidth={1.75} aria-hidden />
-      </button>
-      {sheet && dayOptions.length > 1 && (
-        <button
-          type="button"
-          {...sx(a.iconBtn, a.iconBtnSm)}
-          aria-label="Move to another day…"
-          title="Move to another day"
-          disabled={locked}
-          onClick={() => setPicking(true)}
-        >
-          <CalendarDays size={16} strokeWidth={1.75} aria-hidden />
-        </button>
-      )}
-      {maps &&
-        (sheet ? (
-          <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} title={maps.label} {...sx(a.iconBtn, a.iconBtnSm)}>
-            <ExternalLink size={16} strokeWidth={1.75} aria-hidden />
-          </a>
-        ) : (
-          <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnGhost, a.btnSm)}>
-            <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
-            Maps
-          </a>
-        ))}
-      {!sheet && (
-        <>
-          <span {...sx(a.grow)} />
-          <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} disabled={locked} onClick={onDelete}>
-            <Trash2 size={14} strokeWidth={1.75} aria-hidden />
-            Delete
+      {more && (
+        <div id={panelId} role="group" aria-label="More" {...sx(s.sheetMorePanel)}>
+          <MoveButtons index={index} count={count} locked={locked} edits={edits} named />
+          <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm, !maps && s.sheetMoreWide)} disabled={locked} onClick={edits.duplicate}>
+            <Copy size={14} strokeWidth={1.75} aria-hidden />
+            Duplicate
           </button>
-        </>
+          {maps && (
+            <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnSecondary, a.btnSm)}>
+              <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
+              {externalMapsAppName(maps.app)}
+            </a>
+          )}
+          {dayOptions.length > 1 && (
+            <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm, s.sheetMoreWide)} disabled={locked} onClick={() => setPicking(true)}>
+              <CalendarDays size={14} strokeWidth={1.75} aria-hidden />
+              Move to another day…
+            </button>
+          )}
+        </div>
       )}
+      <button type="button" {...sx(a.btn, a.btnPrimary, s.sheetDone)} onClick={onDone}>
+        Done
+      </button>
       <Presence when={picking}>
         {() => <StopDayPicker mode="move" item={item} dayId={dayId} dayOptions={dayOptions} edits={edits} onClose={() => setPicking(false)} />}
       </Presence>
@@ -376,8 +472,8 @@ export function StopDetails({ item, trip, day }: { item: ItineraryItem; trip?: T
 }
 
 /**
- * The editor as a sheet, titled with the stop: a dialog on a wide screen, a
- * bottom sheet on a phone. Done and the stop's actions stay in its foot. It
+ * The editor as a sheet: a dialog on a wide screen, a bottom sheet on a
+ * phone. Done and the stop's actions stay in its foot. It
  * keeps its own live region: the page's is hidden from assistive technology
  * while a modal is open.
  */
@@ -397,6 +493,7 @@ export function StopSheet({
   onDelete,
   onClose,
   returnFocus,
+  sendFocus,
 }: {
   /** Gone (deleted, moved to another day) while the sheet leaves. */
   item: ItineraryItem | undefined
@@ -414,40 +511,53 @@ export function StopSheet({
   onDelete: () => void
   onClose: () => void
   returnFocus: () => HTMLElement | null | undefined
+  /** A copy made in the sheet: its control, ahead of what opened the sheet. */
+  sendFocus?: () => HTMLElement | null | undefined
 }) {
   let body: ReactNode = null
   let foot: ReactNode = null
+  const editing = !!(item && editable && edits)
   if (item) {
     body = editable && edits ? (
       <div {...sx(s.sheetEditor)}>
-        <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} focusName />
+        <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} />
       </div>
     ) : (
       <StopDetails item={item} trip={trip} day={day} />
     )
-    foot = (
-      <div {...sx(s.sheetFoot)}>
-        {editable && edits && (
-          <StopActions
-            item={item}
-            dayId={day.id}
-            index={index}
-            count={day.items.length}
-            dayOptions={dayOptions}
-            locked={locked}
-            surface="sheet"
-            edits={edits}
-            onDelete={onDelete}
-          />
-        )}
-        <button type="button" {...sx(a.btn, a.btnPrimary, s.sheetDone)} onClick={onClose}>
-          Done
-        </button>
-      </div>
-    )
+    foot =
+      editable && edits ? (
+        <SheetFoot
+          item={item}
+          dayId={day.id}
+          index={index}
+          count={day.items.length}
+          dayOptions={dayOptions}
+          locked={locked}
+          edits={edits}
+          onDelete={onDelete}
+          onDone={onClose}
+        />
+      ) : (
+        <div {...sx(s.sheetFoot)}>
+          <button type="button" {...sx(a.btn, a.btnPrimary, s.sheetDone)} onClick={onClose}>
+            Done
+          </button>
+        </div>
+      )
   }
   return (
-    <Modal open onClose={onClose} title={item ? stopTitle(item) : ""} accent={trip.appearance?.accent} footer={foot} returnFocus={returnFocus}>
+    <Modal
+      open
+      onClose={onClose}
+      // An editor's name is its first field, so the title does not say it again; a viewer sees no field, so it does.
+      title={!item ? "" : editing ? EDIT_TITLE[item.kind] : stopTitle(item)}
+      accent={trip.appearance?.accent}
+      footer={foot}
+      returnFocus={returnFocus}
+      sendFocus={sendFocus}
+      focusDialog
+    >
       {body}
       <p {...sx(a.srOnly)} role="status" aria-live="polite">
         {spoken}
@@ -456,24 +566,20 @@ export function StopSheet({
   )
 }
 
-function LocationField({
-  item,
-  near,
-  locked,
-  onChange,
-}: {
-  item: ItineraryItem
-  near: LngLat | null
-  locked: boolean
-  onChange: (patch: Partial<Omit<ItineraryItem, "id">>) => void
-}) {
+function LocationField({ item, near, locked, edits }: { item: ItineraryItem; near: LngLat | null; locked: boolean; edits: StopEdits }) {
   const pinned = isPinned(item)
   const [searching, setSearching] = useState(false)
   // The search closed: Change replaces it, and takes the focus it had.
   const [searched, setSearched] = useState(false)
+  // The pin just removed, offered back (with the focus) until the stop has another.
+  const [removed, setRemoved] = useState<TripLocation | null>(null)
+  if (pinned && removed) setRemoved(null)
+  // Put back by Undo: Remove pin, where the focus was, takes it again.
+  const [repinned, setRepinned] = useState(false)
   const closeSearch = () => {
     setSearching(false)
     setSearched(true)
+    setRepinned(false)
   }
   const [query, setQuery] = useState("")
   const { results, loading } = usePlaceSearch(searching ? query : "", near)
@@ -487,29 +593,40 @@ function LocationField({
     const where = (place && place !== item.title.trim() ? place : item.location?.address) || place || "Pinned on the map"
     return (
       <div {...sx(s.pinnedBox)}>
-        <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText)} />
-        <span {...sx(a.grow, a.wrap)}>{where}</span>
-        <button
-          type="button"
-          {...sx(a.btn, a.btnGhost, a.btnSm)}
-          disabled={locked}
-          autoFocus={searched}
-          onClick={() => {
-            setQuery(item.location?.name ?? item.title)
-            setSearching(true)
-          }}
-        >
-          Change
-        </button>
-        <button
-          type="button"
-          {...sx(a.iconBtn, a.iconBtnSm)}
-          aria-label="Remove pin"
-          disabled={locked}
-          onClick={() => onChange({ location: { name: item.location?.name ?? item.title, source: item.location?.source ?? "user" } })}
-        >
-          <MapPinOff size={16} strokeWidth={1.75} aria-hidden />
-        </button>
+        <p {...sx(s.pinnedPlace)}>
+          <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText, s.pinnedGlyph)} />
+          <span {...sx(s.pinnedText)} title={where}>
+            {where}
+          </span>
+        </p>
+        <div {...sx(s.pinnedActions)}>
+          <button
+            type="button"
+            {...sx(a.btn, a.btnGhost, a.btnSm)}
+            disabled={locked}
+            autoFocus={searched}
+            onClick={() => {
+              setQuery(item.location?.name ?? item.title)
+              setSearching(true)
+            }}
+          >
+            Change
+          </button>
+          <button
+            type="button"
+            {...sx(a.btn, a.btnGhost, a.btnSm)}
+            disabled={locked}
+            autoFocus={repinned}
+            onClick={() => {
+              setSearched(false)
+              setRepinned(false)
+              setRemoved(edits.removePin())
+            }}
+          >
+            <MapPinOff size={14} strokeWidth={1.75} aria-hidden />
+            Remove pin
+          </button>
+        </div>
       </div>
     )
   }
@@ -542,6 +659,25 @@ function LocationField({
           }
         }}
       />
+      {removed && !searching && (
+        <p {...sx(s.pinUndo)}>
+          Pin removed.
+          <button
+            type="button"
+            {...sx(a.btn, a.btnGhost, a.btnSm)}
+            // The control that removed it has gone; this is where the focus can be useful.
+            autoFocus
+            disabled={locked}
+            onClick={() => {
+              edits.pinAgain(removed)
+              setRemoved(null)
+              setRepinned(true)
+            }}
+          >
+            Undo
+          </button>
+        </p>
+      )}
       {searching && (loading || results.length > 0 || query.trim().length >= 2) && (
         <ul {...sx(a.stack)} style={{ gap: 0, listStyle: "none", margin: 0, padding: 0 }} aria-label="Matching places">
           {results.map((place) => (
@@ -550,7 +686,7 @@ function LocationField({
                 type="button"
                 {...sx(s.result)}
                 onClick={() => {
-                  onChange({
+                  edits.patch({
                     title: item.title || place.name,
                     location: {
                       name: place.name,

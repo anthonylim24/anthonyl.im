@@ -1,6 +1,6 @@
 import { formatClock } from "../meta"
 import { copyItemToDays, duplicateItem, moveItem, moveItemToDay, setItemTime, updateItem } from "../tripEdits"
-import type { ItineraryItem, TripDay } from "../types"
+import type { ItineraryItem, TripDay, TripLocation } from "../types"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 
@@ -30,10 +30,12 @@ export interface StopContext {
   onAnnounce?: (message: string) => void
   /** The stop left this day (moved to another): the list moves focus on. */
   onGone?: (index: number) => void
+  /** A copy went in after the stop: the editor closes, and the copy takes focus once the list has it. */
+  onDuplicated?: (index: number, spoken: string) => void
 }
 
 /** What can be done to one stop, with the undo labels and announcements each change carries. */
-export function stopEdits({ item, dayId, index, count, dayOptions, parked, onChange, onAnnounce, onGone }: StopContext) {
+export function stopEdits({ item, dayId, index, count, dayOptions, parked, onChange, onAnnounce, onGone, onDuplicated }: StopContext) {
   const name = `“${item.title || "Untitled"}”`
   const spokenName = item.title || "Stop"
   const dayName = (id: string) => dayOptions.find((option) => option.id === id)?.label.split(" · ")[0] ?? "another day"
@@ -60,7 +62,22 @@ export function stopEdits({ item, dayId, index, count, dayOptions, parked, onCha
       onChange((days) => setItemTime(days, dayId, item.id, time))
       if (parked && time) onAnnounce?.(`${spokenName} is on the route at ${formatClock(time)}.`)
     },
-    duplicate: () => onChange((days) => duplicateItem(days, dayId, item.id), { label: `Duplicated ${name}` }),
+    /** Off the map, keeping the place's name. Returns what it was, for `pinAgain`. */
+    removePin: () => {
+      const was = item.location
+      if (!was) return null
+      onChange((days) => updateItem(days, dayId, item.id, { location: { name: was.name || item.title, source: was.source } }), { label: `Removed the pin from ${name}` })
+      onAnnounce?.(`Pin removed from ${spokenName}.`)
+      return was
+    },
+    pinAgain: (location: TripLocation) => {
+      onChange((days) => updateItem(days, dayId, item.id, { location }), { label: `Pinned ${name} again` })
+      onAnnounce?.(`${spokenName} is back on the map.`)
+    },
+    duplicate: () => {
+      onChange((days) => duplicateItem(days, dayId, item.id), { label: `Duplicated ${name}`, toast: true })
+      onDuplicated?.(index, `${spokenName} duplicated. The copy is next in the day.`)
+    },
   }
 }
 

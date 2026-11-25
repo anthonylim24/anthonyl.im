@@ -225,6 +225,8 @@ function LegRow({ leg, wet }: { leg: Leg; wet: number | null }) {
 
 /** Focus target after a stop leaves the list: the next stop, else the one before, else the composer. */
 const COMPOSER = "composer"
+/** Focus target after a duplicate: the copy, found once the list has it. */
+const COPY = "copy"
 
 export function DayPanel({
   trip,
@@ -430,11 +432,20 @@ export function DayPanel({
   const stopControl = (id: string) =>
     (id === COMPOSER ? null : (document.getElementById(`item-${id}`)?.querySelector<HTMLElement>("[data-card-row]") ?? stopEditButton(rootRef.current, id))) ??
     rootRef.current?.querySelector<HTMLElement>('input[role="combobox"]')
+  /** The day's ids before a duplicate, and what to say once it is done: the copy is the one new id. */
+  const copyOf = useRef<{ before: Set<string>; spoken: string } | null>(null)
+  const findCopy = () => {
+    const from = copyOf.current
+    return from ? day.items.find((item) => !from.before.has(item.id))?.id : undefined
+  }
   useLayoutEffect(() => {
     const target = focusNext.current
     if (!target) return
+    const id = target === COPY ? findCopy() : target
+    if (!id) return
     focusNext.current = null
-    stopControl(target)?.focus()
+    if (target === COPY) copyOf.current = null
+    stopControl(id)?.focus()
   })
 
   // The sheet's stop, read from the day so every edit shows; gone once it is
@@ -449,6 +460,25 @@ export function DayPanel({
     const target = sheetFocus.current ?? id
     sheetFocus.current = null
     return stopControl(target)
+  })
+  // The stop the sheet was for is still there, so this must come ahead of it.
+  const sheetCopy = useLatestCallback(() => {
+    if (sheetFocus.current !== COPY) return null
+    sheetFocus.current = null
+    // Said now: while the sheet was up, the page's live region was hidden.
+    if (copyOf.current) setSpoken(copyOf.current.spoken)
+    const copy = findCopy()
+    copyOf.current = null
+    return copy ? stopControl(copy) : null
+  })
+  const duplicated = useLatestCallback((index: number, spoken: string) => {
+    copyOf.current = { before: new Set(day.items.map((item) => item.id)), spoken }
+    if (surface === "sheet") sheetFocus.current = COPY
+    else {
+      focusNext.current = COPY
+      setSpoken(spoken)
+    }
+    if (day.items[index]?.id === editing) setEditing(null)
   })
   const editingAt = editing ? day.items.findIndex((item) => item.id === editing) : -1
   const editingItem = editingAt >= 0 ? day.items[editingAt] : undefined
@@ -465,6 +495,7 @@ export function DayPanel({
           onChange,
           onAnnounce: setSpoken,
           onGone: leaveSheet,
+          onDuplicated: duplicated,
         })
       : null
 
@@ -789,6 +820,7 @@ export function DayPanel({
                   onChange={onChange}
                   onDelete={removeStop}
                   onGone={leave}
+                  onDuplicated={duplicated}
                   onLocate={onLocate}
                   onAnnounce={setSpoken}
                   held={held === item.id}
@@ -851,6 +883,7 @@ export function DayPanel({
               }}
               onClose={() => setEditing(null)}
               returnFocus={() => sheetReturn(id)}
+              sendFocus={sheetCopy}
             />
           )
         }}

@@ -72,6 +72,8 @@ const WIDE = "@media (min-width: 1024px)"
 /** Where the compact trip header gives way (`headCompactHide`). */
 const PHONE_W = "@media (max-width: 639.98px)"
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
+/** A ::after inset for a 44px-tall hit band whatever the border (insets count from the padding box). */
+const band44 = "calc((100% - 2.75rem) / 2)"
 
 const riseIn = stylex.keyframes({
   from: { opacity: 0, transform: "translateY(10px)" },
@@ -686,6 +688,9 @@ export const ws = stylex.create({
     display: "grid",
     gridTemplateColumns: "2rem minmax(0, 1fr)",
     columnGap: "0.75rem",
+    // Scrolled to, it clears the sticky day header above and the dock below.
+    scrollMarginTop: "9rem",
+    scrollMarginBottom: "1rem",
   },
   gutter: { position: "relative", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "0.875rem" },
   gutterLine: {
@@ -929,23 +934,45 @@ export const ws = stylex.create({
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",
   },
+  // A field's surface, not the trip's colour (the glyph keeps that): the place
+  // across the full width, its actions on a line under it.
   pinnedBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.625rem",
-    minHeight: "2.75rem",
+    display: "grid",
+    rowGap: "0.25rem",
     paddingInline: "0.75rem",
-    paddingBlock: "0.5rem",
+    paddingTop: "0.625rem",
+    paddingBottom: "0.25rem",
     borderRadius: "var(--trips-field-radius)",
-    backgroundColor: "var(--ta-soft)",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: "var(--trips-line)",
+    backgroundColor: "var(--trips-raised)",
     fontSize: "0.875rem",
     color: "var(--trips-ink)",
   },
+  pinnedPlace: { display: "flex", alignItems: "flex-start", gap: "0.5rem", margin: 0, minWidth: 0 },
+  // On the first line's centre (16px glyph, 20px line).
+  pinnedGlyph: { marginTop: "0.125rem" },
+  // Two lines at most, so the actions stay close under it.
+  pinnedText: {
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    overflowWrap: "break-word",
+    lineHeight: 1.4,
+    minWidth: 0,
+  },
+  // Each button's words under the address's, past the glyph (24px in, less the button's 14px inset).
+  pinnedActions: { display: "flex", flexWrap: "wrap", columnGap: "0.25rem", rowGap: "0.5rem", paddingInlineStart: "0.625rem" },
+  pinUndo: { display: "flex", alignItems: "center", gap: "0.25rem", margin: 0, paddingInlineStart: "0.75rem", fontSize: "0.8125rem", color: "var(--trips-ink-secondary)" },
   editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.25rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
   // One line to start, growing with what is written (`field-sizing` in a.textarea).
   notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
+  nameField: { minHeight: "2.75rem" },
   // "Add status", "Add cost", "Add link": the fields a stop can have, asked for.
-  fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", gap: "0.375rem" },
+  // Wrapped rows sit 12px apart, so each chip's 44px band is its own.
+  fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem" },
   fieldChip: {
     position: "relative",
     display: "inline-flex",
@@ -964,20 +991,23 @@ export const ws = stylex.create({
     whiteSpace: "nowrap",
     cursor: "pointer",
     outline: "none",
-    "::after": { content: '""', position: "absolute", inset: "-0.375rem 0" },
-    ":focus-visible": { boxShadow: "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)" },
+    "::after": { content: '""', position: "absolute", inset: `${band44} 0` },
+    ":focus-visible": { boxShadow: ring },
     ":disabled": { opacity: 0.4, cursor: "not-allowed" },
     "@media (hover: hover)": { ":hover": { borderColor: "var(--trips-ink-tertiary)", color: "var(--trips-ink)" } },
   },
   // In a sheet the body is the editor: the card's grid without its rule and inset.
   sheetEditor: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" },
-  // One child of the dialog's foot (which shares its row between children on a phone):
-  // the stop's actions, then Done, on one line at 375px; a narrower screen wraps Done, never widens the page.
-  sheetFoot: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.25rem", rowGap: "0.5rem", minWidth: 0 },
-  // 36px icons 8px apart: each one's 44px hit area (iconBtnSm's ::after) is its own.
-  sheetActions: { display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 },
-  // At the row's end, or the end of a line of its own once it wraps.
-  sheetDone: { marginLeft: "auto", paddingInline: "0.75rem" },
+  // The dialog's one foot child, its full width: Delete, More and Done on one
+  // line at 320px. Done (alone, for a viewer) sits at the end.
+  sheetFoot: { display: "flex", flexWrap: "wrap", flexGrow: 1, alignItems: "center", justifyContent: "flex-end", columnGap: "0.5rem", rowGap: "0.75rem", minWidth: 0 },
+  // Takes the row's slack, so it sits at the far end from Done.
+  sheetDelete: { marginRight: "auto" },
+  sheetMoreOpen: { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" },
+  // Its own lines above the row, two actions to a line. Lines 8px apart keep each 44px band its own.
+  sheetMorePanel: { order: -1, flexBasis: "100%", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.5rem" },
+  sheetMoreWide: { gridColumn: "1 / -1" },
+  sheetDone: { paddingInline: "1rem" },
 
   // ── Add composer ──────────────────────────────────────
   composer: { position: "relative" },
