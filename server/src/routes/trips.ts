@@ -30,7 +30,7 @@ import {
   RESERVED_SLUGS,
   REVIEW_MAX_ATTEMPTS,
   settleStaleRun,
-  slugify,
+  defaultTripSlug,
   updateTripSchema,
   withoutScheduledIdeas,
   type ReviewRequest,
@@ -384,11 +384,10 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       return c.json({ error: "endDate must be on or after startDate" }, 400)
     }
     const now = nowIso()
-    // Intelligent default permalink: trip name + year, deduped.
-    const baseSlug = slugify(`${body.data.name} ${body.data.startDate.slice(0, 4)}`)
+    const id = newId("trip")
     const trip: Trip = {
-      id: newId("trip"),
-      slug: await uniqueSlug(baseSlug),
+      id,
+      slug: await uniqueSlug(defaultTripSlug({ id, ...body.data })),
       ownerId: userIdOf(c),
       ...body.data,
       days: emptyDays(body.data.startDate, body.data.endDate),

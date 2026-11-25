@@ -702,6 +702,20 @@ describe("permalinks", () => {
     expect(((await bySlug.json()) as { trip: { id: string } }).trip.id).toBe(trip.id)
   })
 
+  test("a name without Latin letters still gives a readable slug, never a bare year", async () => {
+    const { app } = makeApp()
+    const create = async (name: string, destinations: string[]) => {
+      const body = JSON.stringify({ ...JSON.parse(newTripBody), name, destinations })
+      const res = await app.request("/api/trips", { method: "POST", headers: AUTH, body })
+      return ((await res.json()) as { trip: { id: string; slug: string } }).trip
+    }
+    expect((await create("제주도 가족 여행", ["Jeju City, South Korea"])).slug).toBe("jejudo-gajok-yeohaeng-2026")
+    expect((await create("京都の秋", ["Kyoto, Japan"])).slug).toBe("kyoto-2026")
+    const nameless = await create("東京", ["東京"])
+    expect(nameless.slug).not.toMatch(/^\d+$/)
+    expect(nameless.slug).toContain("2026")
+  })
+
   test("auto-dedupes default slugs", async () => {
     const { app } = makeApp()
     const t1 = await createTrip(app)

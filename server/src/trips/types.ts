@@ -718,10 +718,22 @@ export const slugSchema = z
   .string()
   .regex(SLUG_PATTERN, "lowercase letters, numbers, and hyphens only (3-80 chars)")
 
-/** URL-safe slug from free text: diacritics stripped, non-alphanumerics
- *  collapsed to hyphens. Returns "" when nothing survives. */
+const HANGUL_INITIALS = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"]
+const HANGUL_VOWELS = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"]
+const HANGUL_FINALS = ["", "k", "k", "k", "n", "n", "n", "t", "l", "k", "m", "l", "l", "l", "p", "l", "m", "p", "p", "t", "t", "ng", "t", "t", "k", "t", "p", "t"]
+
+/** Hangul syllables in Revised Romanization, one syllable at a time ("제주도" → "jejudo"). */
+function romanizeHangul(text: string): string {
+  return text.replace(/[\uac00-\ud7a3]/g, (syllable) => {
+    const n = syllable.charCodeAt(0) - 0xac00
+    return HANGUL_INITIALS[Math.floor(n / 588)]! + HANGUL_VOWELS[Math.floor((n % 588) / 28)]! + HANGUL_FINALS[n % 28]!
+  })
+}
+
+/** URL-safe slug from free text: diacritics stripped, Hangul romanized,
+ *  non-alphanumerics collapsed to hyphens. Returns "" when nothing survives. */
 export function slugify(text: string): string {
-  return text
+  return romanizeHangul(text)
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -729,6 +741,17 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 70)
     .replace(/-+$/g, "")
+}
+
+/** A new trip's permalink: its name and year. A name with no letters a URL
+ *  can carry (all kanji, say) takes its first destination's, then the trip
+ *  id, so a slug is never a bare year. */
+export function defaultTripSlug(trip: Pick<Trip, "id" | "name" | "destinations" | "startDate">): string {
+  const year = trip.startDate.slice(0, 4)
+  const words = [trip.name, trip.destinations[0]?.split(",")[0] ?? ""]
+    .map(slugify)
+    .find((slug) => /[a-z]/.test(slug))
+  return slugify(`${words ?? trip.id} ${year}`)
 }
 
 export const applySuggestionsSchema = z.object({
