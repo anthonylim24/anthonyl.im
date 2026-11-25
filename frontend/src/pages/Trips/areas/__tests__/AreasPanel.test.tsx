@@ -63,7 +63,7 @@ describe("AreasPanel", () => {
   it("shows a skeleton while grouping, then each area with its photo, credit, days, stops and summary", async () => {
     answers.push(() => Response.json({ areas: [ALFAMA, CHIADO] }))
     const { onShow } = renderPanel(LISBON)
-    expect(screen.getByRole("status").textContent).toMatch(/takes about half a minute/)
+    expect(screen.getByRole("status").textContent).toMatch(/can take up to a minute/)
     const alfama = await screen.findByRole("article", { name: "Alfama" })
     expect(within(alfama).getByRole("img", { name: "Alfama, Lisbon" })).toBeTruthy()
     expect(within(alfama).getByRole("link", { name: "Rita" }).getAttribute("href")).toBe("https://maps.google.com/maps/contrib/1")
@@ -77,7 +77,7 @@ describe("AreasPanel", () => {
     expect(screen.getByRole("status").textContent).toBe("2 neighborhoods")
 
     const toggle = within(alfama).getByRole("button", { name: "Show on map" })
-    expect(toggle.getAttribute("aria-pressed")).toBe("false")
+    expect(toggle.hasAttribute("aria-pressed")).toBe(false)
     fireEvent.click(toggle)
     expect(onShow).toHaveBeenLastCalledWith(expect.objectContaining({ id: ALFAMA.id }))
   })
@@ -86,13 +86,24 @@ describe("AreasPanel", () => {
     answers.push(() => Response.json({ areas: [ALFAMA] }))
     renderPanel(LISBON, ALFAMA.id)
     const alfama = await screen.findByRole("article", { name: "Alfama" })
-    expect(within(alfama).getByRole("button", { name: "Show on map" }).getAttribute("aria-pressed")).toBe("true")
+    // The label says what a press does now.
+    expect(within(alfama).getByRole("button", { name: "Hide from map" })).toBeTruthy()
     const more = within(alfama).getByRole("button", { name: "Stops by day" })
     expect(more.getAttribute("aria-expanded")).toBe("false")
     fireEvent.click(more)
     expect(more.getAttribute("aria-expanded")).toBe("true")
     expect(within(alfama).getByRole("link", { name: "Castelo de São Jorge" }).getAttribute("href")).toBe("/trips/lisbon/day/day-1#stop-castle")
     expect(within(alfama).getByRole("link", { name: "Lisbon Cathedral" }).getAttribute("href")).toBe("/trips/lisbon/day/day-2#stop-se")
+  })
+
+  it("says when the photo is of one of the area's stops, and marks the local name's language", async () => {
+    const castle = { ...ALFAMA, localName: "アルファマ", localLang: "ja", photoOf: "Castelo de São Jorge" }
+    answers.push(() => Response.json({ areas: [castle] }))
+    renderPanel(LISBON)
+    const alfama = await screen.findByRole("article", { name: "Alfama" })
+    expect(within(alfama).getByRole("img", { name: "Castelo de São Jorge, Alfama, Lisbon" })).toBeTruthy()
+    expect(within(alfama).getByRole("figure").textContent).toBe("Castelo de São Jorge · Photo: Rita")
+    expect(within(alfama).getByText("アルファマ").getAttribute("lang")).toBe("ja")
   })
 
   it("says calmly when grouping failed, and tries again on request", async () => {

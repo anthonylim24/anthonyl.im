@@ -420,7 +420,8 @@ html.dark[data-trips-look="glass"][data-trips-scroll] {
 
 :root[data-trips-look="glass"] .trips-glass-tabs > [role="tab"] {
   min-height: 2.5rem;
-  padding-inline: 0.875rem;
+  /* Six tabs and a count fit the overview's 600 px column; more scroll under the strip's fade. */
+  padding-inline: 0.5rem;
   margin-bottom: 0;
   border-bottom-color: transparent;
   border-radius: 999px;

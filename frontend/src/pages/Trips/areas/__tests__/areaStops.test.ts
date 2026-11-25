@@ -40,6 +40,24 @@ describe("areaDays", () => {
   })
 })
 
+describe("areaMeta", () => {
+  const hotel = (id: string, overrides: Partial<ItineraryItem> = {}) => stop(id, 38.71, { location: { name: id, lat: 38.71, lng: -9.13, source: "user", category: "hotel" }, ...overrides })
+
+  it("counts the nights at the hotel as where you stay, not as stops or days", () => {
+    const booked = hotel("booked", { kind: "reservation", reservation: { type: "hotel", status: "confirmed" } } as Partial<ItineraryItem>)
+    const trip = {
+      days: [
+        day("d1", [booked, stop("museum", 38.71)]),
+        day("d2", [hotel("stay-2")]),
+        day("d3", [hotel("stay-3"), hotel("wedding", { kind: "reservation", reservation: { type: "wedding", status: "confirmed" } } as Partial<ItineraryItem>)]),
+        day("d4", [hotel("stay-4")]),
+      ],
+    }
+    expect(areaMeta(areaDays(trip, ["booked", "museum", "stay-2", "stay-3", "wedding", "stay-4"]))).toBe("Days 1, 3 · 2 stops · Where you stay")
+    expect(areaMeta(areaDays(trip, ["booked", "stay-2", "stay-3", "stay-4"]))).toBe("Where you stay · Days 1–4")
+  })
+})
+
 describe("areaFingerprint", () => {
   it("changes when a stop moves or goes, not when stops are reordered", () => {
     const one = { days: [day("d1", [stop("a", 38.71), stop("b", 38.72)])] }

@@ -35,6 +35,14 @@ export function OverviewTabs({
   render: (tab: OverviewTab) => ReactNode
 }) {
   const tabs = only ? OVERVIEW_TABS.filter((t) => only.includes(t.id)) : OVERVIEW_TABS
+  // The tab marked at once on a press: the URL that `tab` follows changes in a
+  // transition, which keeps the old tab on screen while a panel's code loads.
+  const [chosen, setChosen] = useState(tab)
+  const [followed, setFollowed] = useState(tab)
+  if (tab !== followed) {
+    setFollowed(tab)
+    setChosen(tab)
+  }
   const listRef = useRef<HTMLDivElement>(null)
   const [clipped, setClipped] = useState<Clipped>("none")
   const placed = useRef(false)
@@ -60,10 +68,18 @@ export function OverviewTabs({
     const left = el.scrollLeft > start ? start : el.scrollLeft < end ? end : null
     if (left !== null) el.scrollTo({ left: Math.max(0, left), behavior: placed.current ? scrollBehavior() : "auto" })
     placed.current = true
-  }, [tab])
+  }, [chosen])
 
   return (
-    <Tabs.Root value={tab} onValueChange={(v) => onTab(readOverviewTab(v))} activationMode="manual">
+    <Tabs.Root
+      value={chosen}
+      onValueChange={(v) => {
+        const next = readOverviewTab(v)
+        setChosen(next)
+        onTab(next)
+      }}
+      activationMode="manual"
+    >
       <Tabs.List
         ref={listRef}
         {...sx(s.tabs, FADE[clipped], "trips-glass-tabs")}
@@ -73,7 +89,7 @@ export function OverviewTabs({
         {tabs.map((t) => {
           const badge = badges?.[t.id]
           return (
-            <Tabs.Trigger key={t.id} value={t.id} {...sx(s.tab, tab === t.id && s.tabOn)}>
+            <Tabs.Trigger key={t.id} value={t.id} {...sx(s.tab, chosen === t.id && s.tabOn)}>
               {t.label}
               {badge && (
                 <>
@@ -89,7 +105,7 @@ export function OverviewTabs({
       </Tabs.List>
       {tabs.map((t) => (
         <Tabs.Content key={t.id} value={t.id} {...sx(s.tabPanel)}>
-          {tab === t.id && render(t.id)}
+          {chosen === t.id && render(t.id)}
         </Tabs.Content>
       ))}
     </Tabs.Root>

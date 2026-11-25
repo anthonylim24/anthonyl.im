@@ -31,15 +31,19 @@ export const ar = stylex.create({
     borderColor: "transparent",
     transitionProperty: "border-color",
     transitionDuration: "200ms",
+    // Brought into view under the sticky trip header and day rail, not behind them.
+    scrollMarginTop: "9rem",
   },
   // The area drawn on the map: its card wears the same hairline as its edge.
   cardShown: { borderColor: "color-mix(in srgb, var(--ta-fill) 55%, transparent)" },
   figure: { margin: 0, display: "flex", flexDirection: "column" },
+  // Google's photos are mostly 4:3 and shot at eye level: a 2:1 crop above the middle keeps the street and the skyline.
   photo: {
     display: "block",
     width: "100%",
-    aspectRatio: "3 / 1",
+    aspectRatio: "2 / 1",
     objectFit: "cover",
+    objectPosition: "50% 40%",
     backgroundColor: "var(--trips-sunken)",
   },
   credit: {
@@ -51,6 +55,7 @@ export const ar = stylex.create({
     overflowWrap: "anywhere",
   },
   creditLink: {
+    position: "relative",
     color: "inherit",
     textDecoration: "underline",
     textDecorationColor: "color-mix(in srgb, currentColor 35%, transparent)",
@@ -59,6 +64,8 @@ export const ar = stylex.create({
     outline: "none",
     ":focus-visible": { boxShadow: ring },
     [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
+    // A 44 px target around an 11 px line: the photo above and the heading below take no taps.
+    "::after": { content: '""', position: "absolute", inset: "-0.9rem -0.375rem" },
   },
   body: { display: "flex", flexDirection: "column", gap: "0.5rem", padding: "0.875rem 1.125rem 1rem", minWidth: 0 },
   title: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "0.125rem 0.5rem", minWidth: 0 },
@@ -112,7 +119,7 @@ export const ar = stylex.create({
   },
   // Loading: the shape of a card, so nothing jumps when the areas arrive.
   ghost: { display: "flex", flexDirection: "column", gap: "0.625rem", padding: "0 1.125rem 1.125rem" },
-  ghostPhoto: { width: "100%", aspectRatio: "3 / 1", borderRadius: 0 },
+  ghostPhoto: { width: "100%", aspectRatio: "2 / 1", borderRadius: 0 },
   ghostLine: { height: "0.875rem" },
   message: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.75rem", maxWidth: "34rem" },
 
@@ -134,12 +141,14 @@ export const ar = stylex.create({
     backdropFilter: "blur(10px)",
     boxShadow: "var(--trips-shadow-2)",
     color: "var(--trips-ink)",
+    outline: "none",
+    ":focus-visible": { boxShadow: `var(--trips-shadow-2), ${ring}` },
   },
   keyText: { display: "flex", flexDirection: "column", gap: "0.125rem", minWidth: 0, paddingBlock: "0.25rem" },
   keyName: { fontSize: "1.0625rem", lineHeight: 1.15 },
   keyHow: {
     fontFamily: "var(--trips-mono)",
-    fontSize: "0.625rem",
+    fontSize: "0.6875rem",
     letterSpacing: "0.08em",
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",

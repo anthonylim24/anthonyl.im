@@ -355,6 +355,8 @@ export function spreadPins(pins: readonly ScreenPin[], width = 30, height = 26):
 export interface AreaShape {
   geometry: Polygon | MultiPolygon
   approximate: boolean
+  /** The area's stops, marked and named on the map while it is drawn. */
+  stops?: ReadonlyArray<LngLat & { title: string }>
 }
 
 const M_PER_DEG = 111_320

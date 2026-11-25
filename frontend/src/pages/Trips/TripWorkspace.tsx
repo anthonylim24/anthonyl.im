@@ -98,6 +98,10 @@ const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
 const WIDE_QUERY = "(min-width: 1024px)"
 const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
 const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
+/** A neighborhood on a phone's map: clear of its key (top left), the map's buttons (top right) and, in Liquid Glass, the dock over the map's foot. */
+const AREA_PADDING_NARROW = { top: 84, right: 64, bottom: 96, left: 24 }
+/** One empty set of wishlist pins, so the map does not redraw its markers each render. */
+const NO_PINS: ReturnType<typeof ideaPins> = []
 /** The least map kept clear above a tall place card on a phone. */
 const MIN_MAP_BAND = 160
 
@@ -478,14 +482,46 @@ function Workspace() {
   )
   // A neighborhood from the Neighborhoods tab, drawn and framed on the overview map.
   const areaMap = useAreaOnMap(trip ?? null, editor.readToken, !day && tab === "neighborhoods")
-  const { show: pickArea } = areaMap
+  const { show: pickArea, area: shownArea, shape: shownShape, settled: areaSettled } = areaMap
+  /** The area just picked, until its edge is told; and whether its key is to take the focus. */
+  const [picked, setPicked] = useState<string | null>(null)
+  const keyNode = useRef<HTMLDivElement | null>(null)
+  const keyWantsFocus = useRef(false)
+  // On a phone the list, with the button just pressed, goes behind the map: the map's key takes the focus.
+  const areaKeyRef = useCallback((node: HTMLDivElement | null) => {
+    keyNode.current = node
+    if (node && keyWantsFocus.current) {
+      keyWantsFocus.current = false
+      node.focus()
+    }
+  }, [])
   const showArea = useCallback(
     (area: Neighborhood | null) => {
       pickArea(area)
+      setPicked(area?.id ?? null)
+      keyWantsFocus.current = area !== null && !wide
       if (area && !wide) setView("map")
     },
     [pickArea, wide],
   )
+  useEffect(() => {
+    if (!shownArea || !keyWantsFocus.current || !keyNode.current) return
+    keyWantsFocus.current = false
+    keyNode.current.focus()
+  }, [shownArea])
+  // Said once its edge is settled: which area, and whether the edge is OpenStreetMap's or drawn around the stops.
+  if (picked && shownArea?.id === picked && areaSettled && shownShape) {
+    setPicked(null)
+    setAnnounce(`${shownArea.name} is on the map, ${shownShape.approximate ? "drawn around your stops" : "outlined from OpenStreetMap"}.`)
+  }
+  // Cleared from the map's key: the focus goes back to the card's button, or on a phone (the list behind the map) to the view switch.
+  const clearArea = useCallback(() => {
+    const id = shownArea?.id
+    pickArea(null)
+    setPicked(null)
+    const back = wide ? paneRef.current?.querySelector<HTMLElement>(`[data-area-show="${id}"]`) : document.querySelector<HTMLElement>('[data-view][aria-checked="true"]')
+    back?.focus()
+  }, [pickArea, shownArea, wide])
   const areaFramed = areaMap.shape !== null && !focusPin
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
@@ -543,6 +579,14 @@ function Workspace() {
   useEffect(() => {
     if (composeOn) paneRef.current?.querySelector<HTMLElement>('input[role="combobox"]')?.focus()
   }, [composeOn])
+  // A stop followed from elsewhere in the app (Neighborhoods' "Stops by day") takes the focus its link had.
+  const stopLink = day && location.key !== "default" && location.hash.startsWith("#stop-") ? `${location.key}${location.hash}` : null
+  useEffect(() => {
+    if (!stopLink) return
+    const id = decodeURIComponent(stopLink.slice(stopLink.indexOf("#stop-") + 6))
+    const frame = requestAnimationFrame(() => document.getElementById(`item-${id}`)?.querySelector<HTMLElement>("[data-card-row]")?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(frame)
+  }, [stopLink])
 
   const onAdded = useCallback((id: string) => {
     setFresh(new Set([id]))
@@ -870,7 +914,8 @@ function Workspace() {
 
   const page = (
     <div {...sx(s.root)} data-trip-accent={accent}>
-      <div {...sx(s.pane)} ref={paneRef}>
+      {/* On a phone the map covers the list: what it covers leaves the Tab order too. */}
+      <div {...sx(s.pane)} ref={paneRef} inert={!wide && view === "map"}>
         {dayId ? (
           <header {...sx(s.headCompact, s.headCompactHide)}>
             <Link to={basePath} {...sx(s.compactTitle, a.truncate)} title="Back to the trip overview">
@@ -1199,7 +1244,7 @@ function Workspace() {
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
-            padding={mapPadding}
+            padding={areaFramed && !wide ? AREA_PADDING_NARROW : mapPadding}
             activeId={activeId}
             dots={dots}
             onSelect={(id) => {
@@ -1210,7 +1255,8 @@ function Workspace() {
               setActiveId(id)
               setFocusId(null)
             }}
-            ideaPins={wishPins}
+            // A drawn neighborhood is the map's one subject: the wishlist steps aside until it is cleared.
+            ideaPins={areaMap.shape ? NO_PINS : wishPins}
             // One history entry per opening: Back closes the wishlist place again.
             onSelectIdea={(ideaId) => ideaNav.open(ideaId, "map")}
             ideaPreview={(ideaId, via) => {
@@ -1224,7 +1270,7 @@ function Workspace() {
             }
           >
             {areaMap.area && areaMap.shape ? (
-              <AreaKey name={areaMap.area.name} shape={areaMap.shape} onClear={() => pickArea(null)} />
+              <AreaKey ref={areaKeyRef} name={areaMap.area.name} shape={areaMap.shape} onClear={clearArea} />
             ) : (
               <p {...sx(s.mapChip, "trips-glass-pill")}>
                 <span {...sx(a.truncate)}>
@@ -1330,7 +1376,8 @@ function Workspace() {
             onClick={() => setView("list")}
           >
             <List size={16} strokeWidth={1.75} aria-hidden />
-            Itinerary
+            {/* The overview's other tabs are lists too, not the itinerary. */}
+            {dayId || tab === "itinerary" ? "Itinerary" : "List"}
           </button>
           <button
             type="button"

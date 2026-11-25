@@ -70,6 +70,8 @@ export interface TripsRouterDeps {
   neighborhoods?: NeighborhoodService | null
   /** How long a neighborhoods request waits on the model before answering 202 (tests shorten it). */
   areasWaitMs?: number
+  /** How long a neighborhood's outline may take in all (tests shorten it). */
+  areaOutlineMs?: number
   /** Runs queued AI reviews; `/enhance` kicks it with each new run. The
    *  server passes the one worker it also sweeps with. Undefined: a worker
    *  over `store` and `llm` that only takes the runs it is kicked with (and
@@ -323,6 +325,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         ? deps.neighborhoods
         : createNeighborhoodsFromKeys({ geminiApiKey: config.geminiApiKey, groqApiKey: config.groqApiKey, googleMapsApiKey: config.googleMapsApiKey }),
     waitMs: deps.areasWaitMs,
+    outlineMs: deps.areaOutlineMs,
     // Viewers see the tab too: the areas say nothing the trip does not.
     load: async (c) => {
       await ensureSeeded(deps.store)

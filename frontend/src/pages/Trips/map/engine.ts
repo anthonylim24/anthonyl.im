@@ -80,6 +80,7 @@ const ROUTE_SOURCE = "atlas-route"
 const DOTS_SOURCE = "atlas-dots"
 const GUARD_SOURCE = "atlas-guard"
 const AREA_SOURCE = "atlas-area"
+const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 }
 /** The ambient globe's spin step (see `spinStep`). */
 const SPIN_STEP_MS = 66
 
@@ -435,7 +436,16 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
 
   const areaData = (): FeatureCollection => ({
     type: "FeatureCollection",
-    features: area ? [{ type: "Feature", properties: { approximate: area.approximate }, geometry: area.geometry }] : [],
+    features: area
+      ? [
+          { type: "Feature", properties: { approximate: area.approximate }, geometry: area.geometry },
+          ...(area.stops ?? []).map((stop) => ({
+            type: "Feature" as const,
+            properties: { title: stop.title.length > 32 ? `${stop.title.slice(0, 31)}…` : stop.title },
+            geometry: { type: "Point" as const, coordinates: [stop.lng, stop.lat] },
+          })),
+        ]
+      : [],
   })
 
   // Over the streets and under the 3D buildings and the route, so a tilted
@@ -459,6 +469,33 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       { id: "atlas-area-guess", type: "line", source: AREA_SOURCE, filter: ["==", ["get", "approximate"], true], paint: { ...line, "line-width": 2, "line-dasharray": [3, 2] } },
       edge,
     )
+    // The area's stops, marked and named: which dot is which without opening each.
+    const style = getComputedStyle(container)
+    const paper = style.getPropertyValue("--trips-raised").trim() || "#ffffff"
+    map.addLayer({
+      id: "atlas-area-stop",
+      type: "circle",
+      source: AREA_SOURCE,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: { "circle-radius": 5, "circle-color": color, "circle-stroke-color": paper, "circle-stroke-width": 2 },
+    })
+    map.addLayer({
+      id: "atlas-area-name",
+      type: "symbol",
+      source: AREA_SOURCE,
+      filter: ["==", ["geometry-type"], "Point"],
+      layout: {
+        "text-field": ["get", "title"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 12.5,
+        // Beside the mark on whichever side has room: the pins' guard boxes and the other names take the rest.
+        "text-variable-anchor": ["left", "right", "top", "bottom"],
+        "text-radial-offset": 0.75,
+        "text-justify": "auto",
+        "text-max-width": 12,
+      },
+      paint: { "text-color": style.getPropertyValue("--trips-ink").trim() || "#1d1b18", "text-halo-color": paper, "text-halo-width": 1.5 },
+    })
   }
 
   map.on("style.load", installRoute)
@@ -857,7 +894,20 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       }
       let fit: ReturnType<typeof map.cameraForBounds>
       try {
-        fit = map.cameraForBounds(bounds, { padding, maxZoom: opts.maxZoom ?? 15.8, bearing: view.bearing })
+        const fitOpts = { padding, maxZoom: opts.maxZoom ?? 15.8, bearing: view.bearing }
+        if (opts.flat) {
+          // MapLibre fits inside the map's own padding plus `padding`, and the move below sets `padding`
+          // on the map again: a pin's padding absorbs the error, an outline lands off-centre and smaller
+          // on each later frame. An area is measured with none on the map, between two jumps that are
+          // never drawn, and moves to none (`absolutePadding` would do, but the globe's fit ignores it).
+          const was = { center: map.getCenter(), padding: map.getPadding() }
+          map.jumpTo({ center: map.unproject([container.clientWidth / 2, container.clientHeight / 2]), padding: NO_PADDING })
+          try {
+            fit = map.cameraForBounds(bounds, fitOpts)
+          } finally {
+            map.jumpTo(was)
+          }
+        } else fit = map.cameraForBounds(bounds, fitOpts)
       } catch {
         return
       }
@@ -871,7 +921,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         ...fit,
         pitch: view.pitch,
         bearing: view.bearing,
-        padding: { ...padding, top: padding.top + lift, bottom: Math.max(24, padding.bottom - lift / 2) },
+        padding: opts.flat ? NO_PADDING : { ...padding, top: padding.top + lift, bottom: Math.max(24, padding.bottom - lift / 2) },
       }
       if (animate) map.easeTo({ ...target, duration: 1600, essential: true })
       else map.jumpTo(target)

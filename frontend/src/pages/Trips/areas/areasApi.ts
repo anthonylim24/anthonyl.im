@@ -6,9 +6,9 @@ import type { PlacePhoto } from "../ideas/contract"
 import { webUrl } from "../ideas/placeDetailsApi"
 import type { AreaGeometry, Neighborhood } from "./contract"
 
-// GET /api/trips/:id/neighborhoods and its outlines. The first grouping of a
-// trip takes the model about half a minute, longer than a proxy holds a
-// quiet request, so the server answers 202 while it works and this polls.
+// GET /api/trips/:id/neighborhoods and its outlines. A grouping that needs
+// the model takes it up to a minute, longer than a proxy holds a quiet
+// request, so the server answers 202 while it works and this polls.
 
 /** Grouping failed or cannot happen; `message` is the one line the tab shows. */
 export class NeighborhoodsError extends Schema.TaggedError<NeighborhoodsError>()("NeighborhoodsError", {
@@ -58,7 +58,10 @@ function cleanPhotos(value: unknown): PlacePhoto[] {
   return photos
 }
 
-/** The server's areas, field by field; an area without a name, city or stop is dropped. */
+/** A language tag: "ko", "ja", "zh-TW". */
+const LANG = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/
+
+/** The server's areas, field by field; an area without an id, a name or a stop is dropped. */
 export function cleanAreas(value: unknown): Neighborhood[] {
   const out: Neighborhood[] = []
   for (const item of Array.isArray(value) ? (value as unknown[]).slice(0, 12) : []) {
@@ -66,12 +69,17 @@ export function cleanAreas(value: unknown): Neighborhood[] {
     const raw = item as Record<string, unknown>
     const id = text(raw.id, 40)
     const name = text(raw.name, 80)
-    const city = text(raw.city, 60)
+    const city = text(raw.city, 60) ?? ""
     const stopIds = Array.isArray(raw.stopIds) ? (raw.stopIds as unknown[]).filter((s): s is string => typeof s === "string" && s.length > 0) : []
-    if (!id || !name || !city || stopIds.length === 0) continue
+    if (!id || !name || stopIds.length === 0) continue
     const area: Neighborhood = { id, name, city, summary: text(raw.summary, 400) ?? "", stopIds, photos: cleanPhotos(raw.photos) }
     const localName = text(raw.localName, 80)
-    if (localName && localName !== name) area.localName = localName
+    if (localName && localName !== name) {
+      area.localName = localName
+      if (typeof raw.localLang === "string" && LANG.test(raw.localLang)) area.localLang = raw.localLang
+    }
+    const photoOf = text(raw.photoOf, 120)
+    if (photoOf && area.photos.length > 0) area.photoOf = photoOf
     out.push(area)
   }
   return out
@@ -112,6 +120,11 @@ function keep<T>(cache: Map<string, T>, key: string, value: T) {
 export function clearAreasCache() {
   groupings.clear()
   outlines.clear()
+}
+
+/** Forget a trip's groupings: the server no longer has them (it restarted), so the next open asks it to group again. */
+function forgetGroupings(tripId: string) {
+  for (const key of [...groupings.keys()]) if (key.startsWith(`${tripId}|`)) groupings.delete(key)
 }
 
 export const cachedNeighborhoods = (tripId: string, fingerprint: string) => groupings.get(`${tripId}|${fingerprint}`)
@@ -166,7 +179,9 @@ const outlineEffect = Effect.fn("TripsService.areaOutline")(function* (getToken:
 /**
  * OpenStreetMap's boundary for one area, or null: none worth drawing, or it
  * could not be looked up just now (then it is asked again next time). Never
- * rejects; the map keeps the shape drawn around the stops.
+ * rejects; the map keeps the shape drawn around the stops. A 409 says the
+ * server no longer has this grouping: nothing is kept, and the trip's
+ * groupings here are forgotten too.
  */
 export function loadAreaOutline(getToken: GetToken, tripId: string, fingerprint: string, areaId: string, signal?: AbortSignal): Promise<AreaGeometry | null> {
   const key = `${tripId}|${fingerprint}|${areaId}`
@@ -174,6 +189,7 @@ export function loadAreaOutline(getToken: GetToken, tripId: string, fingerprint:
   return runPromise(
     outlineEffect(getToken, tripId, areaId, signal).pipe(
       Effect.tap((outline) => Effect.sync(() => !signal?.aborted && keep(outlines, key, outline))),
+      Effect.tapError((err) => Effect.sync(() => err instanceof HttpStatusError && err.status === 409 && forgetGroupings(tripId))),
       Effect.catchAll(() => Effect.succeed(null)),
     ),
   )
