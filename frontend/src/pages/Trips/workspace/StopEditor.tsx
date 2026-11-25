@@ -459,6 +459,12 @@ function LocationField({
 }) {
   const pinned = isPinned(item)
   const [searching, setSearching] = useState(false)
+  // The search closed: Change replaces it, and takes the focus it had.
+  const [searched, setSearched] = useState(false)
+  const closeSearch = () => {
+    setSearching(false)
+    setSearched(true)
+  }
   const [query, setQuery] = useState("")
   const { results, loading } = usePlaceSearch(searching ? query : "", near)
   // Escape closes the results, not the sheet around them.
@@ -479,6 +485,7 @@ function LocationField({
           type="button"
           {...sx(a.btn, a.btnGhost, a.btnSm)}
           disabled={locked}
+          autoFocus={searched}
           onClick={() => {
             setQuery(item.location?.name ?? item.title)
             setSearching(true)
@@ -523,7 +530,7 @@ function LocationField({
         onKeyDown={(event) => {
           if (event.key === "Escape" && searching) {
             event.stopPropagation()
-            setSearching(false)
+            closeSearch()
           }
         }}
       />
@@ -548,7 +555,7 @@ function LocationField({
                       confidence: "high",
                     },
                   })
-                  setSearching(false)
+                  closeSearch()
                 }}
               >
                 <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.accentText)} />

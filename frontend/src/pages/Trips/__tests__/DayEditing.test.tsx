@@ -205,6 +205,21 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(row("lunch")).toHaveFocus()
   })
 
+  it("closes a pinned stop's place search on Escape, keeps the sheet, and hands focus back to Change", () => {
+    const pinnedLunch = { ...lunch, location: { name: "Time Out Market", lat: 38.707, lng: -9.146, source: "user" as const } }
+    renderDay(tripOf(days(FUTURE, [[pinnedLunch]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    fireEvent.click(sheet.getByRole("button", { name: "Change" }))
+    const search = sheet.getByRole("textbox", { name: "Search for a place to pin" })
+    expect(search).toHaveFocus()
+
+    fireEvent.keyDown(search, { key: "Escape" })
+    expect(screen.getByRole("dialog", { name: "Lunch" })).toBeInTheDocument()
+    expect(sheet.queryByRole("textbox", { name: "Search for a place to pin" })).toBeNull()
+    expect(sheet.getByRole("button", { name: "Change" })).toHaveFocus()
+  })
+
   it("moves the stop from its foot and says so inside the sheet", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))
