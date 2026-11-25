@@ -54,7 +54,7 @@ export const appPreviews = {
   korea: {
     title: "Seoul + Busan — Korea 2026 trip dossier",
     description:
-      "A 12-day Seoul + Busan trip (May 26 – Jun 6, 2026): reservations, neighbourhoods, the places worth a detour, and a 3D Map Mode.",
+      "A 12-day Seoul + Busan trip (May 26 – Jun 6, 2026): reservations, neighborhoods, the places worth a detour, and a 3D Map Mode.",
     imagePathOrUrl: card("korea"),
     installName: "Korea Trip",
     imageAlt: "A toy clay planet covered in trees and colourful place pins on a pink cover",
