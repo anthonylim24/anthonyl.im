@@ -25,6 +25,7 @@ const mockGetTrip = vi.fn()
 const mockUpdateTrip = vi.fn()
 const mockEnhanceTrip = vi.fn()
 const mockListEnhancements = vi.fn()
+const mockCancelEnhancement = vi.fn()
 const mockFollowEnhancement = vi.fn()
 const mockGenerateItinerary = vi.fn()
 const mockDeleteTrip = vi.fn()
@@ -36,6 +37,7 @@ vi.mock("../tripsApi", () => ({
   updateTrip: (...args: unknown[]) => mockUpdateTrip(...args),
   enhanceTrip: (...args: unknown[]) => mockEnhanceTrip(...args),
   listEnhancements: (...args: unknown[]) => mockListEnhancements(...args),
+  cancelEnhancement: (...args: unknown[]) => mockCancelEnhancement(...args),
   followEnhancement: (...args: unknown[]) => mockFollowEnhancement(...args),
   generateItinerary: (...args: unknown[]) => mockGenerateItinerary(...args),
   deleteTrip: (...args: unknown[]) => mockDeleteTrip(...args),
@@ -196,6 +198,7 @@ describe("TripWorkspace", () => {
     mockUpdateTrip.mockImplementation(async (_getToken: unknown, _id: string, patch: Partial<Trip>) => ({ ...planned(), ...patch }))
     mockSearchPlaces.mockResolvedValue([belem])
     mockListEnhancements.mockResolvedValue([])
+    mockCancelEnhancement.mockResolvedValue({})
   })
 
   afterEach(() => {
@@ -1758,14 +1761,19 @@ describe("TripWorkspace", () => {
       expect(mockListEnhancements).not.toHaveBeenCalled()
     })
 
-    it("stops following on Stop, says the review may still finish, and doesn't take it up again", async () => {
+    it("stops following on Stop and, when the server could not stop it, says it may still finish; never takes it up again", async () => {
       mockListEnhancements.mockResolvedValue([working])
       mockFollowEnhancement.mockReturnValue(new Promise(() => undefined))
+      mockCancelEnhancement.mockResolvedValue({ run: working })
       renderWorkspace("/trips/lisbon")
 
       fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
       expect((mockFollowEnhancement.mock.calls[0]![3] as AbortSignal).aborted).toBe(true)
-      expect(notice("Stopped following the AI review. It may still finish on the server and add places to your trip.")).toBeInTheDocument()
+      expect(mockCancelEnhancement).toHaveBeenCalledWith(expect.any(Function), "lisbon", working.id)
+      expect(notice("Stopping the AI review…")).toBeInTheDocument()
+      expect(
+        (await screen.findAllByText("Stopped following the AI review. It may still finish on the server and add places to your trip."))[0],
+      ).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Improve with AI" })).toBeEnabled()
 
       await act(async () => {
@@ -1774,6 +1782,33 @@ describe("TripWorkspace", () => {
       await waitFor(() => expect(mockListEnhancements).toHaveBeenCalledTimes(2))
       expect(mockFollowEnhancement).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+    })
+
+    it("Stop ends the review on the server and says nothing changed", async () => {
+      mockListEnhancements.mockResolvedValue([working])
+      mockFollowEnhancement.mockReturnValue(new Promise(() => undefined))
+      mockCancelEnhancement.mockResolvedValue({ run: { ...working, status: "error", error: "Stopped before it finished." } })
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
+      expect((await screen.findAllByText("Stopped the AI review. Nothing in your itinerary changed."))[0]).toBeInTheDocument()
+      expect(screen.queryByText(/may still finish/)).toBeNull()
+    })
+
+    it("a review that finished before Stop reached it lands its places and says so", async () => {
+      mockListEnhancements.mockResolvedValue([working])
+      mockFollowEnhancement.mockReturnValue(new Promise(() => undefined))
+      const finished = planned()
+      finished.days[0]!.items.push(makeItem({ id: "it-tram", title: "Tram 28 ride" }))
+      finished.updatedAt = "2099-01-01T00:00:00.000Z"
+      mockCancelEnhancement.mockResolvedValue({ run: { ...working, status: "complete" }, trip: finished })
+      renderWorkspace("/trips/lisbon/day/day-1")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
+      expect(
+        (await screen.findAllByText("The AI review finished before it could stop. Anything it added is on your trip."))[0],
+      ).toBeInTheDocument()
+      expect((await screen.findAllByText("Tram 28 ride"))[0]).toBeInTheDocument()
     })
 
     it("says the review is still running when the page stops waiting, without claiming nothing changed", async () => {

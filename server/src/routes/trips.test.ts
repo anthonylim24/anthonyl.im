@@ -1691,6 +1691,7 @@ describe("enhancement run lifecycle", () => {
       stop: () => {},
       drain: async () => {},
       inflight: () => 0,
+      cancel: async () => null,
     }
     const { app, store } = makeApp({ llm: async () => "{}", reviewWorker })
     const trip = await createTrip(app)
@@ -1751,6 +1752,22 @@ describe("enhancement run lifecycle", () => {
       runs: Array<{ status: string }>
     }
     expect(list.runs.map((r) => r.status)).toEqual(["error"])
+    await startEnhance(app, trip.id)
+  })
+
+  test("Stop ends a queued review for good and says so; another trip cannot stop it", async () => {
+    const { app, store } = makeApp({ llm: async () => "{}" })
+    const trip = await createTrip(app)
+    const other = await createTrip(app)
+    await store.enqueueReview(runningRun(trip.id, ago(1_000)), { scope: "trip" }, REVIEW_MAX_ATTEMPTS)
+    const cancel = (tripId: string) => app.request(`/api/trips/${tripId}/enhancements/run-live/cancel`, { method: "POST", headers: AUTH })
+
+    expect((await cancel(other.id)).status).toBe(404)
+    const res = await cancel(trip.id)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { run: { status: string; outcomeReason: string } }
+    expect(body.run).toMatchObject({ status: "error", outcomeReason: "This AI review was stopped before it finished." })
+    // Ended, so a new review can start.
     await startEnhance(app, trip.id)
   })
 

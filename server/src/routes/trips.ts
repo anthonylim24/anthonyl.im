@@ -688,6 +688,21 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     })
   })
 
+  // Stop: the traveller no longer wants this review. Answers with the run as
+  // it ended: failed (nothing added), complete (it finished first), or still
+  // running when this process could not stop it.
+  trips.post("/:id/enhancements/:runId/cancel", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"), true)
+    if ("error" in result) return result.error
+    const tripId = result.trip.id
+    const stored = await deps.store.getRun(tripId, c.req.param("runId"))
+    if (!stored) return c.json({ error: "run not found" }, 404)
+    const ended = stored.status === "running" && reviews ? await reviews.cancel(tripId, stored.id) : stored
+    // Re-read: a review that finished first wrote its places onto the trip.
+    const trip = (await deps.store.get(tripId)) ?? result.trip
+    return c.json({ run: settleStaleRun(ended ?? stored), trip: present(trip, result.access) })
+  })
+
   trips.post("/:id/enhancements/:runId/apply", async (c) => {
     const result = await loadTrip(c, c.req.param("id"), true)
     if ("error" in result) return result.error

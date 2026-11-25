@@ -540,3 +540,93 @@ describe("review worker: slots", () => {
     expect(w.inflight()).toBe(0)
   })
 })
+
+describe("review worker: stopped by the traveller", () => {
+  const stoppedRun = { status: "error", error: "Stopped before it finished.", outcomeReason: "This AI review was stopped before it finished." }
+
+  test("a review under way is aborted and failed for good, adding nothing", async () => {
+    const { store, tripId, runId, advance, run, titles } = await setup()
+    let signal: AbortSignal | undefined
+    let calls = 0
+    const { w, lines } = worker(store, (trip, request, s) => {
+      calls++
+      signal = s
+      return untilAborted(trip, request, s)
+    })
+    w.kick(runId)
+    await until(async () => (await run()).queue?.state === "working", "the claim")
+
+    expect(await w.cancel(tripId, runId)).toMatchObject({ ...stoppedRun, queue: { state: "done", attempt: 1 } })
+    expect(signal?.aborted).toBe(true)
+    expect(await titles()).toEqual([])
+    expect(lines.at(-1)).toMatch(/stopped by the traveller \d+ms$/)
+    advance(60_000)
+    await w.sweep()
+    await idle(w)
+    expect(calls).toBe(1)
+  })
+
+  test("a review that answers after Stop writes nothing, even one that ignores its signal", async () => {
+    const { store, tripId, runId, run, titles } = await setup()
+    const answer = deferred<CompleteEnhancementRun>()
+    const { w } = worker(store, () => answer.promise)
+    w.kick(runId)
+    await until(async () => (await run()).queue?.state === "working", "the claim")
+
+    const cancelling = w.cancel(tripId, runId)
+    answer.resolve(reviewAdding((await store.get(tripId))!, "Ichiran"))
+    expect(await cancelling).toMatchObject(stoppedRun)
+    expect(await titles()).toEqual([])
+  })
+
+  test("a queued run is claimed and failed without asking the model", async () => {
+    const { store, tripId, runId, titles } = await setup()
+    let calls = 0
+    const { w } = worker(store, async (trip) => {
+      calls++
+      return reviewAdding(trip, "Ichiran")
+    })
+    expect(await w.cancel(tripId, runId)).toMatchObject({ ...stoppedRun, queue: { state: "done" } })
+    await w.sweep()
+    await idle(w)
+    expect(calls).toBe(0)
+    expect(await titles()).toEqual([])
+  })
+
+  test("a run waiting out a retry stays running, then fails instead of running when it falls due", async () => {
+    const { store, tripId, runId, advance, run, titles } = await setup()
+    let calls = 0
+    const { w } = worker(store, async (trip) => {
+      calls++
+      if (calls === 1) throw new Error("The AI service is busy. Try again in a minute.")
+      return reviewAdding(trip, "Ichiran")
+    })
+    w.kick(runId)
+    await idle(w)
+    expect(await run()).toMatchObject({ status: "running", queue: { state: "queued", attempt: 1 } })
+
+    expect(await w.cancel(tripId, runId)).toMatchObject({ status: "running" })
+    advance(1_000)
+    await w.sweep()
+    await idle(w)
+    expect(calls).toBe(1)
+    expect(await run()).toMatchObject(stoppedRun)
+    expect(await titles()).toEqual([])
+  })
+
+  test("a run that finished first is reported finished, its places kept", async () => {
+    const { store, tripId, runId, titles } = await setup()
+    const { w } = worker(store, async (trip) => reviewAdding(trip, "Ichiran"))
+    w.kick(runId)
+    await idle(w)
+    expect(await w.cancel(tripId, runId)).toMatchObject({ status: "complete" })
+    expect(await titles()).toEqual(["Ichiran"])
+  })
+
+  test("a run id from another trip is handed back untouched", async () => {
+    const { store, runIds, run } = await setup(["trip-1", "trip-2"])
+    const { w } = worker(store, async (trip) => reviewAdding(trip, "Ichiran"))
+    expect(await w.cancel("trip-1", runIds[1]!)).toBeNull()
+    expect(await run(runIds[1]!)).toMatchObject({ status: "running", queue: { state: "queued", attempt: 0 } })
+  })
+})

@@ -7,6 +7,7 @@ import { useGetToken } from "@/lib/safeAuth"
 import { HttpStatusError, PollTimeoutError } from "@/effect/errors"
 import {
   applySuggestions,
+  cancelEnhancement,
   enhanceTrip,
   followEnhancement,
   generateItinerary,
@@ -90,6 +91,9 @@ interface AiOutcome {
   onLand?: () => void
 }
 
+const STOPPING = "Stopping the AI review…"
+const STOP_UNCONFIRMED = "Stopped following the AI review. It may still finish on the server and add places to your trip."
+
 export function useTripEditor() {
   const { tripId } = useParams<{ tripId: string }>()
   const routerLocation = useLocation()
@@ -119,6 +123,8 @@ export function useTripEditor() {
   /** The PATCH on its way (one per save request, named by its `sent`), resolving to the saved trip (null on failure). */
   const inflightRef = useRef<{ sent: Trip; work: Promise<Trip | null> } | null>(null)
   const aiAbortRef = useRef<AbortController | null>(null)
+  /** AI runs started on this page, so a late answer to Stop knows whether one has begun since. */
+  const aiStartsRef = useRef(0)
   /** The review this page follows, once the server has named it. */
   const followingRef = useRef<string | null>(null)
   /** Reviews this page stopped following (Stop, or the cap): a resume leaves them be. */
@@ -477,6 +483,7 @@ export function useTripEditor() {
    */
   const runAi = useCallback(
     async (start: EditorEvent, work: (signal: AbortController["signal"]) => Promise<AiOutcome>, fail: (err: unknown) => void) => {
+      aiStartsRef.current += 1
       const ac = new AbortController()
       aiAbortRef.current?.abort()
       aiAbortRef.current = ac
@@ -723,7 +730,11 @@ export function useTripEditor() {
     [tripDocId, runAi, readToken, flashTouched],
   )
 
-  /** Stop waiting for the AI and unlock editing. The server may still finish; its result arrives like any other change. */
+  /**
+   * Stop the AI and unlock editing. A review the server has named is stopped
+   * there too, and the notice says how it ended; one it finished first (or
+   * could not stop) lands like any other change.
+   */
   const stopAi = useCallback(() => {
     const now = stateRef.current
     const reviewing = now.s === "ready" && now.ai.k === "running" && now.ai.run !== "draft"
@@ -731,10 +742,28 @@ export function useTripEditor() {
     aiAbortRef.current = null
     dispatch({ type: "AI_FAILED" })
     if (!reviewing) return
+    const runId = followingRef.current
     // Coming back to the tab must not take up the run this page just let go of.
-    if (followingRef.current) setAsideRef.current.add(followingRef.current)
-    setNotice("Stopped following the AI review. It may still finish on the server and add places to your trip.")
-  }, [])
+    if (runId) setAsideRef.current.add(runId)
+    if (!runId || !tripDocId) return setNotice(STOP_UNCONFIRMED)
+    setNotice(STOPPING)
+    const starts = aiStartsRef.current
+    void cancelEnhancement(readToken, tripDocId, runId)
+      .catch(() => null)
+      .then((answer) => {
+        // An AI run started since has the say now.
+        if (aiStartsRef.current !== starts) return
+        const run = answer?.run
+        if (run?.status === "complete" && answer?.trip) dispatch({ type: "EXTERNAL_CHANGE", trip: answer.trip })
+        const said =
+          run?.status === "error"
+            ? "Stopped the AI review. Nothing in your itinerary changed."
+            : run?.status === "complete"
+              ? "The AI review finished before it could stop. Anything it added is on your trip."
+              : STOP_UNCONFIRMED
+        setNotice(said)
+      })
+  }, [tripDocId, readToken])
 
   const dismissRun = useCallback(() => dispatch({ type: "DISMISS_RUN" }), [])
   const closeChanges = useCallback(() => setChanges(null), [])
