@@ -975,13 +975,16 @@ export const ws = stylex.create({
   },
   // In a sheet the body is the editor: the card's grid without its rule and inset.
   sheetEditor: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" },
-  // One child of the dialog's foot (which shares its row between children on a phone):
-  // the stop's actions, then Done, on one line at 375px; a narrower screen wraps Done, never widens the page.
-  sheetFoot: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.25rem", rowGap: "0.5rem", minWidth: 0 },
-  // 36px icons 8px apart: each one's 44px hit area (iconBtnSm's ::after) is its own.
-  sheetActions: { display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 },
-  // At the row's end, or the end of a line of its own once it wraps.
-  sheetDone: { marginLeft: "auto", paddingInline: "0.75rem" },
+  // The dialog's one foot child: Delete, More and Done on one line at 320px.
+  // Done (alone, for a viewer) sits at the end.
+  sheetFoot: { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", columnGap: "0.5rem", rowGap: "0.75rem", minWidth: 0 },
+  // Takes the row's slack, so it sits at the far end from Done.
+  sheetDelete: { marginRight: "auto" },
+  sheetMoreOpen: { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" },
+  // Its own lines above the row, two actions to a line. Lines 8px apart keep each 44px band its own.
+  sheetMorePanel: { order: -1, flexBasis: "100%", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.5rem" },
+  sheetMoreWide: { gridColumn: "1 / -1" },
+  sheetDone: { paddingInline: "1rem" },
 
   // ── Add composer ──────────────────────────────────────
   composer: { position: "relative" },

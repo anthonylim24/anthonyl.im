@@ -151,6 +151,11 @@ export const a = stylex.create({
     backgroundColor: "var(--trips-danger)",
     color: "var(--trips-on-danger)",
   },
+  // A delete that is one of several actions: red words, no fill. With btnGhost.
+  btnDangerGhost: {
+    color: "var(--trips-danger)",
+    [HOVER]: { ":hover": { backgroundColor: "var(--trips-danger-soft)", color: "var(--trips-danger)" } },
+  },
   // Looks 36px tall; the ::after band makes the target 44px (WCAG 2.5.5).
   btnSm: {
     minHeight: "2.25rem",

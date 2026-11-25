@@ -231,20 +231,54 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(sheet.getByRole("button", { name: "Change" })).toHaveFocus()
   })
 
-  it("moves the stop from its foot and says so inside the sheet", () => {
+  it("keeps Delete, More and Done in its foot, with the rest under More", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const dialog = screen.getByRole("dialog", { name: "Edit stop" })
+    const foot = within(dialog.querySelector<HTMLElement>(".trips-dialog-foot")!)
+    expect(foot.getAllByRole("button").map((b) => b.textContent)).toEqual(["Delete", "More", "Done"])
+
+    const more = foot.getByRole("button", { name: "More" })
+    expect(more).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(more)
+    expect(more).toHaveAttribute("aria-expanded", "true")
+    const panel = within(foot.getByRole("group", { name: "More" }))
+    expect(panel.getAllByRole("button").map((b) => b.textContent)).toEqual(["Move up", "Move down", "Duplicate", "Move to another day…"])
+  })
+
+  it("folds More away on Escape and keeps the sheet open", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Edit stop" }))
+    const more = sheet.getByRole("button", { name: "More" })
+    fireEvent.click(more)
+    fireEvent.keyDown(sheet.getByRole("button", { name: "Duplicate" }), { key: "Escape" })
+    expect(screen.getByRole("dialog", { name: "Edit stop" })).toBeInTheDocument()
+    expect(sheet.queryByRole("group", { name: "More" })).toBeNull()
+    expect(more).toHaveFocus()
+  })
+
+  it("moves the stop from More and says so inside the sheet", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))
     const sheet = within(screen.getByRole("dialog", { name: "Edit stop" }))
+    fireEvent.click(sheet.getByRole("button", { name: "More" }))
     expect(sheet.getByRole("button", { name: "Move up" })).toBeDisabled()
-    fireEvent.click(sheet.getByRole("button", { name: "Move down" }))
+    const down = sheet.getByRole("button", { name: "Move down" })
+    down.focus()
+    fireEvent.click(down)
     expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["tram", "lunch"])
     expect(sheet.getByRole("status")).toHaveTextContent("Lunch moved down, now 2 of 2.")
     expect(state.marks[state.marks.length - 1]).toEqual({ label: "Moved “Lunch”", key: "move:lunch" })
+    // Last now, so Move down is off: focus goes to Move up, not the page.
+    expect(sheet.getByRole("button", { name: "Move down" })).toBeDisabled()
+    expect(sheet.getByRole("button", { name: "Move up" })).toHaveFocus()
   })
 
   it("sends the stop to another day, then hands focus to the stop after it", async () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Edit stop" })).getByRole("button", { name: "More" }))
     fireEvent.click(within(screen.getByRole("dialog", { name: "Edit stop" })).getByRole("button", { name: "Move to another day…" }))
     fireEvent.click(within(screen.getByRole("dialog", { name: "Move “Lunch”" })).getByRole("button", { name: /Day 2/ }))
 

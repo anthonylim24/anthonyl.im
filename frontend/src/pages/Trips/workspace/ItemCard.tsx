@@ -433,17 +433,7 @@ export const ItemCard = memo(function ItemCard({
             {editable ? (
               <>
                 <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} />
-                <StopActions
-                  item={item}
-                  dayId={dayId}
-                  index={index}
-                  count={count}
-                  dayOptions={dayOptions}
-                  locked={locked}
-                  surface="inline"
-                  edits={edits}
-                  onDelete={() => onDelete(dayId, item, index)}
-                />
+                <StopActions item={item} index={index} count={count} locked={locked} edits={edits} onDelete={() => onDelete(dayId, item, index)} />
               </>
             ) : (
               <StopDetails item={item} trip={trip} day={day} />
