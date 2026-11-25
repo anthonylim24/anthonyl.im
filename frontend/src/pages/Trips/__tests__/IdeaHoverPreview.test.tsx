@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { IdeaPreview } from "../ideas/IdeaPreview"
-import { HOVER_INTENT_MS } from "../map/useIdeaHover"
+import { HOVER_CLOSE_MS, HOVER_INTENT_MS } from "../map/useIdeaHover"
 import { AtlasMap } from "../map/AtlasMap"
 import { ideaPins, type AtlasPin } from "../map/geo"
 import type { Trip } from "../types"
@@ -60,7 +60,7 @@ describe("a wishlist pin's preview", () => {
     vi.restoreAllMocks()
   })
 
-  it("shows what the place is after a mouse rests on its pin, and goes when it leaves", () => {
+  it("shows what the place is after a mouse rests on its pin, and goes a moment after it leaves", () => {
     renderMap()
     fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
     // Passing over the map shows nothing.
@@ -80,6 +80,37 @@ describe("a wishlist pin's preview", () => {
     expect(fetchSpy).not.toHaveBeenCalled()
 
     fireEvent.pointerLeave(pin("Gwangjang Market"), { pointerType: "mouse" })
+    expect(screen.getByRole("tooltip")).toBe(card)
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS))
+    expect(screen.queryByRole("tooltip")).toBeNull()
+  })
+
+  it("stays while the mouse crosses to the card and rests on it, or comes back to the pin", () => {
+    renderMap()
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    const card = screen.getByRole("tooltip")
+
+    fireEvent.pointerLeave(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS / 2))
+    fireEvent.pointerEnter(card, { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS * 3))
+    expect(screen.getByRole("tooltip")).toBe(card)
+
+    fireEvent.pointerLeave(card, { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS / 2))
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS * 3))
+    expect(screen.getByRole("tooltip")).toBe(card)
+
+    // Straight from the pin onto the card, the card's enter can be heard before the pin's leave.
+    fireEvent.pointerEnter(card, { pointerType: "mouse" })
+    fireEvent.pointerLeave(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS * 3))
+    expect(screen.getByRole("tooltip")).toBe(card)
+
+    // Escape still dismisses it.
+    fireEvent.keyDown(document, { key: "Escape" })
     expect(screen.queryByRole("tooltip")).toBeNull()
   })
 

@@ -137,7 +137,9 @@ describe("the map engine's wishlist pins", () => {
     pin.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }))
     expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "pointer" })
     pin.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }))
-    expect(onIdeaHover).toHaveBeenLastCalledWith(null)
+    // A leave, not a press: the card waits a moment for the mouse to reach it.
+    expect(onIdeaHover).toHaveBeenLastCalledWith(null, "leave")
+    expect(pin.getAttribute("aria-describedby")).toBe("idea-preview-ramen")
 
     pin.focus()
     expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "focus" })

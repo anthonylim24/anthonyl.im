@@ -4,7 +4,7 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { buildMapStyle } from "./mapStyle"
 import { centroid, distanceMeters, spanMeters, spreadPins, type AreaShape, type AtlasPin, type LngLat } from "./geo"
-import { ideaHoverHandlers, type IdeaHover } from "./ideaHover"
+import { ideaHoverHandlers, type ReportIdeaHover } from "./ideaHover"
 
 // Imperative MapLibre wrapper. Lazy-imported by AtlasMap so the map library
 // stays out of the initial Trips chunk. Pins are DOM markers (real buttons:
@@ -28,7 +28,7 @@ export interface AtlasMapOptions {
   /** A wishlist pin was picked, with the idea's id. */
   onSelectIdea?: (ideaId: string) => void
   /** A wishlist pin was hovered or focused (null: no longer, or the camera moved). */
-  onIdeaHover?: (hover: IdeaHover | null) => void
+  onIdeaHover?: ReportIdeaHover
   onReady?: () => void
   /** Fires when the camera settles, with whether it is tilted into 3D. */
   onTilt?: (tilted: boolean) => void
@@ -168,6 +168,7 @@ function watchIdeaHover(el: HTMLButtonElement, id: string, options: AtlasMapOpti
   const report = options.onIdeaHover
   if (!report) return
   const on = ideaHoverHandlers(id, report)
+  el.setAttribute("aria-describedby", on["aria-describedby"])
   el.addEventListener("pointerenter", on.onPointerEnter)
   el.addEventListener("pointerleave", on.onPointerLeave)
   el.addEventListener("pointerdown", on.onPointerDown)

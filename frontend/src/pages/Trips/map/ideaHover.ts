@@ -1,5 +1,6 @@
-// A wishlist pin's preview is shown while a mouse rests on the pin or
-// keyboard focus is on it, on the live map and on the fallback chart alike.
+// A wishlist pin's preview is shown while a mouse rests on the pin or its
+// card, or keyboard focus is on the pin, on the live map and on the
+// fallback chart alike.
 // The pins report raw pointer and focus events through these handlers (the
 // engine as DOM listeners, the chart as React props); the map decides what
 // is shown (`IdeaHoverCard.tsx`).
@@ -11,7 +12,11 @@ export interface IdeaHover {
   via: "pointer" | "focus"
 }
 
-export type ReportIdeaHover = (hover: IdeaHover | null) => void
+/** `null` hides the preview at once; `null, "leave"` after a moment, so the mouse can cross to the card. */
+export type ReportIdeaHover = (hover: IdeaHover | null, how?: "leave") => void
+
+/** The preview card's id, which its pin names as its description from the start. */
+export const previewId = (ideaId: string) => `idea-preview-${ideaId}`
 
 /** Enough of a DOM or React event to read: both carry these. */
 interface PinEvent {
@@ -26,12 +31,13 @@ interface PinEvent {
  */
 export function ideaHoverHandlers(id: string, report: ReportIdeaHover) {
   return {
+    "aria-describedby": previewId(id),
     onPointerEnter(event: PinEvent) {
       if (event.pointerType === "touch" || !(event.currentTarget instanceof Element)) return
       report({ id, anchor: event.currentTarget, via: "pointer" })
     },
     onPointerLeave() {
-      report(null)
+      report(null, "leave")
     },
     // A press opens the place's details: the preview has done its job.
     onPointerDown() {

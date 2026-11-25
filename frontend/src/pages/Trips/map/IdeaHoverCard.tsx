@@ -1,16 +1,17 @@
-import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react"
+import { useLayoutEffect, useRef, type ReactNode } from "react"
 import { sx } from "@/styles/merge"
 import { hoverCard as s } from "./hoverCard.stylex"
-import type { IdeaHover } from "./ideaHover"
+import { previewId, type IdeaHover } from "./ideaHover"
+import type { HoldIdeaHover } from "./useIdeaHover"
 import { placePreview } from "./previewPlacement"
 
 // The card of the map's one wishlist preview, drawn inside the map beside
-// its pin. Which pin, if any, is `useIdeaHover`'s.
+// its pin. Which pin, if any, is `useIdeaHover`'s; the mouse may rest on
+// the card (`hold`) as on the pin.
 
-/** The preview's frame: placed beside its pin inside the map, named as the pin's description. */
-export function IdeaHoverCard({ hover, children }: { hover: IdeaHover; children: ReactNode }) {
+/** The preview's frame: placed beside its pin inside the map, under the id the pin names as its description. */
+export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hold?: HoldIdeaHover; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
-  const id = useId()
   useLayoutEffect(() => {
     const card = ref.current
     const map = card?.offsetParent
@@ -30,13 +31,8 @@ export function IdeaHoverCard({ hover, children }: { hover: IdeaHover; children:
     card.style.left = `${at.left}px`
     card.style.transformOrigin = { above: "bottom center", below: "top center", right: "center left", left: "center right" }[at.side]
   }, [hover])
-  useEffect(() => {
-    const pin = hover.anchor
-    pin.setAttribute("aria-describedby", id)
-    return () => pin.removeAttribute("aria-describedby")
-  }, [hover.anchor, id])
   return (
-    <div ref={ref} id={id} role="tooltip" {...sx(s.card, "trips-glass-sheet")}>
+    <div ref={ref} id={previewId(hover.id)} role="tooltip" {...sx(s.card, "trips-glass-sheet")} {...hold}>
       {children}
     </div>
   )
