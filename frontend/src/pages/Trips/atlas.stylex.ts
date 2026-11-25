@@ -66,7 +66,8 @@ export const a = stylex.create({
   ink: { color: "var(--trips-ink)" },
   muted: { color: "var(--trips-ink-tertiary)" },
   accentText: { color: "var(--brand)" },
-  wrap: { overflowWrap: "anywhere", wordBreak: "break-word", minWidth: 0 },
+  /** Long user text: Hangul breaks between words, not syllables; an unspaced run still breaks rather than overflow. */
+  wrap: { overflowWrap: "anywhere", wordBreak: "keep-all", minWidth: 0 },
   truncate: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   srOnly: {
     position: "absolute",

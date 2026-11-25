@@ -225,6 +225,8 @@ export const ws = stylex.create({
     resize: "none",
     overflow: "hidden",
     fieldSizing: "content",
+    overflowWrap: "anywhere",
+    wordBreak: "keep-all",
     outline: "none",
     fontFamily: "var(--trips-display)",
     fontWeight: 400,
