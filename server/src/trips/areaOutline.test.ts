@@ -56,7 +56,7 @@ describe("joinParts", () => {
     expect(joinParts([], CHEONGDAM_STOPS)).toBeNull()
   })
 
-  test("draws two neighbourhoods as one multipolygon", () => {
+  test("draws two neighborhoods as one multipolygon", () => {
     const joined = joinParts([[square(37.525, 127.048, 0.01)], [square(37.6, 127.2, 0.01)]], [...CHEONGDAM_STOPS, { lat: 37.6, lng: 127.2 }])
     expect(joined?.type).toBe("MultiPolygon")
   })
@@ -91,13 +91,55 @@ describe("createNominatimOutlines", () => {
     expect(osm.calls.every((call) => call.agent?.includes("anthonyl.im"))).toBe(true)
   })
 
-  test("keeps each search's results, so asking again sends nothing", async () => {
+  test("keeps each area's answer, so asking again sends nothing, and searches again for other stops", async () => {
     const osm = fakeNominatim({ "Cheongdam-dong, Seoul": [cheongdam] })
     const lookup = createNominatimOutlines(osm)
     const query = { names: ["Cheongdam-dong"], city: "Seoul", stops: CHEONGDAM_STOPS }
     await lookup(query)
-    await lookup(query)
+    await lookup({ ...query, stops: [...CHEONGDAM_STOPS].reverse() })
     expect(osm.calls).toHaveLength(1)
+    // The same name with stops across town is another answer: the boundary must hold them.
+    expect(await lookup({ ...query, stops: [{ lat: 37.462, lng: 126.931 }] })).toBeNull()
+    expect(osm.calls).toHaveLength(2)
+  })
+
+  test("keeps only the accepted shapes, forgetting the oldest past its budget of points", async () => {
+    const osm = fakeNominatim({ "Cheongdam-dong, Seoul": [cheongdam], "Nowhere, Seoul": [] })
+    // One square is five points: room for one shape, and for any number of "no outline" answers.
+    const lookup = createNominatimOutlines({ ...osm, maxHeldPoints: 8 })
+    const cheongdamQuery = { names: ["Cheongdam-dong"], city: "Seoul", stops: CHEONGDAM_STOPS }
+    const elsewhere = { ...cheongdamQuery, stops: CHEONGDAM_STOPS.map((stop) => ({ lat: stop.lat + 0.001, lng: stop.lng })) }
+    const nowhere = { names: ["Nowhere"], city: "Seoul", stops: CHEONGDAM_STOPS }
+    await lookup(cheongdamQuery)
+    await lookup(nowhere)
+    await lookup(elsewhere)
+    expect(osm.calls).toHaveLength(3)
+    await lookup(nowhere)
+    await lookup(elsewhere)
+    expect(osm.calls).toHaveLength(3)
+    await lookup(cheongdamQuery)
+    expect(osm.calls).toHaveLength(4)
+  })
+
+  test("gives up when its deadline passes while queued, sending nothing", async () => {
+    let release: () => void = () => {}
+    const blocked = new Promise<void>((resolve) => (release = resolve))
+    const calls: string[] = []
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      calls.push(new URL(String(input)).searchParams.get("q") ?? "")
+      await blocked
+      return Response.json([cheongdam])
+    }) as typeof fetch
+    const lookup = createNominatimOutlines({ fetchImpl, gapMs: 0 })
+    const first = lookup({ names: ["Cheongdam-dong"], city: "Seoul", stops: CHEONGDAM_STOPS })
+    const deadline = new AbortController()
+    const second = lookup({ names: ["Apgujeong"], city: "Seoul", stops: CHEONGDAM_STOPS }, deadline.signal)
+    deadline.abort(new Error("outline deadline"))
+    await expect(second).rejects.toThrow("outline deadline")
+    release()
+    await first
+    await Bun.sleep(1)
+    expect(calls).toEqual(["Cheongdam-dong, Seoul"])
   })
 
   test("answers null when there is no outline, and throws (uncached) when Nominatim fails", async () => {
@@ -110,7 +152,7 @@ describe("createNominatimOutlines", () => {
     expect(osm.calls.filter((call) => call.q === "Hannam, Seoul")).toHaveLength(2)
   })
 
-  test("joins the outlines of both neighbourhoods an area is named for", async () => {
+  test("joins the outlines of both neighborhoods an area is named for", async () => {
     const hannam: NominatimResult = { ...cheongdam, name: "Hannam-dong", geojson: { type: "Polygon", coordinates: square(37.535, 127.0, 0.008) } }
     const itaewon: NominatimResult = { ...cheongdam, name: "Itaewon-dong", geojson: { type: "Polygon", coordinates: square(37.535, 126.99, 0.004) } }
     const osm = fakeNominatim({ "한남동, Seoul": [hannam], "이태원동, Seoul": [itaewon] })

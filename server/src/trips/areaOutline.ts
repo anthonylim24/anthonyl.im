@@ -17,6 +17,9 @@ import { foldName } from "./placeDetails"
 // server, an identifying User-Agent, and results cached. Requests queue
 // here one after another; a queue too long to answer in time gives up
 // rather than wait, and a failed request is never cached as "no outline".
+// What is cached is the answer for an area (its names, city and stops): the
+// accepted shape or "none", never Nominatim's raw results, which carry every
+// candidate's full polygon.
 
 export type OutlineGeometry = { type: "Polygon"; coordinates: number[][][] } | { type: "MultiPolygon"; coordinates: number[][][][] }
 
@@ -28,8 +31,8 @@ export interface OutlineQuery {
   stops: readonly LatLng[]
 }
 
-/** The area's outline, or null when there is none worth drawing. Throws when Nominatim could not be asked (busy, down). */
-export type AreaOutlineLookup = (query: OutlineQuery) => Promise<OutlineGeometry | null>
+/** The area's outline, or null when there is none worth drawing. Throws when Nominatim could not be asked (busy, down) or `signal` gave up. */
+export type AreaOutlineLookup = (query: OutlineQuery, signal?: AbortSignal) => Promise<OutlineGeometry | null>
 
 /** One Nominatim `jsonv2` result, as far as this module reads it. */
 export interface NominatimResult {
@@ -50,6 +53,9 @@ export const NOMINATIM_GAP_MS = 1_100
 /** Past this many waiting, a new request gives up at once: it would not be answered in time. */
 const MAX_QUEUED = 6
 const REQUEST_MS = 6_000
+/** Answers kept, and the points their shapes may hold in all (a shape is at most `MAX_VERTICES`; most are a few hundred). */
+const MAX_ANSWERS = 500
+const MAX_HELD_POINTS = 250_000
 const USER_AGENT = "anthonyl.im trips (https://anthonyl.im)"
 
 type Ring = number[][]
@@ -135,7 +141,21 @@ export interface NominatimOptions {
   /** How long a search's results are kept. Outlines change rarely; the policy asks for caching. */
   ttlMs?: number
   gapMs?: number
+  maxAnswers?: number
+  maxHeldPoints?: number
 }
+
+const pointCount = (shape: OutlineGeometry | null) => (shape ? (shape.type === "Polygon" ? [shape.coordinates] : shape.coordinates).flat(2).length : 0)
+
+/** The same area asked about again: its names, city and stops, not their order. */
+const answerKey = ({ names, city, stops }: OutlineQuery) =>
+  [names.map(foldName).join("|"), foldName(city), stops.map((stop) => `${stop.lat.toFixed(4)},${stop.lng.toFixed(4)}`).sort().join(";")].join("#")
+
+const abortedBy = (signal: AbortSignal) =>
+  new Promise<never>((_, reject) => {
+    if (signal.aborted) reject(signal.reason)
+    else signal.addEventListener("abort", () => reject(signal.reason), { once: true })
+  })
 
 export function createNominatimOutlines({
   fetchImpl = fetch,
@@ -143,29 +163,53 @@ export function createNominatimOutlines({
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   ttlMs = 7 * 24 * 60 * 60_000,
   gapMs = NOMINATIM_GAP_MS,
+  maxAnswers = MAX_ANSWERS,
+  maxHeldPoints = MAX_HELD_POINTS,
 }: NominatimOptions = {}): AreaOutlineLookup {
-  const results = new Map<string, { until: number; value: NominatimResult[] }>()
+  const answers = new Map<string, { until: number; value: OutlineGeometry | null; points: number }>()
+  let held = 0
   let queue: Promise<unknown> = Promise.resolve()
   let queued = 0
   let lastAt = -Infinity
 
+  const forget = (key: string) => {
+    const known = answers.get(key)
+    if (!known) return
+    held -= known.points
+    answers.delete(key)
+  }
+
+  const remember = (key: string, value: OutlineGeometry | null) => {
+    forget(key)
+    const points = pointCount(value)
+    for (const oldest of answers.keys()) {
+      if (answers.size < maxAnswers && held + points <= maxHeldPoints) break
+      forget(oldest)
+    }
+    answers.set(key, { until: now() + ttlMs, value, points })
+    held += points
+  }
+
   /** One search, after the one before it by at least `gapMs`. */
-  const searchNow = async (text: string): Promise<NominatimResult[]> => {
+  const searchNow = async (text: string, signal?: AbortSignal): Promise<NominatimResult[]> => {
     const wait = lastAt + gapMs - now()
     if (wait > 0) await sleep(wait)
+    // Gave up while queued: no request, and the next one need not wait for it.
+    signal?.throwIfAborted()
     lastAt = now()
     const url = `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
       q: text,
       format: "jsonv2",
       polygon_geojson: "1",
-      // About 30 m: enough for a neighbourhood's edge, a fraction of the points.
+      // About 30 m: enough for a neighborhood's edge, a fraction of the points.
       polygon_threshold: "0.0003",
       layer: "address",
       limit: "5",
     })}`
+    const timeout = AbortSignal.timeout(REQUEST_MS)
     const res = await fetchImpl(url, {
       headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" },
-      signal: AbortSignal.timeout(REQUEST_MS),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     })
     if (!res.ok) {
       await res.text().catch(() => {})
@@ -175,28 +219,26 @@ export function createNominatimOutlines({
     return Array.isArray(json) ? (json as NominatimResult[]) : []
   }
 
-  const search = async (text: string): Promise<NominatimResult[]> => {
-    const key = foldName(text)
-    const hit = results.get(key)
-    if (hit && now() < hit.until) return hit.value
+  const search = async (text: string, signal?: AbortSignal): Promise<NominatimResult[]> => {
+    signal?.throwIfAborted()
     if (queued >= MAX_QUEUED) throw new Error("nominatim queue full")
     queued += 1
-    const turn = queue.then(() => searchNow(text))
+    const turn = queue.then(() => searchNow(text, signal))
     queue = turn.catch(() => undefined)
     try {
-      const value = await turn
-      results.delete(key)
-      if (results.size >= 1_000) results.delete(results.keys().next().value!)
-      results.set(key, { until: now() + ttlMs, value })
-      return value
+      return await (signal ? Promise.race([turn, abortedBy(signal)]) : turn)
     } finally {
       queued -= 1
     }
   }
 
-  return async ({ names, city, stops }) => {
+  return async (query, signal) => {
+    const { names, city, stops } = query
     if (stops.length === 0) return null
-    // Each neighbourhood a two-name area is named for, by each of its names in turn.
+    const key = answerKey(query)
+    const known = answers.get(key)
+    if (known && now() < known.until) return known.value
+    // Each neighborhood a two-name area is named for, by each of its names in turn.
     const partNames = names.map(nameParts)
     const count = Math.max(0, ...partNames.map((parts) => parts.length))
     const found: Ring[][][] = []
@@ -204,13 +246,15 @@ export function createNominatimOutlines({
       for (const parts of partNames) {
         const part = parts[i]
         if (!part) continue
-        const polygons = acceptablePart(await search(city ? `${part}, ${city}` : part), city, stops)
+        const polygons = acceptablePart(await search(city ? `${part}, ${city}` : part, signal), city, stops)
         if (polygons) {
           found.push(polygons)
           break
         }
       }
     }
-    return joinParts(found, stops)
+    const outline = joinParts(found, stops)
+    remember(key, outline)
+    return outline
   }
 }
