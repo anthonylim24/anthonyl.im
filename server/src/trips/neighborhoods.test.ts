@@ -4,6 +4,7 @@ import {
   areaStops,
   createNeighborhoods,
   MAX_AREAS,
+  MAX_SUMMARY_CHARS,
   NeighborhoodsError,
   readModelAreas,
   stopsHash,
@@ -151,7 +152,18 @@ describe("readModelAreas", () => {
   test("cleans the summary: no markdown, no surrounding quotes, clipped", () => {
     const areas = readModelAreas(answer([{ name: "Hannam", city: "Seoul", summary: `"**Quiet** hillside\n lanes ${"x".repeat(400)}"`, stops: [keyOf("leeum")] }]), STOPS)
     expect(areas[0]!.summary.startsWith("Quiet hillside lanes")).toBe(true)
-    expect(Array.from(areas[0]!.summary).length).toBeLessThanOrEqual(280)
+    expect(Array.from(areas[0]!.summary).length).toBeLessThanOrEqual(MAX_SUMMARY_CHARS)
+  })
+
+  test("keeps one sentence about the place: a sentence about the trip goes, and the spelling is the tab's", () => {
+    const areas = readModelAreas(
+      answer([
+        { name: "Seongsu-dong", city: "Seoul", summary: "Former factory neighbourhood on the north bank of the Han. The trip visits Cafe Onion and Seoul Forest.", stops: [keyOf("cafe")] },
+        { name: "Hannam", city: "Seoul", summary: "Neighbourhood of hillside lanes below Namsan.", stops: [keyOf("leeum")] },
+      ]),
+      STOPS,
+    )
+    expect(areas.map((a) => a.summary)).toEqual(["Former factory neighborhood on the north bank of the Han.", "Neighborhood of hillside lanes below Namsan."])
   })
 
   test("throws a message with none of the model's text when the answer is not the shape asked for", () => {
