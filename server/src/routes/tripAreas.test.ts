@@ -12,7 +12,7 @@ const OWNER = { Authorization: "Bearer owner", "Content-Type": "application/json
 const VIEWER = { Authorization: "Bearer viewer", "Content-Type": "application/json" }
 const STRANGER = { Authorization: "Bearer stranger", "Content-Type": "application/json" }
 
-const GROUPED = JSON.stringify({ areas: [{ name: "Jongno", localName: "종로", city: "Seoul", summary: "Palaces and markets.", stops: ["s1", "s2"] }] })
+const GROUPED = JSON.stringify({ areas: [{ name: "Jongno", localName: "종로", localLang: "ko", city: "Seoul", summary: "Palaces and markets.", stops: ["s1", "s2"] }] })
 
 function makeApp(neighborhoods: NeighborhoodService | null) {
   const deps: TripsRouterDeps = {
@@ -66,7 +66,7 @@ describe("GET /api/trips/:id/neighborhoods", () => {
     const res = await list(app, id, VIEWER)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
-      areas: [{ id: areaId("Jongno", "Seoul"), name: "Jongno", localName: "종로", city: "Seoul", summary: "Palaces and markets.", stopIds: ["gb", "gj"], photos: [] }],
+      areas: [{ id: areaId("Jongno", "Seoul"), name: "Jongno", localName: "종로", localLang: "ko", city: "Seoul", summary: "Palaces and markets.", stopIds: ["gb", "gj"], photos: [] }],
     })
   })
 

@@ -7,7 +7,7 @@ import { createGroqLlm, extractModelJson, groqFitsTpm } from "./ai"
 import { createNominatimOutlines, type AreaOutlineLookup, type OutlineGeometry } from "./areaOutline"
 import { createGoogleAreaPhotos, type AreaPhotoLookup } from "./areaPhotos"
 import type { LatLng } from "./conciergeTools"
-import { foldName, type PlacePhoto } from "./placeDetails"
+import { foldName, nameLanguage, type PlacePhoto } from "./placeDetails"
 import { oneLine, privateLine } from "./suggestDays"
 import type { Trip } from "./types"
 
@@ -56,6 +56,9 @@ export interface AreaStop {
   day: number
   /** The day's city, when the plan says. */
   city?: string
+  /** Never sent to the model: they pick the stop whose photo can stand in for its area (`areaPhotos.ts`). */
+  category?: string
+  placeId?: string
 }
 
 /** One area as the model named it, cleaned. What the cache keeps. */
@@ -73,7 +76,11 @@ export interface AreaGroup {
 
 /** What GET /api/trips/:id/neighborhoods answers per area. Mirrors `Neighborhood` in `frontend/src/pages/Trips/areas/contract.ts`. */
 export interface Neighborhood extends AreaGroup {
+  /** The language of `localName` ("ko", "ja", "zh-TW"…), for the page to mark it up. */
+  localLang?: string
   photos: PlacePhoto[]
+  /** Set when the photo is of one of the area's stops, not the area: that stop's name. */
+  photoOf?: string
 }
 
 /** Why there are no areas to show. The message never carries user or model text. */
@@ -105,6 +112,8 @@ export function areaStops(trip: Pick<Trip, "days">): AreaStop[] {
         lng: where.lng,
         day: index + 1,
         city: privateLine(day.city, 60),
+        category: where.category,
+        placeId: where.placeId,
       })
     }
   })
@@ -481,19 +490,19 @@ export function createNeighborhoods(opts: {
     return area.stopIds.flatMap((id) => byId.get(id) ?? [])
   }
 
-  const withPhotos = (areas: readonly AreaGroup[], stops: readonly AreaStop[]): Promise<Neighborhood[]> => {
-    const photos = opts.photos
-    return Promise.all(
-      areas.map(async (area) => {
+  const withPhotos = (areas: readonly AreaGroup[], stops: readonly AreaStop[]): Promise<Neighborhood[]> =>
+    Promise.all(
+      areas.map(async (area): Promise<Neighborhood> => {
         const members = membersOf(area, stops)
-        if (!photos || members.length === 0) return { ...area, photos: [] }
-        const centre = medianPoint(members)
+        const centre = members.length > 0 ? medianPoint(members) : null
+        const localLang = area.localName && centre ? nameLanguage(area.localName, centre) : undefined
+        const known = { ...area, ...(localLang ? { localLang } : {}) }
+        if (!opts.photos || !centre) return { ...known, photos: [] }
         const reachM = Math.max(...members.map((stop) => haversineMeters(centre, stop)))
-        const found = await photos({ name: area.name, localName: area.localName, city: area.city, centre, reachM }).catch(() => [])
-        return { ...area, photos: found }
+        const found = await opts.photos({ name: area.name, localName: area.localName, city: area.city, centre, reachM, stops: members }).catch(() => null)
+        return { ...known, photos: found?.photos ?? [], ...(found?.of ? { photoOf: found.of } : {}) }
       }),
     )
-  }
 
   return {
     async list(trip, { waitMs = Infinity } = {}) {

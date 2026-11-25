@@ -192,6 +192,10 @@ function counting(raw: string | (() => Promise<string>)): AreaModel & { calls: A
   return model
 }
 
+/** TRIP with `change` applied to its items. */
+const edited = (change: (items: ItineraryItem[], dayIndex: number) => ItineraryItem[], trip: Trip = TRIP) =>
+  makeTrip(trip.days.map((d, i) => ({ ...d, items: change(d.items, i) })))
+
 describe("createNeighborhoods", () => {
   test("asks the model once for an unchanged trip, and again when a stop moves", async () => {
     const model = counting(GROUPED)
@@ -279,20 +283,25 @@ describe("createNeighborhoods", () => {
     for (const secret of ["K9X2Q7", "9876 5432", "a.lee@example.com", "1234 5678", "ZX81QP"]) expect(prompt.user).not.toContain(secret)
   })
 
-  test("adds each area's photos, and none when the lookup fails", async () => {
-    const asked: Array<{ name: string; localName?: string; city: string; reachM: number }> = []
+  test("adds each area's photo, saying when it is of a stop, none when the lookup fails, and the local name's language", async () => {
+    const asked: Array<{ name: string; localName?: string; city: string; reachM: number; stops: readonly { name: string; category?: string }[] }> = []
     const photo = { url: "https://lh3.googleusercontent.com/p/one", author: { name: "Jin" } }
+    const trip = edited((items) => items.map((i) => (i.id === "forest" ? { ...i, location: { ...i.location!, category: "park" } } : i)))
     const service = createNeighborhoods({
       models: [counting(GROUPED)],
       photos: async (query) => {
         asked.push(query)
         if (query.name.startsWith("Hannam")) throw new Error("places 500")
-        return [photo]
+        return { photos: [photo], of: "Seoul Forest" }
       },
     })
-    const answered = await service.list(TRIP)
-    expect("areas" in answered && answered.areas.map((a) => a.photos)).toEqual([[photo], []])
+    const answered = await service.list(trip)
+    expect("areas" in answered && answered.areas.map((a) => [a.photos, a.photoOf, a.localLang])).toEqual([
+      [[photo], "Seoul Forest", "ko"],
+      [[], undefined, "ko"],
+    ])
     expect(asked[0]).toMatchObject({ name: "Seongsu-dong", localName: "성수동", city: "Seoul" })
+    expect(asked[0]!.stops.map((stop) => [stop.name, stop.category])).toEqual([["Cafe Onion", undefined], ["Seoul Forest", "park"], ["Haus Nowhere", undefined]])
     expect(asked[0]!.reachM).toBeGreaterThan(500)
     expect(asked[0]!.reachM).toBeLessThan(2_000)
   })

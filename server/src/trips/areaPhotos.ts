@@ -1,18 +1,27 @@
 import { haversineMeters } from "../data/koreaPlaces"
 import type { LatLng } from "./conciergeTools"
-import { foldName, nameLanguage, PHOTO_NAME, toPlacePhoto, type PlacePhoto, type RawDetails } from "./placeDetails"
+import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, toPlacePhoto, type PlacePhoto, type RawDetails } from "./placeDetails"
 
-// Photos of a neighbourhood, for its card in the Neighborhoods tab: Google
-// Places Text Search for "<area>, <city>", the first hit that is an area
-// near the trip's stops there, and its first photos with their credits.
+// A photo for a neighborhood's card in the Neighborhoods tab: Google Places
+// Text Search for "<area>, <city>", the first hit that is an area near the
+// trip's stops there, and its first photo with its credit.
 //
 // The search often answers a landmark that shares the area's name ("Dosan,
 // Seoul" is Dosan Park, "Bukchon, Seoul" is Bukchon Hanok Village; measured),
-// so a hit counts only when Google files it as a neighbourhood or a part of
+// so a hit counts only when Google files it as a neighborhood or a part of
 // a city, and stands near the stops. No photo beats a photo of the wrong
-// place. Key handling is `placeDetails.ts`'s: the key travels only in the
-// `X-Goog-Api-Key` header, redirects are refused, and photo media is asked
-// for with `skipHttpRedirect=true`, which answers a keyless `photoUri`.
+// place. When no hit is the area, the photo is of the area's stop most likely
+// to stand for it (a landmark before a café, never a hotel or a station),
+// and says so. Key handling is `placeDetails.ts`'s: the key travels only in
+// the `X-Goog-Api-Key` header, redirects are refused, and photo media is
+// asked for with `skipHttpRedirect=true`, which answers a keyless `photoUri`.
+
+/** One of the area's stops, as far as picking and finding a stand-in photo needs. */
+export interface PhotoStop extends LatLng {
+  name: string
+  category?: string
+  placeId?: string
+}
 
 export interface AreaPhotoQuery {
   name: string
@@ -22,12 +31,19 @@ export interface AreaPhotoQuery {
   centre: LatLng
   /** How far the furthest stop is from `centre`. */
   reachM: number
+  /** The area's stops, in trip order. */
+  stops: readonly PhotoStop[]
 }
 
-/** The area's photo, or none when no hit can be trusted. */
-export type AreaPhotoLookup = (query: AreaPhotoQuery) => Promise<PlacePhoto[]>
+/** The area's photo, or none when no hit can be trusted. `of` names the stop when the photo is of a stop, not the area. */
+export interface AreaPhoto {
+  photos: PlacePhoto[]
+  of?: string
+}
 
-/** Google's types for a part of a city. Not `locality` (the whole city), and not parks or landmarks. */
+export type AreaPhotoLookup = (query: AreaPhotoQuery) => Promise<AreaPhoto>
+
+/** Google's types for a part of a city. Not parks or landmarks; a `locality` only as `pickAreaPlace` allows. */
 export const AREA_PLACE_TYPES = new Set([
   "neighborhood",
   "colloquial_area",
@@ -38,6 +54,13 @@ export const AREA_PLACE_TYPES = new Set([
   "sublocality_level_4",
   "sublocality_level_5",
 ])
+
+/**
+ * The kinds of stop whose photo can stand for the area around it, best
+ * first. Hotels and stations are left out: a lobby or a platform says nothing
+ * of the neighborhood. A stop with no kind ranks with "venue".
+ */
+export const STAND_IN_KINDS = ["neighborhood", "landmark", "shrine", "palace", "viewpoint", "market", "park", "museum", "experience", "shopping", "cafe", "restaurant", "bar", "venue"]
 
 /** The Neighborhoods card shows one photo; each more is a paid media call nobody sees. */
 export const AREA_PHOTOS = 1
@@ -57,7 +80,7 @@ export interface RawAreaPlace {
   photos?: RawDetails["photos"]
 }
 
-/** "Hannam & Itaewon" → Hannam, Itaewon: an area named for two neighbourhoods is looked up by each. */
+/** "Hannam & Itaewon" → Hannam, Itaewon: an area named for two neighborhoods is looked up by each. */
 export function nameParts(name: string): string[] {
   return name
     .split(/\s*(?:&|·|\+|\/|,|\band\b)\s*/u)
@@ -66,19 +89,44 @@ export function nameParts(name: string): string[] {
     .slice(0, 2)
 }
 
-/** The first hit that is a part of a city near the stops, never a park or landmark of the same name. */
-export function pickAreaPlace(places: readonly RawAreaPlace[], query: Pick<AreaPhotoQuery, "centre" | "reachM" | "city">): RawAreaPlace | null {
+/**
+ * Whether a hit is this part of the city. Google files Tokyo's wards
+ * ("Shibuya", "Shinjuku City", "渋谷区") only as `locality` (measured), so a
+ * locality counts when its name starts with the name searched for and is not
+ * the trip's city by another spelling ("Kyoto City" for Kyoto).
+ */
+function isAreaHit(place: RawAreaPlace, text: string, city: string): boolean {
+  const name = foldName(place.displayName?.text ?? "")
+  if (city && name === city) return false
+  if (place.types?.some((type) => AREA_PLACE_TYPES.has(type))) return true
+  if (!place.types?.includes("locality")) return false
+  const wanted = foldName(text)
+  return wanted !== "" && name.startsWith(wanted) && !(city && (name.includes(city) || city.includes(name)))
+}
+
+/** The first hit that is a part of the city near the stops, never a park or landmark of the same name. */
+export function pickAreaPlace(places: readonly RawAreaPlace[], query: Pick<AreaPhotoQuery, "centre" | "reachM" | "city"> & { text: string }): RawAreaPlace | null {
   const limit = Math.max(NEAR_MIN_M, query.reachM + NEAR_SLACK_M)
   const city = foldName(query.city)
   for (const place of places) {
     const lat = place.location?.latitude
     const lng = place.location?.longitude
     if (typeof lat !== "number" || typeof lng !== "number") continue
-    if (!place.types?.some((type) => AREA_PLACE_TYPES.has(type))) continue
-    if (city && foldName(place.displayName?.text ?? "") === city) continue
+    if (!isAreaHit(place, query.text, city)) continue
     if (haversineMeters(query.centre, { lat, lng }) <= limit) return place
   }
   return null
+}
+
+/** The stop whose photo can stand for the area (`STAND_IN_KINDS`), the first visited among the best kind; null when none can. */
+export function standInStop<T extends PhotoStop>(stops: readonly T[]): T | null {
+  const rank = (stop: PhotoStop) => STAND_IN_KINDS.indexOf(stop.category ?? "venue")
+  let best: T | null = null
+  for (const stop of stops) {
+    const r = rank(stop)
+    if (r >= 0 && (!best || r < rank(best))) best = stop
+  }
+  return best
 }
 
 /** A bounded map whose entries lapse; the oldest goes first when full. */
@@ -103,20 +151,23 @@ function lapsing<T>(max: number, now: () => number) {
   }
 }
 
+/** What stands for an area: a place Google files as the area, or one of its stops (`of`), or nothing. */
+type Subject = { place: RawAreaPlace; of?: string } | null
+
 export function createGoogleAreaPhotos(
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
   {
     // Photo URIs carry no documented lifetime; `placeDetails.ts` keeps them half an hour.
     ttlMs = 30 * 60_000,
-    // Which place is the area changes far more slowly than its photo links, so the
+    // Which place stands for the area changes far more slowly than its photo links, so the
     // searches (up to four per area) are not repeated each time the links lapse.
     placeTtlMs = 24 * 60 * 60_000,
     now = Date.now,
   }: { ttlMs?: number; placeTtlMs?: number; now?: () => number } = {},
 ): AreaPhotoLookup {
-  const answers = lapsing<PlacePhoto[]>(500, now)
-  const places = lapsing<RawAreaPlace | null>(500, now)
+  const answers = lapsing<AreaPhoto>(500, now)
+  const subjects = lapsing<Subject>(500, now)
 
   const call = async (url: string, init: RequestInit) => {
     const res = await fetchImpl(url, {
@@ -132,20 +183,57 @@ export function createGoogleAreaPhotos(
     return res
   }
 
-  const search = async (text: string, query: AreaPhotoQuery): Promise<RawAreaPlace | null> => {
+  const searchText = async (textQuery: string, languageCode: string, centre: LatLng, radius: number): Promise<RawAreaPlace[]> => {
     const res = await call("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Goog-FieldMask": FIELDS },
       body: JSON.stringify({
-        textQuery: `${text}, ${query.city}`.replace(/,\s*$/, ""),
+        textQuery,
         pageSize: 5,
-        languageCode: nameLanguage(text, query.centre),
-        // A bias only ranks; `pickAreaPlace` is what keeps it local.
-        locationBias: { circle: { center: { latitude: query.centre.lat, longitude: query.centre.lng }, radius: Math.min(50_000, Math.max(2_000, query.reachM * 2)) } },
+        languageCode,
+        // A bias only ranks; the pickers are what keep it local.
+        locationBias: { circle: { center: { latitude: centre.lat, longitude: centre.lng }, radius } },
       }),
     })
-    const json = (await res.json()) as { places?: RawAreaPlace[] }
-    return pickAreaPlace(json.places ?? [], query)
+    return ((await res.json()) as { places?: RawAreaPlace[] }).places ?? []
+  }
+
+  const areaPlace = async (query: AreaPhotoQuery): Promise<RawAreaPlace | null> => {
+    // Each part of a two-name area, in English first, then its local name.
+    const texts = [...nameParts(query.name), ...(query.localName ? nameParts(query.localName) : [])]
+    for (const text of new Set(texts)) {
+      const places = await searchText(`${text}, ${query.city}`.replace(/,\s*$/, ""), nameLanguage(text, query.centre), query.centre, Math.min(50_000, Math.max(2_000, query.reachM * 2)))
+      const place = pickAreaPlace(places, { ...query, text })
+      if (place) return place
+    }
+    return null
+  }
+
+  /** The stop itself: by its place id when it has one, else the nearest plausible hit for its name. */
+  const stopPlace = async (stop: PhotoStop): Promise<RawAreaPlace | null> => {
+    if (stop.placeId && PLACE_ID.test(stop.placeId)) {
+      const res = await call(`https://places.googleapis.com/v1/places/${encodeURIComponent(stop.placeId)}`, {
+        method: "GET",
+        headers: { "X-Goog-FieldMask": "id,displayName,photos" },
+      })
+      return (await res.json()) as RawAreaPlace
+    }
+    const places = await searchText(stop.name, nameLanguage(stop.name, stop), stop, MATCH_RADIUS_M)
+    return (
+      places.find((place) => {
+        const lat = place.location?.latitude
+        const lng = place.location?.longitude
+        return typeof lat === "number" && typeof lng === "number" && haversineMeters(stop, { lat, lng }) <= MATCH_RADIUS_M && plausibleName(stop.name, place.displayName?.text ?? "")
+      }) ?? null
+    )
+  }
+
+  const subjectFor = async (query: AreaPhotoQuery): Promise<Subject> => {
+    const place = await areaPlace(query)
+    if (place) return { place }
+    const stop = standInStop(query.stops)
+    const stand = stop ? await stopPlace(stop) : null
+    return stand?.photos?.length ? { place: stand, of: stop!.name } : null
   }
 
   const photoUri = async (name: string): Promise<string | null> => {
@@ -165,22 +253,17 @@ export function createGoogleAreaPhotos(
     const key = `${foldName(query.name)}|${foldName(query.city)}|${query.centre.lat.toFixed(2)},${query.centre.lng.toFixed(2)}`
     const known = answers.get(key)
     if (known) return known
-    let place = places.get(key)
-    if (place === undefined) {
-      // Each part of a two-name area, in English first, then its local name.
-      const texts = [...nameParts(query.name), ...(query.localName ? nameParts(query.localName) : [])]
-      place = null
-      for (const text of new Set(texts)) {
-        place = await search(text, query)
-        if (place) break
-      }
-      places.set(key, place, placeTtlMs)
+    let subject = subjects.get(key)
+    if (subject === undefined) {
+      subject = await subjectFor(query)
+      subjects.set(key, subject, placeTtlMs)
     }
-    const wanted = (place?.photos ?? []).filter((photo) => photo.name).slice(0, AREA_PHOTOS)
+    const wanted = (subject?.place.photos ?? []).filter((photo) => photo.name).slice(0, AREA_PHOTOS)
     const uris = await Promise.all(wanted.map((photo) => photoUri(photo.name!)))
     const photos = wanted.flatMap((photo, i) => (uris[i] ? [toPlacePhoto(photo, uris[i]!, PHOTO_WIDTH_PX)] : []))
+    const answer: AreaPhoto = photos.length > 0 && subject?.of ? { photos, of: subject.of } : { photos }
     // A photo that failed to resolve is worth asking for again soon; a place with none is an answer.
-    if (photos.length === wanted.length) answers.set(key, photos, ttlMs)
-    return photos
+    if (photos.length === wanted.length) answers.set(key, answer, ttlMs)
+    return answer
   }
 }
