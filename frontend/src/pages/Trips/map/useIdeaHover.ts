@@ -26,8 +26,9 @@ export function useIdeaHover(): [IdeaHover | null, ReportIdeaHover, HoldIdeaHove
   const onCard = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const show = useCallback((next: IdeaHover | null) => {
+    // A card that went from under the mouse (its pin removed) heard no leave: the next starts off the card.
+    if (next?.id !== shown.current?.id) onCard.current = false
     shown.current = next
-    if (!next) onCard.current = false
     setHover(next)
   }, [])
   const hideSoon = useCallback(() => {
