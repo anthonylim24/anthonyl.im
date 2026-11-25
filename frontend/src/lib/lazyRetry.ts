@@ -18,16 +18,48 @@ export function isChunkLoadError(error: unknown): boolean {
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 /**
+ * How long one import may take. A download that stalls without failing (a lost
+ * HTTP/3 stream, a filtering network) never rejects, so without this the
+ * Suspense fallback would spin until a manual reload. Generous on purpose: the
+ * heaviest route, with its shared chunks, arrives well inside it on a slow
+ * phone network.
+ */
+export const IMPORT_DEADLINE_MS = 20_000
+
+/** Named like webpack's error so `isChunkLoadError`, and the reload behind it, pick it up. */
+class ChunkTimeoutError extends Error {
+  override name = "ChunkLoadError"
+  constructor(ms: number) {
+    super(`Loading chunk timed out after ${ms / 1000} s`)
+  }
+}
+
+function withDeadline<T>(pending: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ChunkTimeoutError(ms)), ms)
+  })
+  return Promise.race([pending, deadline]).finally(() => clearTimeout(timer))
+}
+
+/**
  * Run a dynamic import, trying once more after a short pause. React.lazy
  * remembers a rejection for good, so the retry has to happen in here.
  */
-export async function importWithRetry<T>(load: () => Promise<T>, pauseMs = 400): Promise<T> {
+export async function importWithRetry<T>(
+  load: () => Promise<T>,
+  pauseMs = 400,
+  deadlineMs = IMPORT_DEADLINE_MS,
+): Promise<T> {
   try {
-    return await load()
+    return await withDeadline(load(), deadlineMs)
   } catch (first) {
-    if (!isChunkLoadError(first)) throw first
+    // A timed-out import is still pending in the browser's module map, so
+    // asking again would only wait on the same stalled request: fail now and
+    // let the error boundary reload the page.
+    if (first instanceof ChunkTimeoutError || !isChunkLoadError(first)) throw first
     await wait(pauseMs)
-    return load()
+    return withDeadline(load(), deadlineMs)
   }
 }
 

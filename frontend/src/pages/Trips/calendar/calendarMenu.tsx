@@ -31,7 +31,7 @@ export function exportCalendar(trip: Trip, day?: TripDay): Promise<void> {
       download(calendarFileName(trip, day), text)
     })
     .catch((error: unknown) => {
-      reportClientEvent("calendar-export", error instanceof Error ? error.message : String(error))
+      reportClientEvent("calendar_export", error instanceof Error ? error.message : String(error))
     })
 }
 

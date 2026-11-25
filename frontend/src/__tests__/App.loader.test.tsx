@@ -4,6 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { StageLoad } from '../chat/LimStage'
 
 vi.mock('../lib/analytics', () => ({ getPostHogConfig: () => null }))
+const reported = vi.hoisted(() => vi.fn())
+vi.mock('../lib/telemetry', async (original) => ({
+  ...(await original<typeof import('../lib/telemetry')>()),
+  reportClientEvent: reported,
+}))
 
 /** The stage as the page drives it: what it was last told, and a way to report its load. */
 const stage: { onLoad: (load: StageLoad) => void; revealed: boolean | undefined; gpu: boolean } = { onLoad: () => {}, revealed: undefined, gpu: true }
@@ -83,6 +88,31 @@ describe('Lim page loading screen', () => {
       </MemoryRouter>,
     )
     expect(screen.queryByRole('dialog', { hidden: true })).toBeNull()
+    expect(stage.revealed).toBe(true)
+  })
+
+  it('lets the visitor into the chat when the stage misses its deadline, and says where it stuck', async () => {
+    vi.resetModules()
+    const { default: App } = await import('../App')
+    const { LOAD_DEADLINE_MS } = await import('../chat/loader')
+    vi.useFakeTimers()
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    )
+    report({ kind: 'loading', step: 'gpu', done: 0.2 })
+    act(() => vi.advanceTimersByTime(LOAD_DEADLINE_MS - 100))
+    expect(screen.getByRole('dialog', { name: 'Setting the jelly' })).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(100))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.getElementById('chat-main')).not.toHaveAttribute('inert')
+    expect(screen.getByLabelText('Ask about Anthony')).toHaveFocus()
+    expect(reported).toHaveBeenCalledWith('lim_stage_slow', expect.any(String), { step: 'gpu', done: 0.2 })
+
+    // The stage still arrives, late, behind the chat.
+    report({ kind: 'ready' })
     expect(stage.revealed).toBe(true)
   })
 

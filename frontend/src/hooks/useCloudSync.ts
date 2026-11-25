@@ -19,7 +19,7 @@ function isStill(userId: string, seq: number): boolean {
 
 function report(step: 'pull' | 'push', error: unknown) {
   console.error(`[CloudSync] ${step} failed:`, error)
-  reportClientEvent('cloud-sync', `${step} failed`, { message: error instanceof Error ? error.message : String(error) })
+  reportClientEvent('cloud_sync', `${step} failed`, { message: error instanceof Error ? error.message : String(error) })
 }
 
 /**

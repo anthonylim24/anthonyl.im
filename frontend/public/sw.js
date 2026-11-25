@@ -1,10 +1,15 @@
 // Korea is the only installable PWA, but this worker serves every app's shell
 // offline. Bump CACHE_VERSION on every behaviour change (AGENTS.md, "Service
 // Worker / Caching Contract").
-const CACHE_VERSION = 'korea-offline-v16'
+const CACHE_VERSION = 'korea-offline-v17'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 // Hashed bundles pile up across deploys; activate trims the oldest beyond this.
 const RUNTIME_MAX_ENTRIES = 150
+// A navigation still unanswered after this long is served from the cached
+// shell, if there is one, while the network request carries on and refreshes
+// that copy. A connection that stalls without failing (a lost QUIC stream, a
+// filtering network) would otherwise leave a blank tab until a manual reload.
+const NAVIGATION_DEADLINE_MS = 4000
 
 // One cached shell per app (see shellKey). Precached so a first offline
 // launch of any app works.
@@ -69,12 +74,20 @@ async function pruneRuntimeCache() {
   }
 }
 
+// The browser starts a navigation's request while the worker is still booting
+// (a cold start can take hundreds of ms on a phone) and hands it over as
+// event.preloadResponse.
+function enableNavigationPreload() {
+  const preload = self.registration && self.registration.navigationPreload
+  return preload ? preload.enable().catch(() => undefined) : Promise.resolve()
+}
+
 // Pages reload themselves (controllerchange in lib/serviceWorker.ts) when it
 // is safe to; the worker never navigates a client.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
+    enableNavigationPreload()
+      .then(() => caches.keys())
       .then((keys) =>
         Promise.all(
           keys
@@ -114,24 +127,41 @@ function shellKey(pathname) {
   return '/'
 }
 
-async function networkFirstNavigation(request, pathname) {
+async function cachedShell(key) {
   const cache = await caches.open(CACHE_VERSION)
-  const key = shellKey(pathname)
+  return (key && (await cache.match(key))) || (await cache.match('/')) || null
+}
 
-  try {
-    const response = await fetch(request)
-    const isHtml = (response.headers.get('Content-Type') || '').includes('text/html')
-    if (key && response.ok && isHtml) {
-      await cachePutSafe(cache, key, response.clone())
-    }
-    return response
-  } catch {
-    return (
-      (key && (await cache.match(key))) ||
-      (await cache.match('/')) ||
-      Response.error()
-    )
-  }
+function networkFirstNavigation(event, request, pathname) {
+  const key = shellKey(pathname)
+  // Started before anything else awaits, so waitUntil below is called while
+  // the event is still dispatching.
+  const network = Promise.resolve(event.preloadResponse)
+    .then((preloaded) => preloaded || fetch(request))
+    .then((response) => {
+      const isHtml = (response.headers.get('Content-Type') || '').includes('text/html')
+      if (key && response.ok && isHtml) {
+        // Stored behind the answer. cache.put reads the whole body, so
+        // awaiting it would hold the page until the last byte arrived.
+        const copy = response.clone()
+        event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cachePutSafe(cache, key, copy)))
+      }
+      return response
+    })
+  // Keeps the worker alive to finish (and store) the network answer even
+  // when the cached shell went out first.
+  event.waitUntil(network.catch(() => undefined))
+
+  let timer
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(resolve, NAVIGATION_DEADLINE_MS, null)
+  })
+  // A slow page with no shell of its own (an invite link, a file) keeps
+  // waiting; only a failed one falls back to the root shell.
+  return Promise.race([network, deadline])
+    .then(async (answered) => answered || (key && (await cachedShell(key))) || network)
+    .catch(async () => (await cachedShell(key)) || Response.error())
+    .finally(() => clearTimeout(timer))
 }
 
 // Content-hashed bundles never change under a name.
@@ -197,7 +227,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstNavigation(request, url.pathname))
+    event.respondWith(networkFirstNavigation(event, request, url.pathname))
     return
   }
 

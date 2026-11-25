@@ -35,6 +35,22 @@ describe("importWithRetry", () => {
     expect(load).toHaveBeenCalledTimes(2)
   })
 
+  it("fails a stalled import at the deadline, as a chunk error, without asking again", async () => {
+    vi.useFakeTimers()
+    try {
+      const load = vi.fn(() => new Promise<never>(() => {}))
+      const result = importWithRetry(load, 0, 5_000)
+      const caught = result.catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(5_000)
+      const error = await caught
+      expect(isChunkLoadError(error)).toBe(true)
+      expect(String(error)).toMatch(/timed out after 5 s/)
+      expect(load).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("does not retry a module that loaded and then threw", async () => {
     const load = vi.fn().mockRejectedValue(new Error("boom in module body"))
     await expect(importWithRetry(load, 0)).rejects.toThrow("boom")
