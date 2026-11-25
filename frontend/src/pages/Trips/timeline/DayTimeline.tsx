@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react"
-import { Footprints, Plane, Route, Sunrise, Sunset, TrainFront, TriangleAlert } from "lucide-react"
+import { Footprints, Pencil, Plane, Route, Sunrise, Sunset, TrainFront, TriangleAlert } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { ItemIcon } from "../ItemIcon"
@@ -53,6 +53,8 @@ export interface DayTimelineProps {
   activeId: string | null
   hotId: string | null
   onSelect: (itemId: string) => void
+  /** Opens a stop's editor; without it the timeline offers none (a viewer). */
+  onEdit?: (itemId: string) => void
   onHover: (itemId: string | null) => void
   /**
    * Now on this day's clock, when the day is under way: minutes from its
@@ -83,6 +85,7 @@ const LINE = { chrome: 12, time: 16, badge: 22, title: 18, meta: 16, warn: 18 }
 
 const DAY_MIN = 24 * 60
 const STOP = "data-timeline-stop"
+const EDIT = "data-timeline-edit"
 
 /** "9 AM", "12 PM": the ruler's hour labels. */
 function hourLabel(minutes: number): string {
@@ -128,7 +131,7 @@ function stopButtons(root: HTMLElement | null): HTMLElement[] {
  * time worth knowing about and anything that doesn't fit. Stops with no time
  * (and places still to schedule) wait in an "Anytime" list underneath.
  */
-export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now, forecast, fold: shared }: DayTimelineProps) {
+export function DayTimeline({ trip, day, activeId, hotId, onSelect, onEdit, onHover, now, forecast, fold: shared }: DayTimelineProps) {
   const rootRef = useRef<HTMLElement>(null)
   const baseId = useId()
   const [focusId, setFocusId] = useState<string | null>(null)
@@ -212,9 +215,11 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
   }, [forecast, layout])
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    const id = (event.target as HTMLElement).closest(`[${STOP}]`)?.getAttribute(STOP)
+    const from = event.target as HTMLElement
+    const editing = from.getAttribute(EDIT)
+    const id = from.closest(`[${STOP}]`)?.getAttribute(STOP) ?? editing
     if (!id) return
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && !editing) {
       // Handled here so the native click that would follow doesn't select twice.
       event.preventDefault()
       onSelect(id)
@@ -243,6 +248,28 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     onMouseEnter: () => onHover(id),
     onMouseLeave: () => onHover(null),
   })
+
+  // Beside the block, not in it: one button can't hold another. Tab goes from
+  // the block to its edit button and on out of the timeline; arrows move between blocks.
+  const editButton = (item: ItineraryItem, row: boolean) =>
+    onEdit && (
+      <button
+        type="button"
+        {...{ [EDIT]: item.id }}
+        tabIndex={item.id === tabStop ? 0 : -1}
+        aria-label={`Edit ${stopTitle(item)}`}
+        title="Edit stop"
+        {...sx(a.focusable, tl.edit, row && tl.editRow, "trips-tl-edit")}
+        onClick={() => onEdit(item.id)}
+        onFocus={() => {
+          setFocusId(item.id)
+          onHover(item.id)
+        }}
+        onBlur={() => onHover(null)}
+      >
+        <Pencil size={14} strokeWidth={1.75} aria-hidden />
+      </button>
+    )
 
   const descriptions: Array<{ id: string; text: string }> = []
   const describe = (text: string) => {
@@ -342,7 +369,8 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     return (
       <li
         key={item.id}
-        {...sx(tl.slot, (active || hotId === item.id) && tl.slotRaised, stacked && "trips-lane")}
+        data-active={active || undefined}
+        {...sx(tl.slot, (active || hotId === item.id) && tl.slotRaised, stacked && "trips-lane", "trips-tl-stop")}
         style={{
           top,
           height,
@@ -360,6 +388,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             a.focusable,
             tl.block,
             stacked && tl.blockStacked,
+            onEdit && tl.blockEditable,
             b.estimated && !b.departs && tl.blockEstimated,
             runsOn && tl.blockRunsOn,
             runsIn && tl.blockRunsIn,
@@ -421,6 +450,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             </span>
           )}
         </button>
+        {editButton(item, false)}
       </li>
     )
   }
@@ -462,13 +492,13 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
     const outcome = outcomeOf(item)
     const name = [when, stopTitle(item), kind, number ? `stop ${number}` : null, outcome === "planned" ? null : outcome].filter(Boolean).join(", ")
     return (
-      <li key={id}>
+      <li key={id} data-active={active || undefined} {...sx(tl.anyItem, "trips-tl-stop")}>
         <button
           type="button"
           aria-label={name}
           aria-current={active || undefined}
           {...events(id)}
-          {...sx(a.focusable, tl.block, tl.anyRow, hotId === id && tl.blockHot, active && tl.blockActive)}
+          {...sx(a.focusable, tl.block, tl.anyRow, onEdit && tl.blockEditable, hotId === id && tl.blockHot, active && tl.blockActive)}
         >
           {number ? (
             <span {...sx(tl.badge, active && tl.badgeActive)}>{number}</span>
@@ -486,6 +516,7 @@ export function DayTimeline({ trip, day, activeId, hotId, onSelect, onHover, now
             )}
           </span>
         </button>
+        {editButton(item, true)}
       </li>
     )
   }

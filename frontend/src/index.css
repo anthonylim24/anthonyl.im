@@ -1013,6 +1013,18 @@ html.dark[data-trips-scroll] {
   .trips .trips-section-row:focus-within .trips-row-action {
     opacity: 1;
   }
+
+  /* A timeline block's edit button: also shown on the selected block. */
+  .trips .trips-tl-edit {
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+
+  .trips .trips-tl-stop:hover .trips-tl-edit,
+  .trips .trips-tl-stop:focus-within .trips-tl-edit,
+  .trips .trips-tl-stop[data-active] .trips-tl-edit {
+    opacity: 1;
+  }
 }
 
 /* Grows a small control's hit area to 44px without resizing it — for shared

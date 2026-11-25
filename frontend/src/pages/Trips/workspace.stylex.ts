@@ -915,6 +915,12 @@ export const ws = stylex.create({
     color: "var(--trips-ink)",
   },
   editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.25rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
+  // In a sheet the body is the editor: the card's grid without its rule and inset.
+  sheetEditor: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" },
+  // One child of the dialog's foot (which shares its row between children on a phone):
+  // the stop's actions, then Done, on one line at 375px.
+  sheetFoot: { display: "flex", alignItems: "center", gap: "0.25rem", minWidth: 0 },
+  sheetActions: { display: "flex", alignItems: "center", gap: "0.125rem", minWidth: 0 },
 
   // ── Add composer ──────────────────────────────────────
   composer: { position: "relative" },

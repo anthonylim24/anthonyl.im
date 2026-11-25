@@ -242,6 +242,7 @@ export function Modal({
   accent,
   wide,
   footer,
+  returnFocus,
   children,
 }: {
   open: boolean
@@ -251,11 +252,13 @@ export function Modal({
   accent?: TripAccent
   wide?: boolean
   footer?: ReactNode
+  /** Where focus goes on close when what opened the dialog has gone (see `DialogFrame`). */
+  returnFocus?: () => HTMLElement | null | undefined
   children: ReactNode
 }) {
   const [scrolled, setScrolled] = useState(false)
   return (
-    <DialogFrame open={open} onClose={onClose} accent={accent} content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}>
+    <DialogFrame open={open} onClose={onClose} accent={accent} returnFocus={returnFocus} content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}>
       <div {...sx(a.dialogHead, scrolled && a.dialogHeadRuled)}>
         <div {...sx(a.stack)}>
           <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
@@ -282,7 +285,8 @@ export function Modal({
  * re-declares the `.trips` tokens, a scrim, and a Content that animates out
  * (`trips-scrim` / `trips-dialog` in index.css), is inert while it does, and
  * keeps showing what it showed while open. Focus goes back to whatever
- * opened it. Inside a `Presence`, it closes when the caller lets go.
+ * opened it, or, when that has gone (the dialog deleted it), to
+ * `returnFocus()`. Inside a `Presence`, it closes when the caller lets go.
  */
 export function DialogFrame({
   open,
@@ -290,6 +294,7 @@ export function DialogFrame({
   accent,
   content,
   onOpenAutoFocus,
+  returnFocus,
   children,
 }: {
   open: boolean
@@ -298,6 +303,7 @@ export function DialogFrame({
   /** The Content's styles and classes, as `sx` takes them. */
   content: Parameters<typeof sx>
   onOpenAutoFocus?: (event: Event) => void
+  returnFocus?: () => HTMLElement | null | undefined
   children: ReactNode
 }) {
   const closing = useClosing()
@@ -335,7 +341,7 @@ export function DialogFrame({
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
-              const target = opener.current
+              const target = opener.current?.isConnected ? opener.current : returnFocus?.()
               if (!target?.isConnected) return
               event.preventDefault()
               target.focus({ preventScroll: true })

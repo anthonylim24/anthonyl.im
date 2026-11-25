@@ -1,5 +1,5 @@
 import { TonightLine } from "../bookings/TonightLine"
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { flushSync } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
@@ -52,7 +52,10 @@ import { DayTimeline, ModeIcon, type DayTimelineProps } from "../timeline/DayTim
 import { useHolds, useLiveValue, type LiveValue } from "./liveValue"
 import { DoneFold } from "../timeline/DoneFold"
 import { stopTitle } from "../timeline/timeline"
-import { useDayView } from "./dayView"
+import type { DayView } from "./dayView"
+import { scrollBehavior } from "./scroll"
+import { StopSheet } from "./StopEditor"
+import { stopEdits, type EditorSurface } from "./stopEdits"
 import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview, type ReviewProgress } from "./AiPanels"
@@ -84,6 +87,11 @@ export interface DayPanelProps {
   activeId: string | null
   /** Stop whose editor should open (from the map's "Edit stop"); `n` is new for each request. */
   edit: { id: string; n: number } | null
+  /** The day's layout, remembered on this device. */
+  dayView: DayView
+  onDayView: (view: DayView) => void
+  /** Where a stop's editor opens: under its card, or in a sheet. */
+  surface: EditorSurface
   near: LngLat | null
   onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
   /**
@@ -234,6 +242,9 @@ export function DayPanel({
   hot,
   activeId,
   edit,
+  dayView,
+  onDayView,
+  surface,
   near,
   onChange,
   onEditTrip,
@@ -279,7 +290,33 @@ export function DayPanel({
   const toSchedule = parked.filter((i) => i.kind !== "section" && i.kind !== "note").length
   const meters = routeMeters(route)
 
-  const [dayView, setDayView] = useDayView()
+  // The one stop whose editor (or, for a viewer, details) is open, under its
+  // card or in a sheet. Every way in sets it: the card, a timeline block, the
+  // map, the 3D view, a stop just added untitled.
+  const [editing, setEditing] = useState<string | null>(() => edit?.id ?? null)
+  /** A stop opened from outside the list, scrolled to once its editor is under its card. */
+  const [summoned, setSummoned] = useState(edit)
+  const [seenEdit, setSeenEdit] = useState(edit)
+  if (edit !== seenEdit) {
+    setSeenEdit(edit)
+    if (edit) {
+      setEditing(edit.id)
+      setSummoned(edit)
+    }
+  }
+  const openStop = (id: string) => {
+    setEditing(id)
+    setSummoned((last) => ({ id, n: (last?.n ?? 0) + 1 }))
+  }
+  const toggleEditor = useCallback((id: string) => setEditing((open) => (open === id ? null : id)), [setEditing])
+  const setDayView = (view: DayView) => {
+    setEditing(null)
+    onDayView(view)
+  }
+  const scrollTo = surface === "inline" ? summoned : null
+  useEffect(() => {
+    if (scrollTo) document.getElementById(`item-${scrollTo.id}`)?.scrollIntoView({ block: "center", behavior: scrollBehavior() })
+  }, [scrollTo])
   const currency = defaultCurrency(trip)
   const forecast = sky.status === "forecast" ? sky.forecast : undefined
   const alerts = useMemo(() => stopAlerts(day, forecast?.hours), [day, forecast])
@@ -329,11 +366,11 @@ export function DayPanel({
 
   // On today the finished head of the list folds into one row, open or shut in
   // both layouts. A stop in it that is selected (on the map, by a deep link),
-  // opened for editing from the map, or holding focus (its editor in use) opens it.
+  // opened for editing, or holding focus (its editor in use) opens it.
   const [foldOpen, setFoldOpen] = useState(false)
   const [focused, setFocused] = useState<string | null>(null)
-  const reveal = list.done?.stops.find((id) => id === activeId || id === edit?.id || id === focused) ?? null
-  const revealKey = reveal && `${reveal}:${edit?.id === reveal ? edit.n : 0}`
+  const reveal = list.done?.stops.find((id) => id === activeId || id === editing || id === focused) ?? null
+  const revealKey = reveal && `${reveal}:${summoned?.id === reveal ? summoned.n : 0}`
   const [revealed, setRevealed] = useState<string | null>(null)
   if (revealKey !== revealed) {
     setRevealed(revealKey)
@@ -351,14 +388,12 @@ export function DayPanel({
   const layoutKey = `${held ?? ""}|${hidden}|${slot ?? ""}|${list.anytimeAt ?? ""}|${shownIds.join(",")}`
 
   const rework = useLatestCallback((spell: WetSpell) => onAskAi(rainBrief(spell)))
-  // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
+  // A pinned stop opens on the map; an unpinned one, with nothing to show
+  // there, opens its editor (its details, for a viewer).
   const findStop = useLatestCallback((id: string) => {
     const item = day.items.find((i) => i.id === id)
     if (item && isLocated(item)) onLocate(id)
-    else {
-      setDayView("list")
-      hot.set(id)
-    }
+    else if (item) openStop(id)
   })
 
   // A deleted or moved stop takes focus with it; hand it to its neighbour
@@ -366,6 +401,7 @@ export function DayPanel({
   const leave = useLatestCallback((index: number) => {
     const after = day.items[index + 1] ?? day.items[index - 1]
     focusNext.current = after?.id ?? COMPOSER
+    if (day.items[index]?.id === editing) setEditing(null)
   })
   const removeStop = useCallback(
     (dayId: string, item: ItineraryItem, index: number) => {
@@ -383,13 +419,46 @@ export function DayPanel({
   const onSaveForLater = onEditTrip ? keepForLater : undefined
   const noRoomForIdeas = ideasFull(trip)
   // The edit that removed the stop re-renders this panel; focus moves once it has.
+  /** A stop's row in the list (its edit button on the timeline), else the composer. */
+  const stopControl = (id: string) =>
+    (id === COMPOSER ? null : (document.getElementById(`item-${id}`)?.querySelector<HTMLElement>("[data-card-row]") ?? stopEditButton(rootRef.current, id))) ??
+    rootRef.current?.querySelector<HTMLElement>('input[role="combobox"]')
   useLayoutEffect(() => {
     const target = focusNext.current
     if (!target) return
     focusNext.current = null
-    const row = target === COMPOSER ? null : document.getElementById(`item-${target}`)?.querySelector<HTMLElement>("[data-card-row]")
-    ;(row ?? rootRef.current?.querySelector<HTMLElement>('input[role="combobox"]'))?.focus()
+    stopControl(target)?.focus()
   })
+
+  // The sheet's stop, read from the day so every edit shows; gone once it is
+  // deleted or moved, and the sheet leaves. Focus then goes to its neighbour,
+  // once the sheet has: the dialog holds focus until then.
+  const sheetFocus = useRef<string | null>(null)
+  const leaveSheet = useLatestCallback((index: number) => {
+    sheetFocus.current = (day.items[index + 1] ?? day.items[index - 1])?.id ?? COMPOSER
+    setEditing(null)
+  })
+  const sheetReturn = useLatestCallback((id: string) => {
+    const target = sheetFocus.current ?? id
+    sheetFocus.current = null
+    return stopControl(target)
+  })
+  const editingAt = editing ? day.items.findIndex((item) => item.id === editing) : -1
+  const editingItem = editingAt >= 0 ? day.items[editingAt] : undefined
+  const sheetEdits =
+    editingItem && editable
+      ? stopEdits({
+          item: editingItem,
+          dayId: day.id,
+          index: editingAt,
+          count: day.items.length,
+          dayOptions,
+          parked: parkedAt >= 0 && editingAt > parkedAt,
+          onChange,
+          onAnnounce: setSpoken,
+          onGone: leaveSheet,
+        })
+      : null
 
   const menu: MenuItem[] = [
     ...(editable
@@ -631,6 +700,7 @@ export function DayPanel({
             forecast={forecast}
             fold={{ open: foldOpen, onToggle: toggleFold }}
             onSelect={findStop}
+            onEdit={editable ? openStop : undefined}
           />
         ) : (
           <Reorder.Group
@@ -688,7 +758,9 @@ export function DayPanel({
                   locked={locked}
                   hotSource={hot}
                   active={activeId === item.id}
-                  expand={edit?.id === item.id ? edit.n : 0}
+                  open={surface === "inline" && editing === item.id}
+                  surface={surface}
+                  onToggle={toggleEditor}
                   flash={recentIds.has(item.id)}
                   near={near}
                   dayOptions={dayOptions}
@@ -717,6 +789,8 @@ export function DayPanel({
           onAdd={(item) => {
             onChange((days) => addItem(days, day.id, item), { label: `Added “${item.title || "Untitled"}”` })
             onAdded(item.id)
+            // Untitled, it is only a start: it opens ready to name.
+            if (!item.title && item.kind !== "section") openStop(item.id)
           }}
         />
       )}
@@ -730,6 +804,35 @@ export function DayPanel({
           onChange={(journal) => patchDay({ journal })}
         />
       )}
+
+      <Presence when={surface === "sheet" && editingItem ? editingItem.id : null}>
+        {(id) => {
+          const at = day.items.findIndex((item) => item.id === id)
+          const item = at >= 0 ? day.items[at] : undefined
+          return (
+            <StopSheet
+              item={item}
+              trip={trip}
+              day={day}
+              index={at}
+              editable={editable}
+              locked={locked}
+              near={near}
+              currency={currency}
+              dayOptions={dayOptions}
+              spoken={spoken}
+              edits={item && item.id === editingItem?.id ? sheetEdits : null}
+              onDelete={() => {
+                if (!item) return
+                leaveSheet(at)
+                onDelete(day.id, item)
+              }}
+              onClose={() => setEditing(null)}
+              returnFocus={() => sheetReturn(id)}
+            />
+          )
+        }}
+      </Presence>
 
       <Presence when={confirmDelete}>{() => (
         <Modal
@@ -776,6 +879,11 @@ export function DayPanel({
       </nav>
     </div>
   )
+}
+
+/** A stop's edit button on the timeline. */
+function stopEditButton(root: HTMLElement | null, id: string): HTMLElement | null {
+  return Array.from(root?.querySelectorAll<HTMLElement>("[data-timeline-edit]") ?? []).find((el) => el.dataset.timelineEdit === id) ?? null
 }
 
 /** The timeline reads the hovered stop itself, so a hover redraws it and not the day. */

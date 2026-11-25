@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { useState } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 
@@ -11,6 +11,7 @@ import { LIMITS } from "../limits"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import { AddStop } from "../workspace/AddStop"
 import { DayPanel } from "../workspace/DayPanel"
+import type { EditorSurface } from "../workspace/stopEdits"
 import { DayRail } from "../workspace/DayRail"
 import { liveValue } from "../workspace/liveValue"
 import { makeItem, makeTrip } from "./tripFixtures"
@@ -37,10 +38,12 @@ interface Options {
   locked?: boolean
   /** Hand the panel `onEditTrip` (day operations, Save for later). */
   wholeTrip?: boolean
+  /** Where a stop's editor opens: under its card (a wide list) or in a sheet. */
+  surface?: EditorSurface
 }
 
 /** One day of a live trip: every edit lands, and the marks and the URL are kept. */
-function renderDay(trip: Trip, dayId: string, { editable = true, locked = false, wholeTrip = true }: Options = {}) {
+function renderDay(trip: Trip, dayId: string, { editable = true, locked = false, wholeTrip = true, surface = "inline" }: Options = {}) {
   const state: { trip: Trip; marks: (UndoMark | undefined)[]; path: string } = { trip, marks: [], path: "" }
   function Probe() {
     state.path = useLocation().pathname
@@ -72,6 +75,9 @@ function renderDay(trip: Trip, dayId: string, { editable = true, locked = false,
         hot={liveValue<string | null>(null)}
         activeId={null}
         edit={null}
+        dayView="list"
+        onDayView={noop}
+        surface={surface}
         near={null}
         onChange={(fn, mark) => commit({ ...state.trip, days: fn(state.trip.days) }, mark)}
         onEditTrip={wholeTrip ? (fn, mark) => commit(fn(state.trip), mark) : undefined}
@@ -176,6 +182,56 @@ describe("Done, Skip and Loved it on the card", () => {
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^(?!More for).*Lunch/ }))
     fireEvent.click(within(card("lunch")).getByRole("combobox", { name: "Status" }))
     expect(screen.getByRole("option", { name: "Skipped" })).toBeInTheDocument()
+  })
+})
+
+describe("a stop's editor in a sheet (the timeline, a phone)", () => {
+  const row = (id: string) => card(id).querySelector<HTMLElement>("[data-card-row]")!
+
+  it("opens from the card, titled with the stop and ready to type; Done hands focus back", async () => {
+    renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
+    expect(row("lunch")).toHaveAttribute("aria-haspopup", "dialog")
+    expect(row("lunch")).not.toHaveAttribute("aria-expanded")
+    row("lunch").focus()
+    fireEvent.click(row("lunch"))
+
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    expect(sheet.getByRole("textbox", { name: "Name" })).toHaveFocus()
+    expect(card("lunch").querySelector("input")).toBeNull()
+    fireEvent.click(sheet.getByRole("button", { name: "Done" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(row("lunch")).toHaveFocus()
+  })
+
+  it("moves the stop from its foot and says so inside the sheet", () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    expect(sheet.getByRole("button", { name: "Move up" })).toBeDisabled()
+    fireEvent.click(sheet.getByRole("button", { name: "Move down" }))
+    expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["tram", "lunch"])
+    expect(sheet.getByRole("status")).toHaveTextContent("Lunch moved down, now 2 of 2.")
+    expect(state.marks[state.marks.length - 1]).toEqual({ label: "Moved “Lunch”", key: "move:lunch" })
+  })
+
+  it("sends the stop to another day, then hands focus to the stop after it", async () => {
+    const state = renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("lunch"))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Lunch" })).getByRole("button", { name: "Move to another day…" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Move “Lunch”" })).getByRole("button", { name: /Day 2/ }))
+
+    expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["lunch"])
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(row("tram")).toHaveFocus()
+  })
+
+  it("shows a viewer the stop's details, with nothing to change", () => {
+    renderDay(tripOf(days(FUTURE, [[{ ...lunch, notes: "Ask for the terrace" }]])), "day-1", { surface: "sheet", editable: false })
+    fireEvent.click(row("lunch"))
+    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    expect(sheet.getByText("Ask for the terrace")).toBeInTheDocument()
+    expect(sheet.queryByRole("textbox")).toBeNull()
+    expect(sheet.queryByRole("button", { name: "Delete" })).toBeNull()
   })
 })
 
