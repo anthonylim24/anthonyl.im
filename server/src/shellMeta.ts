@@ -60,7 +60,7 @@ export const appPreviews = {
     imageAlt: "A toy clay planet covered in trees and colourful place pins on a pink cover",
   },
   trips: {
-    title: "Trips — plan a trip, pin by pin",
+    title: "Trips — Plan trips on a map",
     description:
       "Plan trips on a live 3D map: let AI draft the days, pin every stop, and share the plan with whoever is coming.",
     imagePathOrUrl: card("trips"),

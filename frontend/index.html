@@ -86,7 +86,7 @@
         const assetBase = (location.pathname.match(/^\/preview\/pr\/\d+/) || [''])[0];
         if (!appPath.startsWith('/korea') && !appPath.startsWith('/trips')) return;
         const korea = appPath.startsWith('/korea') || appPath.startsWith('/trips/korea-2026');
-        const title = korea ? 'Seoul + Busan — Korea 2026 trip dossier' : 'Trips — plan a trip, pin by pin';
+        const title = korea ? 'Seoul + Busan — Korea 2026 trip dossier' : 'Trips — Plan trips on a map';
         const description = korea
           ? 'A 12-day Seoul + Busan trip (May 26 – Jun 6, 2026): reservations, neighbourhoods, the places worth a detour, and a 3D Map Mode.'
           : 'Plan trips on a live 3D map: let AI draft the days, pin every stop, and share the plan with whoever is coming.';
@@ -423,7 +423,7 @@
       </style>
       <div class="bt-grid" aria-hidden="true"></div>
       <div class="boot-stage bt-stage">
-        <p class="bt-eyebrow bt-copy">Trips · the atlas</p>
+        <p class="bt-eyebrow bt-copy">Trips</p>
         <div class="bt-desk" aria-hidden="true">
           <svg width="0" height="0" style="position:absolute">
             <defs>
@@ -455,8 +455,8 @@
             </div>
           </div>
         </div>
-        <h1 class="bt-title bt-copy"><span class="bt-for-index">Unfolding the <em>atlas</em></span><span class="bt-for-trip">Unfolding your <em>trip</em></span></h1>
-        <p class="boot-steps bt-steps bt-copy"><span data-step="start">Spreading out the chart</span><span data-step="code">Laying out the atlas</span><span data-step="auth">Checking you’re signed in</span></p>
+        <h1 class="bt-title bt-copy"><span class="bt-for-index">Opening your <em>trips</em></span><span class="bt-for-trip">Opening your <em>trip</em></span></h1>
+        <p class="boot-steps bt-steps bt-copy"><span data-step="start">Starting up</span><span data-step="code">Loading the planner</span><span data-step="auth">Checking you’re signed in</span></p>
       </div>
     </template>
 

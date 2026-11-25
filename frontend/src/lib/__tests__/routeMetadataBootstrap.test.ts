@@ -57,7 +57,7 @@ describe('route metadata bootstrap', () => {
   })
 
   it('keeps the trip install name short', () => {
-    boot('/trips', serverTags('Trips — plan a trip, pin by pin', 'Plan trips', 'Trips'))
+    boot('/trips', serverTags('Trips — Plan trips on a map', 'Plan trips', 'Trips'))
     expect(contents('meta[name="apple-mobile-web-app-title"]')).toEqual(['Trips'])
     expect(contents('meta[name="application-name"]')).toEqual(['Trips'])
   })
