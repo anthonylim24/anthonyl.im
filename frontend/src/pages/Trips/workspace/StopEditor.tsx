@@ -84,8 +84,6 @@ export interface StopEditorProps {
   edits: StopEdits
   /** A start for it while it has none, read off its day (`suggestStart`). */
   startAt?: StartSuggestion | null
-  /** Focus the name on mount: a sheet opened to edit this stop. Untitled, it always is. */
-  focusName?: boolean
 }
 
 /** The controls of one of an editor's fields (`data-stop-field`), in order. */
@@ -93,7 +91,7 @@ const controlsOf = (fieldId: string, field: StopField) =>
   document.querySelectorAll<HTMLElement>(`[data-stop-field="${fieldId}-${field}"] :is(input:not([type=hidden]), textarea, [role=combobox], button)`)
 
 /** The fields of an editable stop: what its kind needs, then chips for the rest (`stopFields.ts`). */
-export function StopEditor({ item, trip, day, locked, near, currency, edits, startAt = null, focusName = false }: StopEditorProps) {
+export function StopEditor({ item, trip, day, locked, near, currency, edits, startAt = null }: StopEditorProps) {
   const [endOpen, setEndOpen] = useState(false)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   useFitHeight(notesRef, item.notes ?? "")
@@ -132,7 +130,8 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
           value={item.title}
           disabled={locked}
           placeholder={item.kind === "note" ? "What to remember" : "Name this stop"}
-          autoFocus={focusName || !item.title}
+          // Only a stop with nothing to call it opens on its name: on a phone a focused field raises the keyboard.
+          autoFocus={!item.title}
           maxLength={LIMITS.itemTitle}
           {...sx(a.field)}
           onChange={(event) => patch({ title: event.target.value })}
@@ -420,7 +419,7 @@ export function StopSheet({
   if (item) {
     body = editable && edits ? (
       <div {...sx(s.sheetEditor)}>
-        <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} focusName />
+        <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} />
       </div>
     ) : (
       <StopDetails item={item} trip={trip} day={day} />
@@ -447,7 +446,7 @@ export function StopSheet({
     )
   }
   return (
-    <Modal open onClose={onClose} title={item ? stopTitle(item) : ""} accent={trip.appearance?.accent} footer={foot} returnFocus={returnFocus}>
+    <Modal open onClose={onClose} title={item ? stopTitle(item) : ""} accent={trip.appearance?.accent} footer={foot} returnFocus={returnFocus} focusDialog>
       {body}
       <p {...sx(a.srOnly)} role="status" aria-live="polite">
         {spoken}

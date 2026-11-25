@@ -558,9 +558,9 @@ describe("TripWorkspace", () => {
         fireEvent.click(await screen.findByRole("button", { name: "Pin 1: Time Out Market" }))
         fireEvent.click(within(screen.getByRole("complementary", { name: "Selected place" })).getByRole("button", { name: "Edit stop" }))
 
-        const name = within(screen.getByRole("dialog", { name: "Time Out Market" })).getByRole("textbox", { name: "Name" })
-        expect(name).toHaveValue("Time Out Market")
-        expect(name).toHaveFocus()
+        const dialog = screen.getByRole("dialog", { name: "Time Out Market" })
+        expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("Time Out Market")
+        expect(dialog).toHaveFocus()
         expect(screen.getByRole("radio", { name: "Timeline", hidden: true })).toHaveAttribute("aria-checked", "true")
       })
 
@@ -759,11 +759,11 @@ describe("TripWorkspace", () => {
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
 
-      // "Edit stop" opens that stop's editor in a sheet over the map, ready to type.
+      // "Edit stop" opens that stop's editor in a sheet over the map, focus on the sheet (no keyboard yet).
       fireEvent.click(card.getByRole("button", { name: "Edit stop" }))
-      const name = within(screen.getByRole("dialog", { name: "Fado dinner" })).getByRole("textbox", { name: "Name" })
-      expect(name).toHaveValue("Fado dinner")
-      expect(name).toHaveFocus()
+      const dialog = screen.getByRole("dialog", { name: "Fado dinner" })
+      expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("Fado dinner")
+      expect(dialog).toHaveFocus()
       expect(views.getByRole("radio", { name: "Map", hidden: true })).toHaveAttribute("aria-checked", "true")
     })
 

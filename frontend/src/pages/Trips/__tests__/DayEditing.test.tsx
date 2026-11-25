@@ -193,19 +193,27 @@ describe("Done, Skip and Loved it on the card", () => {
 describe("a stop's editor in a sheet (the timeline, a phone)", () => {
   const row = (id: string) => card(id).querySelector<HTMLElement>("[data-card-row]")!
 
-  it("opens from the card, titled with the stop and ready to type; Done hands focus back", async () => {
+  it("opens from the card with focus on the sheet, not a field that would raise the keyboard; Done hands focus back", async () => {
     renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
     expect(row("lunch")).toHaveAttribute("aria-haspopup", "dialog")
     expect(row("lunch")).not.toHaveAttribute("aria-expanded")
     row("lunch").focus()
     fireEvent.click(row("lunch"))
 
-    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
-    expect(sheet.getByRole("textbox", { name: "Name" })).toHaveFocus()
+    const dialog = screen.getByRole("dialog", { name: "Lunch" })
+    const sheet = within(dialog)
+    expect(dialog).toHaveFocus()
+    expect(sheet.getByRole("textbox", { name: "Name" })).toHaveValue("Lunch")
     expect(card("lunch").querySelector("input")).toBeNull()
     fireEvent.click(sheet.getByRole("button", { name: "Done" }))
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(row("lunch")).toHaveFocus()
+  })
+
+  it("opens an untitled stop on its name, the one thing it needs", () => {
+    renderDay(tripOf(days(FUTURE, [[makeItem({ id: "blank", title: "" })]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("blank"))
+    expect(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Name" })).toHaveFocus()
   })
 
   it("closes a pinned stop's place search on Escape, keeps the sheet, and hands focus back to Change", () => {
