@@ -134,12 +134,11 @@
       .boot svg { display: block; overflow: visible; }
       .boot-stage { position: relative; display: grid; justify-items: center; text-align: center; }
       .boot-steps { display: grid; }
-      .boot-steps > * { grid-area: 1 / 1; opacity: 0; transition: opacity 320ms ease; }
+      .boot-steps > * { grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity 320ms ease, visibility 320ms; }
       .boot[data-step="start"] .boot-steps > [data-step="start"],
       .boot[data-step="code"] .boot-steps > [data-step="code"],
-      .boot[data-step="auth"] .boot-steps > [data-step="auth"] { opacity: 1; }
-      .boot-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-      .boot-retry { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); translate: -50% 0; min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; border-radius: 999px; font: 500 14px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: inherit; text-decoration: underline; text-underline-offset: 3px; visibility: hidden; opacity: 0; animation: boot-retry 400ms ease 12s forwards; }
+      .boot[data-step="auth"] .boot-steps > [data-step="auth"] { opacity: 1; visibility: visible; }
+      .boot-retry { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); translate: -50% 0; min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; border: 0; border-radius: 999px; background: none; cursor: pointer; font: 500 14px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: inherit; text-decoration: underline; text-underline-offset: 3px; visibility: hidden; opacity: 0; animation: boot-retry 400ms ease 12s forwards; }
       .boot[data-late] { animation: boot-in 200ms ease-out both; }
       .boot[data-state="leaving"] { pointer-events: none; }
       .boot[data-state="leaving"][data-exit="quick"] { animation: boot-out 160ms ease both !important; }
@@ -548,10 +547,10 @@
           try { return localStorage.getItem(key); } catch { return null; }
         };
         const appPath = () => location.pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, '') || '/';
-        // The router's own matching: anything it sends to the 404 page paints Lim's screen.
+        // The router's own matching, case and all: anything it sends to the 404 page paints Lim's screen.
         const under = (path, base) => path === base || path.startsWith(base + '/');
         const worldOf = (path) => {
-          const at = path.length > 1 ? path.replace(/\/$/, '') : path;
+          const at = (path.length > 1 ? path.replace(/\/$/, '') : path).toLowerCase();
           return at === '/lab' ? 'lab'
             : under(at, '/breathwork') ? 'breathwork'
             : at === '/sign-in' || at === '/sign-up' ? 'auth'
@@ -573,8 +572,8 @@
         };
         // The trip's own accent, remembered by the workspace the last time it opened (trip id → accent name).
         const tripIdOf = (path) => {
-          const id = (path.match(/^\/trips\/([^/]+)/) || [])[1];
-          return id && id !== 'new' && id !== 'join' ? id : null;
+          const id = (path.match(/^\/trips\/([^/]+)/i) || [])[1];
+          return id && !/^(new|join)$/i.test(id) ? id : null;
         };
         const accentFor = (path) => {
           const id = tripIdOf(path);
@@ -611,12 +610,16 @@
           boot.setAttribute('aria-busy', 'true');
           boot.setAttribute('aria-label', template.dataset.label || 'Loading');
           boot.append(template.content.cloneNode(true));
-          const retry = document.createElement('a');
+          const retry = document.createElement('button');
+          retry.type = 'button';
           retry.className = 'boot-retry';
-          retry.href = location.href;
           retry.textContent = 'Taking a while? Reload';
+          retry.onclick = () => location.reload();
           boot.append(retry);
-          document.body.insertBefore(boot, document.getElementById('root'));
+          // The page under the screen is out of reach of focus and assistive tech until it leaves.
+          const root = document.getElementById('root');
+          root?.setAttribute('inert', '');
+          document.body.insertBefore(boot, root);
           return boot;
         };
         window.__bootWorld = worldOf(appPath());

@@ -87,6 +87,11 @@ export function rememberLoadedFonts(): void {
   }
 }
 
+/** The page under a showing screen is out of reach of focus, clicks and assistive tech (index.html sets it first). */
+function cover(on: boolean) {
+  document.getElementById('root')?.toggleAttribute('inert', on)
+}
+
 function cancelExit(screen: Leaving) {
   clearTimeout(screen.timer)
   exit = null
@@ -103,6 +108,11 @@ function mountLate() {
 }
 
 function reconcile() {
+  settle()
+  cover(current().phase === 'showing')
+}
+
+function settle() {
   const want = holds[holds.length - 1]
   let screen = current()
   if (!want) {
@@ -141,6 +151,9 @@ export function holdBoot(world: BootWorld, step: BootStep): () => void {
     const at = holds.indexOf(hold)
     if (at === -1) return
     holds.splice(at, 1)
+    // The page is the app's again within this commit, so a field the arriving
+    // route focuses takes the focus; a wait mounting in the same commit covers it again.
+    if (!holds.length) cover(false)
     // A fallback unmounting and the next wait mounting happen in one commit;
     // judging after it means the screen never starts an exit between them.
     queueMicrotask(reconcile)

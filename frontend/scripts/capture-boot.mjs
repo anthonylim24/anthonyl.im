@@ -47,7 +47,10 @@ for (const name of WORLDS) {
           if (setup.accent) localStorage.setItem('trips-boot-accent', JSON.stringify(setup.accent))
           if (cached) localStorage.setItem('boot-fonts', JSON.stringify(['lab', 'breathwork', 'trips', 'auth']))
         }, { setup, theme, cached: CACHED })
-        await page.route(/\/(assets|src)\//, () => {})
+        await page.route(/\/(assets|src)\//, (route) => {
+          // A held stylesheet in a build's <head> would hold the boot script behind it too.
+          if (route.request().resourceType() !== 'script') return route.continue()
+        })
         await page.goto(BASE + setup.path, { waitUntil: 'commit' })
         await page.waitForSelector('#boot')
         await page.evaluate(() => document.fonts.ready)

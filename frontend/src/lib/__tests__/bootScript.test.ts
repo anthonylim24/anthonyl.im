@@ -10,6 +10,7 @@ function prefersDark(dark: boolean) {
 afterEach(() => {
   clearBoot()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('the boot screen index.html paints', () => {
@@ -31,6 +32,8 @@ describe('the boot screen index.html paints', () => {
     ['/breathworks', 'lim', 'Loading Lim'],
     ['/sign-in/', 'auth', 'Loading sign-in'],
     ['/sign-in-help', 'lim', 'Loading Lim'],
+    ['/Lab', 'lab', 'Loading the lab'],
+    ['/Trips/korea-2026', 'trips', 'Loading Trips'],
   ])('at %s is the %s screen', (path, world, label) => {
     prefersDark(false)
     const boot = paintBoot(path)
@@ -43,12 +46,22 @@ describe('the boot screen index.html paints', () => {
     expect(boot).toHaveAttribute('data-state', 'showing')
     expect(boot).not.toHaveAttribute('data-accent')
     expect(boot.nextElementSibling).toBe(document.getElementById('root'))
+    expect(document.getElementById('root')).toHaveAttribute('inert')
     expect(document.querySelectorAll('#boot')).toHaveLength(1)
+  })
+
+  it('offers a Reload that reloads the page, also where the URL has a hash', () => {
+    prefersDark(false)
+    const boot = paintBoot('/sign-in#/factor-one')
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
+    boot.querySelector<HTMLButtonElement>('button.boot-retry')!.click()
+    expect(reload).toHaveBeenCalledOnce()
   })
 
   it.each([
     ['/trips/korea-2026', '{"korea-2026":"rose"}', 'rose'],
     ['/preview/pr/12/trips/korea-2026/day/3', '{"korea-2026":"rose"}', 'rose'],
+    ['/Trips/korea-2026', '{"korea-2026":"rose"}', 'rose'],
     ['/trips', '{"korea-2026":"rose"}', null],
     ['/trips/tokyo', '{"korea-2026":"rose"}', null],
     ['/trips/korea-2026', 'not json', null],

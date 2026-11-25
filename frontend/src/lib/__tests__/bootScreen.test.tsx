@@ -1,4 +1,4 @@
-import { lazy, StrictMode, type ComponentType } from 'react'
+import { lazy, StrictMode, useLayoutEffect, type ComponentType } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -115,6 +115,38 @@ describe('the boot screen', () => {
     await waitFor(() => expect(boot).toHaveAttribute('data-state', 'leaving'))
   })
 
+  it('keeps the page out of reach while it shows, and hands it back in time for the route to focus a field', async () => {
+    reducedMotion(false)
+    const { boot, BootReady, BootHold, Guarded } = await paintThenLoad('/trips/new')
+    const root = document.getElementById('root')!
+    let arrive!: (module: { default: ComponentType }) => void
+    const Page = lazy(() => new Promise<{ default: ComponentType }>((resolve) => (arrive = resolve)))
+    let coveredAsTheRouteMounted: boolean | undefined
+    function NewTrip() {
+      useLayoutEffect(() => {
+        coveredAsTheRouteMounted = root.hasAttribute('inert')
+      }, [])
+      return <input aria-label="Where to?" autoFocus />
+    }
+    render(
+      <MemoryRouter initialEntries={['/trips/new']}>
+        <BootReady />
+        <Guarded app="trips" fallback={<BootHold world="trips" step="code" />}>
+          <Page />
+        </Guarded>
+      </MemoryRouter>,
+      { container: root },
+    )
+    await flush()
+    expect(root).toHaveAttribute('inert')
+
+    await act(async () => arrive({ default: NewTrip }))
+    expect(await screen.findByRole('textbox', { name: 'Where to?' })).toHaveFocus()
+    expect(coveredAsTheRouteMounted).toBe(false)
+    expect(boot).toHaveAttribute('data-state', 'leaving')
+    expect(root).not.toHaveAttribute('inert')
+  })
+
   it('gets out of the way of the error screen when a route’s code fails', async () => {
     reducedMotion(false)
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -155,6 +187,7 @@ describe('the boot screen', () => {
     act(() => vi.advanceTimersByTime(1))
     const again = document.getElementById('boot')
     expect(again).not.toBeNull()
+    expect(document.getElementById('root')).toHaveAttribute('inert')
     expect(again).toHaveAttribute('data-late')
     expect(again).not.toBe(boot)
     expect(again).toHaveAttribute('data-world', 'trips')
@@ -164,6 +197,7 @@ describe('the boot screen', () => {
     view.rerender(<BootReady />)
     await flush()
     expect(again).toHaveAttribute('data-state', 'leaving')
+    expect(document.getElementById('root')).not.toHaveAttribute('inert')
     act(() => vi.advanceTimersByTime(quickExitMs))
     expect(document.getElementById('boot')).toBeNull()
   })
@@ -229,6 +263,7 @@ describe('the boot screen', () => {
     const view = render(<BootReady />)
     await flush()
     expect(boot).toHaveAttribute('data-state', 'leaving')
+    expect(document.getElementById('root')).not.toHaveAttribute('inert')
     act(() => vi.advanceTimersByTime(100))
 
     view.rerender(
@@ -241,6 +276,7 @@ describe('the boot screen', () => {
     expect(boot).toHaveAttribute('data-step', 'code')
     expect(boot).toHaveAttribute('aria-busy', 'true')
     expect(boot).not.toHaveAttribute('inert')
+    expect(document.getElementById('root')).toHaveAttribute('inert')
     expect(boot).not.toHaveAttribute('data-exit')
     act(() => vi.advanceTimersByTime(10_000))
     expect(boot.isConnected).toBe(true)
