@@ -1,5 +1,6 @@
-import { SignIn, SignUp } from '@clerk/clerk-react'
+import { SignIn, SignUp, useAuth } from '@clerk/clerk-react'
 import { Navigate } from 'react-router-dom'
+import { BootHold } from '@/lib/bootScreen'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { sx } from '@/lib/utils'
 import { authPage } from '@/styles/chatbot.stylex'
@@ -20,9 +21,15 @@ export type AuthMode = keyof typeof modes
 
 export function AuthPage({ mode }: { mode: AuthMode }) {
   if (!CLERK_ENABLED) return <Navigate to="/" replace />
+  return <AuthForm mode={mode} />
+}
+
+function AuthForm({ mode }: { mode: AuthMode }) {
+  const { isLoaded } = useAuth()
   const Form = modes[mode]
   return (
     <main {...sx(authPage.shell, 'trips')}>
+      {!isLoaded && <BootHold world="auth" step="auth" />}
       <Form />
     </main>
   )
