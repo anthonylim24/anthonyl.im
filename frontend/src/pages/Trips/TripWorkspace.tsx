@@ -898,7 +898,7 @@ function Workspace() {
                 />
               </>
             ) : (
-              <h1 {...sx(a.display, s.title, a.wrap)}>{trip.name}</h1>
+              <h1 {...sx(a.display, s.title, a.wrapName)}>{trip.name}</h1>
             )}
             <div {...sx(s.headMeta)}>
               {editable ? (
@@ -1211,7 +1211,7 @@ function Workspace() {
                         category={active.item.location?.category ? titleCase(active.item.location.category) : null}
                       />
                     </p>
-                    <h3 {...sx(a.display, s.placeTitle, a.wrap)}>{active.item.title || active.item.location?.name}</h3>
+                    <h3 {...sx(a.display, s.placeTitle, a.wrapName)}>{active.item.title || active.item.location?.name}</h3>
                   </div>
                   <button
                     type="button"

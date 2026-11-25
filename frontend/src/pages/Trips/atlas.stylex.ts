@@ -66,8 +66,11 @@ export const a = stylex.create({
   ink: { color: "var(--trips-ink)" },
   muted: { color: "var(--trips-ink-tertiary)" },
   accentText: { color: "var(--brand)" },
-  /** Long user text: Hangul breaks between words, not syllables; an unspaced run still breaks rather than overflow. */
-  wrap: { overflowWrap: "anywhere", wordBreak: "keep-all", minWidth: 0 },
+  wrap: { overflowWrap: "anywhere", wordBreak: "break-word", minWidth: 0 },
+  /** `wrap` for a name shown as a title: Hangul breaks between words, not
+   *  syllables; an unspaced run still breaks rather than overflow. Not for
+   *  running text, where it would hold a Japanese or Chinese run together. */
+  wrapName: { overflowWrap: "anywhere", wordBreak: "keep-all", minWidth: 0 },
   truncate: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   srOnly: {
     position: "absolute",

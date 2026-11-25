@@ -210,7 +210,7 @@ const TripCard = memo(function TripCard({
         </div>
       </div>
       <div {...sx(s.cardBody)}>
-        <h4 {...sx(a.display, s.cardTitle, a.wrap)}>{trip.name}</h4>
+        <h4 {...sx(a.display, s.cardTitle, a.wrapName)}>{trip.name}</h4>
         <p {...sx(a.small)}>
           {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
         </p>

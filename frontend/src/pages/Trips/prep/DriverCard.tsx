@@ -25,7 +25,7 @@ export function DriverCard({ stay, timezone }: { stay: Stay; timezone: string })
         <span aria-hidden> · </span>
         <span>{stay.when === "tonight" ? "Tonight" : `First night · ${formatTripDate(stay.date, timezone)}`}</span>
       </p>
-      <p {...sx(a.display, a.wrap, p.driverName)}>{stay.name}</p>
+      <p {...sx(a.display, a.wrapName, p.driverName)}>{stay.name}</p>
       {stay.address ? (
         <p {...sx(a.wrap, p.driverAddress)}>{stay.address}</p>
       ) : (

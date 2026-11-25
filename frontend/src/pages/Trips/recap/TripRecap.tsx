@@ -93,7 +93,7 @@ function RecapSheet({ trip, now }: { trip: Trip; now?: Date }) {
           <style>{PRINT_CSS}</style>
           <header {...sx(r.printHead)}>
             <p {...sx(a.eyebrow)}>Trip recap</p>
-            <h1 {...sx(a.display, a.wrap, r.printTitle)}>{recap.name}</h1>
+            <h1 {...sx(a.display, a.wrapName, r.printTitle)}>{recap.name}</h1>
             <p {...sx(r.printDates)}>{recap.dates}</p>
           </header>
           {/* A dark-theme still would print as a black slab: the chart instead. */}
@@ -148,7 +148,7 @@ function RecapBody({ recap, still, actions }: { recap: Recap; still?: string; ac
             {recap.loved.map((stop) => (
               <li key={`${stop.dayId}:${stop.itemId}`} {...sx(r.loved)}>
                 <span {...sx(a.eyebrow)}>{[`Day ${stop.dayNumber}`, stop.city].filter(Boolean).join(" · ")}</span>
-                <span {...sx(a.display, a.wrap, r.lovedName)}>{stop.title}</span>
+                <span {...sx(a.display, a.wrapName, r.lovedName)}>{stop.title}</span>
               </li>
             ))}
           </ul>
