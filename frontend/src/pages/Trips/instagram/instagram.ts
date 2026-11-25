@@ -83,7 +83,7 @@ function stepLabel(job: IgJob): string {
     case "geocoding":
       return "Pinning them on the map"
     case "saving":
-      return "Almost there"
+      return "Saving the places"
     default:
       return "In the queue"
   }

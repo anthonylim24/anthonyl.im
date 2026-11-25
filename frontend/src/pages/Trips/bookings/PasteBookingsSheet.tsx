@@ -144,7 +144,7 @@ export function PasteBookingsSheet({ trip, getToken, onClose, onAdd }: PasteBook
               disabled={step.k === "reading"}
               autoFocus
               rows={8}
-              placeholder="Paste the whole email here: the booking details are found wherever they are."
+              placeholder="Paste the whole email here."
               aria-describedby={step.k === "paste" && step.error ? `${fieldId}-error` : undefined}
               {...sx(a.field, a.textarea, bk.paste)}
               onChange={(event) => setText(event.target.value)}

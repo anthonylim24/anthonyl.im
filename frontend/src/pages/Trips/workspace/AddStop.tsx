@@ -254,13 +254,8 @@ export function AddStop({
                     <span {...sx(a.noShrink, a.accentText)} style={{ display: "grid" }}>
                       <IgGlyph size={16} />
                     </span>
-                    <span {...sx(a.grow)}>
-                      <span {...sx(a.wrap)}>
-                        {option.urls.length > 1 ? `Find the places in these ${option.urls.length} posts` : "Find the places in this post"}
-                      </span>
-                      <span {...sx(a.small, a.wrap)} style={{ display: "block" }}>
-                        Reads the post and pins every place it names
-                      </span>
+                    <span {...sx(a.grow, a.wrap)}>
+                      {option.urls.length > 1 ? `Find the places in these ${option.urls.length} posts` : "Find the places in this post"}
                     </span>
                   </button>
                 </li>

@@ -368,7 +368,7 @@ export function InstagramSheet({ open: requested, onClose, trip, dayId, initialU
                       Places from <span {...sx(a.italic)}>Instagram</span>
                     </DialogPrimitive.Title>
                     <DialogPrimitive.Description {...sx(s.lede, jobs.length > 0 && a.srOnly)}>
-                      Paste a post or Reel. Every place it names gets pinned, ready to add to a day.
+                      Find the places a post or Reel names.
                     </DialogPrimitive.Description>
                   </div>
                   <DialogPrimitive.Close {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Close">
@@ -495,8 +495,8 @@ export function InstagramSheet({ open: requested, onClose, trip, dayId, initialU
                           <ol {...sx(s.how)}>
                             {[
                               "In Instagram, open a post or Reel and choose Share, then Copy link.",
-                              "Paste it above. We read the caption, the comments and, if needed, the video.",
-                              "Add the places you like to a day. They land on the map straight away.",
+                              "Paste it above. The caption and comments are read first, then the video if needed.",
+                              "Add the places you want to a day.",
                             ].map((line, i) => (
                               <li key={line} {...sx(s.howRow)}>
                                 <span {...sx(s.howNum)}>{String(i + 1).padStart(2, "0")}</span>
@@ -581,7 +581,7 @@ export function InstagramSheet({ open: requested, onClose, trip, dayId, initialU
                             <p {...sx(a.body)}>
                               {query
                                 ? `Nothing saved matches “${query}”.`
-                                : "Nothing saved yet. Every place you pull from a post is kept here for all your trips."}
+                                : "Nothing saved yet. Places found in posts are kept here for all your trips."}
                             </p>
                           ) : (
                             [savedNear, savedFar].map(
@@ -677,7 +677,6 @@ export function InstagramSheet({ open: requested, onClose, trip, dayId, initialU
                         <p {...sx(s.mapEmptyTitle)}>
                           Places appear <span {...sx(a.italic)}>here</span>
                         </p>
-                        <p {...sx(a.small)}>Each place a post names is pinned as soon as it is found.</p>
                       </div>
                     </div>
                   )}
@@ -808,7 +807,7 @@ function PostCard({
 
       {!busy && progress.phase === "empty" && (
         <div {...sx(s.message)}>
-          <span>We read the caption, the comments and the video, and this post doesn’t name a place we could pin.</span>
+          <span>No place found in the caption, the comments or the video.</span>
           <span {...sx(a.rowWrap)}>
             <a href={job.url} target="_blank" rel="noreferrer" {...sx(a.btn, a.btnSecondary, a.btnSm)}>
               <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
@@ -896,7 +895,7 @@ function PlaceRow({
             {!pinned ? (
               <span {...sx(a.chip, a.chipOutline)}>No pin yet</span>
             ) : (
-              <span {...sx(a.chip, a.chipOutline)} title="We weren’t sure this is the right spot. Check it on the map after adding.">
+              <span {...sx(a.chip, a.chipOutline)} title="This pin may be in the wrong spot. Check it on the map after adding.">
                 Check the pin
               </span>
             )}
