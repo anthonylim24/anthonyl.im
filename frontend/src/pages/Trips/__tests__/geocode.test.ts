@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, nameMatches, rankPlaces, searchCities, searchPlaces, worthAskingGoogle, type PlaceResult } from "../geocode"
+import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, nameMatches, confidentPick, rankPlaces, searchCities, searchPlaces, worthAskingGoogle, type PlaceResult } from "../geocode"
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -407,10 +407,30 @@ describe("nameMatches", () => {
     expect(nameMatches("광장시장 육회", "광장시장")).toBe(true)
   })
 
+  it("reads Hangul against the English names Google gives", () => {
+    expect(nameMatches("경복궁", "Gyeongbokgung Palace")).toBe(true)
+    expect(nameMatches("명동", "Myeong-dong")).toBe(true)
+    expect(nameMatches("해운대", "Haeundae Beach")).toBe(true)
+    expect(nameMatches("우산 챙기기", "Lotte Mart")).toBe(false)
+  })
+
   it("does not match a place a search engine only related to the words", () => {
     expect(nameMatches("Bring rain jackets", "Lotte Mart")).toBe(false)
     expect(nameMatches("rain jackets", "Rainbow Jacket Shop")).toBe(false)
     expect(nameMatches("", "Lotte Mart")).toBe(false)
+  })
+})
+
+describe("confidentPick", () => {
+  const seoul = { lat: 37.57, lng: 126.98 }
+  const at = (name: string, lat: number, lng: number): PlaceResult => ({ id: name, name, context: "", lat, lng })
+
+  it("takes the top result only when it is named what was typed and near the trip", () => {
+    expect(confidentPick("경복궁", at("Gyeongbokgung Palace", 37.58, 126.98), seoul)).toBe(true)
+    expect(confidentPick("Check out", at("Check Out", 42.38, 20.43), seoul)).toBe(false)
+    expect(confidentPick("Check out", at("Check Out", 42.38, 20.43), null)).toBe(true)
+    expect(confidentPick("Lunch", at("무궁화반점 종로점", 37.57, 126.99), seoul)).toBe(false)
+    expect(confidentPick("Lunch", undefined, seoul)).toBe(false)
   })
 })
 

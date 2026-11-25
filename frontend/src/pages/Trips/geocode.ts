@@ -236,24 +236,52 @@ export function nameKey(name: string): string {
 
 /** Two letters of Chinese, Japanese or Korean can be a whole name (명동, 新宿). */
 const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u
+const HANGUL_INITIALS = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"]
+const HANGUL_VOWELS = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"]
+const HANGUL_FINALS = ["", "k", "k", "k", "n", "n", "n", "t", "l", "k", "m", "l", "l", "l", "p", "l", "m", "p", "p", "t", "t", "ng", "t", "t", "k", "t", "p", "t"]
+
+/**
+ * Hangul in Revised Romanization, syllable by syllable ("경복궁" →
+ * "gyeongbokgung"), the way Google spells Korean places in English. The
+ * server's `slugify` romanizes with the same tables.
+ */
+function romanizeHangul(text: string): string {
+  return text.replace(/[\uac00-\ud7a3]/g, (syllable) => {
+    const n = syllable.charCodeAt(0) - 0xac00
+    return HANGUL_INITIALS[Math.floor(n / 588)]! + HANGUL_VOWELS[Math.floor((n % 588) / 28)]! + HANGUL_FINALS[n % 28]!
+  })
+}
+
 const words = (text: string) => nameKey(text).split(" ").filter(Boolean)
-/** Hangul and kanji names run words together ("서울역앞카페"), so a part can sit mid-word. */
+/** Kanji and Hangul names run words together ("서울역앞카페"), so a part can sit mid-word. */
 const wordHas = (word: string, part: string) => word.startsWith(part) || (CJK.test(part) && word.includes(part))
+const covers = (parts: readonly string[], within: readonly string[]) => parts.every((part) => within.some((word) => wordHas(word, part)))
 
 /**
  * Whether a place is the one typed, not just one a search engine related to
  * the words: every typed word starts a word of the name ("gyeongbok" →
- * Gyeongbokgung Palace), or the whole name is in what was typed ("Lotte Mart
- * Jeju"). "Bring rain jackets" is not Lotte Mart.
+ * Gyeongbokgung Palace), the whole name is in what was typed ("Lotte Mart
+ * Jeju"), or the same holds once Hangul is romanized and spaces dropped
+ * ("명동" → Myeong-dong). "Bring rain jackets" is not Lotte Mart.
  */
 export function nameMatches(query: string, name: string): boolean {
   const typed = words(query)
   const named = words(name)
   if (typed.length === 0 || named.length === 0) return false
-  return (
-    typed.every((part) => named.some((word) => wordHas(word, part))) ||
-    named.every((part) => typed.some((word) => wordHas(word, part)))
-  )
+  if (covers(typed, named) || covers(named, typed)) return true
+  const joined = (text: string) => nameKey(romanizeHangul(text)).replace(/ /g, "")
+  const [q, n] = [joined(query), joined(name)]
+  return n.startsWith(q) || q.startsWith(n)
+}
+
+/**
+ * The place Enter may add without the traveller picking it: the top result,
+ * only when it is named what was typed and, given the trip, near it. A
+ * same-named shop on another continent is never a safe guess.
+ */
+export function confidentPick(query: string, top: PlaceResult | undefined, near: { lat: number; lng: number } | null): boolean {
+  if (!top || !nameMatches(query, top.name)) return false
+  return !near || distanceMeters(near, top) <= LOCAL_METERS
 }
 
 /**

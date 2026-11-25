@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { PlaceResult } from "../geocode"
 import type { ItineraryItem } from "../types"
 
-const lotteMart: PlaceResult = { id: "g:lotte", name: "Lotte Mart", context: "1 Yeonbuk-ro, Jeju", lat: 33.49, lng: 126.49, category: "market" }
+const lotteMart: PlaceResult = { id: "g:lotte", name: "Lotte Mart", context: "Seoul Station", lat: 37.55, lng: 126.97, category: "market" }
+const checkOutKosovo: PlaceResult = { id: "o:1", name: "Check Out", context: "Gjakova, Kosovo", lat: 42.38, lng: 20.43 }
 const palace: PlaceResult = { id: "g:palace", name: "Gyeongbokgung Palace", context: "Jongno-gu, Seoul", lat: 37.58, lng: 126.98, category: "palace" }
 const mockSearch = vi.fn(async (): Promise<PlaceResult[]> => [])
 vi.mock("../geocode", async (importOriginal) => ({
@@ -15,7 +16,7 @@ import { AddStop } from "../workspace/AddStop"
 
 function typeAndEnter(text: string) {
   const onAdd = vi.fn<(item: ItineraryItem) => void>()
-  render(<AddStop near={{ lat: 33.5, lng: 126.5 }} onAdd={onAdd} />)
+  render(<AddStop near={{ lat: 37.57, lng: 126.98 }} onAdd={onAdd} />)
   const input = screen.getByRole("combobox")
   fireEvent.change(input, { target: { value: text } })
   fireEvent.keyDown(input, { key: "Enter" })
@@ -39,6 +40,13 @@ describe("AddStop, Enter", () => {
     const onAdd = typeAndEnter("gyeongbok")
     await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1))
     expect(onAdd.mock.calls[0]![0].location).toMatchObject({ name: "Gyeongbokgung Palace", lat: 37.58 })
+  })
+
+  it("never pins a same-named place far from the trip", async () => {
+    mockSearch.mockResolvedValue([checkOutKosovo])
+    const onAdd = typeAndEnter("Check out")
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1))
+    expect(onAdd.mock.calls[0]![0].location?.lat).toBeUndefined()
   })
 
   it("adds a loosely matched place only when the traveller picks it", async () => {

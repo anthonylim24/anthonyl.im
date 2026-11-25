@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
 import { MapPin, Plus, Search, StickyNote, Ticket } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { nameMatches, searchPlaces, type PlaceResult } from "../geocode"
+import { confidentPick, searchPlaces, type PlaceResult } from "../geocode"
 import { extractInstagramUrls } from "../instagram/instagram"
 import { IgGlyph } from "../instagram/IgGlyph"
 import { itemIcon } from "../meta"
@@ -149,9 +149,9 @@ export function AddStop({
     setCursorKey(null)
     setEnterPending(false)
   }
-  // Untouched, the highlight is the first place named what was typed, else
+  // Untouched, the highlight is the top place when it is the one typed, else
   // the text as typed: a search engine's loose guess is never added unasked.
-  const fallback = options.findIndex((option) => option.type !== "place" || nameMatches(typed, option.place.name))
+  const fallback = confidentPick(typed, results[0], near) ? 0 : options.findIndex((option) => option.type !== "place")
   const chosen = options.findIndex((option) => optionKey(option) === cursorKey)
   const cursor = chosen >= 0 ? chosen : fallback
   const setCursor = (index: number) => setCursorKey(options[index] ? optionKey(options[index]) : null)
