@@ -187,7 +187,7 @@ export function AiSheet({
           : drafting
             ? hasItems
               ? "A fresh draft replaces every day’s current plan."
-              : "AI fills each day with places and meals, in route order."
+              : "AI fills each day with places and meals, in route order. You can edit all of it."
             : "AI adds what’s missing and suggests fixes you accept one by one."
       }
       footer={
