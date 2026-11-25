@@ -99,7 +99,7 @@ describe("AreasPanel", () => {
     answers.push(() => Response.json({ error: "neighborhoods_failed", message: "model said SECRET" }, { status: 502 }))
     answers.push(() => Response.json({ areas: [ALFAMA] }))
     renderPanel(LISBON)
-    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Couldn’t group your stops into neighborhoods just now."))
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Couldn’t group your stops into neighborhoods."))
     expect(screen.queryByText(/SECRET/)).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     expect(await screen.findByRole("article", { name: "Alfama" })).toBeTruthy()

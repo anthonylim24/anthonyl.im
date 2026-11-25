@@ -50,7 +50,7 @@ export function AreasPanel({ trip, basePath, getToken, shownId, onShow }: AreasP
       },
       (error: unknown) => {
         if (controller.signal.aborted) return
-        const failure = error instanceof NeighborhoodsError ? error : new NeighborhoodsError({ message: "Couldn’t group your stops into neighborhoods just now.", retry: true })
+        const failure = error instanceof NeighborhoodsError ? error : new NeighborhoodsError({ message: "Couldn’t group your stops into neighborhoods.", retry: true })
         setSettled({ key: requestKey, failure: { message: failure.message, retry: failure.retry } })
       },
     )
@@ -66,7 +66,7 @@ export function AreasPanel({ trip, basePath, getToken, shownId, onShow }: AreasP
   if (!located) {
     return (
       <div {...sx(ar.message)}>
-        <p {...sx(a.body)}>Neighborhoods group your stops by the part of town they’re in. Add places to your days and they’ll show up here.</p>
+        <p {...sx(a.body)}>Add places to your days to see them grouped by neighborhood.</p>
       </div>
     )
   }
@@ -109,7 +109,7 @@ export function AreasPanel({ trip, basePath, getToken, shownId, onShow }: AreasP
         </>
       )}
       {areas && areas.length === 0 && load.k === "ready" && (
-        <p {...sx(a.body)}>Your stops are too spread out to group into neighborhoods. As you add places close together, they’ll be grouped here.</p>
+        <p {...sx(a.body)}>Your stops are too spread out to group into neighborhoods yet.</p>
       )}
       {areas && areas.length > 0 && (
         <>

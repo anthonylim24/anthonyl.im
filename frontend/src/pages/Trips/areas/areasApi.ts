@@ -24,12 +24,12 @@ const REQUEST_MS = 45_000
 const GIVE_UP_MS = 150_000
 
 const OFFLINE = "Couldn’t reach the server. Check your connection and try again."
-const FAILED = "Couldn’t group your stops into neighborhoods just now."
+const FAILED = "Couldn’t group your stops into neighborhoods."
 const TOO_SLOW = "Grouping your stops is taking too long. Try again in a moment."
 
 export function neighborhoodsErrorMessage(status: number): NeighborhoodsError {
   if (status === 503) return new NeighborhoodsError({ message: "Neighborhoods aren’t available on this server.", retry: false })
-  if (status === 429) return new NeighborhoodsError({ message: "That’s a lot of asking in a short while. Try again in a few minutes.", retry: true })
+  if (status === 429) return new NeighborhoodsError({ message: "Too many requests in a short while. Try again in a few minutes.", retry: true })
   if (status === 401) return new NeighborhoodsError({ message: "Your session ended. Sign in again to see your neighborhoods.", retry: true })
   if (status === 404) return new NeighborhoodsError({ message: "This trip isn’t available any more.", retry: false })
   return new NeighborhoodsError({ message: FAILED, retry: true })

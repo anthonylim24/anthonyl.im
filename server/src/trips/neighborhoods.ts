@@ -159,7 +159,8 @@ export const AREAS_SYSTEM = [
   '- Days may list "neighborhoods" from the plan. Use them as hints, but trust the coordinates.',
   '- name: the usual English or romanized name. localName: the full name in the local language and script, as maps write it, when that is different ("성수동" for Seongsu-dong, "下北沢", "한남동 & 이태원동" for Hannam & Itaewon); leave it out when it would be the same.',
   "- city: the city the area is in.",
-  `- summary: one or two plain sentences, under ${MAX_SUMMARY_CHARS - 60} characters. First what the area is like (old lanes, offices, the waterfront, nightlife, design shops), then what this trip does there, naming one or two of its stops. No marketing words (vibrant, bustling, hidden gem, nestled, charming, trendy, must-see), no exclamation marks, no day numbers or dates.`,
+  `- summary: two short plain sentences, under ${MAX_SUMMARY_CHARS - 60} characters in all. The first says what kind of place the area is and where it is, in plain nouns. The second starts "The trip" and says what the trip does there, naming at most two of its stops. Write it like a map's legend, not a guidebook: no adjective that praises or ranks (upscale, luxury, chic, scenic, charming, vibrant, bustling, trendy, iconic, famous), no guidebook phrase (known for, home to, lined with, filled with, featuring, anchored by, nestled), no exclamation marks, no day numbers or dates.`,
+  `  Not: "Upscale streets lined with luxury boutiques, known for chic cafés and a trendy nightlife." But: "Old town on the ridge below the castle, with stone tenements and closes. The trip visits Edinburgh Castle and eats at The Witchery."`,
   "List the areas in the order the trip first reaches them.",
 ].join("\n")
 
