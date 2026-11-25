@@ -13,9 +13,10 @@ import { cachedNeighborhoods, loadNeighborhoods, NeighborhoodsError } from "./ar
 import type { Neighborhood } from "./contract"
 
 // The overview's Neighborhoods tab: the parts of town the trip's stops fall
-// in, grouped by the server's model on first open and kept there. Each area
-// has a photo when Google surely has one of it, what it is like, the days
-// that go there, and its stops by day. "Show on map" draws one area at a time.
+// in, grouped by the server's model on first open and carried over as the
+// trip changes. Each area has a photo when Google surely has one of it or of
+// its best-known stop, what kind of place it is, the days that go there, and
+// its stops by day. "Show on map" draws one area at a time.
 
 export interface AreasPanelProps {
   trip: Trip
@@ -76,7 +77,7 @@ export function AreasPanel({ trip, basePath, getToken, shownId, onShow }: AreasP
     load.k === "loading"
       ? areas
         ? "Updating your neighborhoods…"
-        : "Grouping your stops into neighborhoods. The first time takes about half a minute."
+        : "Grouping your stops into neighborhoods. This can take up to a minute."
       : load.k === "failed"
         ? load.message
         : areas && areas.length > 0
@@ -170,14 +171,24 @@ function AreaCard({
             <h3 id={headingId} {...sx(a.display, ar.name, a.wrap)}>
               {area.name}
             </h3>
-            {area.localName && <span {...sx(ar.localName)}>{area.localName}</span>}
+            {area.localName && (
+              <span lang={area.localLang} {...sx(ar.localName)}>
+                {area.localName}
+              </span>
+            )}
           </div>
           <p {...sx(a.mono, ar.meta)}>{[withCity ? area.city : null, areaMeta(days)].filter(Boolean).join(" · ")}</p>
           {area.summary && <p {...sx(a.body, a.wrap)}>{area.summary}</p>}
           <div {...sx(ar.actions)}>
-            <button type="button" aria-pressed={shown} {...sx(a.btn, a.btnSecondary, a.btnSm, shown && ar.toggleOn)} onClick={() => onShow(shown ? null : area)}>
+            {/* The label says what a press does; the map's key says what is drawn. */}
+            <button
+              type="button"
+              data-area-show={area.id}
+              {...sx(a.btn, a.btnSecondary, a.btnSm, shown && ar.toggleOn)}
+              onClick={() => onShow(shown ? null : area)}
+            >
               <MapPin size={15} strokeWidth={1.75} fill={shown ? "currentColor" : "none"} fillOpacity={0.2} aria-hidden />
-              Show on map
+              {shown ? "Hide from map" : "Show on map"}
             </button>
             <button type="button" aria-expanded={open} aria-controls={stopsId} {...sx(a.btn, a.btnGhost, a.btnSm)} onClick={() => setOpen(!open)}>
               Stops by day
@@ -208,7 +219,7 @@ function AreaCard({
   )
 }
 
-/** The area's first photo that loads, with its author; nothing when there is none. */
+/** The area's first photo that loads, with its author and, when it is of one of the area's stops, which; nothing when there is none. */
 function AreaPhoto({ area }: { area: Neighborhood }) {
   const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set())
   const photo = area.photos.find((p) => !broken.has(p.url))
@@ -217,7 +228,7 @@ function AreaPhoto({ area }: { area: Neighborhood }) {
     <figure {...sx(ar.figure)}>
       <img
         src={photo.url}
-        alt={`${area.name}, ${area.city}`}
+        alt={[area.photoOf, area.name, area.city].filter(Boolean).join(", ")}
         width={photo.width}
         height={photo.height}
         loading="lazy"
@@ -227,7 +238,7 @@ function AreaPhoto({ area }: { area: Neighborhood }) {
         {...sx(ar.photo)}
       />
       <figcaption {...sx(ar.credit)}>
-        Photo:{" "}
+        {area.photoOf ? `${area.photoOf} · Photo: ` : "Photo: "}
         {photo.author.uri ? (
           <a href={photo.author.uri} target="_blank" rel="noopener noreferrer" {...sx(ar.creditLink)}>
             {photo.author.name}
