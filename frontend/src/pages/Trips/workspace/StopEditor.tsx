@@ -493,6 +493,7 @@ export function StopSheet({
   onDelete,
   onClose,
   returnFocus,
+  sendFocus,
 }: {
   /** Gone (deleted, moved to another day) while the sheet leaves. */
   item: ItineraryItem | undefined
@@ -510,6 +511,8 @@ export function StopSheet({
   onDelete: () => void
   onClose: () => void
   returnFocus: () => HTMLElement | null | undefined
+  /** A copy made in the sheet: its control, ahead of what opened the sheet. */
+  sendFocus?: () => HTMLElement | null | undefined
 }) {
   let body: ReactNode = null
   let foot: ReactNode = null
@@ -552,6 +555,7 @@ export function StopSheet({
       accent={trip.appearance?.accent}
       footer={foot}
       returnFocus={returnFocus}
+      sendFocus={sendFocus}
       focusDialog
     >
       {body}

@@ -249,6 +249,7 @@ export function Modal({
   wide,
   footer,
   returnFocus,
+  sendFocus,
   focusDialog = false,
   children,
 }: {
@@ -261,6 +262,8 @@ export function Modal({
   footer?: ReactNode
   /** Where focus goes on close when what opened the dialog has gone (see `DialogFrame`). */
   returnFocus?: () => HTMLElement | null | undefined
+  /** Where focus goes on close ahead of what opened the dialog, when it names a place (see `DialogFrame`). */
+  sendFocus?: () => HTMLElement | null | undefined
   /**
    * Open with focus on the dialog itself rather than its first control: a
    * sheet that is mostly opened to read, where a focused field would raise a
@@ -276,6 +279,7 @@ export function Modal({
       onClose={onClose}
       accent={accent}
       returnFocus={returnFocus}
+      sendFocus={sendFocus}
       described={!!description}
       onOpenAutoFocus={focusDialog ? focusSelf : undefined}
       content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}
@@ -303,7 +307,9 @@ export function Modal({
  * (`trips-scrim` / `trips-dialog` in index.css), is inert while it does, and
  * keeps showing what it showed while open. Focus goes back to whatever
  * opened it, or, when that has gone (the dialog deleted it), to
- * `returnFocus()`. Inside a `Presence`, it closes when the caller lets go.
+ * `returnFocus()`; `sendFocus()` comes first, for a dialog that made
+ * something new to land on (a copy). Inside a `Presence`, it closes when
+ * the caller lets go.
  */
 export function DialogFrame({
   open,
@@ -312,6 +318,7 @@ export function DialogFrame({
   content,
   onOpenAutoFocus,
   returnFocus,
+  sendFocus,
   described = true,
   children,
 }: {
@@ -325,6 +332,8 @@ export function DialogFrame({
   described?: boolean
   /** Where focus goes on close when what opened the dialog is gone (the row it scheduled, say). */
   returnFocus?: () => HTMLElement | null | undefined
+  /** Where focus goes on close instead of what opened the dialog, when it returns an element. */
+  sendFocus?: () => HTMLElement | null | undefined
   children: ReactNode
 }) {
   const closing = useClosing()
@@ -363,7 +372,7 @@ export function DialogFrame({
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
-              const target = opener.current?.isConnected ? opener.current : returnFocus?.()
+              const target = sendFocus?.() ?? (opener.current?.isConnected ? opener.current : returnFocus?.())
               if (!target?.isConnected) return
               event.preventDefault()
               target.focus({ preventScroll: true })

@@ -298,6 +298,8 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
 
   it("duplicates from More: the sheet closes, the copy takes focus, and the undo is offered", async () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
+    // Opened from the row, which is still there when the sheet closes: the copy comes first.
+    row("lunch").focus()
     fireEvent.click(row("lunch"))
     const sheet = within(screen.getByRole("dialog", { name: "Edit stop" }))
     fireEvent.click(sheet.getByRole("button", { name: "More" }))

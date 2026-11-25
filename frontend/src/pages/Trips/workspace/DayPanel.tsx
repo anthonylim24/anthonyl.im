@@ -459,12 +459,17 @@ export function DayPanel({
   const sheetReturn = useLatestCallback((id: string) => {
     const target = sheetFocus.current ?? id
     sheetFocus.current = null
-    if (target !== COPY) return stopControl(target)
+    return stopControl(target)
+  })
+  // The stop the sheet was for is still there, so this must come ahead of it.
+  const sheetCopy = useLatestCallback(() => {
+    if (sheetFocus.current !== COPY) return null
+    sheetFocus.current = null
     // Said now: while the sheet was up, the page's live region was hidden.
     if (copyOf.current) setSpoken(copyOf.current.spoken)
     const copy = findCopy()
     copyOf.current = null
-    return stopControl(copy ?? id)
+    return copy ? stopControl(copy) : null
   })
   const duplicated = useLatestCallback((index: number, spoken: string) => {
     copyOf.current = { before: new Set(day.items.map((item) => item.id)), spoken }
@@ -878,6 +883,7 @@ export function DayPanel({
               }}
               onClose={() => setEditing(null)}
               returnFocus={() => sheetReturn(id)}
+              sendFocus={sheetCopy}
             />
           )
         }}
