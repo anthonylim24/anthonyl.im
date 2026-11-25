@@ -22,7 +22,11 @@ export function IdeaHoverCard({ hover, children }: { hover: IdeaHover; children:
       size: { width: card.offsetWidth, height: card.offsetHeight },
       bounds: { width: box.width, height: box.height },
     })
-    card.style.top = `${at.top}px`
+    // Above the pin the card hangs from its foot, so a photo that fails to load shrinks it toward the pin.
+    if (at.side === "above") {
+      card.style.top = "auto"
+      card.style.bottom = `${box.height - at.top - card.offsetHeight}px`
+    } else card.style.top = `${at.top}px`
     card.style.left = `${at.left}px`
     card.style.transformOrigin = { above: "bottom center", below: "top center", right: "center left", left: "center right" }[at.side]
   }, [hover])

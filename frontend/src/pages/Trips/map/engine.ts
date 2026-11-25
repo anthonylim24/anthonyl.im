@@ -444,8 +444,9 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     }
   }
   map.on("moveend", declutter)
-  // A preview sits beside where its pin was: once the camera moves, it goes.
-  map.on("movestart", () => options.onIdeaHover?.(null))
+  // A preview sits beside where its pin was: while the camera moves (a hover
+  // that lands mid-flight included), it goes and none starts.
+  map.on("move", () => options.onIdeaHover?.(null))
   map.on("error", (event) => {
     // Tile hiccups are routine; only a dead GL context ends the map.
     if (map.getCanvas().getContext("webgl2")?.isContextLost()) options.onError?.()

@@ -141,8 +141,12 @@ describe("the map engine's wishlist pins", () => {
 
     pin.focus()
     expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "focus" })
-    // Once the camera moves, the pin is somewhere else: the preview goes.
+    // While the camera moves the pin is somewhere else: the preview goes, even
+    // for a hover that landed after the flight began.
     for (const fn of mapEvents.get("movestart") ?? []) fn()
+    pin.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }))
+    expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "pointer" })
+    for (const fn of mapEvents.get("move") ?? []) fn()
     expect(onIdeaHover).toHaveBeenLastCalledWith(null)
     expect(onHover).not.toHaveBeenCalled()
   })
