@@ -111,7 +111,7 @@ export function TripCreate() {
   const [startDate, setStartDate] = useState(() => addDays(today, 21))
   const [endDate, setEndDate] = useState(() => addDays(today, 25))
   const [name, setName] = useState("")
-  const [useAi, setUseAi] = useState(params.get("ai") !== "0")
+  const [useAi, setUseAi] = useState(params.get("ai") === "1")
   const [brief, setBrief] = useState<DraftBrief>(EMPTY_BRIEF)
   const [phase, setPhase] = useState<Phase>({ k: "idle" })
   const [clock, setClock] = useState(() => Date.now())
