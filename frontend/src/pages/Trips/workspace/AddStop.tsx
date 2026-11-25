@@ -34,8 +34,9 @@ export function usePlaceSearch(query: string, near: LngLat | null) {
   /** The last answer and the search it answers; loading is "no answer for this search yet". */
   const [search, setSearch] = useState<{ key: string; results: PlaceResult[] }>({ key: "", results: [] })
   const searching = text.length >= 2
-  const results = searching ? search.results : []
   const loading = searching && search.key !== searchKey
+  // An answer to the text before the last keystroke is not an answer to this one: nothing to pick until it comes.
+  const results = searching && !loading ? search.results : []
 
   useEffect(() => {
     if (text.length < 2) return
