@@ -93,6 +93,8 @@ const controlsOf = (fieldId: string, field: StopField) =>
 /** The fields of an editable stop: what its kind needs, then chips for the rest (`stopFields.ts`). */
 export function StopEditor({ item, trip, day, locked, near, currency, edits, startAt = null }: StopEditorProps) {
   const [endOpen, setEndOpen] = useState(false)
+  const nameRef = useRef<HTMLTextAreaElement>(null)
+  useFitHeight(nameRef, item.title)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   useFitHeight(notesRef, item.notes ?? "")
   const { patch } = edits
@@ -126,15 +128,21 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
     <>
       <label {...sx(s.span2)}>
         <span {...sx(s.miniLabel)}>{item.kind === "note" ? "Note" : "Name"}</span>
-        <input
+        {/* Wraps rather than scrolls, so a long name is read whole. One line of text: Enter adds none. */}
+        <textarea
+          ref={nameRef}
           value={item.title}
           disabled={locked}
+          rows={1}
           placeholder={item.kind === "note" ? "What to remember" : "Name this stop"}
           // Only a stop with nothing to call it opens on its name: on a phone a focused field raises the keyboard.
           autoFocus={!item.title}
           maxLength={LIMITS.itemTitle}
-          {...sx(a.field)}
-          onChange={(event) => patch({ title: event.target.value })}
+          {...sx(a.field, a.textarea, s.nameField, a.wrapName)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !composing(event)) event.preventDefault()
+          }}
+          onChange={(event) => patch({ title: event.target.value.replace(/\s*\n\s*/g, " ") })}
         />
       </label>
       {item.kind !== "reservation" && shows("time") && (
@@ -243,6 +251,8 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
     </>
   )
 }
+
+const EDIT_TITLE: Record<ItineraryItem["kind"], string> = { place: "Edit stop", reservation: "Edit booking", note: "Edit note", section: "Edit heading" }
 
 const mapsOf = (item: ItineraryItem) =>
   isPinned(item) || item.location?.address
@@ -416,6 +426,7 @@ export function StopSheet({
 }) {
   let body: ReactNode = null
   let foot: ReactNode = null
+  const editing = !!(item && editable && edits)
   if (item) {
     body = editable && edits ? (
       <div {...sx(s.sheetEditor)}>
@@ -446,7 +457,16 @@ export function StopSheet({
     )
   }
   return (
-    <Modal open onClose={onClose} title={item ? stopTitle(item) : ""} accent={trip.appearance?.accent} footer={foot} returnFocus={returnFocus} focusDialog>
+    <Modal
+      open
+      onClose={onClose}
+      // An editor's name is its first field, so the title does not say it again; a viewer sees no field, so it does.
+      title={!item ? "" : editing ? EDIT_TITLE[item.kind] : stopTitle(item)}
+      accent={trip.appearance?.accent}
+      footer={foot}
+      returnFocus={returnFocus}
+      focusDialog
+    >
       {body}
       <p {...sx(a.srOnly)} role="status" aria-live="polite">
         {spoken}

@@ -200,7 +200,7 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     row("lunch").focus()
     fireEvent.click(row("lunch"))
 
-    const dialog = screen.getByRole("dialog", { name: "Lunch" })
+    const dialog = screen.getByRole("dialog", { name: "Edit stop" })
     const sheet = within(dialog)
     expect(dialog).toHaveFocus()
     expect(sheet.getByRole("textbox", { name: "Name" })).toHaveValue("Lunch")
@@ -220,13 +220,13 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     const pinnedLunch = { ...lunch, location: { name: "Time Out Market", lat: 38.707, lng: -9.146, source: "user" as const } }
     renderDay(tripOf(days(FUTURE, [[pinnedLunch]])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))
-    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    const sheet = within(screen.getByRole("dialog", { name: "Edit stop" }))
     fireEvent.click(sheet.getByRole("button", { name: "Change" }))
     const search = sheet.getByRole("textbox", { name: "Search for a place to pin" })
     expect(search).toHaveFocus()
 
     fireEvent.keyDown(search, { key: "Escape" })
-    expect(screen.getByRole("dialog", { name: "Lunch" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "Edit stop" })).toBeInTheDocument()
     expect(sheet.queryByRole("textbox", { name: "Search for a place to pin" })).toBeNull()
     expect(sheet.getByRole("button", { name: "Change" })).toHaveFocus()
   })
@@ -234,7 +234,7 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
   it("moves the stop from its foot and says so inside the sheet", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram]])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))
-    const sheet = within(screen.getByRole("dialog", { name: "Lunch" }))
+    const sheet = within(screen.getByRole("dialog", { name: "Edit stop" }))
     expect(sheet.getByRole("button", { name: "Move up" })).toBeDisabled()
     fireEvent.click(sheet.getByRole("button", { name: "Move down" }))
     expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["tram", "lunch"])
@@ -245,7 +245,7 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
   it("sends the stop to another day, then hands focus to the stop after it", async () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Lunch" })).getByRole("button", { name: "Move to another day…" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Edit stop" })).getByRole("button", { name: "Move to another day…" }))
     fireEvent.click(within(screen.getByRole("dialog", { name: "Move “Lunch”" })).getByRole("button", { name: /Day 2/ }))
 
     expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["lunch"])

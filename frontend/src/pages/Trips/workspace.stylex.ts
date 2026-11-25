@@ -946,6 +946,7 @@ export const ws = stylex.create({
   editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.25rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
   // One line to start, growing with what is written (`field-sizing` in a.textarea).
   notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
+  nameField: { minHeight: "2.75rem" },
   // "Add status", "Add cost", "Add link": the fields a stop can have, asked for.
   // Wrapped rows sit 12px apart, so each chip's 44px band is its own.
   fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem" },
