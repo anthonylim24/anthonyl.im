@@ -88,6 +88,10 @@ export interface StopEditorProps {
   focusName?: boolean
 }
 
+/** The controls of one of an editor's fields (`data-stop-field`), in order. */
+const controlsOf = (fieldId: string, field: StopField) =>
+  document.querySelectorAll<HTMLElement>(`[data-stop-field="${fieldId}-${field}"] :is(input:not([type=hidden]), textarea, [role=combobox], button)`)
+
 /** The fields of an editable stop: what its kind needs, then chips for the rest (`stopFields.ts`). */
 export function StopEditor({ item, trip, day, locked, near, currency, edits, startAt = null, focusName = false }: StopEditorProps) {
   const [endOpen, setEndOpen] = useState(false)
@@ -103,16 +107,19 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
   const fieldId = useId()
   // A fresh object per request, so asking for the same field again focuses it again.
   const [focusOn, setFocusOn] = useState<{ field: StopField } | null>(null)
+  // The field's controls already on screen: a booking's details join fields it shows anyway.
+  const shownBefore = useRef<ReadonlySet<Element>>(new Set())
+  const focusField = (field: StopField, skip: ReadonlySet<Element> = new Set()) => {
+    shownBefore.current = skip
+    setFocusOn({ field })
+  }
   const ask = (field: StopField) => {
     setAsked((was) => new Set(was).add(field))
-    setFocusOn({ field })
+    focusField(field, new Set(controlsOf(fieldId, field)))
   }
   useEffect(() => {
     if (!focusOn) return
-    document
-      .querySelector(`[data-stop-field="${fieldId}-${focusOn.field}"]`)
-      ?.querySelector<HTMLElement>("input:not([type=hidden]), textarea, [role=combobox], button")
-      ?.focus()
+    ;[...controlsOf(fieldId, focusOn.field)].find((control) => !shownBefore.current.has(control))?.focus()
   }, [focusOn, fieldId])
   const mark = (field: StopField) => ({ "data-stop-field": `${fieldId}-${field}` })
   const chips = fields.optional.filter((field) => !shows(field) && !(field === "details" && holds(item, "details")))
@@ -163,7 +170,7 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
                 aria-describedby={`${fieldId}-start-reason`}
                 onClick={() => {
                   edits.setTime(startAt.time)
-                  setFocusOn({ field: "time" })
+                  focusField("time")
                 }}
               >
                 <Clock size={14} strokeWidth={1.75} aria-hidden />
@@ -177,7 +184,9 @@ export function StopEditor({ item, trip, day, locked, near, currency, edits, sta
         </>
       )}
       {item.kind === "reservation" && trip && day && (
-        <BookingFields item={item} trip={trip} day={day} disabled={locked} details={asked.has("details")} onChange={patch} />
+        <div {...sx(s.span2)} {...mark("details")}>
+          <BookingFields item={item} trip={trip} day={day} disabled={locked} details={asked.has("details")} onChange={patch} />
+        </div>
       )}
       {shows("location") && (
         <div {...sx(s.span2)}>

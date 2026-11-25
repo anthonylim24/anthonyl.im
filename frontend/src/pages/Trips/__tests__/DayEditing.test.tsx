@@ -326,7 +326,7 @@ describe("a stop's editor asks only for what the stop needs", () => {
     expect(editor.queryByRole("textbox", { name: "Booking link" })).toBeNull()
 
     fireEvent.click(editor.getByRole("button", { name: "More booking details" }))
-    expect(editor.getByRole("textbox", { name: "Contact" })).toBeInTheDocument()
+    expect(editor.getByRole("textbox", { name: "Contact" })).toHaveFocus()
     expect(editor.getByRole("textbox", { name: "Booking link" })).toBeInTheDocument()
   })
 })
