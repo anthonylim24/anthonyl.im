@@ -274,13 +274,14 @@ describe("regroupLocally", () => {
     ])
   })
 
-  test("gives up when a stop lands outside every area, or one left out moves", () => {
+  test("gives up when a stop lands outside every area, or one left out moves away", () => {
     const gangnam = areaStops(edited((items, i) => (i === 1 ? [...items, place("coex", "COEX", 37.5126, 127.0589)] : items)))
     expect(regroupLocally(grouped(), gangnam)).toBeNull()
-    // Haeundae Beach was left out of every area; while it stays put it stays out.
-    expect(regroupLocally(grouped(), STOPS)?.flatMap((a) => a.stopIds)).not.toContain("beach")
-    const beachMoved = areaStops(edited((items) => items.map((item) => (item.id === "beach" ? place("beach", "Haeundae Beach", 35.16, 129.161) : item))))
-    expect(regroupLocally(grouped(), beachMoved)).toBeNull()
+    // Haeundae Beach was left out of every area: it stays out while its pin is only corrected.
+    const beach = STOPS.find((stop) => stop.id === "beach")!
+    const beachAt = (lat: number) => areaStops(edited((items) => items.map((item) => (item.id === "beach" ? place("beach", "Haeundae Beach", lat, beach.lng) : item))))
+    expect(regroupLocally(grouped(), beachAt(beach.lat + 0.0009))?.flatMap((a) => a.stopIds)).toEqual(["cafe", "forest", "haus", "leeum", "recto"])
+    expect(regroupLocally(grouped(), beachAt(beach.lat + 0.003))).toBeNull()
   })
 
   test("orders areas by the trip's first visit as it is now", () => {

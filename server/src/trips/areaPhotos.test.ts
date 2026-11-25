@@ -164,6 +164,12 @@ describe("createGoogleAreaPhotos", () => {
     expect(await createGoogleAreaPhotos(KEY, right.fetchImpl)(query)).toMatchObject({ of: "Blue Bottle Kiyomizu" })
     const far = fakeGoogle({ "Blue Bottle Kiyomizu": [hit("Blue Bottle Kiyomizu", ["cafe"], 35.01, 135.76, 2)] })
     expect(await createGoogleAreaPhotos(KEY, far.fetchImpl)(query)).toEqual({ photos: [] })
+    // 600 m off, as Google's point for a wide shrine is: only its very name will do.
+    const inari = { name: "Fushimi Inari Taisha", category: "shrine", lat: 34.9671, lng: 135.7727 }
+    const wide = fakeGoogle({ "Fushimi Inari Taisha": [hit("Fushimi Inari Taisha", ["shinto_shrine"], 34.9677, 135.7792, 2)] })
+    expect(await createGoogleAreaPhotos(KEY, wide.fetchImpl)({ ...query, centre: inari, stops: [inari] })).toMatchObject({ of: "Fushimi Inari Taisha" })
+    const near = fakeGoogle({ "Blue Bottle Kiyomizu": [hit("Blue Bottle Coffee", ["cafe"], 35.0014, 135.7802, 2)] })
+    expect(await createGoogleAreaPhotos(KEY, near.fetchImpl)(query)).toEqual({ photos: [] })
     const other = fakeGoogle({ "Blue Bottle Kiyomizu": [hit("Starbucks Ninenzaka", ["cafe"], 34.9969, 135.7803, 2)] })
     expect(await createGoogleAreaPhotos(KEY, other.fetchImpl)(query)).toEqual({ photos: [] })
   })

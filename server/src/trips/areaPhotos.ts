@@ -1,6 +1,6 @@
 import { haversineMeters } from "../data/koreaPlaces"
 import type { LatLng } from "./conciergeTools"
-import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, toPlacePhoto, type PlacePhoto, type RawDetails } from "./placeDetails"
+import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, sameName, toPlacePhoto, type PlacePhoto, type RawDetails } from "./placeDetails"
 
 // A photo for a neighborhood's card in the Neighborhoods tab: Google Places
 // Text Search for "<area>, <city>", the first hit that is an area near the
@@ -68,6 +68,8 @@ const PHOTO_WIDTH_PX = 800
 /** A district's point can sit a couple of kilometres from where a trip spends its time there (Jongno District, 2.2 km; measured). */
 const NEAR_MIN_M = 2_500
 const NEAR_SLACK_M = 1_500
+/** A shrine or park is wide: Google's point for Fushimi Inari Taisha is 600 m from its gate (measured). Only a hit with the stop's own name may be this far. */
+const SAME_NAME_RADIUS_M = 1_500
 const STEP_MS = 4_000
 
 const FIELDS = "places.id,places.displayName,places.types,places.location,places.photos"
@@ -209,7 +211,7 @@ export function createGoogleAreaPhotos(
     return null
   }
 
-  /** The stop itself: by its place id when it has one, else the nearest plausible hit for its name. */
+  /** The stop itself: by its place id when it has one, else a plausible hit for its name near it, or one with its very name a little further. */
   const stopPlace = async (stop: PhotoStop): Promise<RawAreaPlace | null> => {
     if (stop.placeId && PLACE_ID.test(stop.placeId)) {
       const res = await call(`https://places.googleapis.com/v1/places/${encodeURIComponent(stop.placeId)}`, {
@@ -223,7 +225,10 @@ export function createGoogleAreaPhotos(
       places.find((place) => {
         const lat = place.location?.latitude
         const lng = place.location?.longitude
-        return typeof lat === "number" && typeof lng === "number" && haversineMeters(stop, { lat, lng }) <= MATCH_RADIUS_M && plausibleName(stop.name, place.displayName?.text ?? "")
+        if (typeof lat !== "number" || typeof lng !== "number") return false
+        const meters = haversineMeters(stop, { lat, lng })
+        const found = place.displayName?.text ?? ""
+        return (meters <= MATCH_RADIUS_M && plausibleName(stop.name, found)) || (meters <= SAME_NAME_RADIUS_M && sameName(stop.name, found))
       }) ?? null
     )
   }

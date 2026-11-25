@@ -507,13 +507,16 @@ export const groupingOf = (stops: readonly AreaStop[], areas: AreaGroup[]): Grou
 })
 
 const samePoint = (a: LatLng, b: LatLng) => a.lat.toFixed(5) === b.lat.toFixed(5) && a.lng.toFixed(5) === b.lng.toFixed(5)
+/** A pin corrected by less than this, the narrowest margin an area's shape has, is still where the model left it out (a station, an airport). */
+const LEFT_OUT_DRIFT_M = 250
 
 /**
  * `grouping` carried over to the trip's stops as they are now, with no model
  * call; null when a stop that is new or moved lies outside every area, which
  * only the model can name. A removed stop leaves its area, an area left with
  * no stops goes, and a new or moved stop joins the area whose shape, as it
- * was grouped, holds it. A stop the model left out stays out while it stays put.
+ * was grouped, holds it. A stop the model left out stays out while it stays
+ * within `LEFT_OUT_DRIFT_M` of where it was and outside every area.
  */
 export function regroupLocally(grouping: Grouping, stops: readonly AreaStop[]): AreaGroup[] | null {
   const shapes = grouping.areas.map((area) => area.stopIds.flatMap((id) => grouping.points.get(id) ?? []))
@@ -528,8 +531,8 @@ export function regroupLocally(grouping: Grouping, stops: readonly AreaStop[]): 
       continue
     }
     const at = areaHolding(stop, shapes)
-    if (at < 0) return null
-    members[at]!.push(stop)
+    if (at >= 0) members[at]!.push(stop)
+    else if (!(before && !kept.has(stop.id) && haversineMeters(before, stop) < LEFT_OUT_DRIFT_M)) return null
   }
   const order = new Map(stops.map((stop, i) => [stop.id, i]))
   return grouping.areas
