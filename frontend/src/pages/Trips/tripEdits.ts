@@ -135,11 +135,12 @@ export function moveItem(days: TripDay[], dayId: string, itemId: string, directi
 }
 
 /** Move an item to the end of another day's plan (above its "To schedule" heading). */
+/** A stop moved to another day lands where its time falls there, an untimed one last on the route. */
 export function moveItemToDay(days: TripDay[], fromDayId: string, itemId: string, toDayId: string): TripDay[] {
   if (fromDayId === toDayId) return days
   const item = days.find((d) => d.id === fromDayId)?.items.find((i) => i.id === itemId)
   if (!item) return days
-  return addItem(removeItem(days, fromDayId, itemId), toDayId, item)
+  return mapDay(removeItem(days, fromDayId, itemId), toDayId, (day) => ({ ...day, items: insertByTime(day.items, item) }))
 }
 
 export function duplicateItem(days: TripDay[], dayId: string, itemId: string): TripDay[] {

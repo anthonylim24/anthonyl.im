@@ -50,7 +50,7 @@ export function StopDayPicker({
   return mode === "move" ? (
     <DayPicker
       title={`Move ${edits.name}`}
-      description="It goes last on that day’s route."
+      description={item.time ? `It keeps ${formatClock(item.time)} and goes where that falls on that day’s route.` : "It goes last on that day’s route."}
       choices={choices}
       onPick={edits.moveTo}
       onClose={onClose}

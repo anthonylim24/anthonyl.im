@@ -262,6 +262,12 @@ export function DayPanel({
   holidays,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
+  const notesRef = useRef<HTMLTextAreaElement>(null)
+  // Asked for from the day's menu, which hands focus back to its button first.
+  const [notesAsked, setNotesAsked] = useState(0)
+  useEffect(() => {
+    if (notesAsked) notesRef.current?.focus()
+  }, [notesAsked])
   const [spoken, setSpoken] = useState("")
   const [confirmDelete, setConfirmDelete] = useState(false)
   const navigate = useNavigate()
@@ -462,7 +468,16 @@ export function DayPanel({
 
   const menu: MenuItem[] = [
     ...(editable
-      ? [{ label: day.notes ? "Edit day notes" : "Add day notes", icon: <NotebookPen size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setNotesOpen(true) }]
+      ? [
+          {
+            label: day.notes ? "Edit day notes" : "Add day notes",
+            icon: <NotebookPen size={16} strokeWidth={1.75} aria-hidden />,
+            onSelect: () => {
+              setNotesOpen(true)
+              setNotesAsked((n) => n + 1)
+            },
+          },
+        ]
       : []),
     ...(editable && unsorted
       ? [
@@ -500,7 +515,7 @@ export function DayPanel({
             },
           },
           {
-            label: "Move a day earlier",
+            label: "Move this day earlier",
             icon: <ChevronsLeft size={16} strokeWidth={1.75} aria-hidden />,
             disabled: locked || dayIndex === 0,
             onSelect: () => {
@@ -509,7 +524,7 @@ export function DayPanel({
             },
           },
           {
-            label: "Move a day later",
+            label: "Move this day later",
             icon: <ChevronsRight size={16} strokeWidth={1.75} aria-hidden />,
             disabled: locked || dayIndex === trip.days.length - 1,
             onSelect: () => {
@@ -620,7 +635,13 @@ export function DayPanel({
         <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
           {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
           {editable && (
-            <button type="button" {...sx(a.btn, a.btnSm, s.ideasBtn)} disabled={locked} onClick={() => onAskAi()}>
+            <button
+              type="button"
+              {...sx(a.btn, a.btnSm, s.ideasBtn)}
+              aria-label={day.items.length === 0 ? undefined : "Ideas for this day"}
+              disabled={locked}
+              onClick={() => onAskAi()}
+            >
               {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
               {day.items.length === 0 ? "Plan this day with AI" : <span>Ideas<span {...sx(s.wideOnly)}> for this day</span></span>}
             </button>
@@ -639,6 +660,7 @@ export function DayPanel({
       {(notesOpen || day.notes) &&
         (editable ? (
           <textarea
+            ref={notesRef}
             aria-label="Day notes"
             value={day.notes ?? ""}
             placeholder="Notes for the day"

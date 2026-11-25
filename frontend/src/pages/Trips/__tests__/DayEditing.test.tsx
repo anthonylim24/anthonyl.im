@@ -311,15 +311,16 @@ describe("the stop's own menu", () => {
     expect(state.marks[state.marks.length - 1]).toEqual({ label: "Saved “Tram 28” for later", toast: true })
   })
 
-  it("moves a stop to another day, above that day's To schedule heading", () => {
+  it("moves a stop to another day where its time falls, above that day's To schedule heading", () => {
     const state = renderDay(tripOf(days(FUTURE, [[lunch], [tram, heading, reel]])), "day-1")
     fireEvent.click(within(card("lunch")).getByRole("button", { name: /^More for / }))
     fireEvent.click(menuItem("Move to another day…"))
     const dialog = screen.getByRole("dialog", { name: "Move “Lunch”" })
+    expect(dialog).toHaveAccessibleDescription("It keeps 12:30 PM and goes where that falls on that day’s route.")
     expect(within(dialog).getByRole("button", { name: /Day 1/ })).toBeDisabled()
     fireEvent.click(within(dialog).getByRole("button", { name: /Day 2/ }))
     expect(itemsOf(state, "day-1")).toEqual([])
-    expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["tram", "lunch", "park", "reel"])
+    expect(itemsOf(state, "day-2").map((i) => i.id)).toEqual(["lunch", "tram", "park", "reel"])
   })
 
   it("copies a stop to the days ticked, keeping the original where it was", () => {
@@ -383,8 +384,8 @@ describe("the day's menu", () => {
   it("moves the day's plan a day later, trading dates with the next", () => {
     const state = renderDay(three(), "day-1")
     openDayMenu()
-    expect(menuItem("Move a day earlier")).toBeDisabled()
-    fireEvent.click(menuItem("Move a day later"))
+    expect(menuItem("Move this day earlier")).toBeDisabled()
+    fireEvent.click(menuItem("Move this day later"))
     expect(state.trip.days.map((d) => d.id)).toEqual(["day-2", "day-1", "day-3"])
     expect(state.trip.days.map((d) => d.date)).toEqual(["2099-07-10", "2099-07-11", "2099-07-12"])
     expect(state.marks[state.marks.length - 1]).toEqual({ label: "Moved day 1 later", toast: true })
@@ -444,6 +445,22 @@ describe("the day's menu", () => {
     openDayMenu()
     fireEvent.click(menuItem("Sort stops by time"))
     expect(itemsOf(state, "day-1").map((i) => i.id)).toEqual(["lunch", "late", "park", "reel"])
+  })
+})
+
+describe("the day's notes", () => {
+  it("takes focus from the day's menu when there are notes already", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch]]).map((d) => ({ ...d, notes: "Pack the adapter" }))), "day-1")
+    openDayMenu()
+    fireEvent.click(menuItem("Edit day notes"))
+    expect(screen.getByRole("textbox", { name: "Day notes" })).toHaveFocus()
+  })
+
+  it("opens ready to write when there are none", () => {
+    renderDay(tripOf(days(FUTURE, [[lunch]])), "day-1")
+    openDayMenu()
+    fireEvent.click(menuItem("Add day notes"))
+    expect(screen.getByRole("textbox", { name: "Day notes" })).toHaveFocus()
   })
 })
 

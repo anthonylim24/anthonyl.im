@@ -52,12 +52,16 @@ describe("new stops land on the route, not under “To schedule”", () => {
     expect(ids(day!.items)).toEqual(["a", "b"])
   })
 
-  it("moves a stop from another day onto the route", () => {
-    const days: TripDay[] = [parkedDay(), { id: "day-2", date: "2026-07-11", items: [stop("museum", "10:00")] }]
-    const next = moveItemToDay(days, "day-2", "museum", "day-1")
-    expect(planned(next[0]!)).toEqual(["lunch", "dinner", "museum"])
-    expect(parked(next[0]!)).toEqual(["ig-1", "ig-2"])
-    expect(next[1]!.items).toEqual([])
+  it("moves a stop from another day onto the route, where its time falls", () => {
+    const days: TripDay[] = [parkedDay(), { id: "day-2", date: "2026-07-11", items: [stop("museum", "10:00"), stop("walk")] }]
+    const timed = moveItemToDay(days, "day-2", "museum", "day-1")
+    expect(planned(timed[0]!)).toEqual(["museum", "lunch", "dinner"])
+    expect(parked(timed[0]!)).toEqual(["ig-1", "ig-2"])
+    expect(ids(timed[1]!.items)).toEqual(["walk"])
+
+    const untimed = moveItemToDay(timed, "day-2", "walk", "day-1")
+    expect(planned(untimed[0]!)).toEqual(["museum", "lunch", "dinner", "walk"])
+    expect(parked(untimed[0]!)).toEqual(["ig-1", "ig-2"])
   })
 
   it("puts a timed add later than every stop at the end of the route, not under the heading", () => {
