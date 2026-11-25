@@ -187,7 +187,7 @@ export function OverviewPanel({
               Draft itinerary
             </button>
             {trip.days[0] && (
-              <Link to={`${basePath}/day/${trip.days[0].id}`} {...sx(a.btn, a.btnGhost)}>
+              <Link to={`${basePath}/day/${trip.days[0].id}`} state={{ compose: true }} {...sx(a.btn, a.btnGhost)}>
                 I’ll add stops myself
                 <ArrowRight size={16} strokeWidth={1.75} aria-hidden />
               </Link>

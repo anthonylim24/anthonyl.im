@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { LayoutGrid } from "lucide-react"
 import { sx } from "@/styles/merge"
@@ -58,7 +58,18 @@ function monthMarks(days: readonly Pick<TripDay, "id" | "date">[]): Set<string> 
  * match), so no day is ever cut against Overview's rule. The ends fade where
  * more days hide.
  */
-export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: string; dayId: string | undefined }) {
+export function DayRail({
+  trip,
+  basePath,
+  dayId,
+  end,
+}: {
+  trip: Trip
+  basePath: string
+  dayId: string | undefined
+  /** After the days, outside the scroller (a day page's trip menu on phones). */
+  end?: ReactNode
+}) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [clipped, setClipped] = useState<Clipped>("none")
   const placed = useRef(false)
@@ -126,6 +137,7 @@ export function DayRail({ trip, basePath, dayId }: { trip: Trip; basePath: strin
           </Link>
         ))}
       </div>
+      {end}
     </nav>
   )
 }

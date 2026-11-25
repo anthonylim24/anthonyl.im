@@ -234,12 +234,69 @@ export function nameKey(name: string): string {
     .normalize("NFC")
 }
 
+/** Two letters of Chinese, Japanese or Korean can be a whole name (명동, 新宿). */
+const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u
+const HANGUL_INITIALS = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"]
+const HANGUL_VOWELS = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"]
+const HANGUL_FINALS = ["", "k", "k", "k", "n", "n", "n", "t", "l", "k", "m", "l", "l", "l", "p", "l", "m", "p", "p", "t", "t", "ng", "t", "t", "k", "t", "p", "t"]
+
+/**
+ * Hangul in Revised Romanization, syllable by syllable ("경복궁" →
+ * "gyeongbokgung"), the way Google spells Korean places in English. The
+ * server's `slugify` romanizes with the same tables.
+ */
+function romanizeHangul(text: string): string {
+  return text.replace(/[\uac00-\ud7a3]/g, (syllable) => {
+    const n = syllable.charCodeAt(0) - 0xac00
+    return HANGUL_INITIALS[Math.floor(n / 588)]! + HANGUL_VOWELS[Math.floor((n % 588) / 28)]! + HANGUL_FINALS[n % 28]!
+  })
+}
+
+const words = (text: string) => nameKey(text).split(" ").filter(Boolean)
+/** Kanji and Hangul names run words together ("서울역앞카페"), so a part can sit mid-word. */
+const wordHas = (word: string, part: string) => word.startsWith(part) || (CJK.test(part) && word.includes(part))
+const covers = (parts: readonly string[], within: readonly string[]) => parts.every((part) => within.some((word) => wordHas(word, part)))
+
+/**
+ * Whether a place is the one typed, not just one a search engine related to
+ * the words: every typed word starts a word of the name ("gyeongbok" →
+ * Gyeongbokgung Palace), the whole name is in what was typed ("Lotte Mart
+ * Jeju"), or the same holds once Hangul is romanized and spaces dropped
+ * ("명동" → Myeong-dong). "Bring rain jackets" is not Lotte Mart.
+ */
+export function nameMatches(query: string, name: string): boolean {
+  const typed = words(query)
+  const named = words(name)
+  if (typed.length === 0 || named.length === 0) return false
+  if (covers(typed, named) || covers(named, typed)) return true
+  const joined = (text: string) => nameKey(romanizeHangul(text)).replace(/ /g, "")
+  const [q, n] = [joined(query), joined(name)]
+  return n.startsWith(q) || q.startsWith(n)
+}
+
+/**
+ * The place Enter may add without the traveller picking it: the top result,
+ * only when it is named what was typed and, given the trip, near it. A
+ * same-named shop on another continent is never a safe guess.
+ */
+export function confidentPick(query: string, top: PlaceResult | undefined, near: { lat: number; lng: number } | null): boolean {
+  if (!top || !nameMatches(query, top.name)) return false
+  return !near || distanceMeters(near, top) <= LOCAL_METERS
+}
+
 /**
  * One list from every source, in the order given (best source first): a
  * place two sources both found appears once, as the first source had it;
  * places near the trip come before far ones, each keeping its source order.
+ * Given the query, a far place stays only when its name is what was typed:
+ * a loose match half a world away is noise.
  */
-export function rankPlaces(sources: readonly (readonly PlaceResult[])[], near: { lat: number; lng: number } | null, limit = MAX_PLACE_RESULTS): PlaceResult[] {
+export function rankPlaces(
+  sources: readonly (readonly PlaceResult[])[],
+  near: { lat: number; lng: number } | null,
+  limit = MAX_PLACE_RESULTS,
+  query?: string,
+): PlaceResult[] {
   const kept: PlaceResult[] = []
   for (const place of sources.flat()) {
     const key = nameKey(place.name)
@@ -250,13 +307,13 @@ export function rankPlaces(sources: readonly (readonly PlaceResult[])[], near: {
   }
   if (!near) return kept.slice(0, limit)
   const local = kept.filter((place) => distanceMeters(near, place) <= LOCAL_METERS)
-  const far = kept.filter((place) => distanceMeters(near, place) > LOCAL_METERS)
+  const far = kept.filter(
+    (place) => distanceMeters(near, place) > LOCAL_METERS && (query === undefined || nameMatches(query, place.name)),
+  )
   return [...local, ...far].slice(0, limit)
 }
 
 const PHOTON = "https://photon.komoot.io/api/"
-/** Two letters of Chinese, Japanese or Korean can be a whole name (명동, 新宿). */
-const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u
 
 /** Google is asked only once a query is specific enough to be worth a paid call. */
 export const worthAskingGoogle = (query: string) => query.length >= 3 || (query.length === 2 && CJK.test(query))
@@ -281,7 +338,7 @@ const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
     const first = answers.find(Either.isLeft)
     if (first) return yield* Effect.fail(first.left)
   }
-  return rankPlaces(found, near)
+  return rankPlaces(found, near, MAX_PLACE_RESULTS, query)
 })
 
 const swallowAbort = <T,>(fallback: T) =>

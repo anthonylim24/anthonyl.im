@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
-import { Check, Copy, Globe2, LogOut, UserRound, X } from "lucide-react"
+import { Check, Copy, LogOut, UserRound, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { routerBasename } from "@/lib/routerBasename"
 import { createInvite, getTrip, leaveTrip, revokeInvite, updateTrip, type GetToken } from "../tripsApi"
@@ -166,7 +166,13 @@ export function ShareDialog({
       open={open}
       onClose={onClose}
       title="Share this trip"
-      description={trip ? `Invite people to ${trip.name}.` : undefined}
+      description={
+        trip
+          ? trip.sharedWithAllUsers
+            ? `Everyone with an account can already see and edit ${trip.name}.`
+            : `Invite people to ${trip.name}.`
+          : undefined
+      }
       accent={trip ? resolveAccent(trip.appearance?.accent) : undefined}
     >
       {load.status === "loading" && (
@@ -181,13 +187,6 @@ export function ShareDialog({
       )}
       {trip && (
         <>
-          {trip.sharedWithAllUsers && (
-            <p {...sx(a.notice)}>
-              <Globe2 size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink)} />
-              Everyone with an account can already see and edit this trip.
-            </p>
-          )}
-
           {owner && (
             <section {...sx(a.stack)} aria-label="Invite link">
               <div {...sx(s.segment, "trips-glass-segment")} role="radiogroup" aria-label="What the link allows" onKeyDown={onRoleKey}>

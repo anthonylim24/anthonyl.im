@@ -172,7 +172,7 @@ function DaySection({
           <p {...sx(a.eyebrow)}>
             {name} · {formatTripDate(day.date).replace(",", "")}
           </p>
-          <h3 id={headId} {...sx(a.display, a.wrap, c.dayTitle)}>
+          <h3 id={headId} {...sx(a.display, a.wrapName, c.dayTitle)}>
             {title}
           </h3>
         </div>

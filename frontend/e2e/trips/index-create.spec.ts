@@ -144,7 +144,6 @@ async function pickLisbon(page: Page) {
 
 async function draftWithoutAi(page: Page) {
   const ai = page.getByRole('switch', { name: /Draft the itinerary with AI/ })
-  await ai.click()
   await expect(ai).toHaveAttribute('aria-checked', 'false')
   await expect(page.getByRole('button', { name: 'Create trip', exact: true })).toBeVisible()
 }

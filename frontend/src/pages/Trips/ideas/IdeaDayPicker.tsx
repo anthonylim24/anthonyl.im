@@ -21,7 +21,7 @@ type Recommendation =
 
 export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDayPickerProps) {
   const uid = useId()
-  const choices = useMemo(() => ideaDayChoices(trip), [trip])
+  const choices = useMemo(() => ideaDayChoices(trip, idea), [trip, idea])
   // The idea as it was when the sheet opened: an autosave or a newer copy of
   // the trip must not ask again (each ask counts against a per-person limit).
   const load = useLatestCallback((signal: AbortSignal) => suggestDays(getToken, trip.id, idea, signal))
@@ -43,7 +43,8 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   }, [load, key])
 
   const current = answer?.key === key ? answer : null
-  // The server ranked its saved copy; a day removed or filled since then is not offered.
+  // The server ranked its saved copy; a day removed or filled since then, or
+  // one that already has the place, is not offered.
   const picks =
     current?.status === "ready"
       ? current.suggestions.picks.flatMap((pick) => {
@@ -125,6 +126,9 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
       description="It joins that day’s route, above anything still to schedule."
       choices={choices}
       lead={lead}
+      // The row that opened the picker leaves the list with the place; its
+      // entry under "On your days" shows where it went.
+      returnFocus={() => document.querySelector<HTMLElement>(`[data-scheduled-idea="${CSS.escape(idea.id)}"]`)}
       onPick={onPick}
       onClose={onClose}
     />

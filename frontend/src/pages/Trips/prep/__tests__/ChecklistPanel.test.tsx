@@ -28,8 +28,9 @@ function setup({
   editable = true,
   locked = false,
   people,
-}: { checklist?: ChecklistItem[]; editable?: boolean; locked?: boolean; people?: TripPerson[] } = {}) {
-  const initial = makeTrip({ destinations: ["Seoul"], timezone: "Asia/Seoul", checklist })
+  dates = { startDate: "2099-07-10", endDate: "2099-07-14" },
+}: { checklist?: ChecklistItem[]; editable?: boolean; locked?: boolean; people?: TripPerson[]; dates?: Pick<Trip, "startDate" | "endDate"> } = {}) {
+  const initial = makeTrip({ destinations: ["Seoul"], timezone: "Asia/Seoul", checklist, ...dates })
   const spy = vi.fn<(fn: Updater, mark?: UndoMark) => void>()
   function Harness() {
     const [trip, setTrip] = useState(initial)
@@ -63,6 +64,20 @@ const shown = (text: string) => screen.getByText(text, SEEN)
 const notShown = (text: string) => screen.queryByText(text, SEEN)
 
 describe("ChecklistPanel", () => {
+  it("after the trip, asks what is left to do instead of offering packing", () => {
+    setup({ dates: { startDate: "2020-05-01", endDate: "2020-05-10" } })
+    expect(screen.getByRole("heading", { name: /after the trip/i })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: /ready when you go/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Suggest from your plan" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Add your own" })).toBeEnabled()
+  })
+
+  it("after the trip, keeps the list but drops the pre-departure suggestions", () => {
+    setup({ dates: { startDate: "2020-05-01", endDate: "2020-05-10" }, checklist: [entry("a", "Return the router")] })
+    expect(screen.getByText("Return the router")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Suggest from your plan" })).toBeNull()
+  })
+
   it("shows the first-run state with both ways in", () => {
     setup()
     expect(screen.getByRole("heading", { name: /ready when you go/i })).toBeInTheDocument()

@@ -20,7 +20,7 @@ const dayUrl = (trip: Trip, index: number) => `/trips/${trip.id}/day/${trip.days
 const titles = (items: Item[]) => items.map((item) => item.title)
 const findItem = (trip: Trip, id: string) => trip.days.flatMap((day) => day.items).find((item) => item.id === id)
 const planOf = (page: Page, dayNumber: number) => page.getByRole('region', { name: `Day ${dayNumber} plan` })
-const composerOf = (page: Page) => page.getByRole('combobox', { name: 'Add a place, note or booking' })
+const composerOf = (page: Page) => page.getByRole('combobox', { name: 'Add a place, note or link' })
 /** A stop's row in the list, its editor included. Scoped by id, so a rename does not lose it. */
 const stopOf = (page: Page, id: string) => page.locator(`#item-${id}`)
 /** The stop's header button: the only button in the row whose text is the title (the pin shows a number). */

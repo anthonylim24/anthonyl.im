@@ -4,7 +4,7 @@ test('a note added from the day composer saves and survives a reload', async ({ 
   const trip = await seedTrip(request)
   try {
     await page.goto(`/trips/${trip.id}/day/${trip.days[0].id}`)
-    const composer = page.getByRole('combobox', { name: 'Add a place, note or booking' })
+    const composer = page.getByRole('combobox', { name: 'Add a place, note or link' })
     await composer.fill('Pick up rail pass')
     await page.getByRole('option', { name: 'Add as a note' }).click()
 

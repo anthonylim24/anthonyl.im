@@ -20,6 +20,7 @@ import {
   REVIEW_RETRY_BACKOFF_MS,
   RUN_FAILED_REASON,
   type CompleteEnhancementRun,
+  type EnhancementRun,
   type FailedEnhancementRun,
   type ReviewRequest,
   type Trip,
@@ -87,6 +88,13 @@ export interface ReviewWorker {
   drain(timeoutMs: number): Promise<void>
   /** Slots in use: claims being made plus attempts running. */
   inflight(): number
+  /** End a run for good because the traveller stopped it: abort its attempt
+   *  here, or claim it from the queue and fail it. Resolves once that has
+   *  settled, to the run as stored then: still `running` when it could not be
+   *  stopped from here (held by another process, or waiting out a retry; it
+   *  fails instead of running when this worker next claims it), `complete`
+   *  when it finished first. */
+  cancel(tripId: string, runId: string): Promise<EnhancementRun | null>
 }
 
 /** How often the server sweeps for due reviews, on top of the kick each new
@@ -105,6 +113,8 @@ const RETRY_KICK_SLACK_MS = 25
 const TRIP_DELETED = "This trip was deleted."
 const TRIP_BUSY = "The trip kept changing while the AI review was saving its changes."
 const TIMED_OUT = "The AI review took too long."
+const STOPPED = "Stopped before it finished."
+const STOPPED_REASON = "This AI review was stopped before it finished."
 
 /** Unique per process and per worker, so a log line names its owner. */
 function reviewWorkerId(): string {
@@ -164,7 +174,7 @@ export function createTripReviewWorker(
 /** Why an attempt's signal aborted. Only a deadline is the review's fault;
  *  a lost claim or a drain means the run is not this attempt's to write. */
 class AttemptStopped extends Error {
-  constructor(readonly why: "deadline" | "lost" | "drain") {
+  constructor(readonly why: "deadline" | "lost" | "drain" | "cancel") {
     super(why === "deadline" ? TIMED_OUT : `review stopped: ${why}`)
   }
 }
@@ -207,7 +217,10 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
 
   /** Attempts in progress: what drain aborts and hands back. Not keyed by
    *  run: a stalled attempt and its own re-claim can briefly share one. */
-  const attempts = new Set<{ claim: ReviewClaim; abort: AbortController }>()
+  const attempts = new Set<{ claim: ReviewClaim; abort: AbortController; done: Promise<void> }>()
+  /** Runs stopped by their traveller that may still be claimed (waiting out a
+   *  retry, or claimed meanwhile): failed, never reviewed, when they are. */
+  const cancelled = new Set<string>()
   /** Everything drain waits for: claims being made, attempts, hand-backs. */
   const work = new Set<Promise<void>>()
   /** Run ids kicked while every slot was busy. */
@@ -343,7 +356,8 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
     const startedAt = now()
     log(`${tag} start`)
     const abort = new AbortController()
-    const entry = { claim, abort }
+    let ended!: () => void
+    const entry = { claim, abort, done: new Promise<void>((resolve) => (ended = resolve)) }
     attempts.add(entry)
     const stopBeating = heartbeat(claim, abort)
     let result: string
@@ -356,12 +370,14 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
     } finally {
       stopBeating()
       attempts.delete(entry)
+      ended()
     }
     log(`${tag} ${result} ${now() - startedAt}ms`)
   }
 
   /** One attempt, start to end. Returns the log line's result. */
   async function settle(claim: ReviewClaim, abort: AbortController): Promise<string> {
+    if (cancelled.has(claim.run.id)) return stop(claim)
     const trip = await store.get(claim.run.tripId)
     if (!trip) return fail(claim, TRIP_DELETED, null)
 
@@ -376,6 +392,7 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
       const why = stoppedBy(abort.signal)
       if (why === "lost") return "lost (another worker holds the run)"
       if (why === "drain") return "handed back"
+      if (why === "cancel") return stop(claim)
       if (why === "deadline") return fail(claim, TIMED_OUT, retryDelay(claim.attempt))
       return fail(claim, messageOf(err), isRetryable(err) ? retryDelay(claim.attempt) : null)
     } finally {
@@ -386,6 +403,7 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
     const why = stoppedBy(abort.signal)
     if (why === "lost") return "lost (another worker holds the run)"
     if (why === "drain") return "handed back"
+    if (why === "cancel") return stop(claim)
 
     // `enhanceTrip` mints its own id and time; the run keeps the queued ones.
     const run = { ...review, id: claim.run.id, createdAt: claim.run.createdAt }
@@ -411,6 +429,7 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
 
   async function complete(claim: ReviewClaim, review: CompleteEnhancementRun): Promise<string> {
     for (let i = 0; i < COMPLETE_TRIES; i++) {
+      if (cancelled.has(claim.run.id)) return stop(claim)
       const fresh = await store.get(claim.run.tripId)
       if (!fresh) return fail(claim, TRIP_DELETED, null)
       // Always from the review as returned: applying onto an already
@@ -428,7 +447,34 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
     return fail(claim, TRIP_BUSY, retryDelay(claim.attempt))
   }
 
-  function stop() {
+  /** End a run its traveller stopped: failed for good, nothing written to the trip. */
+  async function stop(claim: ReviewClaim): Promise<string> {
+    const result = await fail(claim, STOPPED, null, finishRun(claim.run, { status: "error", error: STOPPED, outcomeReason: STOPPED_REASON }))
+    cancelled.delete(claim.run.id)
+    return result === `failed: ${STOPPED}` ? "stopped by the traveller" : result
+  }
+
+  async function cancel(tripId: string, runId: string): Promise<EnhancementRun | null> {
+    const known = await store.getRun(tripId, runId)
+    if (known?.status !== "running") return known
+    cancelled.add(runId)
+    const running = [...attempts].filter((entry) => entry.claim.run.id === runId)
+    if (running.length > 0) {
+      for (const { abort } of running) abort.abort(new AttemptStopped("cancel"))
+      await Promise.all(running.map((entry) => entry.done))
+    } else if (!stopped) {
+      // Waiting in the queue: take it and end it here. A run waiting out a
+      // retry, or held by another process, is not due and stays put.
+      const claim = await store.claimReview(workerId, leaseMs, runId).catch(() => null)
+      if (claim && claim.run.tripId !== tripId) await store.releaseReview(claim)
+      else if (claim) log(`[trips/review] run=${runId} trip=${tripId} ${await stop(claim)}`)
+    }
+    const run = await store.getRun(tripId, runId)
+    if (run?.status !== "running") cancelled.delete(runId)
+    return run
+  }
+
+  function stopClaiming() {
     stopped = true
     if (sweepTimer) clearInterval(sweepTimer)
     sweepTimer = null
@@ -446,9 +492,9 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
       sweepTimer.unref?.()
       kick()
     },
-    stop,
+    stop: stopClaiming,
     async drain(timeoutMs) {
-      stop()
+      stopClaiming()
       // Every hand-back starts now, together: the process may be killed soon.
       for (const { claim, abort } of attempts) {
         abort.abort(new AttemptStopped("drain"))
@@ -472,5 +518,6 @@ export function createReviewWorker(deps: ReviewWorkerDeps): ReviewWorker {
       clearTimeout(timer)
     },
     inflight: () => reserved,
+    cancel,
   }
 }

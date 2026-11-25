@@ -270,6 +270,7 @@ function Workspace() {
   const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
   /** Offered after the traveller adds or changes where they sleep. */
   const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
+  /** Every stay this trip has had while open: one coming back (an undo, a redo, a re-add) is not news. */
   const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   /** Phones mount the map the first time it is asked for, then only hide it. */
@@ -447,6 +448,7 @@ function Workspace() {
   const dayStops = day ? splitDay(day).planned.filter((item) => item.kind !== "section" && item.kind !== "note").length : 0
   const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
+  const tripStops = trip && !day ? trip.days.reduce((n, d) => n + d.items.filter((i) => i.kind === "place" || i.kind === "reservation").length, 0) : 0
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
   // Wishlist places ride their own prop, on the overview and on a day (what is
   // near the day). Never in `pins`: they must not frame, count or tour.
@@ -524,6 +526,12 @@ function Workspace() {
       if (onMap && !wide) setView("map")
     }
   }
+
+  // "I'll add stops myself" lands on a day whose only next step is its composer.
+  const composeOn = day && (location.state as { compose?: unknown } | null)?.compose === true ? location.key : null
+  useEffect(() => {
+    if (composeOn) paneRef.current?.querySelector<HTMLElement>('input[role="combobox"]')?.focus()
+  }, [composeOn])
 
   const onAdded = useCallback((id: string) => {
     setFresh(new Set([id]))
@@ -622,10 +630,11 @@ function Workspace() {
   useEffect(() => {
     if (!trip) return
     const entries = lodgingEntries(trip)
-    const known = lodgingRef.current
-    lodgingRef.current = { tripId: trip.id, entries }
-    if (!known || known.tripId !== trip.id || aiBusy || !editable || trip === editor.aiTripRef.current) return
-    const changed = changedLodging(known.entries, entries)
+    const known = lodgingRef.current?.tripId === trip.id ? lodgingRef.current : null
+    const changed = known ? changedLodging(known.entries, entries) : null
+    const seen = new Map([...(known?.entries ?? []), ...entries].map((entry) => [entry.key, entry]))
+    lodgingRef.current = { tripId: trip.id, entries: [...seen.values()] }
+    if (!known || aiBusy || !editable || trip === editor.aiTripRef.current) return
     const otherStops = trip.days.some((d) => d.items.some((item) => item.kind === "place" && item.id !== changed?.itemId))
     if (changed && otherStops) setLodgingNudge(changed)
     else if (lodgingNudge && !entries.some((entry) => entry.key === lodgingNudge.key)) setLodgingNudge(null)
@@ -911,7 +920,7 @@ function Workspace() {
                 />
               </>
             ) : (
-              <h1 {...sx(a.display, s.title, a.wrap)}>{trip.name}</h1>
+              <h1 {...sx(a.display, s.title, a.wrapName)}>{trip.name}</h1>
             )}
             <div {...sx(s.headMeta)}>
               {editable ? (
@@ -963,7 +972,27 @@ function Workspace() {
           </header>
         )}
 
-        <DayRail trip={trip} basePath={basePath} dayId={dayId} />
+        <DayRail
+          trip={trip}
+          basePath={basePath}
+          dayId={dayId}
+          end={
+            dayId && (
+              <span {...sx(s.railEnd)}>
+                <span {...sx(s.railRule)} aria-hidden />
+                <Menu
+                  label="Share and trip options"
+                  trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
+                  triggerStyle={[a.iconBtn, a.iconBtnSm]}
+                  items={[
+                    ...(onDevice ? [] : [{ label: "Share", icon: <Share2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setDialog("share") }]),
+                    ...menu,
+                  ]}
+                />
+              </span>
+            )
+          }
+        />
 
         {dayId && !day ? (
           <div {...sx(s.content)} role="alert">
@@ -1188,7 +1217,7 @@ function Workspace() {
                   {[
                     day ? `Day ${dayIndex + 1}` : "All days",
                     day?.city,
-                    !day ? plural(dots.length, "place") : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
+                    !day ? (dots.length < tripStops ? `${dots.length} of ${plural(tripStops, "place")}` : plural(tripStops, "place")) : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -1216,7 +1245,7 @@ function Workspace() {
                         category={active.item.location?.category ? titleCase(active.item.location.category) : null}
                       />
                     </p>
-                    <h3 {...sx(a.display, s.placeTitle, a.wrap)}>{active.item.title || active.item.location?.name}</h3>
+                    <h3 {...sx(a.display, s.placeTitle, a.wrapName)}>{active.item.title || active.item.location?.name}</h3>
                   </div>
                   <button
                     type="button"

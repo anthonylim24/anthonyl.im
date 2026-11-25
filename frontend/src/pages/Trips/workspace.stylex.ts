@@ -184,9 +184,17 @@ export const ws = stylex.create({
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
     paddingTop: "0.5rem",
   },
-  // Phones: the top bar already has Back and the rail has Overview (where
-  // Share and trip options live), so day pages start with the days.
+  // Phones: the top bar already has Back, the rail has Overview and ends in
+  // the trip menu (with Share), so day pages start with the days.
   headCompactHide: { "@media (max-width: 639.98px)": { display: "none" } },
+  /** The trip menu at the rail's end, on phone day pages only (wider screens have the compact header). */
+  railEnd: {
+    display: { default: "none", "@media (max-width: 639.98px)": "flex" },
+    alignItems: "center",
+    flexShrink: 0,
+    gap: "0.25rem",
+    paddingInlineEnd: "0.75rem",
+  },
   compactTitle: {
     fontFamily: "var(--trips-display)",
     fontSize: "1.5rem",
@@ -217,6 +225,8 @@ export const ws = stylex.create({
     resize: "none",
     overflow: "hidden",
     fieldSizing: "content",
+    overflowWrap: "anywhere",
+    wordBreak: "keep-all",
     outline: "none",
     fontFamily: "var(--trips-display)",
     fontWeight: 400,
@@ -846,6 +856,15 @@ export const ws = stylex.create({
     placeItems: "center",
     width: "1.75rem",
     height: "2.25rem",
+    position: "relative",
+    // 44px for a finger without widening the row; a mouse keeps the 28px grip,
+    // so a click beside it still opens the card.
+    "::after": {
+      content: '""',
+      position: "absolute",
+      inset: "-4px -8px",
+      display: { default: "none", "@media (pointer: coarse)": "block" },
+    },
     borderRadius: "0.375rem",
     color: "var(--trips-ink-tertiary)",
     cursor: "grab",

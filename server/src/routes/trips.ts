@@ -32,7 +32,7 @@ import {
   RESERVED_SLUGS,
   REVIEW_MAX_ATTEMPTS,
   settleStaleRun,
-  slugify,
+  defaultTripSlug,
   updateTripSchema,
   withoutScheduledIdeas,
   type ReviewRequest,
@@ -136,7 +136,8 @@ function summarize(trip: Trip, userId: string) {
     itemCount: trip.days.reduce((n, d) => n + d.items.length, 0),
     center,
     points: downsample(located, MAX_SUMMARY_POINTS).map((p) => [round4(p.lng), round4(p.lat)] as [number, number]),
-    placeCount: located.length,
+    // The overview's "Places": every place and booking, pinned or not.
+    placeCount: trip.days.reduce((n, d) => n + d.items.filter((i) => i.kind === "place" || i.kind === "reservation").length, 0),
     access: accessFor(trip, userId),
     updatedAt: trip.updatedAt,
   }
@@ -403,11 +404,10 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       return c.json({ error: "endDate must be on or after startDate" }, 400)
     }
     const now = nowIso()
-    // Intelligent default permalink: trip name + year, deduped.
-    const baseSlug = slugify(`${body.data.name} ${body.data.startDate.slice(0, 4)}`)
+    const id = newId("trip")
     const trip: Trip = {
-      id: newId("trip"),
-      slug: await uniqueSlug(baseSlug),
+      id,
+      slug: await uniqueSlug(defaultTripSlug({ id, ...body.data })),
       ownerId: userIdOf(c),
       ...body.data,
       days: emptyDays(body.data.startDate, body.data.endDate),
@@ -705,6 +705,21 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       applied: run.appliedSuggestionIds,
       ...(run.status === "error" ? { error: "enhancement_failed" as const, message: run.error } : {}),
     })
+  })
+
+  // Stop: the traveller no longer wants this review. Answers with the run as
+  // it ended: failed (nothing added), complete (it finished first), or still
+  // running when this process could not stop it.
+  trips.post("/:id/enhancements/:runId/cancel", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"), true)
+    if ("error" in result) return result.error
+    const tripId = result.trip.id
+    const stored = await deps.store.getRun(tripId, c.req.param("runId"))
+    if (!stored) return c.json({ error: "run not found" }, 404)
+    const ended = stored.status === "running" && reviews ? await reviews.cancel(tripId, stored.id) : stored
+    // Re-read: a review that finished first wrote its places onto the trip.
+    const trip = (await deps.store.get(tripId)) ?? result.trip
+    return c.json({ run: settleStaleRun(ended ?? stored), trip: present(trip, result.access) })
   })
 
   trips.post("/:id/enhancements/:runId/apply", async (c) => {

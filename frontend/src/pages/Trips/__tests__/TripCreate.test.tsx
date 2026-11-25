@@ -73,7 +73,7 @@ function Landing() {
   )
 }
 
-function renderCreate(path = "/trips/new") {
+function renderCreate(path = "/trips/new?ai=1") {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
@@ -216,15 +216,15 @@ describe("TripCreate", () => {
     expect(screen.getByTestId("notice")).toHaveTextContent("")
   })
 
-  it("starts with AI off for ?ai=0", () => {
-    renderCreate("/trips/new?ai=0")
+  it("starts with AI off unless the link asks for a draft", () => {
+    renderCreate("/trips/new")
     expect(screen.getByRole("switch", { name: /Draft the itinerary with AI/ })).toHaveAttribute("aria-checked", "false")
     expect(screen.getByRole("button", { name: "Create trip" })).toBeInTheDocument()
   })
 
   it("looks up a typed first place before creating, so the trip gets its time zone and centre", async () => {
     mockSearchCities.mockResolvedValue([])
-    renderCreate("/trips/new?ai=0")
+    renderCreate("/trips/new")
     fireEvent.change(destinations(), { target: { value: "lisbon" } })
     await waitFor(() => expect(mockSearchCities).toHaveBeenCalled())
     fireEvent.keyDown(destinations(), { key: "Enter" })
@@ -242,7 +242,7 @@ describe("TripCreate", () => {
 
   it("asks for the time zone when the map can't find the first place", async () => {
     mockSearchCities.mockResolvedValue([])
-    renderCreate("/trips/new?ai=0")
+    renderCreate("/trips/new")
     fireEvent.change(destinations(), { target: { value: "Middle of nowhere" } })
     await waitFor(() => expect(mockSearchCities).toHaveBeenCalled())
     fireEvent.keyDown(destinations(), { key: "Enter" })
@@ -272,7 +272,7 @@ describe("TripCreate", () => {
 
   it("asks for the time zone when the map finds the place but not a zone this browser knows", async () => {
     mockSearchCities.mockResolvedValue([{ ...lisbon, timezone: "" }])
-    renderCreate("/trips/new?ai=0")
+    renderCreate("/trips/new")
     await pickCity("Lis", /Lisbon/)
 
     fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
@@ -288,7 +288,7 @@ describe("TripCreate", () => {
   })
 
   it("ignores Enter while an IME is still composing", async () => {
-    renderCreate("/trips/new?ai=0")
+    renderCreate("/trips/new")
     fireEvent.change(destinations(), { target: { value: "서울" } })
     await waitFor(() => expect(mockSearchCities).toHaveBeenCalled())
     fireEvent.keyDown(destinations(), { key: "Enter", keyCode: 229 })
@@ -352,7 +352,7 @@ describe("TripCreate", () => {
 
   it("carries a shared Instagram post onto the new trip", async () => {
     const post = "https://www.instagram.com/p/ABC123/"
-    renderCreate(`/trips/new?ai=0&instagram=${encodeURIComponent(post)}`)
+    renderCreate(`/trips/new?instagram=${encodeURIComponent(post)}`)
     expect(screen.getByText(/the places from the Instagram post you shared go straight onto it/)).toBeInTheDocument()
     await pickCity("Lis", /Lisbon/)
     fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
@@ -385,7 +385,7 @@ describe("TripCreate", () => {
       )
     }
     render(
-      <MemoryRouter initialEntries={["/trips/new"]}>
+      <MemoryRouter initialEntries={["/trips/new?ai=1"]}>
         <Leave />
         <Routes>
           <Route path="/trips/new" element={<TripCreate />} />
@@ -422,7 +422,7 @@ describe("TripCreate", () => {
   })
 
   it("creates the trip with dates picked from the calendar", async () => {
-    renderCreate("/trips/new?ai=0")
+    renderCreate("/trips/new")
     await pickCity("Lis", /Lisbon/)
 
     fireEvent.click(dates())
@@ -439,7 +439,7 @@ describe("TripCreate", () => {
   })
 
   it("sets the trip length from a preset", async () => {
-    renderCreate("/trips/new?ai=0")
+    renderCreate("/trips/new")
     await pickCity("Lis", /Lisbon/)
     expect(screen.getByRole("button", { name: "5 days" })).toHaveAttribute("aria-pressed", "true")
 
@@ -454,7 +454,7 @@ describe("TripCreate", () => {
   })
 
   it("refuses a trip longer than 60 days", async () => {
-    renderCreate("/trips/new?ai=0")
+    renderCreate("/trips/new")
     await pickCity("Lis", /Lisbon/)
 
     fireEvent.click(dates())
