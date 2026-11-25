@@ -33,7 +33,7 @@ export interface AtlasMapProps {
   hotId?: string | null
   onSelect?: (id: string) => void
   onHover?: (id: string | null) => void
-  /** Wishlist places, drawn in the wishlist colour under the stops. Never framed, counted or toured. */
+  /** Wishlist places, drawn in the wishlist colour over the stops; hearts that would meet fold into one. Never framed, counted or toured. */
   ideaPins?: readonly AtlasPin[]
   /** An idea pin was picked; the id is the idea's (`trip.ideas[].id`). */
   onSelectIdea?: (ideaId: string) => void
