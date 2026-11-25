@@ -41,6 +41,7 @@ import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { ItemIcon } from "../ItemIcon"
 import { weatherKind } from "../forecast"
+import { streetFirst } from "../ideas/areas"
 import { StopActions, StopDayPicker, StopDetails, StopEditor } from "./StopEditor"
 import { stopEdits, type EditorSurface } from "./stopEdits"
 
@@ -287,7 +288,7 @@ export const ItemCard = memo(function ItemCard({
 
   const pinned = pinLabel !== null
   const [start, end] = [clockMinutes(item.time), clockMinutes(item.endTime)]
-  const sub = item.location?.address || firstLine(item.notes)
+  const sub = streetFirst(item.location?.address).join(", ") || firstLine(item.notes)
   const category = item.kind === "reservation" ? bookingTypeLabel(item.reservation?.type) : item.location?.category ? titleCase(item.location.category) : null
   // Where Done / Skip / Loved it are on the card, the chip and the heart would only say it twice.
   const status = shownStatus(item)

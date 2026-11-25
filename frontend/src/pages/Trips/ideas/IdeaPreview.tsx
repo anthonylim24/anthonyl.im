@@ -1,31 +1,66 @@
-import { useState } from "react"
+import { useEffect, useReducer, useState } from "react"
 import { sx } from "@/styles/merge"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useGetToken } from "@/lib/safeAuth"
 import { a } from "../atlas.stylex"
 import type { ItineraryItem, Trip } from "../types"
+import { prefetchPlaceDetails } from "./placeDetailsApi"
 import { ideaPreview } from "./preview"
 import { pv } from "./preview.stylex"
 import { THEMES } from "./themes"
 
 // What a wishlist pin's preview card says on the map: the category the
 // Wishlist tab files it under and where it is, its name, the street, the
-// first line of the traveller's notes, and a photo only when its details
-// already loaded one. Read when the card shows, so it is never stale and
-// never fetches.
+// first line of the traveller's notes, and a photo. The card mounts once a
+// mouse has rested on the pin, so the place is looked up then (one request
+// per place, kept for its details); until the answer comes the photo's
+// frame holds its room, so the card does not jump when it lands.
+
+/** A keyboard passes pins on its way elsewhere: a place is looked up once focus has rested on its pin this long. */
+export const FOCUS_REST_MS = 400
 
 export function IdeaPreview({ idea, trip, via }: { idea: ItineraryItem; trip: Pick<Trip, "days" | "destinations">; via: "pointer" | "focus" }) {
+  const getToken = useLatestCallback(useGetToken())
   const preview = ideaPreview(idea, trip)
-  const [broken, setBroken] = useState(false)
+  const [broken, setBroken] = useState<string | null>(null)
+  /** The lookup that failed: its frame gives its room back. */
+  const [failed, setFailed] = useState<string | null>(null)
+  // The answer lands in the session's cache, which `ideaPreview` reads: a render is all it needs.
+  const [, answered] = useReducer((n: number) => n + 1, 0)
+  const { lookup } = preview
+  const lookupKey = lookup?.key ?? ""
+  useEffect(() => {
+    if (!lookup) return
+    let live = true
+    const timer = setTimeout(
+      () =>
+        prefetchPlaceDetails(getToken, lookup).then(
+          () => live && answered(),
+          () => live && setFailed(lookup.key),
+        ),
+      via === "focus" ? FOCUS_REST_MS : 0,
+    )
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `lookupKey` names the place; `lookup` is rebuilt on every render
+  }, [lookupKey, getToken, via])
+
   const { label, icon: Icon } = THEMES[preview.theme]
-  const photo = broken ? null : preview.photo
+  const photo = preview.photo && broken !== preview.photo.url ? preview.photo : null
+  const waiting = lookup !== null && failed !== lookup.key
   return (
     <>
-      {photo && (
-        <>
-          <div {...sx(pv.frame)}>
-            <img src={photo.url} alt="" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} {...sx(pv.img)} />
-          </div>
-          {photo.author && <p {...sx(pv.credit)}>Photo: {photo.author.name}</p>}
-        </>
+      {(photo || waiting) && (
+        <div {...sx(pv.frame)}>
+          {photo && (
+            <>
+              <img src={photo.url} alt="" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(photo.url)} {...sx(pv.img)} />
+              {photo.author && <p {...sx(pv.credit)}>Photo: {photo.author.name}</p>}
+            </>
+          )}
+        </div>
       )}
       <div {...sx(pv.body)}>
         <p {...sx(a.eyebrow, pv.eyebrow)}>
@@ -35,7 +70,6 @@ export function IdeaPreview({ idea, trip, via }: { idea: ItineraryItem; trip: Pi
         <p {...sx(a.display, pv.name)}>{preview.name}</p>
         {preview.street && <p {...sx(pv.street)}>{preview.street}</p>}
         {preview.note && <p {...sx(pv.note)}>{preview.note}</p>}
-        <p {...sx(a.eyebrow, pv.hint)}>{via === "pointer" ? "Click for details" : "Enter for details"}</p>
       </div>
     </>
   )

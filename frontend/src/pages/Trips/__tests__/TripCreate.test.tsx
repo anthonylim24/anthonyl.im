@@ -30,7 +30,7 @@ const mockSearchCities = vi.fn()
 
 vi.mock("../geocode", () => ({
   searchCities: (...args: unknown[]) => mockSearchCities(...args),
-  searchPlaces: vi.fn().mockResolvedValue([]),
+  searchPlaces: vi.fn().mockResolvedValue({ places: [], lead: 0 }),
   cityLabel: (city: { name: string }) => city.name,
 }))
 

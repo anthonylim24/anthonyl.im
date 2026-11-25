@@ -33,7 +33,7 @@ export interface AtlasMapProps {
   hotId?: string | null
   onSelect?: (id: string) => void
   onHover?: (id: string | null) => void
-  /** Wishlist places, drawn in the wishlist colour under the stops. Never framed, counted or toured. */
+  /** Wishlist places, drawn in the wishlist colour over the stops; hearts that would meet fold into one. Never framed, counted or toured. */
   ideaPins?: readonly AtlasPin[]
   /** An idea pin was picked; the id is the idea's (`trip.ideas[].id`). */
   onSelectIdea?: (ideaId: string) => void
@@ -164,7 +164,7 @@ export function AtlasMap({
   const selectIdea = useLatestCallback((id: string) => onSelectIdea?.(id))
   const [ideasShown, setIdeasShown] = useIdeasShown()
   const ideas = ideasShown && !ambient ? ideaPins : NO_PINS
-  const [ideaHover, reportIdeaHover] = useIdeaHover()
+  const [ideaHover, reportIdeaHover, holdIdeaHover] = useIdeaHover()
   // A pin hidden from the key or taken off the wishlist sends no leave event: its preview goes with it.
   const previewed = ideaHover && ideaPreview && ideas.some((pin) => pin.id === ideaHover.id) ? ideaHover : null
   const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark, area })
@@ -358,7 +358,7 @@ export function AtlasMap({
         // The content may load lazily: no empty frame while it does, and no broken page if it cannot.
         <OverlayBoundary key={previewed.id} onError={() => reportIdeaHover(null)}>
           <Suspense fallback={null}>
-            <IdeaHoverCard hover={previewed}>{ideaPreview?.(previewed.id, previewed.via)}</IdeaHoverCard>
+            <IdeaHoverCard hover={previewed} hold={holdIdeaHover}>{ideaPreview?.(previewed.id, previewed.via)}</IdeaHoverCard>
           </Suspense>
         </OverlayBoundary>
       )}

@@ -50,12 +50,17 @@ vi.mock("../tripsApi", () => ({
 
 const mockSearchPlaces = vi.fn()
 
-vi.mock("../geocode", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../geocode")>()),
-  searchPlaces: (...args: unknown[]) => mockSearchPlaces(...args),
-  searchCities: vi.fn().mockResolvedValue([]),
-  cityLabel: (city: { name: string }) => city.name,
-}))
+vi.mock("../geocode", async (importOriginal) => {
+  const geocode = await importOriginal<typeof import("../geocode")>()
+  return {
+    ...geocode,
+    // The mock answers with what the sources found; the ranking is the real one.
+    searchPlaces: async (query: string, near: { lat: number; lng: number } | null, _signal?: AbortSignal, _getToken?: unknown, anchors = geocode.NO_ANCHORS) =>
+      geocode.rankPlaces([(await mockSearchPlaces(query, near)) as PlaceResult[]], geocode.withPoint(anchors, near), { query }),
+    searchCities: vi.fn().mockResolvedValue([]),
+    cityLabel: (city: { name: string }) => city.name,
+  }
+})
 
 // The real map needs WebGL. The stub lists its pins as buttons that select
 // the pin, and renders the overlay children (map chip, selected-place card).

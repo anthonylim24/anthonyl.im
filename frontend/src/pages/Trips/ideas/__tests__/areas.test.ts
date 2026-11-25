@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ItineraryItem, TripDay } from "../../types"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
-import { ELSEWHERE, NO_LOCATION, addressLocality, areaOf, compareAreas, ideaAreas, normaliseName, type Area } from "../areas"
+import { ELSEWHERE, NO_LOCATION, addressLocality, areaOf, compareAreas, ideaAreas, normaliseName, streetFirst, type Area } from "../areas"
 
 // Seoul (City Hall), Busan (Haeundae), Lisbon: far enough apart that "nearest" is never close.
 const SEOUL = { lat: 37.5665, lng: 126.978 }
@@ -100,12 +100,27 @@ describe("addressLocality", () => {
     ["89 E 42nd St, New York, NY 10017, USA", "New York"],
     ["Martim Moniz, Lisbon", "Lisbon"],
     ["Seoul, South Korea", "Seoul"],
+    ["Japan, 〒150-0041 Tokyo, Shibuya, Jinnan, 1-chōme−22−7 岩本ビル B1F", "Tokyo"],
+    ["South Korea, Busan, 부산광역시 중구 자갈치해안로 52 (남포동4가)", "Busan"],
   ])("%s → %s", (address, town) => {
     expect(addressLocality(address)).toBe(town)
   })
 
   it.each([undefined, "", "Insadong-gil 12", "서울특별시 종로구 인사동길 12", "South Korea, Japan", "75007, France"])("finds no town in %j", (address) => {
     expect(addressLocality(address)).toBeNull()
+  })
+})
+
+describe("streetFirst", () => {
+  it("turns a country-first address round and drops the country and bare postcodes", () => {
+    expect(streetFirst("Japan, 〒150-0041 Tokyo, Shibuya, Jinnan, 1-chōme−22−7")).toEqual(["1-chōme−22−7", "Jinnan", "Shibuya", "〒150-0041 Tokyo"])
+    expect(streetFirst("1 Kinkakujichō, Kita Ward, Kyoto, 603-8361, Japan")).toEqual(["1 Kinkakujichō", "Kita Ward", "Kyoto"])
+  })
+
+  it("keeps a street-first address in its order, and a lone name as it is", () => {
+    expect(streetFirst("88 Changgyeonggung-ro, Jongno District, Seoul 03195, South Korea")).toEqual(["88 Changgyeonggung-ro", "Jongno District", "Seoul 03195"])
+    expect(streetFirst("Insadong-gil 12")).toEqual(["Insadong-gil 12"])
+    expect(streetFirst(undefined)).toEqual([])
   })
 })
 

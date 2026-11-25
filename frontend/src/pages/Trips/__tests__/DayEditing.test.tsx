@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { useState } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 
-const mockSearch = vi.fn(async () => [])
+const mockSearch = vi.fn(async () => ({ places: [], lead: 0 }))
 vi.mock("../geocode", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../geocode")>()),
   searchPlaces: (...args: unknown[]) => mockSearch(...(args as [])),

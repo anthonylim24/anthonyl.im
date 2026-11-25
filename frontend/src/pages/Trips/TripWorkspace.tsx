@@ -53,6 +53,8 @@ import { Presence } from "./components/presence"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, reviewProgress, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
+import { TripPlacesContext } from "./workspace/tripPlacesContext"
+import { dayBias, tripPlaces } from "./searchArea"
 import { useDayView } from "./workspace/dayView"
 import { INLINE_EDITOR_QUERY, type EditorSurface } from "./workspace/stopEdits"
 import { useMedia } from "./useMedia"
@@ -435,10 +437,12 @@ function Workspace() {
 
   // Search bias for the composer and every stop's place search. Memoised on
   // the coordinates: a new object per keystroke would re-render every card.
-  const nearNow = day ? (searchCenter(dayRoute(day), tripFocus) ?? tripFocus) : tripFocus
+  const nearNow = trip && day ? dayBias(trip, dayIndex, tripFocus) : tripFocus
   const nearLat = nearNow?.lat ?? null
   const nearLng = nearNow?.lng ?? null
   const near = useMemo<LngLat | null>(() => (nearLat === null || nearLng === null ? null : { lat: nearLat, lng: nearLng }), [nearLat, nearLng])
+  // What "near the trip" means for those searches: any of its places or towns, so its second city counts too.
+  const placesForSearch = useMemo(() => tripPlaces(trip), [trip])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
   // Where the traveller wakes up and sleeps, drawn on the day map as its
@@ -864,7 +868,7 @@ function Workspace() {
         })
       : undefined
 
-  return (
+  const page = (
     <div {...sx(s.root)} data-trip-accent={accent}>
       <div {...sx(s.pane)} ref={paneRef}>
         {dayId ? (
@@ -1511,6 +1515,7 @@ function Workspace() {
       )}
     </div>
   )
+  return <TripPlacesContext.Provider value={placesForSearch}>{page}</TripPlacesContext.Provider>
 }
 
 /** The map reads the hovered stop itself: a hover lights a pin without redrawing the page. */

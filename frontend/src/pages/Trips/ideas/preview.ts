@@ -1,11 +1,12 @@
 import type { ItemTheme, ItineraryItem, Trip } from "../types"
-import { ELSEWHERE, areaOf, normaliseName } from "./areas"
+import { ELSEWHERE, areaOf, normaliseName, streetFirst } from "./areas"
 import { ideaName, type PlacePhoto } from "./contract"
-import { cachedPlaceDetails, detailsTarget } from "./placeDetailsApi"
+import { cachedPlaceDetails, detailsTarget, type DetailsTarget } from "./placeDetailsApi"
 import { themeOf } from "./themes"
 
 // What the map's preview card says about a wishlist place, from the trip
-// and what this page already holds: no request is made for a preview.
+// and what this session already looked up. The card asks for the photo
+// itself (`lookup`), once the pointer or focus has rested on the pin.
 
 export interface IdeaPreview {
   name: string
@@ -17,15 +18,21 @@ export interface IdeaPreview {
   street: string | null
   /** The first line of the traveller's notes. */
   note: string | null
-  /** A photo already loaded for its details this session; null rather than a fetch. */
+  /** A photo loaded for its details this session. */
   photo: PlacePhoto | null
+  /** What to look up for a photo: this session has no answer about the place yet. Null once it has, or with nothing to look up. */
+  lookup: DetailsTarget | null
 }
 
 const plain = (part: string) => normaliseName(part.replace(/\S*\d\S*/g, ""))
 
-/** "161 Sajik-ro, Jongno District, Seoul, South Korea" in Seoul → "161 Sajik-ro, Jongno District". */
+/**
+ * "161 Sajik-ro, Jongno District, Seoul, South Korea" in Seoul → "161
+ * Sajik-ro, Jongno District"; "Japan, 〒150-0041 Tokyo, Shibuya, Jinnan,
+ * 1-chōme-22-7" in Tokyo → "1-chōme-22-7, Jinnan". Never the country or a postcode.
+ */
 export function streetLine(address: string | undefined, area: string | null, name: string): string | null {
-  const parts = (address ?? "").split(",").map((part) => part.trim()).filter(Boolean)
+  const parts = streetFirst(address)
   const town = area ? parts.findIndex((part) => plain(part) === normaliseName(area)) : -1
   const before = (town >= 0 ? parts.slice(0, town) : parts.slice(0, 2)).filter((part) => normaliseName(part) !== normaliseName(name))
   return before.length > 0 ? before.slice(0, 2).join(", ") : null
@@ -36,6 +43,7 @@ export function ideaPreview(idea: ItineraryItem, trip: Pick<Trip, "days" | "dest
   const found = areaOf(idea, trip)
   const area = found.rank < ELSEWHERE.rank ? found.label : null
   const target = detailsTarget(idea)
+  const known = target ? cachedPlaceDetails(target, now) : null
   const note = idea.notes?.split("\n").map((line) => line.trim()).find(Boolean) ?? null
   return {
     name,
@@ -43,6 +51,7 @@ export function ideaPreview(idea: ItineraryItem, trip: Pick<Trip, "days" | "dest
     area,
     street: streetLine(idea.location?.address, area, name),
     note,
-    photo: (target && cachedPlaceDetails(target, now)?.photos[0]) || null,
+    photo: known?.photos[0] ?? null,
+    lookup: target && known === undefined ? target : null,
   }
 }

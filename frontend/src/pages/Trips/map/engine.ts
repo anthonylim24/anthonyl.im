@@ -4,7 +4,8 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { buildMapStyle } from "./mapStyle"
 import { centroid, distanceMeters, spanMeters, spreadPins, type AreaShape, type AtlasPin, type LngLat } from "./geo"
-import { ideaHoverHandlers, type IdeaHover } from "./ideaHover"
+import { ideaHoverHandlers, type ReportIdeaHover } from "./ideaHover"
+import { FOLD_MAX_ZOOM, HEART_REACH, foldIdeas } from "./ideaFolds"
 
 // Imperative MapLibre wrapper. Lazy-imported by AtlasMap so the map library
 // stays out of the initial Trips chunk. Pins are DOM markers (real buttons:
@@ -28,7 +29,7 @@ export interface AtlasMapOptions {
   /** A wishlist pin was picked, with the idea's id. */
   onSelectIdea?: (ideaId: string) => void
   /** A wishlist pin was hovered or focused (null: no longer, or the camera moved). */
-  onIdeaHover?: (hover: IdeaHover | null) => void
+  onIdeaHover?: ReportIdeaHover
   onReady?: () => void
   /** Fires when the camera settles, with whether it is tilted into 3D. */
   onTilt?: (tilted: boolean) => void
@@ -51,9 +52,11 @@ export interface FrameOptions {
 export interface AtlasMapHandle {
   setPins(pins: readonly AtlasPin[]): void
   /**
-   * Wishlist pins: their own marker set, drawn under the stops. They never
-   * frame the camera, join the declutter or the label guard, or light up
-   * as the active or hovered stop.
+   * Wishlist pins: their own marker set, drawn over the stops (a hovered,
+   * lit or active stop still rises over them). Hearts that would sit on
+   * each other at the current zoom are drawn as one counted heart that
+   * zooms in to them. They never frame the camera, join the stops'
+   * declutter or the label guard, or light up as the active or hovered stop.
    */
   setIdeaPins(pins: readonly AtlasPin[]): void
   setRoute(lines: readonly LngLat[][]): void
@@ -85,6 +88,21 @@ interface PinEntry {
   marker: Marker
   el: HTMLButtonElement
 }
+
+/** Wishlist hearts drawn as one: their ids in list order. */
+interface FoldEntry {
+  ids: string[]
+  names: string[]
+  /** The middle of its hearts, where the fold stands. */
+  at: LngLat
+  marker: Marker
+  el: HTMLButtonElement
+}
+
+/** Room kept around a fold's hearts when it zooms in to them, in CSS pixels. */
+const FOLD_PADDING = 64
+/** How far above its point a stop's body is centred (a 30 px body on a 7 px stem). */
+const STOP_BODY_RISE = 22
 
 /**
  * A leg drawn as a shallow arc rather than a ruler line: it reads as "then
@@ -163,11 +181,27 @@ function hotelMark(): HTMLSpanElement {
   return mark
 }
 
-/** Reports a wishlist pin's hover and keyboard focus, for the map's preview card. */
-function watchIdeaHover(el: HTMLButtonElement, id: string, options: AtlasMapOptions) {
+/** A heart with a count: several wishlist places that would sit on each other at this zoom. */
+function foldElement(): HTMLButtonElement {
+  const el = document.createElement("button")
+  el.type = "button"
+  el.className = "atlas-pin atlas-pin--idea atlas-pin--fold"
+  const body = document.createElement("span")
+  body.className = "atlas-pin__body"
+  const count = document.createElement("span")
+  count.className = "atlas-pin__count"
+  count.setAttribute("aria-hidden", "true")
+  body.append(heart(), count)
+  el.append(body)
+  return el
+}
+
+/** Reports a wishlist pin's hover and keyboard focus, for the map's preview card; a fold's report names its places. */
+function watchIdeaHover(el: HTMLButtonElement, id: string, options: AtlasMapOptions, names?: readonly string[]) {
   const report = options.onIdeaHover
   if (!report) return
-  const on = ideaHoverHandlers(id, report)
+  const on = ideaHoverHandlers(id, report, names)
+  el.setAttribute("aria-describedby", on["aria-describedby"])
   el.addEventListener("pointerenter", on.onPointerEnter)
   el.addEventListener("pointerleave", on.onPointerLeave)
   el.addEventListener("pointerdown", on.onPointerDown)
@@ -220,6 +254,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   const pins = new Map<string, PinEntry>()
   /** Wishlist pins, kept apart from `pins` so nothing that reads stops sees them. */
   const ideas = new Map<string, PinEntry>()
+  /** Hearts drawn as one at the current zoom, by their ids joined. */
+  const folds = new Map<string, FoldEntry>()
 
   const map = new MapLibre({
     container,
@@ -483,6 +519,125 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     }
   }
   map.on("moveend", declutter)
+
+  /** Zoom in until a fold's hearts stand apart (or, on one spot, as far as folding goes). */
+  const zoomToIdeas = (ids: readonly string[]) => {
+    const points = ids.flatMap((id) => {
+      const pin = ideas.get(id)?.pin
+      return pin ? [pin] : []
+    })
+    if (points.length === 0) return
+    const lngs = points.map((point) => point.lng)
+    const lats = points.map((point) => point.lat)
+    const bearing = map.getBearing()
+    let fit: ReturnType<typeof map.cameraForBounds>
+    try {
+      fit = map.cameraForBounds(
+        [
+          [Math.min(...lngs), Math.min(...lats)],
+          [Math.max(...lngs), Math.max(...lats)],
+        ],
+        { padding: FOLD_PADDING, maxZoom: FOLD_MAX_ZOOM, bearing },
+      )
+    } catch {
+      return
+    }
+    if (!fit) return
+    touched = true
+    map.easeTo({ ...fit, bearing, pitch: map.getPitch(), duration: reducedMotion ? 0 : 700, essential: true })
+  }
+
+  /**
+   * Fold the hearts that would sit under each other's target at this zoom
+   * into one counted heart each; past `FOLD_MAX_ZOOM`, spread the ones on
+   * one spot sideways instead. Keyboard focus stays on the place it was on,
+   * on whichever heart now stands for it.
+   */
+  const refold = () => {
+    const shown = [...ideas.values()]
+    const active = document.activeElement
+    const focused = shown.find((entry) => entry.el === active)?.pin.id ?? [...folds.values()].find((entry) => entry.el === active)?.ids[0]
+    const screen = shown.map(({ pin }, rank) => {
+      const at = map.project([pin.lng, pin.lat])
+      return { id: pin.id, x: at.x, y: at.y, rank }
+    })
+    // A camera that eased to the last zoom of folding can stop a hair short of it.
+    const close = map.getZoom() < FOLD_MAX_ZOOM - 0.01
+    const groups = close ? foldIdeas(screen) : screen.map((at) => [at.id])
+    const kept = new Set<string>()
+    for (const ids of groups) {
+      for (const id of ids) {
+        const { el } = ideas.get(id)!
+        // A heart folded away from under the mouse hears no leave: its preview goes now.
+        if (ids.length > 1 && !el.classList.contains("atlas-pin--folded") && el.matches(":hover")) options.onIdeaHover?.(null)
+        el.classList.toggle("atlas-pin--folded", ids.length > 1)
+      }
+      if (ids.length < 2) continue
+      const key = ids.join(" ")
+      kept.add(key)
+      const members = ids.map((id) => ideas.get(id)!.pin)
+      const mid = centroid(members)!
+      const names = members.map((pin) => pin.title)
+      const existing = folds.get(key)
+      if (existing && existing.names.join("\n") === names.join("\n")) {
+        existing.marker.setLngLat([mid.lng, mid.lat])
+        existing.at = mid
+        continue
+      }
+      existing?.marker.remove()
+      const el = foldElement()
+      el.setAttribute("aria-label", `${ids.length} wishlist places here: zoom in`)
+      el.dataset.ideaFold = ids.join(" ")
+      el.querySelector(".atlas-pin__count")!.textContent = String(ids.length)
+      el.addEventListener("click", (event) => {
+        event.stopPropagation()
+        zoomToIdeas(ids)
+      })
+      watchIdeaHover(el, ids[0]!, options, names)
+      const marker = new Marker({ element: el, anchor: "center", subpixelPositioning: true }).setLngLat([mid.lng, mid.lat]).addTo(map)
+      folds.set(key, { ids, names, at: mid, marker, el })
+    }
+    for (const [key, entry] of folds) {
+      if (kept.has(key)) continue
+      entry.marker.remove()
+      folds.delete(key)
+    }
+    const spread = close ? new Map<string, number>() : spreadPins(screen)
+    // Hearts stand over the stops, so a heart on a stop's body steps down to
+    // the stop's foot: a tap on either body still lands on that pin.
+    const bodies = [...pins.values()].flatMap(({ pin, marker }) => {
+      if (pin.variant !== "stop" && pin.variant !== "hotel") return []
+      const at = map.project([pin.lng, pin.lat])
+      const offset = marker.getOffset()
+      return [{ x: at.x + offset.x, y: at.y + offset.y - (pin.variant === "stop" ? STOP_BODY_RISE : 0) }]
+    })
+    const clearOf = (x: number, y: number) => {
+      let dy = 0
+      for (let pass = 0; pass < 3; pass++) {
+        const under = bodies.filter((body) => Math.abs(body.x - x) < HEART_REACH && Math.abs(body.y - (y + dy)) < HEART_REACH)
+        if (under.length === 0) break
+        dy = Math.max(...under.map((body) => body.y + HEART_REACH + 2 - y))
+      }
+      return Math.round(dy)
+    }
+    const place = (marker: Marker, x: number, y: number, dx: number) => {
+      const dy = clearOf(x + dx, y)
+      const now = marker.getOffset()
+      if (now.x !== dx || now.y !== dy) marker.setOffset([dx, dy])
+    }
+    shown.forEach((entry, rank) => {
+      if (!entry.el.classList.contains("atlas-pin--folded")) place(entry.marker, screen[rank]!.x, screen[rank]!.y, spread.get(entry.pin.id) ?? 0)
+    })
+    for (const entry of folds.values()) {
+      const at = map.project([entry.at.lng, entry.at.lat])
+      place(entry.marker, at.x, at.y, 0)
+    }
+    if (focused === undefined) return
+    const own = ideas.get(focused)
+    const now = own?.el.classList.contains("atlas-pin--folded") ? [...folds.values()].find((entry) => entry.ids.includes(focused))?.el : own?.el
+    if (now && now !== active) now.focus({ preventScroll: true })
+  }
+  map.on("moveend", refold)
   // A preview sits beside where its pin was: while the camera moves (a hover
   // that lands mid-flight included), it goes and none starts.
   map.on("move", () => options.onIdeaHover?.(null))
@@ -585,6 +740,9 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         })
           .setLngLat([pin.lng, pin.lat])
           .addTo(map)
+        // Markers stack in page order: a stop made after the hearts goes in under them.
+        const firstIdea = el.parentElement?.querySelector(":scope > .atlas-pin--idea")
+        if (firstIdea) el.parentElement!.insertBefore(el, firstIdea)
         const entry = { pin, marker, el }
         pins.set(pin.id, entry)
         classes(entry)
@@ -598,6 +756,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       for (const entry of pins.values()) if (entry.pin.variant === "trip") chips++
       placeLabels()
       declutter()
+      // The hearts step clear of the stops' bodies where they stand now.
+      refold()
       ;(map.getSource(GUARD_SOURCE) as GeoJSONSource | undefined)?.setData(guardData())
     },
     setIdeaPins(next) {
@@ -626,6 +786,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         entry.marker.remove()
         ideas.delete(id)
       }
+      refold()
     },
     setDots(points) {
       dots = points
@@ -758,8 +919,10 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       if (spinFrame) cancelAnimationFrame(spinFrame)
       for (const entry of pins.values()) entry.marker.remove()
       for (const entry of ideas.values()) entry.marker.remove()
+      for (const entry of folds.values()) entry.marker.remove()
       pins.clear()
       ideas.clear()
+      folds.clear()
       map.remove()
     },
   }

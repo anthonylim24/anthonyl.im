@@ -31,8 +31,6 @@ export const hoverCard = stylex.create({
     borderColor: "var(--trips-line)",
     borderRadius: "var(--trips-radius)",
     boxShadow: "var(--trips-shadow-2)",
-    // A preview, never a target: the pin under it and the map stay clickable.
-    pointerEvents: "none",
     animationName: { default: grow, [REDUCE]: fade },
     animationDuration: { default: "140ms", [REDUCE]: "100ms" },
     animationTimingFunction: "var(--trips-ease-out)",

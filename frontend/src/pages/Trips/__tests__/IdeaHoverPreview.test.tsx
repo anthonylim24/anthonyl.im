@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { IdeaPreview } from "../ideas/IdeaPreview"
-import { HOVER_INTENT_MS } from "../map/useIdeaHover"
+import { FOCUS_REST_MS, IdeaPreview } from "../ideas/IdeaPreview"
+import { clearPlaceDetailsCache } from "../ideas/placeDetailsApi"
+import { HOVER_CLOSE_MS, HOVER_INTENT_MS } from "../map/useIdeaHover"
 import { AtlasMap } from "../map/AtlasMap"
 import { ideaPins, type AtlasPin } from "../map/geo"
 import type { Trip } from "../types"
@@ -46,6 +47,14 @@ function renderMap() {
 }
 
 const pin = (name: string) => screen.getByRole("button", { name: `${name}, on the wishlist` })
+const photo = { url: "https://images.example/market.jpg", author: { name: "Min Ji" } }
+const answer = (place: unknown) => new Response(JSON.stringify({ place }), { headers: { "content-type": "application/json" } })
+const detailsCalls = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("/api/places/details"))
+/** Let the look-up's timer fire and its promise chain settle. */
+const settleLookup = () => act(async () => {
+  await vi.advanceTimersByTimeAsync(0)
+  await vi.advanceTimersByTimeAsync(0)
+})
 
 describe("a wishlist pin's preview", () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>
@@ -53,19 +62,23 @@ describe("a wishlist pin's preview", () => {
     stubMatchMedia(false)
     localStorage.clear()
     vi.useFakeTimers()
-    fetchSpy = vi.spyOn(globalThis, "fetch")
+    clearPlaceDetailsCache()
+    fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => answer(null))
   })
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
-  it("shows what the place is after a mouse rests on its pin, and goes when it leaves", () => {
+  it("shows what the place is after a mouse rests on its pin, and goes a moment after it leaves", async () => {
+    fetchSpy.mockImplementation(async () => answer({ name: "Gwangjang Market", photos: [photo] }))
     renderMap()
     fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
-    // Passing over the map shows nothing.
+    // Passing over the map shows nothing, and asks for nothing.
     expect(screen.queryByRole("tooltip")).toBeNull()
-    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS - 1))
+    expect(detailsCalls(fetchSpy)).toHaveLength(0)
+    act(() => vi.advanceTimersByTime(1))
 
     const card = screen.getByRole("tooltip")
     expect(card).toHaveTextContent("Gwangjang Market")
@@ -73,13 +86,96 @@ describe("a wishlist pin's preview", () => {
     expect(card).toHaveTextContent("88 Changgyeonggung-ro, Jongno District")
     expect(card).toHaveTextContent("Try the bindaetteok at stall 17")
     expect(card).not.toHaveTextContent("mayak")
-    expect(card).toHaveTextContent("Click for details")
+    expect(card).not.toHaveTextContent(/for details/i)
     expect(pin("Gwangjang Market")).toHaveAccessibleDescription(/Gwangjang Market/)
-    // Nothing is fetched for a preview: no photo is held for this place yet, so none is shown.
+
+    // Rested on, the place is looked up once; its photo lands in room the card already held.
+    const frame = card.firstElementChild!
     expect(card.querySelector("img")).toBeNull()
-    expect(fetchSpy).not.toHaveBeenCalled()
+    await settleLookup()
+    expect(detailsCalls(fetchSpy)).toHaveLength(1)
+    expect(card.firstElementChild).toBe(frame)
+    expect(frame.querySelector("img")).toHaveAttribute("src", photo.url)
+    expect(frame).toHaveTextContent("Photo: Min Ji")
 
     fireEvent.pointerLeave(pin("Gwangjang Market"), { pointerType: "mouse" })
+    expect(screen.getByRole("tooltip")).toBe(card)
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS))
+    expect(screen.queryByRole("tooltip")).toBeNull()
+
+    // Back again: the answer is the session's now, so nothing more is asked.
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    expect(screen.getByRole("tooltip").querySelector("img")).toHaveAttribute("src", photo.url)
+    await settleLookup()
+    expect(detailsCalls(fetchSpy)).toHaveLength(1)
+  })
+
+  it("asks once for a place hovered twice before its answer comes, and gives the photo's room back when there is none", async () => {
+    let reply: (res: Response) => void = () => {}
+    fetchSpy.mockImplementation(async (url: unknown) =>
+      String(url).includes("/api/places/details")
+        ? new Promise<Response>((resolve) => (reply = resolve))
+        : new Response(JSON.stringify({ query: { geosearch: [] } }), { headers: { "content-type": "application/json" } }),
+    )
+    renderMap()
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    await settleLookup()
+    fireEvent.pointerDown(pin("Gwangjang Market"), { pointerType: "mouse" })
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    await settleLookup()
+    expect(detailsCalls(fetchSpy)).toHaveLength(1)
+    const card = screen.getByRole("tooltip")
+    expect(card.children).toHaveLength(2)
+
+    reply(answer(null))
+    await settleLookup()
+    expect(card.children).toHaveLength(1)
+    expect(card).toHaveTextContent("Gwangjang Market")
+  })
+
+  it("looks a place up only once keyboard focus has rested on its pin", async () => {
+    renderMap()
+    act(() => pin("Changdeokgung").focus())
+    act(() => pin("Gwangjang Market").focus())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FOCUS_REST_MS - 1)
+    })
+    expect(detailsCalls(fetchSpy)).toHaveLength(0)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(detailsCalls(fetchSpy)).toEqual([expect.stringContaining("name=Gwangjang+Market")])
+  })
+
+  it("stays while the mouse crosses to the card and rests on it, or comes back to the pin", () => {
+    renderMap()
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    const card = screen.getByRole("tooltip")
+
+    fireEvent.pointerLeave(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS / 2))
+    fireEvent.pointerEnter(card, { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS * 3))
+    expect(screen.getByRole("tooltip")).toBe(card)
+
+    fireEvent.pointerLeave(card, { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS / 2))
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS * 3))
+    expect(screen.getByRole("tooltip")).toBe(card)
+
+    // Straight from the pin onto the card, the card's enter can be heard before the pin's leave.
+    fireEvent.pointerEnter(card, { pointerType: "mouse" })
+    fireEvent.pointerLeave(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS * 3))
+    expect(screen.getByRole("tooltip")).toBe(card)
+
+    // Escape still dismisses it.
+    fireEvent.keyDown(document, { key: "Escape" })
     expect(screen.queryByRole("tooltip")).toBeNull()
   })
 
@@ -109,7 +205,6 @@ describe("a wishlist pin's preview", () => {
     const card = screen.getByRole("tooltip")
     expect(card).toHaveTextContent("Changdeokgung")
     expect(card).toHaveTextContent("Sights & culture")
-    expect(card).toHaveTextContent("Enter for details")
 
     fireEvent.keyDown(document, { key: "Escape" })
     expect(screen.queryByRole("tooltip")).toBeNull()

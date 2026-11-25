@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen } from "@testing-library/react"
 
-const mockSearch = vi.fn(async () => [])
+const mockSearch = vi.fn(async () => ({ places: [], lead: 0 }))
 vi.mock("../geocode", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../geocode")>()),
   searchPlaces: (...args: unknown[]) => mockSearch(...(args as [])),

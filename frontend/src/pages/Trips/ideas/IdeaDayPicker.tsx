@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { CalendarDays, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useLatestCallback } from "../../../hooks/useLatestCallback"
@@ -7,6 +7,7 @@ import { DayPicker } from "../workspace/DayPicker"
 import { ws as s } from "../workspace.stylex"
 import { ideaName, type DaySuggestions, type IdeaDayPickerProps } from "./contract"
 import { ideaDayChoices } from "./dayChoices"
+import { ideaFocusReturn } from "./focusReturn"
 import { picker as p } from "./picker.stylex"
 import { formatKm, suggestDays } from "./suggestDaysApi"
 
@@ -59,8 +60,14 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   const announcement =
     picks.length > 0 ? `${picks.length === 1 ? "1 recommended day" : `${picks.length} recommended days`} for ${name}` : ""
 
-  const pick = (dayId: string) => {
+  /** The day the place went to, for focus to follow it there. */
+  const picked = useRef<string | undefined>(undefined)
+  const choose = (dayId: string) => {
+    picked.current = dayId
     onPick(dayId)
+  }
+  const pick = (dayId: string) => {
+    choose(dayId)
     onClose()
   }
 
@@ -126,10 +133,10 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
       description="It goes on that day’s route, above anything still to schedule."
       choices={choices}
       lead={lead}
-      // The row that opened the picker leaves the list with the place; its
-      // entry under "On your days" shows where it went.
-      returnFocus={() => document.querySelector<HTMLElement>(`[data-scheduled-idea="${CSS.escape(idea.id)}"]`)}
-      onPick={onPick}
+      // The heart or row that opened the picker leaves with the place: its
+      // entry under "On your days", or its new stop or day, shows where it went.
+      returnFocus={() => ideaFocusReturn(idea.id, { dayId: picked.current })}
+      onPick={choose}
       onClose={onClose}
     />
   )
