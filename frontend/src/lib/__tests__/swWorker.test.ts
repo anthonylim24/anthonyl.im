@@ -78,9 +78,13 @@ function loadWorker(fetchImpl: (req: string | Req) => Promise<Response>) {
       waitUntil: (p: Promise<unknown>) => background.push(p),
       ...extra,
     })
-    // waitUntil can be called again while earlier work is pending.
+    // waitUntil can be called again while earlier work is pending: wait until a pass adds nothing.
     const settled = async () => {
-      for (let done = 0; done < background.length; done = background.length) await Promise.all(background)
+      let seen = -1
+      while (seen !== background.length) {
+        seen = background.length
+        await Promise.all(background)
+      }
     }
     return { response, settled }
   }

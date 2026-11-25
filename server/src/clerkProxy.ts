@@ -86,25 +86,26 @@ export function createClerkProxy({
         ...(body instanceof ReadableStream ? { duplex: "half" } : {}),
       } as RequestInit);
 
-    let upstream: Response;
-    try {
-      upstream = await attempt();
-      if (repeatable && upstream.status >= 502 && upstream.status <= 504) {
-        await upstream.body?.cancel();
+    // At most two attempts: a second on a network error or a gateway error.
+    const attempts = repeatable ? 2 : 1;
+    let upstream: Response | null = null;
+    let failure: unknown = null;
+    for (let tried = 1; tried <= attempts; tried++) {
+      if (tried > 1) {
         count("clerk_proxy.retries");
         await Bun.sleep(RETRY_PAUSE_MS);
-        upstream = await attempt();
       }
-    } catch (first) {
-      if (!repeatable) return unreachable(c, first);
-      count("clerk_proxy.retries");
       try {
-        await Bun.sleep(RETRY_PAUSE_MS);
         upstream = await attempt();
-      } catch (second) {
-        return unreachable(c, second);
+      } catch (error) {
+        upstream = null;
+        failure = error;
+        continue;
       }
+      if (tried === attempts || upstream.status < 502 || upstream.status > 504) break;
+      await upstream.body?.cancel();
     }
+    if (!upstream) return unreachable(c, failure);
 
     const responseHeaders = new Headers(upstream.headers);
     for (const name of DROPPED_RESPONSE_HEADERS) responseHeaders.delete(name);

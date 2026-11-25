@@ -199,6 +199,20 @@ test("retries a session touch on a gateway error", async () => {
   expect(bodies).toEqual(["a=b", "a=b"]);
 });
 
+test("tries a repeatable request twice at most, even when the gateway error is followed by a dropped connection", async () => {
+  const { app, bodies } = recordingApp([new Response("bad gateway", { status: 502 }), new Error("ECONNRESET"), new Response("{}")]);
+  const res = await quietly(() => app.fetch(new Request("https://anthonyl.im/__clerk/v1/client/sessions/sess_1/tokens", { method: "POST" })));
+  expect(res.status).toBe(502);
+  expect(bodies.length).toBe(2);
+});
+
+test("passes on the second gateway error rather than trying a third time", async () => {
+  const { app, bodies } = recordingApp([new Response("bad gateway", { status: 502 }), new Response("busy", { status: 503 })]);
+  const res = await app.fetch(new Request("https://anthonyl.im/__clerk/v1/environment"));
+  expect(res.status).toBe(503);
+  expect(bodies.length).toBe(2);
+});
+
 test("still never repeats a sign-in or any other write", async () => {
   for (const path of ["/v1/client/sign_ins", "/v1/client/sessions/sess_1/remove", "/v1/client/sessions/sess_1/tokens/x/y"]) {
     const { app, bodies } = recordingApp([new Error("ECONNRESET"), new Response("{}")]);

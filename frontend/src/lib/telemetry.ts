@@ -73,6 +73,9 @@ function writeUnsent(entries: Unsent[]): void {
   }
 }
 
+const sameReport = (a: Unsent, b: Unsent) =>
+  a.at === b.at && a.event.kind === b.event.kind && a.event.message === b.event.message
+
 /** Send now; if the network will not carry it, keep it for the next load. */
 function deliver(event: ClientEvent, at: number): void {
   // A non-2xx answer still reached the server, so only a rejected request is kept.
@@ -105,11 +108,16 @@ export function reportClientEvent(kind: string, message: string, detail?: Detail
  *  Call once the page has loaded. */
 export function sendUnsentEvents(now = Date.now()): void {
   const waiting = readUnsent()
-  if (waiting.length === 0) return
-  writeUnsent([])
-  for (const { event, at } of waiting) {
-    if (now - at > UNSENT_MAX_AGE_MS) continue
-    deliver({ ...event, detail: { ...event.detail, late: true, ageS: Math.round((now - at) / 1000) } }, at)
+  const fresh = waiting.filter((entry) => now - entry.at <= UNSENT_MAX_AGE_MS)
+  if (fresh.length < waiting.length) writeUnsent(fresh)
+  // Each stays stored until the server has it, so a page closed mid-send
+  // loses nothing; one that fails stays for the load after.
+  for (const entry of fresh) {
+    const { event, at } = entry
+    const late: ClientEvent = { ...event, detail: { ...event.detail, late: true, ageS: Math.round((now - at) / 1000) } }
+    void runPromise(send(late))
+      .then(() => writeUnsent(readUnsent().filter((other) => !sameReport(entry, other))))
+      .catch(() => {})
   }
 }
 

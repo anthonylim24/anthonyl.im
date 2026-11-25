@@ -53,7 +53,19 @@ describe("reportClientEvent", () => {
       kind: "auth_stalled",
       detail: { cause: "network", late: true, ageS: 90 },
     })
-    expect(localStorage.getItem("telemetry-unsent")).toBeNull()
+    await vi.waitFor(() => expect(localStorage.getItem("telemetry-unsent")).toBeNull())
+  })
+
+  it("keeps a stored report while its late send is pending, and after it fails", async () => {
+    const at = Date.UTC(2026, 10, 25)
+    localStorage.setItem("telemetry-unsent", JSON.stringify([{ at, event: { kind: "auth_stalled", message: "m", route: "/trips" } }]))
+    let fail = (): void => undefined
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((_, reject) => (fail = () => reject(new TypeError("Failed to fetch"))))))
+    sendUnsentEvents(at + 1000)
+    expect(localStorage.getItem("telemetry-unsent")).toContain("auth_stalled")
+    fail()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(JSON.parse(localStorage.getItem("telemetry-unsent")!)).toHaveLength(1)
   })
 
   it("does not keep a report the server answered, even with an error", async () => {
