@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, rankPlaces, searchCities, searchPlaces, worthAskingGoogle, type PlaceResult } from "../geocode"
+import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, nameMatches, rankPlaces, searchCities, searchPlaces, worthAskingGoogle, type PlaceResult } from "../geocode"
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -380,11 +380,37 @@ describe("rankPlaces", () => {
     expect(rankPlaces([many], waikiki, 3)).toHaveLength(3)
   })
 
+  it("given the query, keeps a far place only when its name is what was typed", () => {
+    const jeju = { lat: 33.5, lng: 126.53 }
+    const lotte = place("l", "Lotte Mart", 33.49, 126.49)
+    const edinburgh = place("e", "Rain Jackets Direct", 55.95, -3.19)
+    const atlanta = place("a", "Bring rain jackets", 33.75, -84.39)
+    expect(rankPlaces([[lotte, edinburgh, atlanta]], jeju, 8, "Bring rain jackets").map((p) => p.id)).toEqual(["l", "a"])
+    const osaka = place("o", "Osaka Castle", 34.69, 135.53)
+    expect(rankPlaces([[osaka]], { lat: 35.68, lng: 139.76 }, 8, "osaka castle").map((p) => p.id)).toEqual(["o"])
+  })
+
   it("counts O'ahu's North Shore as local to Honolulu", () => {
     const north = place("n", "Turtle Bay", 21.705, -157.998)
     const tokyo = place("t", "Turtle Bay Tokyo", 35.68, 139.76)
     expect(rankPlaces([[tokyo, north]], { lat: 21.3, lng: -157.86 }).map((p) => p.id)).toEqual(["n", "t"])
     expect(LOCAL_METERS).toBeGreaterThan(50_000)
+  })
+})
+
+describe("nameMatches", () => {
+  it("matches a name the typed words start, or a name inside what was typed", () => {
+    expect(nameMatches("gyeongbok", "Gyeongbokgung Palace")).toBe(true)
+    expect(nameMatches("Lotte Mart Jeju", "Lotte Mart")).toBe(true)
+    expect(nameMatches("leonards", "Leonard’s Bakery")).toBe(true)
+    expect(nameMatches("경복", "경복궁")).toBe(true)
+    expect(nameMatches("광장시장 육회", "광장시장")).toBe(true)
+  })
+
+  it("does not match a place a search engine only related to the words", () => {
+    expect(nameMatches("Bring rain jackets", "Lotte Mart")).toBe(false)
+    expect(nameMatches("rain jackets", "Rainbow Jacket Shop")).toBe(false)
+    expect(nameMatches("", "Lotte Mart")).toBe(false)
   })
 })
 

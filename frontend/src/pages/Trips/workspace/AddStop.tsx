@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
 import { MapPin, Plus, Search, StickyNote, Ticket } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { searchPlaces, type PlaceResult } from "../geocode"
+import { nameMatches, searchPlaces, type PlaceResult } from "../geocode"
 import { extractInstagramUrls } from "../instagram/instagram"
 import { IgGlyph } from "../instagram/IgGlyph"
 import { itemIcon } from "../meta"
@@ -148,7 +148,11 @@ export function AddStop({
     setCursorKey(null)
     setEnterPending(false)
   }
-  const cursor = Math.max(0, options.findIndex((option) => optionKey(option) === cursorKey))
+  // Untouched, the highlight is the first place named what was typed, else
+  // the text as typed: a search engine's loose guess is never added unasked.
+  const fallback = options.findIndex((option) => option.type !== "place" || nameMatches(typed, option.place.name))
+  const chosen = options.findIndex((option) => optionKey(option) === cursorKey)
+  const cursor = chosen >= 0 ? chosen : fallback
   const setCursor = (index: number) => setCursorKey(options[index] ? optionKey(options[index]) : null)
 
   useEffect(() => {
@@ -178,9 +182,8 @@ export function AddStop({
     inputRef.current?.focus()
   }
 
-  // The default pick is the first search result, so while the search is out
-  // Enter waits for it rather than adding the text "without a pin". An
-  // option the traveller arrowed to is theirs already.
+  // The default pick depends on what the search finds, so while it is out
+  // Enter waits for it. An option the traveller arrowed to is theirs already.
   const submit = () => {
     const wait = loading && cursorKey === null && igUrls.length === 0
     setEnterPending(wait)
@@ -205,7 +208,7 @@ export function AddStop({
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault()
       setOpen(true)
-      setCursor((cursor + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length)
+      setCursor((Math.max(0, cursor) + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length)
     } else if (event.key === "Enter") {
       event.preventDefault()
       submit()
@@ -307,7 +310,7 @@ export function AddStop({
           role="combobox"
           aria-expanded={showList}
           aria-controls={listId}
-          aria-activedescendant={showList ? `${listId}-${cursor}` : undefined}
+          aria-activedescendant={showList && cursor >= 0 ? `${listId}-${cursor}` : undefined}
           aria-autocomplete="list"
           aria-label={label}
           autoComplete="off"

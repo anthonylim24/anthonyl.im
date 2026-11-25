@@ -4,7 +4,10 @@ import { useState } from "react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 
 const mockSearch = vi.fn(async () => [])
-vi.mock("../geocode", () => ({ searchPlaces: (...args: unknown[]) => mockSearch(...(args as [])) }))
+vi.mock("../geocode", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../geocode")>()),
+  searchPlaces: (...args: unknown[]) => mockSearch(...(args as [])),
+}))
 
 import type { UndoMark } from "../editorMachine"
 import { LIMITS } from "../limits"

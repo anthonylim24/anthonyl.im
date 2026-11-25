@@ -48,7 +48,8 @@ vi.mock("../tripsApi", () => ({
 
 const mockSearchPlaces = vi.fn()
 
-vi.mock("../geocode", () => ({
+vi.mock("../geocode", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../geocode")>()),
   searchPlaces: (...args: unknown[]) => mockSearchPlaces(...args),
   searchCities: vi.fn().mockResolvedValue([]),
   cityLabel: (city: { name: string }) => city.name,
