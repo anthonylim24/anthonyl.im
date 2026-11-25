@@ -5,9 +5,11 @@ import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
 import type { ItineraryItem, Trip } from "../../types"
 import { OverviewPanel } from "../../workspace/OverviewPanel"
 import { pickOption } from "../../__tests__/pickOption"
+import { STOP_STATUS_OF } from "../status"
 
+// The stop's status paired with the booking's, as the editor and an import leave them.
 const booking = (id: string, title: string, time: string | undefined, reservation: ItineraryItem["reservation"]): ItineraryItem =>
-  makeItem({ id, kind: "reservation", title, status: "booked", time, reservation })
+  makeItem({ id, kind: "reservation", title, status: STOP_STATUS_OF[reservation?.status ?? "confirmed"], time, reservation })
 
 const trip = makeTrip({
   days: [
@@ -64,7 +66,9 @@ describe("OverviewPanel bookings", () => {
       "/trips/lisbon/day/day-2#item-train",
     ])
     expect(links[0]).toHaveTextContent("TP 202 · BOS → LIS")
-    expect(links[2]).toHaveTextContent("Pending: not confirmed yet")
+    // Its chip says Pending; the lines do not say it again.
+    expect(links[2]).toHaveTextContent("Pending")
+    expect(links[2]).not.toHaveTextContent(/not confirmed/i)
   })
 
   it("offers to paste a confirmation or enter a booking by hand", () => {

@@ -251,7 +251,7 @@ function DraftCard({ trip, draft, onUpdate }: { trip: Trip; draft: BookingDraft;
           <span {...sx(bk.cardWhen)}>
             <Parts parts={[bookingTypeLabel(draft.item.reservation?.type), ...bookingWhen(draft.item, { date: draft.date })]} />
           </span>
-          <BookingSummaryLines item={draft.item} trip={trip} day={day} />
+          <BookingSummaryLines item={draft.item} trip={trip} day={day} withStatus />
           {outside && (
             <span {...sx(bk.cardOutside)}>
               {dayShort({ date: draft.date })} is outside this trip ({formatRange(trip.startDate, trip.endDate)}).

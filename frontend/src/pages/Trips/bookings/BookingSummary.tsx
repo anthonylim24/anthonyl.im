@@ -11,15 +11,17 @@ import { bookingLines, contactHref, httpsUrl, linkHost } from "./lines"
 
 type Props = { item: ItineraryItem; trip: Pick<Trip, "timezone">; day: Pick<TripDay, "date" | "timezone"> }
 
-const STATUS_NOTE = { tentative: "Tentative", pending: "Pending: not confirmed yet" } as const
+const STATUS_NOTE = { tentative: "Tentative", pending: "Not confirmed yet" } as const
 
 /**
  * A booking's lines alone, with nothing to press: for inside a link (the
  * overview's bookings list), where a button or a second link can't go.
+ * `withStatus` adds a line when it is not confirmed, where no status chip
+ * beside it says so already.
  */
-export function BookingSummaryLines({ item, trip, day }: Props) {
+export function BookingSummaryLines({ item, trip, day, withStatus = false }: Props & { withStatus?: boolean }) {
   const lines = bookingLines(item, { trip, day })
-  const status = reservationOf(item).status
+  const status = withStatus ? reservationOf(item).status : "confirmed"
   if (lines.length === 0 && status === "confirmed") return null
   return (
     <span {...sx(bk.lines)}>
@@ -45,7 +47,7 @@ export function BookingSummary({ item, trip, day }: Props) {
   const url = httpsUrl(r.url)
   return (
     <div {...sx(bk.summary)}>
-      <BookingSummaryLines item={item} trip={trip} day={day} />
+      <BookingSummaryLines item={item} trip={trip} day={day} withStatus />
       {(confirmation || contact || url) && (
         <dl {...sx(bk.facts)}>
           {confirmation && (
