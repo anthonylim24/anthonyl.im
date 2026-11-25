@@ -38,7 +38,7 @@ export const ar = stylex.create({
   photo: {
     display: "block",
     width: "100%",
-    aspectRatio: "12 / 5",
+    aspectRatio: "3 / 1",
     objectFit: "cover",
     backgroundColor: "var(--trips-sunken)",
   },
@@ -112,7 +112,7 @@ export const ar = stylex.create({
   },
   // Loading: the shape of a card, so nothing jumps when the areas arrive.
   ghost: { display: "flex", flexDirection: "column", gap: "0.625rem", padding: "0 1.125rem 1.125rem" },
-  ghostPhoto: { width: "100%", aspectRatio: "12 / 5", borderRadius: 0 },
+  ghostPhoto: { width: "100%", aspectRatio: "3 / 1", borderRadius: 0 },
   ghostLine: { height: "0.875rem" },
   message: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.75rem", maxWidth: "34rem" },
 
