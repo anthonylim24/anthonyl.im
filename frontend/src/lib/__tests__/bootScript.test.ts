@@ -39,22 +39,18 @@ describe('the boot screen index.html paints', () => {
     expect(document.querySelectorAll('#boot')).toHaveLength(1)
   })
 
-  it('tints a trip in the accent it last opened with, and nothing else', () => {
+  it.each([
+    ['/trips/korea-2026', '{"korea-2026":"rose"}', 'rose'],
+    ['/preview/pr/12/trips/korea-2026/day/3', '{"korea-2026":"rose"}', 'rose'],
+    ['/trips', '{"korea-2026":"rose"}', null],
+    ['/trips/tokyo', '{"korea-2026":"rose"}', null],
+    ['/trips/korea-2026', 'not json', null],
+  ])('at %s with remembered accents %s is tinted %s', (path, remembered, accent) => {
     prefersDark(false)
-    localStorage.setItem('trips-boot-accent', '{"korea-2026":"rose"}')
-    expect(paintBoot('/trips/korea-2026')).toHaveAttribute('data-accent', 'rose')
-    clearBoot()
-    localStorage.setItem('trips-boot-accent', '{"korea-2026":"rose"}')
-    expect(paintBoot('/preview/pr/12/trips/korea-2026/day/3')).toHaveAttribute('data-accent', 'rose')
-    clearBoot()
-    localStorage.setItem('trips-boot-accent', '{"korea-2026":"rose"}')
-    expect(paintBoot('/trips')).not.toHaveAttribute('data-accent')
-    clearBoot()
-    localStorage.setItem('trips-boot-accent', '{"korea-2026":"rose"}')
-    expect(paintBoot('/trips/tokyo')).not.toHaveAttribute('data-accent')
-    clearBoot()
-    localStorage.setItem('trips-boot-accent', 'not json')
-    expect(paintBoot('/trips/korea-2026')).not.toHaveAttribute('data-accent')
+    localStorage.setItem('trips-boot-accent', remembered)
+    const boot = paintBoot(path)
+    if (accent) expect(boot).toHaveAttribute('data-accent', accent)
+    else expect(boot).not.toHaveAttribute('data-accent')
   })
 
   it.each([

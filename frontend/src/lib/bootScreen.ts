@@ -24,13 +24,16 @@ type Screen =
   | { phase: 'showing'; el: HTMLElement }
   | { phase: 'leaving'; el: HTMLElement; timer: ReturnType<typeof setTimeout> }
 
+type Leaving = Extract<Screen, { phase: 'leaving' }>
+
 /** Below this long on screen, the full exit would only delay the page. */
 const QUICK_BELOW_MS = 300
+/** index.html's `boot-out` animation, which the quick exit plays. */
 const QUICK_EXIT_MS = 160
 
 /** Oldest first; the newest names the world and step on screen. */
 const holds: Hold[] = []
-let exit: Extract<Screen, { phase: 'leaving' }> | null = null
+let exit: Leaving | null = null
 
 function current(): Screen {
   const el = document.getElementById('boot')
@@ -56,35 +59,37 @@ function leave(el: HTMLElement) {
   exit = { phase: 'leaving', el, timer }
 }
 
-function stopExit(el: HTMLElement) {
-  if (exit?.el !== el) return
-  clearTimeout(exit.timer)
+function cancelExit(screen: Leaving) {
+  clearTimeout(screen.timer)
   exit = null
 }
 
 function reconcile() {
   const want = holds[holds.length - 1]
-  const screen = current()
+  let screen = current()
   if (!want) {
     if (screen.phase === 'showing') leave(screen.el)
     return
   }
-  let el = screen.phase === 'gone' ? null : screen.el
-  if (el && el.dataset.world !== want.world) {
-    stopExit(el)
-    el.remove()
-    el = null
+  if (screen.phase !== 'gone' && screen.el.dataset.world !== want.world) {
+    if (screen.phase === 'leaving') cancelExit(screen)
+    screen.el.remove()
+    screen = { phase: 'gone' }
   }
-  el ??= window.__bootMount?.(want.world) ?? null
-  if (!el) return
-  if (exit?.el === el) {
-    stopExit(el)
+  if (screen.phase === 'gone') {
+    const el = window.__bootMount?.(want.world)
+    if (!el) return
+    screen = { phase: 'showing', el }
+  }
+  if (screen.phase === 'leaving') {
+    cancelExit(screen)
+    const { el } = screen
     el.dataset.state = 'showing'
     delete el.dataset.exit
     el.removeAttribute('inert')
     el.setAttribute('aria-busy', 'true')
   }
-  el.dataset.step = want.step
+  screen.el.dataset.step = want.step
 }
 
 /** Keeps the boot screen up (bringing it back if it left) until the returned release is called. */
