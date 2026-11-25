@@ -259,12 +259,9 @@ export function ChecklistPanel({
             ) : (
               <>
                 <h2 id={`${uid}-empty`} {...sx(a.display, p.emptyTitle)}>
-                  Ready when you <em {...sx(a.italic)}>go</em>
+                  Nothing on the <em {...sx(a.italic)}>list</em> yet
                 </h2>
-                <p {...sx(a.body, p.measure)}>
-                  Packing, documents and the jobs to do before you leave, in one list the whole trip can tick off. Suggestions
-                  come from your plan: its weather, places and bookings.
-                </p>
+                <p {...sx(a.body, p.measure)}>Suggestions come from your plan’s weather, places and bookings.</p>
               </>
             )}
             {notice && <p {...sx(a.small)}>{notice}</p>}

@@ -89,8 +89,7 @@ describe("BudgetPanel", () => {
 
   it("starts a fresh trip with what this is for and the two ways in", () => {
     renderPanel(makeTrip())
-    expect(screen.getByRole("heading", { name: "What the trip costs" })).toBeInTheDocument()
-    expect(screen.getByText("Log what you spend as you go, set a budget, and see who owes whom.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Nothing spent yet" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Log an expense" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Set a budget" })).toBeInTheDocument()
     expect(mockLoadRates).not.toHaveBeenCalled()
@@ -327,7 +326,7 @@ describe("BudgetPanel", () => {
 
   it("tells a viewer of a fresh trip there is nothing yet", () => {
     renderPanel(makeTrip(), { editable: false })
-    expect(screen.getByText("Nothing spent or planned yet.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Nothing spent yet" })).toBeInTheDocument()
     expect(screen.queryAllByRole("button")).toHaveLength(0)
   })
 

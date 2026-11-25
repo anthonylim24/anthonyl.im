@@ -74,7 +74,7 @@ test.describe('budget', () => {
       await serverTrip(request, trip.id, (t) => t.budget === undefined, 'the budget was removed on the server')
 
       await page.reload()
-      await expect(page.getByRole('heading', { name: 'What the trip costs' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Nothing spent yet' })).toBeVisible()
     } finally {
       await deleteTrip(request, trip.id)
     }

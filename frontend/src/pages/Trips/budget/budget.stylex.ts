@@ -304,5 +304,4 @@ export const b = stylex.create({
     boxShadow: "var(--trips-shadow-1)",
   },
   emptyTitle: { fontSize: "clamp(2rem, 6vw, 2.5rem)", lineHeight: 1.02 },
-  measure: { maxWidth: "34rem" },
 })

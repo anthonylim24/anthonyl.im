@@ -67,7 +67,7 @@ describe("ChecklistPanel", () => {
   it("after the trip, asks what is left to do instead of offering packing", () => {
     setup({ dates: { startDate: "2020-05-01", endDate: "2020-05-10" } })
     expect(screen.getByRole("heading", { name: /after the trip/i })).toBeInTheDocument()
-    expect(screen.queryByRole("heading", { name: /ready when you go/i })).toBeNull()
+    expect(screen.queryByRole("heading", { name: /nothing on the list yet/i })).toBeNull()
     expect(screen.queryByRole("button", { name: "Suggest from your plan" })).toBeNull()
     expect(screen.getByRole("button", { name: "Add your own" })).toBeEnabled()
   })
@@ -80,7 +80,7 @@ describe("ChecklistPanel", () => {
 
   it("shows the first-run state with both ways in", () => {
     setup()
-    expect(screen.getByRole("heading", { name: /ready when you go/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /nothing on the list yet/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Suggest from your plan" })).toBeEnabled()
     fireEvent.click(screen.getByRole("button", { name: "Add your own" }))
     expect(screen.getByRole("heading", { name: "Packing" })).toBeInTheDocument()

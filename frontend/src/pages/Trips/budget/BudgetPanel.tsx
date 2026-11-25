@@ -421,13 +421,8 @@ function EmptyBudget({
     <section aria-labelledby={titleId} {...sx(b.empty)}>
       <p {...sx(a.eyebrow)}>Budget</p>
       <h2 id={titleId} {...sx(a.display, b.emptyTitle)}>
-        What the trip <em {...sx(a.italic)}>costs</em>
+        Nothing <em {...sx(a.italic)}>spent</em> yet
       </h2>
-      <p {...sx(a.body, b.measure)}>
-        {editable
-          ? "Log what you spend as you go, set a budget, and see who owes whom."
-          : "Nothing spent or planned yet."}
-      </p>
       {editable && (
         <div {...sx(a.rowWrap)}>
           <button type="button" disabled={locked} {...sx(a.btn, a.btnPrimary)} onClick={onLog}>
@@ -640,9 +635,7 @@ function SpentSection({
       {notice}
       {editable && editing?.k === "new" && form(editing.fields)}
       {count === 0 && editing?.k !== "new" && (
-        <p {...sx(a.small)}>
-          {editable ? "Nothing logged yet. Log what you spend and it counts against the budget." : "Nothing logged yet."}
-        </p>
+        <p {...sx(a.small)}>Nothing logged yet.</p>
       )}
       {groups.map((group) => {
         const total = group.expenses.reduce((sum, e) => sum + (convert(e.amount, e.currency, currency, rates) ?? 0), 0)
