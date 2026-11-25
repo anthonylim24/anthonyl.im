@@ -263,6 +263,7 @@ function Workspace() {
   const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
   /** Offered after the traveller adds or changes where they sleep. */
   const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
+  /** Every stay this trip has had while open: one coming back (an undo, a redo, a re-add) is not news. */
   const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   /** Phones mount the map the first time it is asked for, then only hide it. */
@@ -600,10 +601,11 @@ function Workspace() {
   useEffect(() => {
     if (!trip) return
     const entries = lodgingEntries(trip)
-    const known = lodgingRef.current
-    lodgingRef.current = { tripId: trip.id, entries }
-    if (!known || known.tripId !== trip.id || aiBusy || !editable || trip === editor.aiTripRef.current) return
-    const changed = changedLodging(known.entries, entries)
+    const known = lodgingRef.current?.tripId === trip.id ? lodgingRef.current : null
+    const changed = known ? changedLodging(known.entries, entries) : null
+    const seen = new Map([...(known?.entries ?? []), ...entries].map((entry) => [entry.key, entry]))
+    lodgingRef.current = { tripId: trip.id, entries: [...seen.values()] }
+    if (!known || aiBusy || !editable || trip === editor.aiTripRef.current) return
     const otherStops = trip.days.some((d) => d.items.some((item) => item.kind === "place" && item.id !== changed?.itemId))
     if (changed && otherStops) setLodgingNudge(changed)
     else if (lodgingNudge && !entries.some((entry) => entry.key === lodgingNudge.key)) setLodgingNudge(null)

@@ -802,6 +802,29 @@ describe("TripWorkspace", () => {
       expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
     })
 
+    it("does not offer a rework again when the same hotel comes back by undo, redo or clearing the day", async () => {
+      mockSearchPlaces.mockResolvedValue([{ id: "W9", name: "Pestana Palace", context: "Lisbon", address: "Lisbon", lat: 38.7031, lng: -9.1853, category: "hotel" }])
+      renderWorkspace("/trips/lisbon/day/day-2")
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
+      fireEvent.change(input, { target: { value: "pestana" } })
+      fireEvent.click(await screen.findByRole("option", { name: /Pestana Palace/ }))
+      fireEvent.click(await screen.findByRole("button", { name: "Not now" }))
+
+      fireEvent.keyDown(document.body, { key: "z", ctrlKey: true })
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Show Pestana Palace on the map" })).toBeNull())
+      fireEvent.keyDown(document.body, { key: "Z", ctrlKey: true, shiftKey: true })
+      await screen.findByRole("button", { name: "Show Pestana Palace on the map" })
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+
+      fireEvent.click(screen.getByRole("button", { name: "More for day 2" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Clear this day" }))
+      fireEvent.click(within(await screen.findByRole("dialog", { name: "Clear day 2?" })).getByRole("button", { name: "Clear day" }))
+      const toast = (await screen.findByText("Cleared day 2")).closest('[role="status"]') as HTMLElement
+      fireEvent.click(within(toast).getByRole("button", { name: "Undo" }))
+      await screen.findByRole("button", { name: "Show Pestana Palace on the map" })
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+    })
+
     it("does not offer a rework for an ordinary stop, and “Not now” dismisses the offer", async () => {
       renderWorkspace("/trips/lisbon/day/day-2")
       const input = await screen.findByRole("combobox", { name: "Add a place, note or link" })
