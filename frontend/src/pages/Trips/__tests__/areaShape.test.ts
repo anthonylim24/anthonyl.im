@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { approximateArea, shapeCorners, type LngLat } from "../map/geo"
+import { approximateArea, distanceMeters, shapeCorners, type LngLat } from "../map/geo"
 
 // The hull itself is tested beside it (server/src/trips/areaHull.test.ts).
 
@@ -21,6 +21,20 @@ describe("approximateArea", () => {
     const ring = shape?.geometry.type === "Polygon" ? shape.geometry.coordinates[0]! : []
     expect(ring.length).toBeGreaterThan(16)
     expect(ring[0]).toEqual(ring[ring.length - 1])
+  })
+})
+
+describe("approximateArea's margin", () => {
+  const ringOf = (points: LngLat[]) => {
+    const shape = approximateArea(points)
+    return shape?.geometry.type === "Polygon" ? shape.geometry.coordinates[0]! : []
+  }
+  const margin = (points: LngLat[]) =>
+    Math.min(...ringOf(points).map(([lng, lat]) => Math.min(...points.map((p) => distanceMeters(p, { lat: lat!, lng: lng! })))))
+
+  it("is 250 m around one stop and 600 m around stops far apart", () => {
+    expect(margin([ALFAMA[0]!])).toBeCloseTo(250, -1)
+    expect(margin([{ lat: 38.7, lng: -9.2 }, { lat: 38.75, lng: -9.1 }])).toBeCloseTo(600, -1)
   })
 })
 
