@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { Box, Heart, Minus, Plus, Scan } from "lucide-react"
 import { sx } from "@/styles/merge"
@@ -388,6 +388,7 @@ function StaticChart({
   onSelectIdea: (ideaId: string) => void
   onIdeaHover: ReportIdeaHover
 }) {
+  const uid = useId()
   // The stops set the frame and the ideas are placed in it, so a far-off idea
   // never shrinks the day; one stop (or none) has no frame of its own to keep.
   const project = boxProjection(spanMeters(pins) > 0 ? pins : [...pins, ...ideas], CHART_W, CHART_H, 56)
@@ -446,18 +447,20 @@ function StaticChart({
       {placed.length > 0 && (
         // Same viewBox and slice as the chart, so the two layers line up exactly.
         <svg {...sx(s.chart)} viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="xMidYMid slice">
-          {placed.map(({ idea, x, y }) => (
+          {placed.map(({ idea, x, y }, index) => (
             <g
               key={idea.id}
               role="button"
               tabIndex={0}
               aria-label={`${idea.title}, on the wishlist`}
+              aria-describedby={idea.description ? `${uid}-${index}` : undefined}
               transform={`translate(${x} ${y})`}
               onClick={() => onSelectIdea(idea.id)}
               onKeyDown={(event) => onKey(event, idea.id)}
               {...ideaHoverHandlers(idea.id, onIdeaHover)}
               {...sx(stylex.defaultMarker(), s.chartIdea)}
             >
+              {idea.description && <desc id={`${uid}-${index}`}>{idea.description}</desc>}
               <circle r={11} {...sx(s.chartIdeaHit)} />
               <circle r={8.5} {...sx(s.chartIdeaFocus)} />
               <circle r={6} {...sx(s.chartIdeaRing)} />

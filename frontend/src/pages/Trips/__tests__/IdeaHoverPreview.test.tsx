@@ -73,6 +73,8 @@ describe("a wishlist pin's preview", () => {
   it("shows what the place is after a mouse rests on its pin, and goes a moment after it leaves", async () => {
     fetchSpy.mockImplementation(async () => answer({ name: "Gwangjang Market", photos: [photo] }))
     renderMap()
+    // Described from the start by what its card says, before any card is up.
+    expect(pin("Gwangjang Market")).toHaveAccessibleDescription("Food & cafés, Seoul. 88 Changgyeonggung-ro, Jongno District")
     fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
     // Passing over the map shows nothing, and asks for nothing.
     expect(screen.queryByRole("tooltip")).toBeNull()
@@ -87,7 +89,6 @@ describe("a wishlist pin's preview", () => {
     expect(card).toHaveTextContent("Try the bindaetteok at stall 17")
     expect(card).not.toHaveTextContent("mayak")
     expect(card).not.toHaveTextContent(/for details/i)
-    expect(pin("Gwangjang Market")).toHaveAccessibleDescription(/Gwangjang Market/)
 
     // Rested on, the place is looked up once; its photo lands in room the card already held.
     const frame = card.firstElementChild!

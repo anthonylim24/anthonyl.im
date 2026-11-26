@@ -102,6 +102,8 @@ interface FoldEntry {
 
 /** Room kept around a fold's hearts when it zooms in to them, in CSS pixels. */
 const FOLD_PADDING = 64
+/** Numbers the hidden lines that describe wishlist pins, across every map on the page. */
+let noteSeq = 0
 /** How far above its point a stop's body is centred (a 30 px body on a 7 px stem). */
 const STOP_BODY_RISE = 22
 
@@ -202,7 +204,6 @@ function watchIdeaHover(el: HTMLButtonElement, id: string, options: AtlasMapOpti
   const report = options.onIdeaHover
   if (!report) return
   const on = ideaHoverHandlers(id, report, names)
-  el.setAttribute("aria-describedby", on["aria-describedby"])
   el.addEventListener("pointerenter", on.onPointerEnter)
   el.addEventListener("pointerleave", on.onPointerLeave)
   el.addEventListener("pointerdown", on.onPointerDown)
@@ -257,6 +258,30 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   const ideas = new Map<string, PinEntry>()
   /** Hearts drawn as one at the current zoom, by their ids joined. */
   const folds = new Map<string, FoldEntry>()
+  // What each wishlist pin says after its name (a place's category, town and
+  // street; a fold's places), as hidden lines it names as its description:
+  // a screen reader reads a description once, on focus, before any preview card is up.
+  const notes = document.createElement("div")
+  notes.hidden = true
+  container.append(notes)
+  const noteOf = new WeakMap<HTMLElement, HTMLElement>()
+  const describe = (el: HTMLElement, text: string | undefined) => {
+    let note = noteOf.get(el)
+    if (!text) {
+      note?.remove()
+      noteOf.delete(el)
+      el.removeAttribute("aria-describedby")
+      return
+    }
+    if (!note) {
+      note = document.createElement("span")
+      note.id = `atlas-pin-note-${++noteSeq}`
+      notes.append(note)
+      noteOf.set(el, note)
+      el.setAttribute("aria-describedby", note.id)
+    }
+    note.textContent = text
+  }
 
   const map = new MapLibre({
     container,
@@ -621,7 +646,10 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         existing.at = mid
         continue
       }
-      existing?.marker.remove()
+      if (existing) {
+        describe(existing.el, undefined)
+        existing.marker.remove()
+      }
       const el = foldElement()
       el.setAttribute("aria-label", `${ids.length} wishlist places here: zoom in`)
       el.dataset.ideaFold = ids.join(" ")
@@ -631,11 +659,13 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         zoomToIdeas(ids)
       })
       watchIdeaHover(el, ids[0]!, options, names)
+      describe(el, names.join(", "))
       const marker = new Marker({ element: el, anchor: "center", subpixelPositioning: true }).setLngLat([mid.lng, mid.lat]).addTo(map)
       folds.set(key, { ids, names, at: mid, marker, el })
     }
     for (const [key, entry] of folds) {
       if (kept.has(key)) continue
+      describe(entry.el, undefined)
       entry.marker.remove()
       folds.delete(key)
     }
@@ -806,6 +836,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
           const moved = existing.pin.lat !== pin.lat || existing.pin.lng !== pin.lng
           existing.pin = pin
           applyPin(existing.el, pin)
+          describe(existing.el, pin.description)
           if (moved) existing.marker.setLngLat([pin.lng, pin.lat])
           continue
         }
@@ -815,11 +846,13 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
           options.onSelectIdea?.(pin.id)
         })
         watchIdeaHover(el, pin.id, options)
+        describe(el, pin.description)
         const marker = new Marker({ element: el, anchor: "center", subpixelPositioning: true }).setLngLat([pin.lng, pin.lat]).addTo(map)
         ideas.set(pin.id, { pin, marker, el })
       }
       for (const [id, entry] of ideas) {
         if (seen.has(id)) continue
+        describe(entry.el, undefined)
         entry.marker.remove()
         ideas.delete(id)
       }
@@ -973,6 +1006,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       pins.clear()
       ideas.clear()
       folds.clear()
+      notes.remove()
       map.remove()
     },
   }

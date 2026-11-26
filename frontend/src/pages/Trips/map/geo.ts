@@ -1,5 +1,7 @@
 import type { MultiPolygon, Polygon } from "geojson"
+import { addressLocality, streetLine } from "../ideas/address"
 import { ideaName } from "../ideas/contract"
+import { themeLabel, themeOf } from "../ideas/themes"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 
 // Pure geometry + pin derivation for the Trips map. No MapLibre imports, so
@@ -26,6 +28,8 @@ export interface AtlasPin extends LngLat {
   accent?: string
   /** Just added: plays the drop-in animation once. */
   fresh?: boolean
+  /** What a screen reader hears after the pin's name: a wishlist place's category, town and street. */
+  description?: string
 }
 
 const EARTH_M = 6_371_000
@@ -203,8 +207,20 @@ export function ideaPins(trip: Pick<Trip, "ideas">): AtlasPin[] {
     const lat = idea.location?.lat
     const lng = idea.location?.lng
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
-    return [{ id: idea.id, lat: lat!, lng: lng!, title: ideaName(idea), variant: "idea" }]
+    return [{ id: idea.id, lat: lat!, lng: lng!, title: ideaName(idea), variant: "idea", description: ideaDescription(idea) }]
   })
+}
+
+/**
+ * "Neighborhoods, Busan. 203 Gamnae 2-ro, Saha-gu": what the preview card
+ * says about a wishlist place, from the place alone, so its pin has it from
+ * the first paint rather than once a card is up.
+ */
+function ideaDescription(idea: ItineraryItem): string {
+  const address = idea.location?.address
+  const town = addressLocality(address)
+  const street = streetLine(address, town, ideaName(idea))
+  return [[themeLabel(themeOf(idea)), town].filter(Boolean).join(", "), street].filter(Boolean).join(". ")
 }
 
 /** Every located stop on the trip (the overview's small dots). */
@@ -219,7 +235,7 @@ export function dayRoute(day: TripDay): LngLat[] {
 /** Everything a pin draws, as one string: equal keys need no map update. */
 export function pinsKey(pins: readonly AtlasPin[]): string {
   return pins
-    .map((p) => `${p.id}|${p.lat}|${p.lng}|${p.label ?? ""}|${p.title}|${p.variant ?? ""}|${p.accent ?? ""}|${p.fresh ? 1 : 0}|${p.lodging ? 1 : 0}`)
+    .map((p) => `${p.id}|${p.lat}|${p.lng}|${p.label ?? ""}|${p.title}|${p.variant ?? ""}|${p.accent ?? ""}|${p.fresh ? 1 : 0}|${p.lodging ? 1 : 0}|${p.description ?? ""}`)
     .join("\n")
 }
 

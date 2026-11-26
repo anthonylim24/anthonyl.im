@@ -105,6 +105,8 @@ import { createAtlasMap } from "../map/engine"
 
 const stop = (id: string, label: string, lng: number): AtlasPin => ({ id, lat: 38.7, lng, title: `Stop ${label}`, label, variant: "stop" })
 const idea = (id: string, lng: number, title = `Idea ${id}`): AtlasPin => ({ id, lat: 38.71, lng, title, variant: "idea" })
+/** The text a pin names as its description, which must already be in the page. */
+const described = (container: HTMLElement, pin: Element) => container.querySelector(`[id="${pin.getAttribute("aria-describedby")}"]`)?.textContent
 
 function setup() {
   markers.length = 0
@@ -145,6 +147,20 @@ describe("the map engine's wishlist pins", () => {
     expect(onHover).not.toHaveBeenCalled()
   })
 
+  it("describes an idea from the start, and drops the description with it", () => {
+    const { container, handle } = setup()
+    handle.setIdeaPins([{ ...idea("ramen", -9.12, "Ramen Jiro"), description: "Food & cafés, Lisbon" }, idea("bare", -9.0)])
+    const pin = container.querySelector<HTMLButtonElement>('[data-idea-id="ramen"]')!
+    expect(described(container, pin)).toBe("Food & cafés, Lisbon")
+    expect(container.querySelector('[data-idea-id="bare"]')!.hasAttribute("aria-describedby")).toBe(false)
+
+    handle.setIdeaPins([{ ...idea("ramen", -9.12, "Ramen Jiro"), description: "Food & cafés, Lisbon. Rua da Rosa 1" }])
+    expect(described(container, pin)).toBe("Food & cafés, Lisbon. Rua da Rosa 1")
+    const note = pin.getAttribute("aria-describedby")!
+    handle.setIdeaPins([])
+    expect(document.getElementById(note)).toBeNull()
+  })
+
   it("reports a mouse or keyboard focus resting on an idea for its preview, and never a tap", () => {
     const { container, handle, onIdeaHover, onHover } = setup()
     handle.setIdeaPins([idea("ramen", -9.12, "Ramen Jiro")])
@@ -158,7 +174,6 @@ describe("the map engine's wishlist pins", () => {
     pin.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }))
     // A leave, not a press: the card waits a moment for the mouse to reach it.
     expect(onIdeaHover).toHaveBeenLastCalledWith(null, "leave")
-    expect(pin.getAttribute("aria-describedby")).toBe("idea-preview-ramen")
 
     pin.focus()
     expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "focus" })
@@ -251,7 +266,7 @@ describe("the map engine's wishlist folds", () => {
     const heart = fold(container)!
     expect(heart.getAttribute("aria-label")).toBe("2 wishlist places here: zoom in")
     expect(heart.textContent).toBe("2")
-    expect(heart.getAttribute("aria-describedby")).toBe("idea-preview-a")
+    expect(described(container, heart)).toBe("Ramen Jiro, Café Bica")
     expect(folded(container)).toEqual(["a", "b"])
 
     heart.click()

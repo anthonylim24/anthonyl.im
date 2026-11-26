@@ -4,7 +4,7 @@ import { sx } from "@/styles/merge"
 import { a } from "../atlas.stylex"
 import { pv } from "../ideas/preview.stylex"
 import { hoverCard as s } from "./hoverCard.stylex"
-import { previewId, type IdeaHover } from "./ideaHover"
+import type { IdeaHover } from "./ideaHover"
 import type { HoldIdeaHover } from "./useIdeaHover"
 import { placePreview } from "./previewPlacement"
 
@@ -16,7 +16,7 @@ import { placePreview } from "./previewPlacement"
 /** A fold's card names this many places, then says how many more. */
 const FOLD_NAMES = 6
 
-/** The preview's frame: placed beside its pin inside the map, under the id the pin names as its description. */
+/** The preview's frame: placed beside its pin inside the map. Its pin carries its own description, so nothing waits for this. */
 export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hold?: HoldIdeaHover; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
@@ -58,7 +58,7 @@ export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hol
     return () => observer.disconnect()
   }, [hover])
   return (
-    <div ref={ref} id={previewId(hover.id)} role="tooltip" {...sx(s.card, "trips-glass-sheet")} {...hold}>
+    <div ref={ref} role="tooltip" {...sx(s.card, "trips-glass-sheet")} {...hold}>
       {hover.names ? <FoldNames names={hover.names} /> : children}
     </div>
   )
