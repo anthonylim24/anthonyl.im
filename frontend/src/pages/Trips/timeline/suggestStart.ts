@@ -3,11 +3,10 @@ import type { ItineraryItem, TripDay } from "../types"
 import { layoutDay, legEstimate, planStarts, stopTitle } from "./timeline"
 import { formatMinutes, type TravelEstimate } from "./travel"
 
-/** A start for an untimed stop, read off the day it sits in. */
 export interface StartSuggestion {
   /** "HH:mm". */
   time: string
-  /** The stop it follows. */
+  /** The title of the stop it follows. */
   after: string
   /** Minutes at that stop when its end is a guess from the kind of place, so the reason can say so. */
   guessedStay?: number

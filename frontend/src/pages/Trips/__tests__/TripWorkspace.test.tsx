@@ -298,7 +298,6 @@ describe("TripWorkspace", () => {
         "Pin 2: Day 2, Belém: 1 pinned stop",
       ])
       expect(map.getByText("3 dots, 0 routes")).toBeInTheDocument()
-      // The chip counts places as the overview does, and how many are on the map.
       expect(map.getByText("All days · 3 of 4 places")).toBeInTheDocument()
       expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
     })
@@ -790,7 +789,7 @@ describe("TripWorkspace", () => {
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
 
-      // "Edit stop" opens that stop's editor in a sheet over the map, focus on the sheet (no keyboard yet).
+      // The sheet, not its first field, takes the focus: no keyboard over the map yet.
       fireEvent.click(card.getByRole("button", { name: "Edit stop" }))
       const dialog = screen.getByRole("dialog", { name: "Edit booking" })
       expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("Fado dinner")

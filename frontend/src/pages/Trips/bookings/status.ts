@@ -11,7 +11,6 @@ import { reservationOf, type ReservationStatus } from "./kinds"
 
 export type BookingStatus = ReservationStatus | "completed" | "skipped"
 
-/** The stop status each booking state pairs with. */
 export const STOP_STATUS_OF: Record<ReservationStatus, ItemStatus> = { confirmed: "booked", tentative: "optional", pending: "needs_review" }
 
 export const BOOKING_STATUSES: readonly BookingStatus[] = ["confirmed", "tentative", "pending", "completed", "skipped"]
@@ -33,7 +32,6 @@ export function bookingStatusPatch(item: Pick<ItineraryItem, "reservation">, sta
   return { status: STOP_STATUS_OF[status], reservation: { ...reservationOf(item), status } }
 }
 
-/** The status a stop's card and editor show, and its words. */
 export function shownStatus(item: Pick<ItineraryItem, "kind" | "status" | "reservation">): { status: ItemStatus | BookingStatus; label: string } {
   if (item.kind !== "reservation") return { status: item.status, label: STATUS_LABEL[item.status] }
   const status = bookingStatus(item)

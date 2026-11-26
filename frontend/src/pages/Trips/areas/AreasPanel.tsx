@@ -12,12 +12,6 @@ import { areaDays, areaFingerprint, areaMeta, hasAreaStops, type AreaDay } from 
 import { cachedNeighborhoods, loadNeighborhoods, NeighborhoodsError } from "./areasApi"
 import type { Neighborhood } from "./contract"
 
-// The overview's Neighborhoods tab: the parts of town the trip's stops fall
-// in, grouped by the server's model on first open and carried over as the
-// trip changes. Each area has a photo when Google surely has one of it or of
-// its best-known stop, what kind of place it is, the days that go there, and
-// its stops by day. "Show on map" draws one area at a time.
-
 export interface AreasPanelProps {
   trip: Trip
   /** `/trips/<slug or id>`: each stop links to its day. */
@@ -28,7 +22,6 @@ export interface AreasPanelProps {
   onShow: (area: Neighborhood | null) => void
 }
 
-/** How the last request for these stops ended. */
 type Settled = { key: string; failure: { message: string; retry: boolean } | null }
 
 export function AreasPanel({ trip, basePath, getToken, shownId, onShow }: AreasPanelProps) {
@@ -59,7 +52,6 @@ export function AreasPanel({ trip, basePath, getToken, shownId, onShow }: AreasP
   }, [located, trip.id, fingerprint, getToken, requestKey])
 
   const load = settled?.key !== requestKey ? { k: "loading" as const } : settled.failure ? { k: "failed" as const, ...settled.failure } : { k: "ready" as const }
-  // An area regrouped away is no longer drawn.
   useEffect(() => {
     if (shownId && areas && !areas.some((area) => area.id === shownId)) onShow(null)
   }, [areas, shownId, onShow])

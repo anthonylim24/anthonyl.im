@@ -971,7 +971,6 @@ export const ws = stylex.create({
   // One line to start, growing with what is written (`field-sizing` in a.textarea).
   notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
   nameField: { minHeight: "2.75rem" },
-  // "Add status", "Add cost", "Add link": the fields a stop can have, asked for.
   // Wrapped rows sit 12px apart, so each chip's 44px band is its own.
   fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem" },
   fieldChip: {
@@ -1002,7 +1001,6 @@ export const ws = stylex.create({
   // The dialog's one foot child, its full width: Delete, More and Done on one
   // line at 320px. Done (alone, for a viewer) sits at the end.
   sheetFoot: { display: "flex", flexWrap: "wrap", flexGrow: 1, alignItems: "center", justifyContent: "flex-end", columnGap: "0.5rem", rowGap: "0.75rem", minWidth: 0 },
-  // Takes the row's slack, so it sits at the far end from Done.
   sheetDelete: { marginRight: "auto" },
   sheetMoreOpen: { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" },
   // Its own lines above the row, two actions to a line. Lines 8px apart keep each 44px band its own.
@@ -1341,8 +1339,7 @@ export const ws = stylex.create({
   cardHead: { display: "flex", alignItems: "center", minWidth: 0 },
   cardHeadRow: { flexGrow: 1, minWidth: 0 },
   cardMore: { marginRight: "0.25rem", color: "var(--trips-ink-tertiary)" },
-  // Done / Skip / Loved it, under the card's text, at its indent. Wrapped rows
-  // sit 12px apart, so each chip's 44px band is its own.
+  // Wrapped rows sit 12px apart, so each chip's 44px band is its own.
   quick: { flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem", paddingTop: "0.125rem", paddingBottom: "0.625rem" },
   // Looks 32px; the band reaches to a 44px target.
   quickBtn: {

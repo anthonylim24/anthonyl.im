@@ -23,7 +23,6 @@ export const STOP_FIELDS: Record<"place" | "reservation" | "note", FieldSet> = {
   note: { always: [], optional: ["time", "notes", "links"] },
 }
 
-/** The chip that asks for each optional field. */
 export const FIELD_CHIP: Partial<Record<StopField, string>> = {
   time: "Add time",
   notes: "Add notes",

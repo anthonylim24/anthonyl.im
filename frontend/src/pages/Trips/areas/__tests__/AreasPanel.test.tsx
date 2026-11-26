@@ -7,8 +7,6 @@ import type { Neighborhood } from "../contract"
 import type { Trip } from "../../types"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
 
-// The Neighborhoods tab against a stand-in server: GET /api/trips/:id/neighborhoods.
-
 const at = (id: string, title: string, lat: number, lng: number) => makeItem({ id, title, location: { name: title, lat, lng, source: "user" } })
 
 const LISBON: Trip = makeTrip({
@@ -86,7 +84,6 @@ describe("AreasPanel", () => {
     answers.push(() => Response.json({ areas: [ALFAMA] }))
     renderPanel(LISBON, ALFAMA.id)
     const alfama = await screen.findByRole("article", { name: "Alfama" })
-    // The label says what a press does now.
     expect(within(alfama).getByRole("button", { name: "Hide from map" })).toBeTruthy()
     const more = within(alfama).getByRole("button", { name: "Stops by day" })
     expect(more.getAttribute("aria-expanded")).toBe("false")

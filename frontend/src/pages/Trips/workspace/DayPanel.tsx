@@ -92,7 +92,6 @@ export interface DayPanelProps {
   /** The day's layout, remembered on this device. */
   dayView: DayView
   onDayView: (view: DayView) => void
-  /** Where a stop's editor opens: under its card, or in a sheet. */
   surface: EditorSurface
   near: LngLat | null
   onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
@@ -398,8 +397,6 @@ export function DayPanel({
   const layoutKey = `${held ?? ""}|${hidden}|${slot ?? ""}|${list.anytimeAt ?? ""}|${shownIds.join(",")}`
 
   const rework = useLatestCallback((spell: WetSpell) => onAskAi(rainBrief(spell)))
-  // A pinned stop opens on the map; an unpinned one, with nothing to show
-  // there, opens its editor (its details, for a viewer).
   const findStop = useLatestCallback((id: string) => {
     const item = day.items.find((i) => i.id === id)
     if (item && isLocated(item)) onLocate(id)

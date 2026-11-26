@@ -42,7 +42,6 @@ interface Options {
   locked?: boolean
   /** Hand the panel `onEditTrip` (day operations, Save for later). */
   wholeTrip?: boolean
-  /** Where a stop's editor opens: under its card (a wide list) or in a sheet. */
   surface?: EditorSurface
 }
 

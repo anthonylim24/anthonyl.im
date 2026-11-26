@@ -26,7 +26,6 @@ export interface StopContext {
   /** Parked under "To schedule": giving it a time puts it on the route. */
   parked: boolean
   onChange: Edit
-  /** Spoken confirmation of what changed. */
   onAnnounce?: (message: string) => void
   /** The stop left this day (moved to another): the list moves focus on. */
   onGone?: (index: number) => void

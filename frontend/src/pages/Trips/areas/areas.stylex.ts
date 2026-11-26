@@ -1,7 +1,5 @@
 import * as stylex from "@stylexjs/stylex"
 
-// The Neighborhoods tab and its key on the map.
-
 const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
@@ -127,7 +125,6 @@ export const ar = stylex.create({
   ghostLine: { height: "0.875rem" },
   message: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.75rem", maxWidth: "34rem" },
 
-  // ── On the map ──
   key: {
     position: "absolute",
     top: "0.75rem",

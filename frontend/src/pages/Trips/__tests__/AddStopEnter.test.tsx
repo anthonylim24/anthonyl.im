@@ -30,7 +30,6 @@ const jagalchi: PlaceResult = {
   lng: 129.0306,
   category: "market",
 }
-/** Seoul then Busan, every stop so far in Seoul. */
 const seoulBusan: TripPlaces = { anchors: { points: [{ lat: 37.57, lng: 126.98 }], towns: ["seoul", "busan"] }, stops: [] }
 
 function typeAndEnter(text: string, trip?: TripPlaces) {

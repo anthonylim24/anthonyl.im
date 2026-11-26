@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { approximateArea, areaHull, distanceMeters, hullBuffer, shapeCorners, type LngLat } from "../map/geo"
 
-/** Whether `p` is inside the closed `ring` (ray casting). */
 function inside(p: LngLat, ring: [number, number][]): boolean {
   let hit = false
   for (let i = 0, j = ring.length - 2; i < ring.length - 1; j = i++) {

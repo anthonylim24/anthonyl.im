@@ -303,7 +303,7 @@ function MoveButtons({ index, count, locked, edits, named }: { index: number; co
   )
 }
 
-/** Under a card: move up / down, duplicate and open in maps, then Delete at the far end. */
+/** A stop's actions under its card in the day list; a sheet has `SheetFoot`. */
 export function StopActions({
   item,
   index,
@@ -589,7 +589,6 @@ function LocationField({ item, near, locked, edits }: { item: ItineraryItem; nea
   useClaimEscape(searching, areaRef)
 
   if (pinned && !searching) {
-    // The place's own name when the stop is called something else, else where it is, street first.
     const place = item.location?.name?.trim()
     const street = streetFirst(item.location?.address).join(", ")
     const named = place && place !== item.title.trim()
@@ -733,7 +732,6 @@ function LocationField({ item, near, locked, edits }: { item: ItineraryItem; nea
   )
 }
 
-/** The stop's links: each by its site with a remove button, then a field to paste another. */
 function LinksField({ links, disabled, onChange }: { links: string[] | undefined; disabled: boolean; onChange: (links: string[]) => void }) {
   const id = useId()
   const [draft, setDraft] = useState("")

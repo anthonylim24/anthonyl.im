@@ -497,10 +497,9 @@ function Workspace() {
         : [...pins, ...corePoints(dots)],
     [day, fresh, pins, hotelPins, dots],
   )
-  // A neighborhood from the Neighborhoods tab, drawn and framed on the overview map.
   const areaMap = useAreaOnMap(trip ?? null, editor.readToken, !day && tab === "neighborhoods")
   const { show: pickArea, area: shownArea, shape: shownShape, settled: areaSettled } = areaMap
-  /** The area just picked, until its edge is told; and whether its key is to take the focus. */
+  /** The area just picked, until its edge is announced. */
   const [picked, setPicked] = useState<string | null>(null)
   const keyNode = useRef<HTMLDivElement | null>(null)
   const keyWantsFocus = useRef(false)
@@ -540,12 +539,11 @@ function Workspace() {
     keyWantsFocus.current = false
     keyNode.current.focus()
   }, [shownArea])
-  // Said once its edge is settled: which area, and whether the edge is OpenStreetMap's or drawn around the stops.
   if (picked && shownArea?.id === picked && areaSettled && shownShape) {
     setPicked(null)
     setAnnounce(`${shownArea.name} is on the map, ${shownShape.approximate ? "drawn around your stops" : "outlined from OpenStreetMap"}.`)
   }
-  // Cleared from the map's key: the focus goes back to the card's button, or on a phone (the list behind the map) to the view switch.
+  // On a phone the card's button is behind the map (inert): the focus goes to the view switch instead.
   const clearArea = useCallback(() => {
     const id = shownArea?.id
     showArea(null)
