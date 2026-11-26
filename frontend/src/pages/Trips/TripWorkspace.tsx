@@ -1,5 +1,5 @@
 import { applyDetailsPatch, detailsUndo } from "./workspace/tripDetails"
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   BookOpen,
@@ -42,6 +42,8 @@ import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry } from "./editorMachine"
 import { SaveIndicator } from "./offline/SaveIndicator"
 import { scrollBehavior } from "./workspace/scroll"
+import { stopRow } from "./workspace/stopRow"
+import { undoFocus } from "./workspace/undoFocus"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
@@ -334,13 +336,26 @@ function Workspace() {
   const toast = lastStep && lastStep.id === toastStep && lastStep.label ? lastStep : null
   const expireToast = useCallback(() => setToastStep(null), [])
 
+  // Where focus goes if the undo took away what held it (the toast's own Undo, a copy's row).
+  const afterUndo = useRef<string[] | null>(null)
   const undoLast = useCallback(() => {
     if (!lastStep || locked) return
+    afterUndo.current = undoFocus(lastStep)
     editor.undo()
     setToastStep(null)
     setAnnounce(`Undone: ${lastStep.label ?? "your last edit"}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastStep, locked, editor.undo])
+  useLayoutEffect(() => {
+    const ids = afterUndo.current
+    if (!ids) return
+    afterUndo.current = null
+    if (document.activeElement && document.activeElement !== document.body) return
+    const row = ids.map((id) => stopRow(paneRef.current, id)).find((el) => el !== null)
+    // Else the day (or overview) the list shows, in the rail; on a phone's map, the view switch.
+    const here = paneRef.current?.closest("[inert]") ? null : paneRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+    ;(row ?? here ?? document.querySelector<HTMLElement>('[data-view][aria-checked="true"]'))?.focus()
+  })
   const nextStep = editor.history?.future[editor.history.future.length - 1]
   const redoNext = useCallback(() => {
     if (!nextStep || locked) return
@@ -597,7 +612,7 @@ function Workspace() {
   useEffect(() => {
     if (!stopLink) return
     const id = decodeURIComponent(stopLink.slice(stopLink.indexOf("#stop-") + 6))
-    const frame = requestAnimationFrame(() => document.getElementById(`item-${id}`)?.querySelector<HTMLElement>("[data-card-row]")?.focus({ preventScroll: true }))
+    const frame = requestAnimationFrame(() => stopRow(paneRef.current, id)?.focus({ preventScroll: true }))
     return () => cancelAnimationFrame(frame)
   }, [stopLink])
 
