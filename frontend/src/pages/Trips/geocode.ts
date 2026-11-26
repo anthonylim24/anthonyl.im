@@ -243,6 +243,9 @@ export function townKey(part: string): string {
   return nameKey(part.split(",")[0]!.split(/\s+/).filter((token) => !/\d/.test(token)).join(" "))
 }
 
+/** Every town an address could be naming, one per comma-separated part, folded by `townKey`. */
+export const addressTowns = (address: string): string[] => address.split(",").map(townKey)
+
 const knowsNothing = (anchors: TripAnchors) => anchors.points.length === 0 && anchors.towns.length === 0
 
 /** Whether `place` is near the trip. With nothing to measure against, everything is. */
@@ -250,7 +253,7 @@ export function isLocal(place: PlaceResult, anchors: TripAnchors): boolean {
   if (knowsNothing(anchors)) return true
   if (anchors.points.some((point) => distanceMeters(point, place) <= LOCAL_METERS)) return true
   // Google's short context can leave the city out ("52 Jagalchihaean-ro, Jung-gu"); the full address has it.
-  const parts = `${place.address ?? ""},${place.context}`.split(",").map(townKey)
+  const parts = addressTowns(`${place.address ?? ""},${place.context}`)
   return anchors.towns.some((town) => parts.includes(town))
 }
 
