@@ -1,5 +1,5 @@
 import { DAY_PIN } from "../map/geo"
-import { IDEA_ANCHOR_ATTR } from "./contract"
+import { IDEA_ANCHOR_ATTR, IDEA_ROW_ATTR } from "./contract"
 
 // Where focus goes as a wishlist place's details or day picker close, when
 // what opened them has gone: removing the place or putting it on a day takes
@@ -25,6 +25,23 @@ const middle = (el: Element): Spot => {
 export function focusedHeartSpot(): Spot | undefined {
   const heart = document.activeElement?.closest(HEART)
   return heart ? middle(heart) : undefined
+}
+
+/**
+ * Whether what has focus stands for the place: its heart, the fold it is
+ * drawn into, or anything in its wishlist row. Read as its details or picker
+ * open. When it does not (a tap on a heart on a phone leaves focus on the
+ * dock's Map switch), they send focus to the place as they close, not back
+ * to what had it.
+ */
+export function focusOnPlace(ideaId: string): boolean {
+  const at = document.activeElement
+  if (!at) return false
+  return (
+    at.closest("[data-idea-id]")?.getAttribute("data-idea-id") === ideaId ||
+    (at.closest("[data-idea-fold]")?.getAttribute("data-idea-fold")?.split(" ") ?? []).includes(ideaId) ||
+    at.closest(`[${IDEA_ROW_ATTR}]`)?.getAttribute(IDEA_ROW_ATTR) === ideaId
+  )
 }
 
 /** The shown heart or fold nearest `near`, else the first shown. */

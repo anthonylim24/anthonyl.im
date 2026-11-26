@@ -11,7 +11,7 @@ import type { LngLat } from "../map/geo"
 import { plural } from "../meta"
 import { addIdea, ideasFull, removeIdea, saveForLater } from "../tripEdits"
 import type { ItemTheme, ItineraryItem, Trip } from "../types"
-import { IDEA_ANCHOR_ATTR, ideaName } from "../ideas/contract"
+import { IDEA_ANCHOR_ATTR, IDEA_ROW_ATTR, ideaName } from "../ideas/contract"
 import { useIdeaNav } from "../ideas/ideaNav"
 import { dayChipLabel, wishlistOnDays, type ScheduledIdea } from "../ideas/onDays"
 import { streetFirst } from "../ideas/address"
@@ -407,7 +407,7 @@ function IdeaRow({
   const where = streetFirst(idea.location?.address).join(", ")
   const links = (idea.links ?? []).map(stopLink).filter((link): link is NonNullable<typeof link> => link !== null)
   return (
-    <li {...sx(s.ideaRow)}>
+    <li {...{ [IDEA_ROW_ATTR]: idea.id }} {...sx(s.ideaRow)}>
       <span {...sx(s.ideaIcon)} aria-hidden>
         <ItemIcon kind={idea.kind} category={idea.location?.category} reservationType={idea.reservation?.type} size={16} strokeWidth={1.75} />
       </span>

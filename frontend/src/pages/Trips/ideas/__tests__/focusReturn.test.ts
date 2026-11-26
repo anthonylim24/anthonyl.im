@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { ideaFocusReturn } from "../focusReturn"
+import { focusOnPlace, ideaFocusReturn } from "../focusReturn"
 
 const add = (html: string) => {
   const host = document.createElement("div")
@@ -51,5 +51,22 @@ describe("ideaFocusReturn", () => {
     at(document.querySelector("[data-idea-fold]")!, 120, 90)
     expect(ideaFocusReturn("gone", { near: { x: 100, y: 100 } })).toBe(document.querySelector("[data-idea-fold]"))
     expect(ideaFocusReturn("gone", { near: { x: 590, y: 380 } })).toBe(document.querySelector('[data-idea-id="far"]'))
+  })
+})
+
+describe("focusOnPlace", () => {
+  it("is whether focus is on the place's heart, a fold it is in, or anything in its row", () => {
+    add(`<button data-idea-id="a">A</button><button data-idea-id="b">B</button><button data-idea-fold="c a">2</button>
+      <div data-idea-row="a"><span><button id="add">Add to day</button></span></div><button id="map">Map</button>`)
+    const focusing = (selector: string) => {
+      document.querySelector<HTMLElement>(selector)!.focus()
+      return focusOnPlace("a")
+    }
+    expect(focusOnPlace("a")).toBe(false)
+    expect(focusing('[data-idea-id="a"]')).toBe(true)
+    expect(focusing("[data-idea-fold]")).toBe(true)
+    expect(focusing("#add")).toBe(true)
+    expect(focusing('[data-idea-id="b"]')).toBe(false)
+    expect(focusing("#map")).toBe(false)
   })
 })
