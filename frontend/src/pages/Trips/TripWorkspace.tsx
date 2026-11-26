@@ -337,10 +337,12 @@ function Workspace() {
   const expireToast = useCallback(() => setToastStep(null), [])
 
   // Where focus goes if the undo took away what held it (the toast's own Undo, a copy's row).
+  // Nothing held, as after a click on the page, stays that way.
   const afterUndo = useRef<string[] | null>(null)
-  const undoLast = useCallback(() => {
+  const undoLast = useCallback((fromToast = false) => {
     if (!lastStep || locked) return
-    afterUndo.current = undoFocus(lastStep)
+    const held = document.activeElement !== null && document.activeElement !== document.body
+    afterUndo.current = fromToast || held ? undoFocus(lastStep) : null
     editor.undo()
     setToastStep(null)
     setAnnounce(`Undone: ${lastStep.label ?? "your last edit"}`)
@@ -351,10 +353,10 @@ function Workspace() {
     if (!ids) return
     afterUndo.current = null
     if (document.activeElement && document.activeElement !== document.body) return
-    const row = ids.map((id) => stopRow(paneRef.current, id)).find((el) => el !== null)
-    // Else the day (or overview) the list shows, in the rail; on a phone's map, the view switch.
-    const here = paneRef.current?.closest("[inert]") ? null : paneRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
-    ;(row ?? here ?? document.querySelector<HTMLElement>('[data-view][aria-checked="true"]'))?.focus()
+    // The stop, else the day (or overview) the list shows, in the rail; with the list behind a phone's map, the view switch.
+    const list = paneRef.current?.closest("[inert]") ? null : paneRef.current
+    const row = ids.map((id) => stopRow(list, id)).find((el) => el !== null)
+    ;(row ?? list?.querySelector<HTMLElement>('[aria-current="page"]') ?? document.querySelector<HTMLElement>('[data-view][aria-checked="true"]'))?.focus()
   })
   const nextStep = editor.history?.future[editor.history.future.length - 1]
   const redoNext = useCallback(() => {
@@ -1196,7 +1198,7 @@ function Workspace() {
       {printer.node}
       {(toast || flash || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
         <div {...sx(s.dock)}>
-          {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={undoLast} onExpire={expireToast} />}
+          {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={() => undoLast(true)} onExpire={expireToast} />}
           {sync.k === "conflict" && (
             <div {...sx(s.dockItem)} role="alert">
               <span {...sx(a.grow, a.wrap)}>
