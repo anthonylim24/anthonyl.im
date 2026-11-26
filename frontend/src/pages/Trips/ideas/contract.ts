@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import type { PlacePhoto } from "../../../../../server/src/trips/apiShapes"
 import type { GetToken } from "../../../effect/http"
 import type { UndoMark } from "../editorMachine"
 import type { ItemTheme, ItineraryItem, Trip } from "../types"
@@ -7,14 +8,7 @@ import type { ItemTheme, ItineraryItem, Trip } from "../types"
 // (`IdeaDetails`), the day picker with recommended days (`IdeaDayPicker`),
 // the overlay that opens them (`IdeaOverlay`), and the map's idea pins.
 
-/** One photo of a place. `url` carries no API key and goes straight into an <img>. */
-export interface PlacePhoto {
-  url: string
-  width?: number
-  height?: number
-  /** Who took it. Google's terms require showing this with the photo. */
-  author?: { name: string; uri?: string }
-}
+export type { PlacePhoto }
 
 /** GET /api/places/details: what the popover shows. Fetched on open, never written to the trip. */
 export interface PlaceDetails {

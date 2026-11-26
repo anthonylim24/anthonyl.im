@@ -1,6 +1,7 @@
 import { haversineMeters } from "../data/koreaPlaces"
 import type { LatLng } from "./conciergeTools"
-import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, sameName, toPlacePhoto, type PlacePhoto, type RawDetails } from "./placeDetails"
+import type { PlacePhoto } from "./apiShapes"
+import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, sameName, toPlacePhoto, type RawDetails } from "./placeDetails"
 
 // The search often answers a landmark that shares the area's name ("Dosan,
 // Seoul" is Dosan Park, "Bukchon, Seoul" is Bukchon Hanok Village; measured),

@@ -4,11 +4,12 @@ import { haversineMeters } from "../data/koreaPlaces"
 import { fetchGeminiWithTransientRetry } from "../geminiTools"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { createGroqLlm, extractModelJson, groqFitsTpm } from "./ai"
+import type { Neighborhood } from "./apiShapes"
 import { hullBuffer, hullDistance } from "./areaHull"
 import { createNominatimOutlines, type AreaOutlineLookup, type OutlineGeometry } from "./areaOutline"
 import { createGoogleAreaPhotos, type AreaPhotoLookup } from "./areaPhotos"
 import type { LatLng } from "./conciergeTools"
-import { foldName, nameLanguage, type PlacePhoto } from "./placeDetails"
+import { foldName, nameLanguage } from "./placeDetails"
 import { oneLine, privateLine } from "./suggestDays"
 import type { Trip } from "./types"
 
@@ -57,26 +58,7 @@ export interface AreaStop {
 }
 
 /** One area as the model named it, cleaned. What the cache keeps. */
-export interface AreaGroup {
-  /** Stable for the same name and city: `a-` and a short hash. */
-  id: string
-  name: string
-  /** The name in the local language and script, when it differs ("성수동"). */
-  localName?: string
-  city: string
-  summary: string
-  /** In trip order. */
-  stopIds: string[]
-}
-
-/** What GET /api/trips/:id/neighborhoods answers per area. Mirrors `Neighborhood` in `frontend/src/pages/Trips/areas/contract.ts`. */
-export interface Neighborhood extends AreaGroup {
-  /** The language of `localName` ("ko", "ja", "zh-TW"…), for the page to mark it up. */
-  localLang?: string
-  photos: PlacePhoto[]
-  /** Set when the photo is of one of the area's stops, not the area: that stop's name. */
-  photoOf?: string
-}
+export type AreaGroup = Pick<Neighborhood, "id" | "name" | "localName" | "city" | "summary" | "stopIds">
 
 /** Why there are no areas to show. The message never carries user or model text. */
 export class NeighborhoodsError extends Error {
