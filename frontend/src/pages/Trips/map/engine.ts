@@ -1,4 +1,4 @@
-import { AttributionControl, LngLatBounds, Map as MapLibre, Marker, setWorkerUrl, type GeoJSONSource } from "maplibre-gl"
+import { AttributionControl, LngLatBounds, Map as MapLibre, Marker, setWorkerUrl, type GeoJSONSource, type LngLatLike } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -34,6 +34,8 @@ export interface AtlasMapOptions {
   /** Fires when the camera settles, with whether it is tilted into 3D. */
   onTilt?: (tilted: boolean) => void
   onError?: () => void
+  /** What is drawn over the map (its controls, the wishlist's key): a fold's zoom spreads its hearts clear of it. */
+  overlays?: () => Iterable<Element>
 }
 
 export interface FrameOptions {
@@ -100,7 +102,7 @@ interface FoldEntry {
   el: HTMLButtonElement
 }
 
-/** Room kept around a fold's hearts when it zooms in to them, in CSS pixels. */
+/** Room kept around a fold's hearts when it zooms in to them, past the map's own padding, in CSS pixels. */
 const FOLD_PADDING = 64
 /** Numbers the hidden lines that describe wishlist pins, across every map on the page. */
 let noteSeq = 0
@@ -258,6 +260,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   const ideas = new Map<string, PinEntry>()
   /** Hearts drawn as one at the current zoom, by their ids joined. */
   const folds = new Map<string, FoldEntry>()
+  /** While a fold's zoom measures cameras it never draws: the hearts and stops are not rearranged for them. */
+  let measuring = false
   // What each wishlist pin says after its name (a place's category, town and
   // street; a fold's places), as hidden lines it names as its description:
   // a screen reader reads a description once, on focus, before any preview card is up.
@@ -567,6 +571,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   // Stops that land on top of each other are nudged apart sideways so every
   // number stays readable (and clickable) at the current zoom.
   const declutter = () => {
+    if (measuring) return
     const stops = [...pins.values()].filter((entry) => entry.pin.variant === "stop")
     const offsets = spreadPins(
       stops.map(({ pin }, i) => {
@@ -582,6 +587,76 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   }
   map.on("moveend", declutter)
 
+  /**
+   * The room a fold's zoom keeps around its hearts, past the map's own
+   * padding: FOLD_PADDING, and more beside each overlay, on whichever side
+   * of it (below it, to its left…) leaves the larger view, so no heart it
+   * spreads lands under one and cannot be picked.
+   */
+  const foldPadding = () => {
+    const pad = map.getPadding()
+    const own = { top: pad.top ?? 0, right: pad.right ?? 0, bottom: pad.bottom ?? 0, left: pad.left ?? 0 }
+    const width = container.clientWidth
+    const height = container.clientHeight
+    const inset = { top: own.top + FOLD_PADDING, right: own.right + FOLD_PADDING, bottom: own.bottom + FOLD_PADDING, left: own.left + FOLD_PADDING }
+    const room = (at: typeof inset) => Math.max(0, width - at.left - at.right) * Math.max(0, height - at.top - at.bottom)
+    const box = container.getBoundingClientRect()
+    for (const el of options.overlays?.() ?? []) {
+      const at = el.getBoundingClientRect()
+      const top = at.top - box.top
+      const left = at.left - box.left
+      const bottom = at.bottom - box.top
+      const right = at.right - box.left
+      if (at.width === 0 || at.height === 0 || bottom <= 0 || right <= 0 || top >= height || left >= width) continue
+      const best = [
+        { ...inset, top: Math.max(inset.top, bottom + HEART_REACH) },
+        { ...inset, right: Math.max(inset.right, width - left + HEART_REACH) },
+        { ...inset, bottom: Math.max(inset.bottom, height - top + HEART_REACH) },
+        { ...inset, left: Math.max(inset.left, right + HEART_REACH) },
+      ].reduce((a, b) => (room(b) > room(a) ? b : a))
+      if (room(best) > 0) Object.assign(inset, best)
+    }
+    return {
+      padding: { top: inset.top - own.top, right: inset.right - own.right, bottom: inset.bottom - own.bottom, left: inset.left - own.left },
+      room: { top: inset.top, right: width - inset.right, bottom: height - inset.bottom, left: inset.left },
+    }
+  }
+
+  /**
+   * `fit` moved and zoomed out until `points` sit inside `room` as the
+   * camera at `pitch` shows them. cameraForBounds fits a top-down view, and
+   * a tilted one spreads the near side of the box past it, under the
+   * controls or off the map. Measured between jumps that are never drawn.
+   */
+  const fitSeen = (fit: { center: LngLatLike; zoom: number }, points: readonly LngLat[], room: { top: number; right: number; bottom: number; left: number }, bearing: number, pitch: number) => {
+    const was = { center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
+    let at = fit
+    measuring = true
+    try {
+      for (let i = 0; i < 4; i++) {
+        map.jumpTo({ ...at, bearing, pitch })
+        const seen = points.map((point) => map.project([point.lng, point.lat]))
+        const xs = seen.map((p) => p.x)
+        const ys = seen.map((p) => p.y)
+        const box = { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) }
+        const inside = box.left >= room.left - 1 && box.right <= room.right + 1 && box.top >= room.top - 1 && box.bottom <= room.bottom + 1
+        if (inside) break
+        const scale = Math.min(1, (room.right - room.left) / Math.max(1, box.right - box.left), (room.bottom - room.top) / Math.max(1, box.bottom - box.top))
+        const middle = map.project(at.center)
+        const centre = map.unproject([
+          middle.x + (box.left + box.right) / 2 - (room.left + room.right) / 2,
+          middle.y + (box.top + box.bottom) / 2 - (room.top + room.bottom) / 2,
+        ])
+        // A hair under the exact scale: the near side keeps spreading a little as the far side closes in.
+        at = { center: centre, zoom: at.zoom + Math.log2(scale < 1 ? scale * 0.97 : 1) }
+      }
+    } finally {
+      map.jumpTo(was)
+      measuring = false
+    }
+    return at
+  }
+
   /** Zoom in until a fold's hearts stand apart (or, on one spot, as far as folding goes). */
   const zoomToIdeas = (ids: readonly string[]) => {
     const points = ids.flatMap((id) => {
@@ -592,6 +667,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     const lngs = points.map((point) => point.lng)
     const lats = points.map((point) => point.lat)
     const bearing = map.getBearing()
+    const pitch = map.getPitch()
+    const { padding, room } = foldPadding()
     let fit: ReturnType<typeof map.cameraForBounds>
     try {
       fit = map.cameraForBounds(
@@ -599,14 +676,16 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
           [Math.min(...lngs), Math.min(...lats)],
           [Math.max(...lngs), Math.max(...lats)],
         ],
-        { padding: FOLD_PADDING, maxZoom: FOLD_MAX_ZOOM, bearing },
+        { padding, maxZoom: FOLD_MAX_ZOOM, bearing },
       )
     } catch {
       return
     }
-    if (!fit) return
+    if (!fit?.center || fit.zoom === undefined) return
+    // A map not laid out yet has no room to measure in.
+    const seen = room.right > room.left && room.bottom > room.top ? fitSeen({ center: fit.center, zoom: fit.zoom }, points, room, bearing, pitch) : fit
     touched = true
-    map.easeTo({ ...fit, bearing, pitch: map.getPitch(), duration: reducedMotion ? 0 : 700, essential: true })
+    map.easeTo({ ...seen, bearing, pitch, duration: reducedMotion ? 0 : 700, essential: true })
   }
 
   /**
@@ -616,6 +695,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
    * on whichever heart now stands for it.
    */
   const refold = () => {
+    if (measuring) return
     const shown = [...ideas.values()]
     const active = document.activeElement
     const focused = shown.find((entry) => entry.el === active)?.pin.id ?? [...folds.values()].find((entry) => entry.el === active)?.ids[0]

@@ -153,6 +153,7 @@ export function AtlasMap({
   children,
 }: AtlasMapProps) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const railRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<AtlasMapHandle | null>(null)
   // No WebGL 2 means the static picture from the first paint.
   const [status, setStatus] = useState<"loading" | "ready" | "static">(() => (canRenderMap() ? "loading" : "static"))
@@ -222,6 +223,7 @@ export function AtlasMap({
             setStatus("static")
           },
           onTilt: setTilted,
+          overlays: () => railRef.current?.children ?? [],
           onReady: () => {
             if (cancelled) return
             // The chart's pins, one of which may be previewed, give way to the map's.
@@ -313,7 +315,7 @@ export function AtlasMap({
       )}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
       {(showControls || showLegend) && (
-        <div {...sx(s.rail)}>
+        <div ref={railRef} {...sx(s.rail)}>
           {showControls && (
             <div {...sx(s.controls, "trips-glass-pill")}>
               <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>
