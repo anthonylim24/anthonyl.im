@@ -291,6 +291,12 @@ function romanizeHangul(text: string): string {
   })
 }
 
+/** A name with case, accents, spacing and punctuation folded away, Hangul romanized: "전주 한옥마을" and "Jeonju Hanok-maeul" meet. */
+const joined = (text: string) => nameKey(romanizeHangul(text)).replace(/ /g, "")
+
+/** Whether `name` is what was typed, whole: not a longer name that starts with it. */
+const namedExactly = (query: string, name: string) => joined(query) !== "" && joined(query) === joined(name)
+
 const words = (text: string) => nameKey(text).split(" ").filter(Boolean)
 /** Kanji and Hangul names run words together ("서울역앞카페"), so a part can sit mid-word. */
 const wordHas = (word: string, part: string) => word.startsWith(part) || (CJK.test(part) && word.includes(part))
@@ -308,7 +314,6 @@ export function nameMatches(query: string, name: string): boolean {
   const named = words(name)
   if (typed.length === 0 || named.length === 0) return false
   if (covers(typed, named) || covers(named, typed)) return true
-  const joined = (text: string) => nameKey(romanizeHangul(text)).replace(/ /g, "")
   const [q, n] = [joined(query), joined(name)]
   return n.startsWith(q) || q.startsWith(n)
 }
@@ -316,7 +321,9 @@ export function nameMatches(query: string, name: string): boolean {
 /**
  * The place Enter may add without the traveller picking it: the top result,
  * only when it is named what was typed and near the trip. A same-named shop
- * on another continent is never a safe guess.
+ * on another continent is never a safe guess, even one named exactly what
+ * was typed: the words people jot on a day ("Check out", "Lunch") are also
+ * places somewhere, and a pin a country away is worse than one arrow press.
  */
 export function confidentPick(query: string, top: PlaceResult | undefined, anchors: TripAnchors): boolean {
   return Boolean(top && nameMatches(query, top.name) && isLocal(top, anchors))
@@ -341,10 +348,12 @@ export interface BestAnswer {
 /**
  * One list from every source, in the order given (best source first): a
  * place two sources both found appears once, as the first source had it.
- * The sure places lead, then the rest near the trip, then far ones, each
- * keeping its source order. A far place stays only when its name is what
- * was typed or it is Google's first answer: Google ranked it first despite
- * the bias, and a famous sight in the trip's other city must not vanish.
+ * The sure places lead, then far places named exactly what was typed (the
+ * traveller spelled out "Jeonju Hanok Village", not a Seoul village), then
+ * the rest near the trip, then other far ones, each keeping its source
+ * order. A far place stays only when its name is what was typed or it is
+ * Google's first answer: Google ranked it first despite the bias, and a
+ * famous sight in the trip's other city must not vanish.
  */
 export function rankPlaces(
   sources: readonly (readonly PlaceResult[])[],
@@ -362,18 +371,20 @@ export function rankPlaces(
   }
   const named = (place: PlaceResult) => query === undefined || nameMatches(query, place.name)
   const lead: PlaceResult[] = []
+  const exact: PlaceResult[] = []
   const local: PlaceResult[] = []
   const far: PlaceResult[] = []
   for (const place of kept) {
     const isBest = place.id === best?.id
     if (!isLocal(place, anchors)) {
-      if (isBest || named(place)) far.push(place)
+      if (query !== undefined && namedExactly(query, place.name)) exact.push(place)
+      else if (isBest || named(place)) far.push(place)
     } else if (query !== undefined && (nameMatches(query, place.name) || (isBest && best!.only))) lead.push(place)
     else local.push(place)
   }
-  const places = [...lead, ...local, ...far].slice(0, limit)
+  const places = [...lead, ...exact, ...local, ...far].slice(0, limit)
   const top = best && kept.find((place) => place.id === best.id)
-  if (top && far.includes(top) && !places.includes(top)) places[places.length - 1] = top
+  if (top && (exact.includes(top) || far.includes(top)) && !places.includes(top)) places[places.length - 1] = top
   return { places, lead: Math.min(lead.length, limit) }
 }
 
