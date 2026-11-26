@@ -136,7 +136,6 @@ export function moveItem(days: TripDay[], dayId: string, itemId: string, directi
   })
 }
 
-/** Move an item to the end of another day's plan (above its "To schedule" heading). */
 /** A stop moved to another day lands where its time falls there, an untimed one last on the route. */
 export function moveItemToDay(days: TripDay[], fromDayId: string, itemId: string, toDayId: string): TripDay[] {
   if (fromDayId === toDayId) return days
