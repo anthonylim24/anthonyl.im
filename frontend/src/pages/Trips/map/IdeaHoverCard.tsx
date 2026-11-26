@@ -8,15 +8,9 @@ import type { IdeaHover } from "./ideaHover"
 import type { HoldIdeaHover } from "./useIdeaHover"
 import { placePreview, type PreviewSide } from "./previewPlacement"
 
-// The card of the map's one wishlist preview, drawn inside the map beside
-// its pin. Which pin, if any, is `useIdeaHover`'s; the mouse may rest on
-// the card (`hold`) as on the pin. A fold of several hearts lists their
-// names instead: nothing about one place is looked up for it.
-
-/** A fold's card names this many places, then says how many more. */
 const FOLD_NAMES = 6
 
-/** The preview's frame: placed beside its pin inside the map. Its pin carries its own description, so nothing waits for this. */
+/** Placed beside its pin inside the map. The pin carries its own description, so nothing waits for this card. */
 export function IdeaHoverCard({ hover, hold, children }: { hover: IdeaHover; hold?: HoldIdeaHover; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {

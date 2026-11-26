@@ -8,7 +8,7 @@ import { IDEA_ANCHOR_ATTR, IDEA_ROW_ATTR } from "./contract"
 
 const shown = (el: HTMLElement) => el.getClientRects().length > 0
 
-/** A point on the page, in client pixels. */
+/** In client pixels. */
 export interface Spot {
   x: number
   y: number
@@ -44,7 +44,6 @@ export function focusOnPlace(ideaId: string): boolean {
   )
 }
 
-/** The shown heart or fold nearest `near`, else the first shown. */
 function nearestHeart(near: Spot | undefined): HTMLElement | null {
   const hearts = [...document.querySelectorAll<HTMLElement>(HEART)].filter(shown)
   if (!near || hearts.length === 0) return hearts[0] ?? null
@@ -55,7 +54,7 @@ function nearestHeart(near: Spot | undefined): HTMLElement | null {
   return hearts.reduce((best, el) => (away(el) < away(best) ? el : best))
 }
 
-/** The first shown element whose `attr` passes `matches`. Ids are compared, never put into a selector. */
+/** Ids are compared, never put into a selector. */
 function firstShown(attr: string, matches: (value: string) => boolean): HTMLElement | null {
   for (const el of document.querySelectorAll<HTMLElement>(`[${attr}]`)) {
     if (matches(el.getAttribute(attr) ?? "") && shown(el)) return el

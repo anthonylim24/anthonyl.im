@@ -4,14 +4,10 @@ import { dayStays } from "./map/stayPins"
 import { isCountry } from "./ideas/address"
 import type { Trip } from "./types"
 
-// Where a place search on a trip's page looks, and what it measures "near
-// the trip" against. The search is biased to one point: the open day's
-// stops, or for an empty day what the trip has in that day's city (see
-// `dayBias`). Near is any of the trip's places or towns, so the second city
-// of a two-city trip is as local as the first. Pure: TripWorkspace works
-// these out once per edit and every place field on the page reads them.
+// Near is any of the trip's places or towns, so the second city of a
+// two-city trip is as local as the first. TripWorkspace works these out once
+// per edit; every place field on the page reads them.
 
-/** A stop on a day, as a search result is compared with it. */
 export interface StopOnDay {
   /** 1-based, as the trip names its days. */
   day: number
@@ -22,7 +18,6 @@ export interface StopOnDay {
   lng: number
 }
 
-/** What the trip already has, for every place search on its page. */
 export interface TripPlaces {
   anchors: TripAnchors
   stops: readonly StopOnDay[]

@@ -1,7 +1,5 @@
-// Wishlist hearts that would sit on each other at the map's zoom are drawn
-// as one heart with a count (a fold), which zooms in to them when picked.
-// Pure: the engine hands in where each heart is on screen and gets back
-// which hearts share a fold.
+// A fold: wishlist hearts that would sit on each other at the map's zoom,
+// drawn as one counted heart that zooms in to them when picked.
 
 export interface ScreenIdea {
   id: string

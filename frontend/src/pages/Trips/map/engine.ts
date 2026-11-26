@@ -186,7 +186,6 @@ function hotelMark(): HTMLSpanElement {
   return mark
 }
 
-/** A heart with a count: several wishlist places that would sit on each other at this zoom. */
 function foldElement(): HTMLButtonElement {
   const el = document.createElement("button")
   el.type = "button"
@@ -201,7 +200,6 @@ function foldElement(): HTMLButtonElement {
   return el
 }
 
-/** Reports a wishlist pin's hover and keyboard focus, for the map's preview card; a fold's report names its places. */
 function watchIdeaHover(el: HTMLButtonElement, id: string, options: AtlasMapOptions, names?: readonly string[]) {
   const report = options.onIdeaHover
   if (!report) return
@@ -220,7 +218,7 @@ function applyPin(el: HTMLButtonElement, pin: AtlasPin) {
   const body = el.firstElementChild ?? el.appendChild(document.createElement("span"))
   body.className = "atlas-pin__body"
   if (pin.variant === "idea") {
-    // A wishlist place, named as one. No `title`: hovering shows the map's preview card instead.
+    // No `title`: hovering shows the map's preview card instead.
     el.setAttribute("aria-label", `${pin.title}, on the wishlist`)
     el.dataset.ideaId = pin.id
     if (!body.firstElementChild) body.replaceChildren(heart())
@@ -498,7 +496,6 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       { id: "atlas-area-guess", type: "line", source: AREA_SOURCE, filter: ["==", ["get", "approximate"], true], paint: { ...line, "line-width": 2, "line-dasharray": [3, 2] } },
       edge,
     )
-    // The area's stops, marked and named: which dot is which without opening each.
     const style = getComputedStyle(container)
     const paper = style.getPropertyValue("--trips-raised").trim() || "#ffffff"
     map.addLayer({

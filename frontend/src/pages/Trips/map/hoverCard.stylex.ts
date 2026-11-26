@@ -1,8 +1,5 @@
 import * as stylex from "@stylexjs/stylex"
 
-// The frame of a wishlist pin's preview on the map (`IdeaHoverCard.tsx`).
-// Its content is the wishlist's (`ideas/IdeaPreview.tsx`).
-
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 
 const grow = stylex.keyframes({

@@ -93,7 +93,6 @@ describe("dayBias", () => {
   })
 
   describe("on an empty day that names its city", () => {
-    // Seoul then Busan, planned in order: the Seoul days are full, Busan has started.
     const gyeongbok = place("k1", "Gyeongbokgung Palace", { lat: 37.5796, lng: 126.977 })
     const seongsu = place("k2", "Seoul Forest", { lat: 37.5444, lng: 127.0374 })
     const haeundae = place("b1", "Haeundae Beach", { lat: 35.1587, lng: 129.1604 })

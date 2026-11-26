@@ -412,7 +412,6 @@ export function cachedPlaceDetails(target: DetailsTarget, now = Date.now()): Pla
   return wikiMayAnswer(target) ? keptIn(fromWiki, target.place, now) : null
 }
 
-/** Lookups made ahead of the details (`prefetchPlaceDetails`), by `DetailsTarget.key`, while they are out. */
 const inFlight = new Map<string, Promise<PlaceDetails | null>>()
 /** When a place whose look-ahead failed may be looked up ahead again, by `DetailsTarget.key`. */
 const resting = new Map<string, number>()

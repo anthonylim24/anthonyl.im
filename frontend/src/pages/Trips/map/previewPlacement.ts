@@ -1,10 +1,8 @@
 import type { Box } from "../components/menuPlacement"
 
-// Where a pin's preview card sits inside the map: above the pin, centred on
-// it, or below it when the top of the map has no room, else beside it; of
-// the sides with room, the first that covers the fewest other pins, since a
-// pin under the card can be neither seen nor pointed at while it shows. The
-// map clips what spills over its edge, so the card is always kept inside.
+// Of the sides with room, the card takes the first covering the fewest other
+// pins: a pin under it can be neither seen nor pointed at. The map clips
+// what spills over its edge, so the card is always kept inside.
 
 export type PreviewSide = "above" | "below" | "right" | "left"
 
@@ -59,7 +57,6 @@ export function placePreview({
       avoid.filter((pin) => overlaps(pin, { top: at.top, bottom: at.top + size.height, left: at.left, right: at.left + size.width })).length
     return sides.reduce((best, at) => (covered(at) < covered(best) ? at : best))
   }
-  // A map too small for the card on any side: the roomier of above and below, kept inside the map.
   const roomAbove = anchor.top
   const roomBelow = bounds.height - anchor.bottom
   return roomAbove >= roomBelow

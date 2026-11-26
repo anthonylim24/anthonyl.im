@@ -60,7 +60,6 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   const announcement =
     picks.length > 0 ? `${picks.length === 1 ? "1 recommended day" : `${picks.length} recommended days`} for ${name}` : ""
 
-  /** The day the place went to, for focus to follow it there. */
   const picked = useRef<string | undefined>(undefined)
   const [fromPlace] = useState(() => focusOnPlace(idea.id))
   const toPlace = () => ideaFocusReturn(idea.id, { dayId: picked.current })

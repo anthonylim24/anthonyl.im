@@ -8,8 +8,7 @@ import { ideaPins, type AtlasPin } from "../map/geo"
 import type { Trip } from "../types"
 import { makeItem, makeTrip, stubMatchMedia } from "./tripFixtures"
 
-// The wishlist's preview card on the fallback chart (happy-dom has no WebGL),
-// drawn by the same hover seam the live map's pins report through.
+// The fallback chart, not the live map: happy-dom has no WebGL.
 
 const SEOUL = { lat: 37.5665, lng: 126.978 }
 const stops: AtlasPin[] = [
@@ -50,7 +49,6 @@ const pin = (name: string) => screen.getByRole("button", { name: `${name}, on th
 const photo = { url: "https://images.example/market.jpg", author: { name: "Min Ji" } }
 const answer = (place: unknown) => new Response(JSON.stringify({ place }), { headers: { "content-type": "application/json" } })
 const detailsCalls = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("/api/places/details"))
-/** Let the look-up's timer fire and its promise chain settle. */
 const settleLookup = () => act(async () => {
   await vi.advanceTimersByTimeAsync(0)
   await vi.advanceTimersByTimeAsync(0)
@@ -73,10 +71,8 @@ describe("a wishlist pin's preview", () => {
   it("shows what the place is after a mouse rests on its pin, and goes a moment after it leaves", async () => {
     fetchSpy.mockImplementation(async () => answer({ name: "Gwangjang Market", photos: [photo] }))
     renderMap()
-    // Described from the start by what its card says, before any card is up.
     expect(pin("Gwangjang Market")).toHaveAccessibleDescription("Food & cafés, Seoul. 88 Changgyeonggung-ro, Jongno District")
     fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
-    // Passing over the map shows nothing, and asks for nothing.
     expect(screen.queryByRole("tooltip")).toBeNull()
     act(() => vi.advanceTimersByTime(HOVER_INTENT_MS - 1))
     expect(detailsCalls(fetchSpy)).toHaveLength(0)
@@ -90,7 +86,6 @@ describe("a wishlist pin's preview", () => {
     expect(card).not.toHaveTextContent("mayak")
     expect(card).not.toHaveTextContent(/for details/i)
 
-    // Rested on, the place is looked up once; its photo lands in room the card already held.
     const frame = card.firstElementChild!
     expect(card.querySelector("img")).toBeNull()
     await settleLookup()
@@ -104,7 +99,6 @@ describe("a wishlist pin's preview", () => {
     act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS))
     expect(screen.queryByRole("tooltip")).toBeNull()
 
-    // Back again: the answer is the session's now, so nothing more is asked.
     fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
     act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
     expect(screen.getByRole("tooltip").querySelector("img")).toHaveAttribute("src", photo.url)
@@ -133,7 +127,7 @@ describe("a wishlist pin's preview", () => {
     const room = card.firstElementChild!
     const open = room.className
 
-    // The same room, shutting: it eases away rather than leaving at once.
+    // The room eases shut (a class change) rather than unmounting.
     reply(answer(null))
     await settleLookup()
     expect(card.firstElementChild).toBe(room)
@@ -141,7 +135,6 @@ describe("a wishlist pin's preview", () => {
     expect(room.querySelector("img")).toBeNull()
     expect(card).toHaveTextContent("Gwangjang Market")
 
-    // Known to have no photo, the place's card holds no room for one at all.
     fireEvent.pointerDown(pin("Gwangjang Market"), { pointerType: "mouse" })
     fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
     act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
@@ -186,7 +179,6 @@ describe("a wishlist pin's preview", () => {
     act(() => vi.advanceTimersByTime(HOVER_CLOSE_MS * 3))
     expect(screen.getByRole("tooltip")).toBe(card)
 
-    // Escape still dismisses it.
     fireEvent.keyDown(document, { key: "Escape" })
     expect(screen.queryByRole("tooltip")).toBeNull()
   })

@@ -9,13 +9,10 @@ import { ideaPreview } from "./preview"
 import { pv } from "./preview.stylex"
 import { THEMES } from "./themes"
 
-// What a wishlist pin's preview card says on the map: the category the
-// Wishlist tab files it under and where it is, its name, the street, the
-// first line of the traveller's notes, and a photo. The card mounts once a
-// mouse has rested on the pin, so the place is looked up then (one request
-// per place, kept for its details); until the answer comes the photo's
-// frame holds its room, so the card does not jump when it lands, and a place
-// with no photo eases the room shut.
+// The card mounts only once a mouse has rested on the pin, so the place is
+// looked up then (one request per place, kept for its details). The photo's
+// frame holds its room until the answer lands, so the card does not jump,
+// and eases shut for a place with no photo.
 
 /** A keyboard passes pins on its way elsewhere: a place is looked up once focus has rested on its pin this long. */
 export const FOCUS_REST_MS = 400
@@ -24,7 +21,6 @@ export function IdeaPreview({ idea, trip, via }: { idea: ItineraryItem; trip: Pi
   const getToken = useLatestCallback(useGetToken())
   const preview = ideaPreview(idea, trip)
   const [broken, setBroken] = useState<string | null>(null)
-  /** The lookup that failed: its frame gives its room back. */
   const [failed, setFailed] = useState<string | null>(null)
   // The answer lands in the session's cache, which `ideaPreview` reads: a render is all it needs.
   const [, answered] = useReducer((n: number) => n + 1, 0)

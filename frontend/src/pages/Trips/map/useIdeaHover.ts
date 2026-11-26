@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { IdeaHover, ReportIdeaHover } from "./ideaHover"
 
-// The map's one wishlist preview: which pin it is for, if any.
-
 /** How long a mouse rests on a pin before its preview shows: passing over the map shows nothing. */
 export const HOVER_INTENT_MS = 120
 /** How long a preview stays after the mouse leaves its pin or card: time to cross from one to the other. */

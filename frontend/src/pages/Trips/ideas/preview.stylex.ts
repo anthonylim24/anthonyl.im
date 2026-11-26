@@ -1,7 +1,6 @@
 import * as stylex from "@stylexjs/stylex"
 
-// The content of a wishlist pin's preview on the map (`IdeaPreview.tsx`):
-// set like a chart's legend entry. The frame is the map's (`map/hoverCard.stylex.ts`).
+// Set like a chart's legend entry. The frame is `map/hoverCard.stylex.ts`.
 
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 
@@ -78,7 +77,6 @@ export const pv = stylex.create({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  // A fold's card: the places under its heart, one per line.
   names: { margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "0.125rem" },
   foldName: {
     fontSize: "0.875rem",

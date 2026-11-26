@@ -1,9 +1,6 @@
-// Reading a place's address as Google and OpenStreetMap write it: which
-// part is the street, which the town, which the country or a postcode. Pure
-// text, with no map or trip in it, so the wishlist's areas, its rows and the
-// map's pins all read an address the same way.
+// Addresses as Google and OpenStreetMap write them. Pure text, shared so the
+// wishlist's areas, its rows and the map's pins read an address the same way.
 
-/** Lower case, no accents, single spaces: "Lisboa " and "lisboa" are one town. */
 export function normaliseName(text: string): string {
   return text
     .normalize("NFKD")
@@ -13,7 +10,6 @@ export function normaliseName(text: string): string {
     .trim()
 }
 
-/** A comma-separated part of an address with its postcode and house numbers taken out ("1300-085 Lisboa" → "Lisboa"). */
 export function withoutNumbers(part: string): string {
   return part
     .split(/\s+/)
@@ -24,7 +20,6 @@ export function withoutNumbers(part: string): string {
 
 let countries: Set<string> | null = null
 
-/** Country names as an address ends with them, in English and a few local spellings. */
 function countryNames(): Set<string> {
   if (countries) return countries
   const names = new Set<string>([
@@ -69,7 +64,6 @@ function countryNames(): Set<string> {
   return names
 }
 
-/** Whether a name, or a part of an address, is a country ("Japan", "South Korea", "대한민국"). */
 export const isCountry = (part: string) => countryNames().has(normaliseName(withoutNumbers(part)))
 /** A part that is a number and nothing else: a house number ("88", "1-1", "1−1") or a postcode. */
 const NUMBER = /^\d+(?:[\s\-‐‑–−]\d+)*$/

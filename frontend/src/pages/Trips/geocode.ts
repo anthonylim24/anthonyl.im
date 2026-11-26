@@ -243,7 +243,6 @@ export function townKey(part: string): string {
   return nameKey(part.split(",")[0]!.split(/\s+/).filter((token) => !/\d/.test(token)).join(" "))
 }
 
-/** Every town an address could be naming, one per comma-separated part, folded by `townKey`. */
 export const addressTowns = (address: string): string[] => address.split(",").map(townKey)
 
 const knowsNothing = (anchors: TripAnchors) => anchors.points.length === 0 && anchors.towns.length === 0
@@ -294,7 +293,6 @@ function romanizeHangul(text: string): string {
 /** A name with case, accents, spacing and punctuation folded away, Hangul romanized: "전주 한옥마을" and "Jeonju Hanok-maeul" meet. */
 const joined = (text: string) => nameKey(romanizeHangul(text)).replace(/ /g, "")
 
-/** Whether `name` is what was typed, whole: not a longer name that starts with it. */
 const namedExactly = (query: string, name: string) => joined(query) !== "" && joined(query) === joined(name)
 
 const words = (text: string) => nameKey(text).split(" ").filter(Boolean)

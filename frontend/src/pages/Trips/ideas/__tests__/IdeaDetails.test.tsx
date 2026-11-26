@@ -56,7 +56,6 @@ interface HarnessProps {
   rowKey?: string | null
   /** Where the row sits: -400 is scrolled out of view above. */
   rowTop?: number
-  /** Draws the place's heart on a map beside the list. */
   heart?: boolean
   themeControl?: ReactNode
   onAddToDay?: () => void

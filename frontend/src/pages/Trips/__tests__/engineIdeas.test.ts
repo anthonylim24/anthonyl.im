@@ -147,7 +147,6 @@ import { createAtlasMap } from "../map/engine"
 
 const stop = (id: string, label: string, lng: number): AtlasPin => ({ id, lat: 38.7, lng, title: `Stop ${label}`, label, variant: "stop" })
 const idea = (id: string, lng: number, title = `Idea ${id}`): AtlasPin => ({ id, lat: 38.71, lng, title, variant: "idea" })
-/** The text a pin names as its description, which must already be in the page. */
 const described = (container: HTMLElement, pin: Element) => container.querySelector(`[id="${pin.getAttribute("aria-describedby")}"]`)?.textContent
 
 function setup({ overlays }: { overlays?: () => Element[] } = {}) {
@@ -180,7 +179,7 @@ describe("the map engine's wishlist pins", () => {
     const pin = container.querySelector<HTMLButtonElement>('[data-idea-id="ramen"]')!
     expect(pin.className).toBe("atlas-pin atlas-pin--idea")
     expect(pin.getAttribute("aria-label")).toBe("Ramen Jiro, on the wishlist")
-    // Named for screen readers; hovering shows the map's preview card, not a second, native tooltip.
+    // No native tooltip: hovering shows the map's preview card.
     expect(pin.title).toBe("")
     expect(pin.querySelector("svg")).not.toBeNull()
 
@@ -218,7 +217,6 @@ describe("the map engine's wishlist pins", () => {
     pin.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }))
     expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "pointer" })
     pin.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }))
-    // A leave, not a press: the card waits a moment for the mouse to reach it.
     expect(onIdeaHover).toHaveBeenLastCalledWith(null, "leave")
 
     pin.focus()
@@ -299,7 +297,6 @@ describe("the map engine's wishlist folds", () => {
     handle.setPins([stop("s1", "1", -9.1)])
     expect(offsetOf("on").dy).toBe(12)
     expect(offsetOf("clear").dy).toBe(0)
-    // The stop goes, and the heart stands on its own place again.
     handle.setPins([])
     expect(offsetOf("on").dy).toBe(0)
   })
@@ -367,7 +364,6 @@ describe("the map engine's wishlist folds", () => {
     ])
     expect(camera.eased).toMatchObject({ zoom: 16, duration: 0 })
 
-    // Zoomed in, the hearts stand on their own again, spread apart where they still meet.
     camera.zoom = 15.995
     moveEnd()
     expect(fold(container)).toBeNull()

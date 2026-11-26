@@ -365,8 +365,6 @@ export function spreadPins(pins: readonly ScreenPin[], width = 30, height = 26):
   return offsets
 }
 
-// ── Neighborhood shapes ──────────────────────────────────────────────────
-
 /** A neighborhood drawn on the map: OpenStreetMap's boundary, or a shape drawn around its stops (`approximate`). */
 export interface AreaShape {
   geometry: Polygon | MultiPolygon

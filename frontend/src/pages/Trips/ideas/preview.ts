@@ -5,9 +5,8 @@ import { ideaName, type PlacePhoto } from "./contract"
 import { cachedPlaceDetails, detailsTarget, type DetailsTarget } from "./placeDetailsApi"
 import { themeOf } from "./themes"
 
-// What the map's preview card says about a wishlist place, from the trip
-// and what this session already looked up. The card asks for the photo
-// itself (`lookup`), once the pointer or focus has rested on the pin.
+// Reads only what this session already looked up: the card asks for the
+// photo itself (`lookup`), once the pointer or focus has rested on the pin.
 
 export interface IdeaPreview {
   name: string

@@ -3,7 +3,6 @@ import { placePreview } from "../map/previewPlacement"
 
 const bounds = { width: 800, height: 600 }
 const size = { width: 256, height: 140 }
-/** A 28 px pin whose box is centred on (x, y). */
 const pin = (x: number, y: number) => ({ top: y - 14, bottom: y + 14, left: x - 14, right: x + 14 })
 
 describe("placePreview", () => {
@@ -44,7 +43,6 @@ describe("placePreview", () => {
     expect(placePreview({ anchor: pin(400, 250), size: tall, bounds })).toMatchObject({ side: "below" })
     expect(placePreview({ anchor: pin(400, 250), size, bounds })).toMatchObject({ side: "above" })
     expect(placePreview({ anchor: pin(400, 250), size, bounds, keep: "below" })).toEqual({ top: 250 + 14 + 10, left: 272, side: "below" })
-    // Not where it no longer fits.
     expect(placePreview({ anchor: pin(400, 560), size, bounds, keep: "below" })).toMatchObject({ side: "above" })
   })
 
