@@ -43,6 +43,12 @@ export function distanceMeters(a: LngLat, b: LngLat): number {
   return 2 * EARTH_M * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
+/** Same-named places closer than this are one place; further apart, two (branches of a chain). */
+const SAME_PLACE_M = 300
+
+/** Whether two places with the same name are close enough to be one. */
+export const atSameSpot = (a: LngLat, b: LngLat) => distanceMeters(a, b) < SAME_PLACE_M
+
 /** Diagonal of the points' bounding box, in metres. */
 export function spanMeters(points: readonly LngLat[]): number {
   if (points.length < 2) return 0

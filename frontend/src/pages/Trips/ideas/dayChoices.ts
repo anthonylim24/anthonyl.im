@@ -1,12 +1,9 @@
 import { nameKey } from "../geocode"
-import { distanceMeters } from "../map/geo"
+import { atSameSpot } from "../map/geo"
 import { formatTripDate, plural } from "../meta"
 import { dayFull } from "../tripEdits"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 import type { DayChoice } from "../workspace/DayPicker"
-
-/** Same-named stops further apart than this are different places (two branches of a chain). */
-const SAME_PLACE_METERS = 300
 
 const placeName = (item: ItineraryItem) => nameKey(item.location?.name || item.title)
 
@@ -21,7 +18,7 @@ export function dayHolds(day: TripDay, idea: ItineraryItem): boolean {
     if (!name || placeName(item) !== name) return false
     const here = item.location
     if (at?.lat == null || at.lng == null || here?.lat == null || here.lng == null) return true
-    return distanceMeters({ lat: at.lat, lng: at.lng }, { lat: here.lat, lng: here.lng }) <= SAME_PLACE_METERS
+    return atSameSpot({ lat: at.lat, lng: at.lng }, { lat: here.lat, lng: here.lng })
   })
 }
 

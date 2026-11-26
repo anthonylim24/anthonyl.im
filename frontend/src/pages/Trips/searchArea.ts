@@ -1,5 +1,5 @@
 import { NO_ANCHORS, addressTowns, nameKey, townKey, type PlaceResult, type TripAnchors } from "./geocode"
-import { dayRoute, distanceMeters, isLocated, searchCenter, type LngLat } from "./map/geo"
+import { atSameSpot, dayRoute, isLocated, searchCenter, type LngLat } from "./map/geo"
 import { dayStays } from "./map/stayPins"
 import { isCountry } from "./ideas/address"
 import type { Trip } from "./types"
@@ -24,9 +24,6 @@ export interface TripPlaces {
 }
 
 export const NO_TRIP_PLACES: TripPlaces = { anchors: NO_ANCHORS, stops: [] }
-
-/** Two places this close with the same name are one. */
-const SAME_PLACE_M = 300
 
 type TripForSearch = Pick<Trip, "days" | "destinations" | "ideas" | "center">
 
@@ -58,7 +55,7 @@ export function tripPlaces(trip: TripForSearch | null): TripPlaces {
 export function dayHolding(place: PlaceResult, stops: readonly StopOnDay[]): number | null {
   const key = nameKey(place.name)
   const stop = stops.find(
-    (stop) => (place.placeId !== undefined && stop.placeId === place.placeId) || (stop.key === key && distanceMeters(stop, place) < SAME_PLACE_M),
+    (stop) => (place.placeId !== undefined && stop.placeId === place.placeId) || (stop.key === key && atSameSpot(stop, place)),
   )
   return stop?.day ?? null
 }
