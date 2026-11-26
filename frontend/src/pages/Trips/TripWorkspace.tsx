@@ -499,6 +499,8 @@ function Workspace() {
     (area: Neighborhood | null) => {
       pickArea(area)
       setPicked(area?.id ?? null)
+      // Hidden, the area's last words go too, so showing it again is said again.
+      if (!area) setAnnounce("")
       keyWantsFocus.current = area !== null && !wide
       if (area && !wide) setView("map")
     },
@@ -517,11 +519,10 @@ function Workspace() {
   // Cleared from the map's key: the focus goes back to the card's button, or on a phone (the list behind the map) to the view switch.
   const clearArea = useCallback(() => {
     const id = shownArea?.id
-    pickArea(null)
-    setPicked(null)
+    showArea(null)
     const back = wide ? paneRef.current?.querySelector<HTMLElement>(`[data-area-show="${id}"]`) : document.querySelector<HTMLElement>('[data-view][aria-checked="true"]')
     back?.focus()
-  }, [pickArea, shownArea, wide])
+  }, [showArea, shownArea, wide])
   const areaFramed = areaMap.shape !== null && !focusPin
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
