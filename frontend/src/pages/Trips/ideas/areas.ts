@@ -1,5 +1,9 @@
 import { distanceMeters, isLocated, type LngLat } from "../map/geo"
 import type { ItineraryItem, Trip } from "../types"
+import { addressLocality, normaliseName, withoutNumbers } from "./address"
+
+// ItemCard still imports it from here; new code imports it from ./address.
+export { streetFirst } from "./address"
 
 // Where a wishlist idea is, as a heading for "Group by area". Worked out
 // from the trip alone, with no network: the city of the day whose stops are
@@ -22,25 +26,6 @@ export const AREA_RADIUS_M = 30_000
 const RANK_TOWN = 100_000
 export const ELSEWHERE: Area = { key: "~elsewhere", label: "Elsewhere", rank: 200_000 }
 export const NO_LOCATION: Area = { key: "~none", label: "No location", rank: 300_000 }
-
-/** Lower case, no accents, single spaces: "Lisboa " and "lisboa" are one town. */
-export function normaliseName(text: string): string {
-  return text
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-/** A comma-separated part of an address with its postcode and house numbers taken out ("1300-085 Lisboa" → "Lisboa"). */
-function withoutNumbers(part: string): string {
-  return part
-    .split(/\s+/)
-    .filter((token) => !/\d/.test(token))
-    .join(" ")
-    .trim()
-}
 
 interface TripCity {
   name: string
@@ -66,87 +51,6 @@ function tripCities(trip: Pick<Trip, "days" | "destinations">): TripCity[] {
 }
 
 const cityArea = (city: TripCity): Area => ({ key: city.norm, label: city.name, rank: city.rank })
-
-let countries: Set<string> | null = null
-
-/** Country names as an address ends with them, in English and a few local spellings. */
-function countryNames(): Set<string> {
-  if (countries) return countries
-  const names = new Set<string>([
-    "usa",
-    "us",
-    "united states of america",
-    "uk",
-    "uae",
-    "korea",
-    "republic of korea",
-    "대한민국",
-    "한국",
-    "日本",
-    "中国",
-    "turkey",
-    "czech republic",
-    "hong kong",
-    "macau",
-    "españa",
-    "deutschland",
-    "italia",
-    "brasil",
-    "méxico",
-    "nederland",
-    "schweiz",
-    "österreich",
-  ].map(normaliseName))
-  try {
-    const display = new Intl.DisplayNames(["en"], { type: "region" })
-    const A = "A".charCodeAt(0)
-    for (let i = 0; i < 26; i++) {
-      for (let j = 0; j < 26; j++) {
-        const code = String.fromCharCode(A + i, A + j)
-        const name = display.of(code)
-        if (name && name !== code) names.add(normaliseName(name))
-      }
-    }
-  } catch {
-    // No Intl.DisplayNames: the short list above still drops the usual ones.
-  }
-  countries = names
-  return names
-}
-
-/** Whether a name, or a part of an address, is a country ("Japan", "South Korea", "대한민국"). */
-export const isCountry = (part: string) => countryNames().has(normaliseName(withoutNumbers(part)))
-/** A part that is a postcode and nothing else ("603-8361", "〒150-0041"); "1-chōme-22-7" is a street. */
-const isPostcode = (part: string) => /^〒?\s*\d[\d\s-]*$/.test(part)
-
-/**
- * An address's parts street first, without the country or a part that is
- * only a postcode. Google writes some addresses country first ("Japan,
- * 〒150-0041 Tokyo, Shibuya, Jinnan, 1-chōme-22-7"): those are turned round
- * ("1-chōme-22-7, Jinnan, Shibuya, 〒150-0041 Tokyo").
- */
-export function streetFirst(address: string | undefined): string[] {
-  const parts = (address ?? "").split(",").map((part) => part.trim()).filter(Boolean)
-  if (parts.length > 1 && isCountry(parts[0]!)) parts.reverse()
-  while (parts.length > 0 && isCountry(parts[parts.length - 1]!)) parts.pop()
-  return parts.filter((part) => !isPostcode(part))
-}
-
-/**
- * The town an address ends in: the last part before the country, without
- * its postcode, skipping a state code ("New York, NY 10001, USA" → "New
- * York"). Needs at least two parts, so a lone street or venue name is not
- * mistaken for a town; null when nothing is left.
- */
-export function addressLocality(address: string | undefined): string | null {
-  const parts = (address ?? "").split(",").map((part) => part.trim()).filter(Boolean)
-  if (parts.length < 2) return null
-  const rest = streetFirst(address).map(withoutNumbers)
-  while (rest.length > 0 && rest[rest.length - 1] === "") rest.pop()
-  while (rest.length > 1 && (rest[rest.length - 1] === "" || /^[A-Z]{2,3}$/.test(rest[rest.length - 1]!))) rest.pop()
-  const town = rest[rest.length - 1]
-  return town && !/^[A-Z]{2,3}$/.test(town) ? town : null
-}
 
 /** A trip city named as a whole part of the address ("…, Jongno District, Seoul, South Korea"). */
 function cityInAddress(address: string | undefined, cities: readonly TripCity[]): TripCity | null {

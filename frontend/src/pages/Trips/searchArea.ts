@@ -1,7 +1,7 @@
 import { NO_ANCHORS, addressTowns, nameKey, townKey, type PlaceResult, type TripAnchors } from "./geocode"
 import { dayRoute, distanceMeters, isLocated, searchCenter, type LngLat } from "./map/geo"
 import { dayStays } from "./map/stayPins"
-import { isCountry } from "./ideas/areas"
+import { isCountry } from "./ideas/address"
 import type { Trip } from "./types"
 
 // Where a place search on a trip's page looks, and what it measures "near

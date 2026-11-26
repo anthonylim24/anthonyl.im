@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import type { ItineraryItem, TripDay } from "../../types"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
-import { ELSEWHERE, NO_LOCATION, addressLocality, areaOf, compareAreas, ideaAreas, normaliseName, streetFirst, type Area } from "../areas"
+import { addressLocality, normaliseName, streetFirst } from "../address"
+import { ELSEWHERE, NO_LOCATION, areaOf, compareAreas, ideaAreas, type Area } from "../areas"
 
 // Seoul (City Hall), Busan (Haeundae), Lisbon: far enough apart that "nearest" is never close.
 const SEOUL = { lat: 37.5665, lng: 126.978 }

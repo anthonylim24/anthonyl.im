@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ItineraryItem, TripDay } from "../../types"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
-import { ideaPreview, streetLine } from "../preview"
+import { streetLine } from "../address"
+import { ideaPreview } from "../preview"
 import { clearPlaceDetailsCache, detailsTarget, loadPlaceDetails } from "../placeDetailsApi"
 
 const SEOUL = { lat: 37.5665, lng: 126.978 }
