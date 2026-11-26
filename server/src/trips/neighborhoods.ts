@@ -4,6 +4,7 @@ import { haversineMeters } from "../data/koreaPlaces"
 import { fetchGeminiWithTransientRetry } from "../geminiTools"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { createGroqLlm, extractModelJson, groqFitsTpm } from "./ai"
+import { hullBuffer, hullDistance } from "./areaHull"
 import { createNominatimOutlines, type AreaOutlineLookup, type OutlineGeometry } from "./areaOutline"
 import { createGoogleAreaPhotos, type AreaPhotoLookup } from "./areaPhotos"
 import type { LatLng } from "./conciergeTools"
@@ -153,15 +154,9 @@ export function withoutStrays<T extends LatLng>(members: readonly T[]): T[] {
   return members.filter((_, i) => reach[i]! <= limit)
 }
 
-// An area's shape is the one the map draws when OpenStreetMap has no
-// boundary (`areaHull` in the client's `map/geo.ts`): the convex hull of its
-// stops widened by 250 to 600 m. A stop inside that shape is in the area.
-
-const M_PER_DEG = 111_320
-
-/** How far the drawn shape reaches past the outermost stops (`hullBuffer` on the client). */
-export function hullBufferM(points: readonly LatLng[]): number {
-  if (points.length < 2) return 250
+/** The diagonal of the points' bounding box, in metres: how big an area is, for its drawn shape's margin (`hullBuffer`). */
+function spanM(points: readonly LatLng[]): number {
+  if (points.length < 2) return 0
   let [south, north, west, east] = [Infinity, -Infinity, Infinity, -Infinity]
   for (const p of points) {
     south = Math.min(south, p.lat)
@@ -169,57 +164,22 @@ export function hullBufferM(points: readonly LatLng[]): number {
     west = Math.min(west, p.lng)
     east = Math.max(east, p.lng)
   }
-  return Math.min(600, Math.max(250, 0.15 * haversineMeters({ lat: south, lng: west }, { lat: north, lng: east })))
+  return haversineMeters({ lat: south, lng: west }, { lat: north, lng: east })
 }
 
-type Xy = [number, number]
-
-function distanceToSegment([px, py]: Xy, [ax, ay]: Xy, [bx, by]: Xy): number {
-  const dx = bx - ax
-  const dy = by - ay
-  const length = dx * dx + dy * dy
-  const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / length))
-  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
-}
-
-/** Metres from `point` to the convex hull of `members` (0 inside), on a flat projection about the members' middle. */
-export function hullDistanceM(point: LatLng, members: readonly LatLng[]): number {
-  if (members.length === 0) return Infinity
-  const mid = medianPoint(members)
-  const xScale = M_PER_DEG * Math.cos((mid.lat * Math.PI) / 180)
-  const xy = (p: LatLng): Xy => [(p.lng - mid.lng) * xScale, (p.lat - mid.lat) * M_PER_DEG]
-  const sorted = members.map(xy).sort((a, b) => a[0] - b[0] || a[1] - b[1])
-  const cross = (o: Xy, a: Xy, b: Xy) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-  const half = (list: Xy[]) => {
-    const out: Xy[] = []
-    for (const p of list) {
-      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, p) <= 0) out.pop()
-      out.push(p)
-    }
-    out.pop()
-    return out
-  }
-  // Anticlockwise; one point or two (a capsule's spine) when the members do not span an area.
-  const hull = sorted.length < 3 ? sorted : [...half(sorted), ...half([...sorted].reverse())]
-  const at = xy(point)
-  if (hull.length === 1) return Math.hypot(at[0] - hull[0]![0], at[1] - hull[0]![1])
-  const edges = hull.map((a, i): [Xy, Xy] => [a, hull[(i + 1) % hull.length]!])
-  if (hull.length >= 3 && edges.every(([a, b]) => cross(a, b, at) >= 0)) return 0
-  return Math.min(...edges.map(([a, b]) => distanceToSegment(at, a, b)))
-}
-
-/** Which of `areas` has `point` inside its drawn shape, the nearest when several do; -1 when none. */
+/** Which of `areas` has `point` inside its drawn shape (`areaHull.ts`, as the map draws it), the nearest when several do; -1 when none. */
 export function areaHolding(point: LatLng, areas: ReadonlyArray<readonly LatLng[]>): number {
   let best = -1
   let bestGap = Infinity
   let bestInside = false
   areas.forEach((members, i) => {
     if (members.length === 0) return
-    const gap = hullDistanceM(point, members)
-    if (gap > hullBufferM(members)) return
+    const middle = medianPoint(members)
+    const gap = hullDistance(point, members, middle)
+    if (gap > hullBuffer(spanM(members))) return
     // Inside two hulls: the one whose middle is nearer. Inside one beats near another.
     const inside = gap === 0
-    const score = inside ? haversineMeters(point, medianPoint(members)) : gap
+    const score = inside ? haversineMeters(point, middle) : gap
     if ((inside && !bestInside) || (inside === bestInside && score < bestGap)) {
       best = i
       bestGap = score
