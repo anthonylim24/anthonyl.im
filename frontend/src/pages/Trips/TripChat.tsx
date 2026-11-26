@@ -499,7 +499,7 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
         const empty = !result.content.trim() && !result.places?.length && !result.proposal
         patchMessage(assistantId, (m) => ({
           ...m,
-          content: empty && !result.error ? "I couldn't put an answer together just now." : result.content || m.content,
+          content: empty && !result.error ? "I couldn't answer that." : result.content || m.content,
           places: result.places ?? m.places,
           proposal: result.proposal ?? m.proposal,
           proposalState: result.proposal ? (m.proposalState ?? "pending") : m.proposalState,
@@ -519,7 +519,7 @@ export function TripChatPanel({ tripId, dayId, open, onOpenChange, fabRef }: Tri
             setAnnounce("Stopped.")
           }
         } else {
-          const message = (err as Error).message || "Something went wrong. Please try again."
+          const message = (err as Error).message || "The concierge didn't answer. Try again."
           patchMessage(assistantId, (m) => ({ ...m, error: message }))
           setAnnounce(`The concierge hit a problem: ${message}`)
         }
@@ -1068,7 +1068,7 @@ function EmptyState({
         Ask about <em {...sx(c.emptyEm)}>{place ?? "this trip"}</em>.
       </h3>
       <p {...sx(c.emptyCopy)}>
-        I know your plan, check live hours and routes, and line up changes for you to apply.
+        Suggested changes come as a card you can apply and undo.
       </p>
       {starters.length > 0 ? (
         <ul {...sx(c.starters)} aria-label="Suggested questions">

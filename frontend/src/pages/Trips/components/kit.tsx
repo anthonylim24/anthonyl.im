@@ -234,6 +234,12 @@ const Frozen = memo(
   (_, next) => !next.open,
 )
 
+/** Radix's open focus, sent to the dialog element instead of its first control. */
+const focusSelf = (event: Event) => {
+  event.preventDefault()
+  if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus({ preventScroll: true })
+}
+
 export function Modal({
   open,
   onClose,
@@ -242,6 +248,9 @@ export function Modal({
   accent,
   wide,
   footer,
+  returnFocus,
+  sendFocus,
+  focusDialog = false,
   children,
 }: {
   open: boolean
@@ -251,19 +260,34 @@ export function Modal({
   accent?: TripAccent
   wide?: boolean
   footer?: ReactNode
+  /** Where focus goes on close when what opened the dialog has gone (see `DialogFrame`). */
+  returnFocus?: () => HTMLElement | null | undefined
+  /** Where focus goes on close ahead of what opened the dialog, when it names a place (see `DialogFrame`). */
+  sendFocus?: () => HTMLElement | null | undefined
+  /**
+   * Open with focus on the dialog itself rather than its first control: a
+   * sheet that is mostly opened to read, where a focused field would raise a
+   * phone's keyboard over it. A control with `autoFocus` still takes it.
+   */
+  focusDialog?: boolean
   children: ReactNode
 }) {
   const [scrolled, setScrolled] = useState(false)
   return (
-    <DialogFrame open={open} onClose={onClose} accent={accent} content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}>
+    <DialogFrame
+      open={open}
+      onClose={onClose}
+      accent={accent}
+      returnFocus={returnFocus}
+      sendFocus={sendFocus}
+      described={!!description}
+      onOpenAutoFocus={focusDialog ? focusSelf : undefined}
+      content={[a.dialog, wide && a.dialogWide, "trips-glass-sheet"]}
+    >
       <div {...sx(a.dialogHead, scrolled && a.dialogHeadRuled)}>
         <div {...sx(a.stack)}>
           <DialogPrimitive.Title {...sx(a.dialogTitle, a.wrap)}>{title}</DialogPrimitive.Title>
-          {description ? (
-            <DialogPrimitive.Description {...sx(a.body)}>{description}</DialogPrimitive.Description>
-          ) : (
-            <DialogPrimitive.Description {...sx(a.srOnly)}>{title}</DialogPrimitive.Description>
-          )}
+          {description && <DialogPrimitive.Description {...sx(a.body)}>{description}</DialogPrimitive.Description>}
         </div>
         <DialogPrimitive.Close {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Close">
           <X size={18} strokeWidth={1.75} aria-hidden />
@@ -282,7 +306,10 @@ export function Modal({
  * re-declares the `.trips` tokens, a scrim, and a Content that animates out
  * (`trips-scrim` / `trips-dialog` in index.css), is inert while it does, and
  * keeps showing what it showed while open. Focus goes back to whatever
- * opened it. Inside a `Presence`, it closes when the caller lets go.
+ * opened it, or, when that has gone (the dialog deleted it), to
+ * `returnFocus()`; `sendFocus()` comes first, for a dialog that made
+ * something new to land on (a copy). Inside a `Presence`, it closes when
+ * the caller lets go.
  */
 export function DialogFrame({
   open,
@@ -290,6 +317,9 @@ export function DialogFrame({
   accent,
   content,
   onOpenAutoFocus,
+  returnFocus,
+  sendFocus,
+  described = true,
   children,
 }: {
   open: boolean
@@ -298,6 +328,12 @@ export function DialogFrame({
   /** The Content's styles and classes, as `sx` takes them. */
   content: Parameters<typeof sx>
   onOpenAutoFocus?: (event: Event) => void
+  /** False when it has no `Description`: the title says it all, so nothing describes it. */
+  described?: boolean
+  /** Where focus goes on close when what opened the dialog is gone (the row it scheduled, say). */
+  returnFocus?: () => HTMLElement | null | undefined
+  /** Where focus goes on close instead of what opened the dialog, when it returns an element. */
+  sendFocus?: () => HTMLElement | null | undefined
   children: ReactNode
 }) {
   const closing = useClosing()
@@ -318,6 +354,7 @@ export function DialogFrame({
             {...sx(...content, "trips-dialog")}
             // While it animates out, nothing in it can be pressed again.
             inert={!shown}
+            {...(described ? {} : { "aria-describedby": undefined })}
             onOpenAutoFocus={onOpenAutoFocus}
             // A field that removes nodes as focus leaves it (a list closing on
             // blur) does so while focus is on <body>, and Radix then moves focus
@@ -335,7 +372,7 @@ export function DialogFrame({
             onCloseAutoFocus={(event) => {
               // These dialogs have no Radix Trigger, so Radix would send focus
               // to a null trigger: <body>, and a keyboard user starts over.
-              const target = opener.current
+              const target = sendFocus?.() ?? (opener.current?.isConnected ? opener.current : returnFocus?.())
               if (!target?.isConnected) return
               event.preventDefault()
               target.focus({ preventScroll: true })

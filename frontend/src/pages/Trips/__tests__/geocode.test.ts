@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cityLabel, isClutter, LOCAL_METERS, localBox, nameKey, rankPlaces, searchCities, searchPlaces, worthAskingGoogle, type PlaceResult } from "../geocode"
+import { cityLabel, isClutter, isLocal, LOCAL_METERS, localBox, nameKey, nameMatches, confidentPick, NO_ANCHORS, rankPlaces, searchCities, searchPlaces, townKey, worthAskingGoogle, type PlaceResult, type TripAnchors } from "../geocode"
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -128,7 +128,7 @@ describe("searchPlaces", () => {
       }),
     )
 
-    const places = await searchPlaces("belem", null)
+    const { places } = await searchPlaces("belem", null)
     expect(places).toEqual([
       {
         id: "W123",
@@ -177,7 +177,7 @@ describe("searchPlaces", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       json({ features: [{ geometry: { coordinates: [1, 2] }, properties: { name: "X", osm_key, osm_value } }] }),
     )
-    const [place] = await searchPlaces("x", null)
+    const [place] = (await searchPlaces("x", null)).places
     expect(place!.category).toBe(category)
   })
 
@@ -190,7 +190,7 @@ describe("searchPlaces", () => {
         ],
       }),
     )
-    const places = await searchPlaces("a", null)
+    const { places } = await searchPlaces("a", null)
     expect(places.map((p) => [p.id, p.context, p.address])).toEqual([
       ["x0", "", undefined],
       ["x1", "", undefined],
@@ -216,16 +216,16 @@ describe("searchPlaces", () => {
     expect(urls.find((url) => !url.includes("bbox="))).toContain("&lat=38.71&lon=-9.14&location_bias_scale=0.1")
   })
 
-  it("returns [] on a non-OK response", async () => {
+  it("finds nothing on a non-OK response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({}, 503))
-    expect(await searchPlaces("tower", { lat: 1, lng: 2 })).toEqual([])
+    expect(await searchPlaces("tower", { lat: 1, lng: 2 })).toEqual({ places: [], lead: 0 })
   })
 
-  it("returns [] when aborted but surfaces other failures", async () => {
+  it("finds nothing when aborted but surfaces other failures", async () => {
     const abort = new Error("aborted")
     abort.name = "AbortError"
     const spy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(abort)
-    expect(await searchPlaces("tower", null)).toEqual([])
+    expect(await searchPlaces("tower", null)).toEqual({ places: [], lead: 0 })
 
     spy.mockRejectedValueOnce(new TypeError("Failed to fetch"))
     await expect(searchPlaces("tower", null)).rejects.toThrow(/Failed to fetch/)
@@ -258,7 +258,7 @@ describe("searchPlaces ranking", () => {
         ],
       }),
     )
-    const places = await searchPlaces("Turtle Bay Resort", { lat: 21.3, lng: -157.85 })
+    const { places } = await searchPlaces("Turtle Bay Resort", { lat: 21.3, lng: -157.85 })
     expect(places.map((p) => [p.id, p.name, p.category])).toEqual([
       ["N3", "Turtle Bay Resort", "hotel"],
       ["N5", "Turtle Bay Golf", "experience"],
@@ -267,7 +267,7 @@ describe("searchPlaces ranking", () => {
 
   it("still answers when only map furniture matched", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ features: [feature(1, "Kuilima Drive", "highway", "residential", -157.99, 21.7)] }))
-    expect((await searchPlaces("Kuilima Drive", null)).map((p) => p.name)).toEqual(["Kuilima Drive"])
+    expect((await searchPlaces("Kuilima Drive", null)).places.map((p) => p.name)).toEqual(["Kuilima Drive"])
   })
 
   it("knows clutter from venues", () => {
@@ -308,7 +308,8 @@ describe("searchPlaces with Google", () => {
 
   it("puts the local Google match first, ahead of same-named places abroad", async () => {
     const spy = route({ places: () => json({ places: [gohan] }), photon: (url) => json(url.includes("bbox=") ? { features: [] } : osmGohan) })
-    const places = await searchPlaces("Gohan", honolulu, undefined, async () => "token")
+    const { places, lead } = await searchPlaces("Gohan", honolulu, undefined, async () => "token")
+    expect(lead).toBe(1)
     expect(places.map((p) => [p.name, p.context])).toEqual([
       ["GOHAN", "1314 S King St Ste G3, Honolulu"],
       ["Gohan", "South Korea"],
@@ -324,7 +325,7 @@ describe("searchPlaces with Google", () => {
 
   it("keeps the OpenStreetMap results when the server refuses", async () => {
     route({ places: () => json({ error: "place search unavailable" }, 503), photon: () => json(osmGohan) })
-    const places = await searchPlaces("Gohan", null, undefined, async () => "token")
+    const { places } = await searchPlaces("Gohan", null, undefined, async () => "token")
     expect(places.map((p) => p.context)).toEqual(["South Korea", "India"])
   })
 
@@ -333,7 +334,7 @@ describe("searchPlaces with Google", () => {
       if (String(input).includes("/api/places/search")) return json({ places: [gohan] })
       throw new TypeError("Failed to fetch")
     })
-    expect((await searchPlaces("Gohan", honolulu, undefined, async () => "token")).map((p) => p.name)).toEqual(["GOHAN"])
+    expect((await searchPlaces("Gohan", honolulu, undefined, async () => "token")).places.map((p) => p.name)).toEqual(["GOHAN"])
   })
 
   it("fails only when every source failed", async () => {
@@ -350,41 +351,152 @@ describe("searchPlaces with Google", () => {
 
   it("ignores malformed server rows", async () => {
     route({ places: () => json({ places: [gohan, { id: "g:x", name: "No point" }, { name: "No id", lat: 1, lng: 2 }, null] }) })
-    expect((await searchPlaces("Gohan", null, undefined, async () => "token")).map((p) => p.name)).toEqual(["GOHAN"])
+    expect((await searchPlaces("Gohan", null, undefined, async () => "token")).places.map((p) => p.name)).toEqual(["GOHAN"])
   })
 })
 
 describe("rankPlaces", () => {
-  const place = (id: string, name: string, lat: number, lng: number): PlaceResult => ({ id, name, context: "", lat, lng })
-  const waikiki = { lat: 21.28, lng: -157.83 }
+  const place = (id: string, name: string, lat: number, lng: number, address?: string): PlaceResult => ({ id, name, context: "", lat, lng, address })
+  const around = (...points: { lat: number; lng: number }[]): TripAnchors => ({ points, towns: [] })
+  const waikiki = around({ lat: 21.28, lng: -157.83 })
+  const ids = (ranked: { places: PlaceResult[] }) => ranked.places.map((p) => p.id)
 
   it("lists local places first, each tier in source order", () => {
     const google = [place("g1", "Duke's Tokyo", 35.68, 139.76), place("g2", "Duke's Waikiki", 21.2766, -157.8278)]
     const osm = [place("o1", "Duke's Dress Shop", 21.5, -158.02), place("o2", "Duke's Barcelona", 41.38, 2.17)]
-    expect(rankPlaces([google, osm], waikiki).map((p) => p.id)).toEqual(["g2", "o1", "g1", "o2"])
+    expect(ids(rankPlaces([google, osm], waikiki))).toEqual(["g2", "o1", "g1", "o2"])
   })
 
-  it("keeps source order without a point", () => {
-    expect(rankPlaces([[place("a", "A", 50, 50)], [place("b", "B", 0, 0)]], null).map((p) => p.id)).toEqual(["a", "b"])
+  it("keeps source order knowing nothing of the trip", () => {
+    expect(ids(rankPlaces([[place("a", "A", 50, 50)], [place("b", "B", 0, 0)]], NO_ANCHORS))).toEqual(["a", "b"])
   })
 
   it("merges one place found twice, keeping the earlier source's copy", () => {
     const google = [place("g1", "Leonard's Bakery", 21.2848, -157.8133)]
     const osm = [place("o1", "Leonard’s Bakery", 21.2849, -157.8134), place("o2", "LEONARDS BAKERY", 21.4, -157.8), place("g1", "copy", 0, 0)]
-    expect(rankPlaces([google, osm], waikiki).map((p) => p.id)).toEqual(["g1", "o2"])
+    expect(ids(rankPlaces([google, osm], waikiki))).toEqual(["g1", "o2"])
   })
 
   it("caps the list", () => {
     const many = Array.from({ length: 20 }, (_, i) => place(`p${i}`, `Place ${i}`, 21.3, -157.86))
-    expect(rankPlaces([many], waikiki)).toHaveLength(8)
-    expect(rankPlaces([many], waikiki, 3)).toHaveLength(3)
+    expect(rankPlaces([many], waikiki).places).toHaveLength(8)
+    expect(rankPlaces([many], waikiki, {}, 3).places).toHaveLength(3)
+  })
+
+  it("given the query, keeps a far place only when its name is what was typed", () => {
+    const jeju = around({ lat: 33.5, lng: 126.53 })
+    const lotte = place("l", "Lotte Mart", 33.49, 126.49)
+    const edinburgh = place("e", "Rain Jackets Direct", 55.95, -3.19)
+    const atlanta = place("a", "Bring rain jackets", 33.75, -84.39)
+    expect(rankPlaces([[lotte, edinburgh, atlanta]], jeju, { query: "Bring rain jackets" })).toEqual({ places: [atlanta, lotte], lead: 0 })
+    const osaka = place("o", "Osaka Castle", 34.69, 135.53)
+    expect(ids(rankPlaces([[osaka]], around({ lat: 35.68, lng: 139.76 }), { query: "osaka castle" }))).toEqual(["o"])
   })
 
   it("counts O'ahu's North Shore as local to Honolulu", () => {
     const north = place("n", "Turtle Bay", 21.705, -157.998)
     const tokyo = place("t", "Turtle Bay Tokyo", 35.68, 139.76)
-    expect(rankPlaces([[tokyo, north]], { lat: 21.3, lng: -157.86 }).map((p) => p.id)).toEqual(["n", "t"])
+    expect(ids(rankPlaces([[tokyo, north]], around({ lat: 21.3, lng: -157.86 })))).toEqual(["n", "t"])
     expect(LOCAL_METERS).toBeGreaterThan(50_000)
+  })
+
+  describe("on a trip in two cities", () => {
+    // Seoul then Busan, with stops only in Seoul so far.
+    const seoulBusan: TripAnchors = { points: [{ lat: 37.57, lng: 126.98 }, { lat: 37.55, lng: 126.99 }], towns: ["seoul", "busan"] }
+    const jagalchi = place("j", "Jagalchi Market", 35.0966, 129.0306, "52 Jagalchihaean-ro, Jung-gu, Busan, South Korea")
+    const shops = Array.from({ length: 8 }, (_, i) => place(`s${i}`, `Seoul Outdoor ${i}`, 37.56, 126.98))
+
+    it("counts the second city as near, by a stop there or by its name in the address", () => {
+      expect(rankPlaces([[jagalchi]], seoulBusan, { query: "Jagalchi Market" })).toEqual({ places: [jagalchi], lead: 1 })
+      const busanStop: TripAnchors = { points: [...seoulBusan.points, { lat: 35.1, lng: 129.04 }], towns: [] }
+      expect(isLocal({ ...jagalchi, address: undefined }, busanStop)).toBe(true)
+      expect(isLocal({ ...jagalchi, address: undefined }, { points: seoulBusan.points, towns: ["seoul"] })).toBe(false)
+    })
+
+    it("lists Google's only answer first when it is near, even under another name", () => {
+      // Tokyo then Kyoto, every stop in Tokyo: "golden pavilion" is Kinkaku-ji.
+      const tokyoKyoto: TripAnchors = { points: [{ lat: 35.68, lng: 139.76 }], towns: ["tokyo", "kyoto"] }
+      const kinkakuji = place("k", "Kinkaku-ji", 35.0394, 135.7292, "1 Kinkakujichō, Kita Ward, Kyoto, 603-8361, Japan")
+      expect(rankPlaces([[kinkakuji]], tokyoKyoto, { query: "golden pavilion", best: { id: "k", only: true } })).toEqual({ places: [kinkakuji], lead: 1 })
+    })
+
+    it("never drops Google's top answer, near or far", () => {
+      const tokyo: TripAnchors = { points: [{ lat: 35.68, lng: 139.76 }], towns: ["tokyo"] }
+      const kinkakuji = place("k", "Kinkaku-ji", 35.0394, 135.7292, "Kita Ward, Kyoto, Japan")
+      const local = Array.from({ length: 8 }, (_, i) => place(`t${i}`, `Golden ${i}`, 35.68, 139.76))
+      const ranked = rankPlaces([[kinkakuji], local], tokyo, { query: "golden pavilion", best: { id: "k", only: false } })
+      expect(ranked.places).toHaveLength(8)
+      expect(ranked.places[7]).toBe(kinkakuji)
+    })
+
+    it("lists a far place named exactly as typed above local places named otherwise, and never takes it on Enter", () => {
+      const villages = ["Bukchon", "Namsangol", "Eunpyeong", "Seochon", "Ikseon", "Gahoe"].map((name, i) => place(`v${i}`, `${name} Hanok Village`, 37.57, 126.98))
+      const jeonju = place("jj", "Jeonju Hanok Village", 35.8151, 127.1531, "99 Girin-daero, Wansan-gu, Jeonju, South Korea")
+      const ranked = rankPlaces([villages, [jeonju]], seoulBusan, { query: "jeonju hanok village", best: { id: "v0", only: false } })
+      expect(ids(ranked)).toEqual(["jj", "v0", "v1", "v2", "v3", "v4", "v5"])
+      expect(ranked.lead).toBe(0)
+      expect(confidentPick("jeonju hanok village", jeonju, seoulBusan)).toBe(false)
+      // A longer far name only starts with what was typed: still last.
+      const museum = place("jm", "Jeonju Hanok Village Museum", 35.81, 127.15)
+      expect(ids(rankPlaces([villages.slice(0, 2), [museum]], seoulBusan, { query: "Jeonju Hanok Village" }))).toEqual(["v0", "v1", "jm"])
+    })
+
+    it("puts loose matches for a note after the typed text, and keeps no far guess", () => {
+      expect(rankPlaces([shops], seoulBusan, { query: "Bring rain jackets", best: { id: "s0", only: false } }).lead).toBe(0)
+      // Google's one answer to "Rest day" is a café a world away: still listed, never first.
+      const phuket = place("p", "Rest Day Cafe", 7.88, 98.39, "Phuket, Thailand")
+      expect(rankPlaces([[phuket]], seoulBusan, { query: "Rest day", best: { id: "p", only: true } })).toEqual({ places: [phuket], lead: 0 })
+      expect(confidentPick("Rest day", phuket, seoulBusan)).toBe(false)
+    })
+  })
+})
+
+describe("townKey", () => {
+  it("reads a town as an address or a destination names it", () => {
+    expect(townKey("〒150-0041 Tokyo")).toBe("tokyo")
+    expect(townKey("Tokyo, Japan")).toBe("tokyo")
+    expect(townKey("Busan")).toBe("busan")
+    expect(townKey("603-8361")).toBe("")
+  })
+})
+
+describe("nameMatches", () => {
+  it("matches a name the typed words start, or a name inside what was typed", () => {
+    expect(nameMatches("gyeongbok", "Gyeongbokgung Palace")).toBe(true)
+    expect(nameMatches("Lotte Mart Jeju", "Lotte Mart")).toBe(true)
+    expect(nameMatches("leonards", "Leonard’s Bakery")).toBe(true)
+    expect(nameMatches("경복", "경복궁")).toBe(true)
+    expect(nameMatches("광장시장 육회", "광장시장")).toBe(true)
+  })
+
+  it("reads Hangul against the English names Google gives", () => {
+    expect(nameMatches("경복궁", "Gyeongbokgung Palace")).toBe(true)
+    expect(nameMatches("명동", "Myeong-dong")).toBe(true)
+    expect(nameMatches("해운대", "Haeundae Beach")).toBe(true)
+    expect(nameMatches("우산 챙기기", "Lotte Mart")).toBe(false)
+  })
+
+  it("does not match a place a search engine only related to the words", () => {
+    expect(nameMatches("Bring rain jackets", "Lotte Mart")).toBe(false)
+    expect(nameMatches("rain jackets", "Rainbow Jacket Shop")).toBe(false)
+    expect(nameMatches("", "Lotte Mart")).toBe(false)
+  })
+})
+
+describe("confidentPick", () => {
+  const seoul: TripAnchors = { points: [{ lat: 37.57, lng: 126.98 }], towns: ["seoul", "busan"] }
+  const at = (name: string, lat: number, lng: number, address?: string): PlaceResult => ({ id: name, name, context: "", lat, lng, address })
+
+  it("takes the top result only when it is named what was typed and near the trip", () => {
+    expect(confidentPick("경복궁", at("Gyeongbokgung Palace", 37.58, 126.98), seoul)).toBe(true)
+    expect(confidentPick("Check out", at("Check Out", 42.38, 20.43), seoul)).toBe(false)
+    expect(confidentPick("Check out", at("Check Out", 42.38, 20.43), NO_ANCHORS)).toBe(true)
+    expect(confidentPick("Lunch", at("무궁화반점 종로점", 37.57, 126.99), seoul)).toBe(false)
+    expect(confidentPick("Lunch", undefined, seoul)).toBe(false)
+  })
+
+  it("takes a place in the trip's other city", () => {
+    expect(confidentPick("Jagalchi Market", at("Jagalchi Market", 35.0966, 129.0306, "52 Jagalchihaean-ro, Jung-gu, Busan, South Korea"), seoul)).toBe(true)
   })
 })
 

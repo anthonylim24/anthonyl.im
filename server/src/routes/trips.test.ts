@@ -702,6 +702,20 @@ describe("permalinks", () => {
     expect(((await bySlug.json()) as { trip: { id: string } }).trip.id).toBe(trip.id)
   })
 
+  test("a name without Latin letters still gives a readable slug, never a bare year", async () => {
+    const { app } = makeApp()
+    const create = async (name: string, destinations: string[]) => {
+      const body = JSON.stringify({ ...JSON.parse(newTripBody), name, destinations })
+      const res = await app.request("/api/trips", { method: "POST", headers: AUTH, body })
+      return ((await res.json()) as { trip: { id: string; slug: string } }).trip
+    }
+    expect((await create("제주도 가족 여행", ["Jeju City, South Korea"])).slug).toBe("jejudo-gajok-yeohaeng-2026")
+    expect((await create("京都の秋", ["Kyoto, Japan"])).slug).toBe("kyoto-2026")
+    const nameless = await create("東京", ["東京"])
+    expect(nameless.slug).not.toMatch(/^\d+$/)
+    expect(nameless.slug).toContain("2026")
+  })
+
   test("auto-dedupes default slugs", async () => {
     const { app } = makeApp()
     const t1 = await createTrip(app)
@@ -1111,7 +1125,7 @@ describe("concierge chat", () => {
       body: JSON.stringify({ prompt: "hello" }),
     })
     const text = await res.text()
-    expect(text).toContain('"error":"The concierge is unavailable right now. Please try again."')
+    expect(text).toContain('"error":"The concierge isn’t available right now. Try again in a moment."')
     expect(text).toContain("data: [DONE]")
   })
 })
@@ -1224,7 +1238,7 @@ describe("trip summary geography", () => {
     expect(summary.placeCount).toBe(0)
   })
 
-  test("derives center, [lng, lat] points and placeCount from located items", async () => {
+  test("derives center and [lng, lat] points from located items, and counts every place, pinned or not", async () => {
     const { app } = makeApp()
     const trip = await createTrip(app)
     const patch = await app.request(`/api/trips/${trip.id}`, {
@@ -1247,7 +1261,7 @@ describe("trip summary geography", () => {
     })
     expect(patch.status).toBe(200)
     const summary = (await summaryOf(app, trip.id))!
-    expect(summary.placeCount).toBe(2)
+    expect(summary.placeCount).toBe(3)
     expect(summary.points).toEqual([
       [139.6543, 35.1235],
       [140, 36],
@@ -1677,6 +1691,7 @@ describe("enhancement run lifecycle", () => {
       stop: () => {},
       drain: async () => {},
       inflight: () => 0,
+      cancel: async () => null,
     }
     const { app, store } = makeApp({ llm: async () => "{}", reviewWorker })
     const trip = await createTrip(app)
@@ -1737,6 +1752,22 @@ describe("enhancement run lifecycle", () => {
       runs: Array<{ status: string }>
     }
     expect(list.runs.map((r) => r.status)).toEqual(["error"])
+    await startEnhance(app, trip.id)
+  })
+
+  test("Stop ends a queued review for good and says so; another trip cannot stop it", async () => {
+    const { app, store } = makeApp({ llm: async () => "{}" })
+    const trip = await createTrip(app)
+    const other = await createTrip(app)
+    await store.enqueueReview(runningRun(trip.id, ago(1_000)), { scope: "trip" }, REVIEW_MAX_ATTEMPTS)
+    const cancel = (tripId: string) => app.request(`/api/trips/${tripId}/enhancements/run-live/cancel`, { method: "POST", headers: AUTH })
+
+    expect((await cancel(other.id)).status).toBe(404)
+    const res = await cancel(trip.id)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { run: { status: string; outcomeReason: string } }
+    expect(body.run).toMatchObject({ status: "error", outcomeReason: "This AI review was stopped before it finished." })
+    // Ended, so a new review can start.
     await startEnhance(app, trip.id)
   })
 

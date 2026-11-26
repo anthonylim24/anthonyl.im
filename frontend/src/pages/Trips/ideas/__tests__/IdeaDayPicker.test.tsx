@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { useState } from "react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
+import { Presence } from "../../components/presence"
 import { IdeaDayPicker } from "../IdeaDayPicker"
 import type { DaySuggestions } from "../contract"
 
@@ -34,11 +36,50 @@ function renderPicker() {
 
 const recommended = () => screen.getByRole("region", { name: "Recommended" })
 
+/** The picker as the overlay mounts it, beside the place's row and its heart and a control that is neither. */
+function OnThePage() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <div data-idea-row="idea-1">
+        <button type="button" onClick={() => setOpen(true)}>
+          Add to day: Time Out Market
+        </button>
+      </div>
+      <button type="button" data-idea-id="idea-1">
+        Time Out Market, on the wishlist
+      </button>
+      <button type="button">Map</button>
+      <Presence when={open ? idea : null}>{(shown) => (
+        <IdeaDayPicker trip={trip} idea={shown} getToken={getToken} onPick={() => {}} onClose={() => setOpen(false)} />
+      )}</Presence>
+    </>
+  )
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
 describe("IdeaDayPicker", () => {
+  it("marks a day that already has the place, and never recommends it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      json({ source: "distance", picks: [{ dayId: "day-1", reason: "Already nearby" }, { dayId: "day-2", reason: "A free day" }] }),
+    )
+    const holding = makeTrip({
+      ...trip,
+      days: trip.days.map((day) =>
+        day.id === "day-1" ? { ...day, items: [...day.items, makeItem({ id: "tom", title: "Time Out Market", location: { name: "Time Out Market", lat: 38.7071, lng: -9.1461, source: "user" } })] } : day,
+      ),
+    })
+    render(<IdeaDayPicker trip={holding} idea={idea} getToken={getToken} onPick={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByRole("button", { name: /Day 1 · .*Already on this day/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /Day 2 · / })).toBeEnabled()
+    await act(async () => {})
+    const picks = within(recommended()).getAllByRole("button")
+    expect(picks.map((b) => b.textContent)).toEqual([expect.stringContaining("A free day")])
+  })
+
   it("shows every day at once, then up to three recommended days with their reasons", async () => {
     let answer!: (res: Response) => void
     const fetchMock = vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise<Response>((resolve) => (answer = resolve)))
@@ -97,7 +138,7 @@ describe("IdeaDayPicker", () => {
   it("on a failure, says so in one quiet line and leaves the full list", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ error: "unauthorized" }, 401))
     renderPicker()
-    expect(await screen.findByText("Couldn’t suggest days just now. Any day below works.")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn’t suggest days. Any day below works.")).toBeInTheDocument()
     expect(within(recommended()).queryAllByRole("button")).toHaveLength(0)
     expect(screen.getByRole("button", { name: /Day 2 · / })).toBeEnabled()
     expect(screen.getByRole("status")).toHaveTextContent("")
@@ -119,6 +160,19 @@ describe("IdeaDayPicker", () => {
     expect(onPick).toHaveBeenCalledWith("day-2")
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onPick.mock.invocationCallOrder[0]).toBeLessThan(onClose.mock.invocationCallOrder[0]!)
+  })
+
+  it.each([
+    ["the place's heart, when something else had focus as it opened", "Map", "Time Out Market, on the wishlist"],
+    ["the place's row, when the row opened it", "Add to day: Time Out Market", "Add to day: Time Out Market"],
+  ])("hands focus to %s", async (_, before, after) => {
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise<Response>(() => {}))
+    render(<OnThePage />)
+    screen.getByRole("button", { name: before }).focus()
+    fireEvent.click(screen.getByRole("button", { name: "Add to day: Time Out Market" }))
+    fireEvent.keyDown(await screen.findByRole("dialog"), { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: after }))
   })
 
   it("picking from the full list works before any answer", () => {

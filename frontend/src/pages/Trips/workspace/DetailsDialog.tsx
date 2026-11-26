@@ -34,8 +34,8 @@ import {
 
 /** The list's words, and the closed field's. */
 const STATUS_COPY: Record<TripStatus, { label: string; short: string }> = {
-  draft: { label: "Draft — still planning", short: "Draft" },
-  active: { label: "Confirmed — it’s happening", short: "Confirmed" },
+  draft: { label: "Draft · still planning", short: "Draft" },
+  active: { label: "Confirmed", short: "Confirmed" },
   completed: { label: "Completed", short: "Completed" },
   archived: { label: "Archived", short: "Archived" },
 }

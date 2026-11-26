@@ -34,8 +34,8 @@ describe("limHttpError", () => {
 
 describe("errorIfIncomplete", () => {
   it("keeps an in-stream error even when [DONE] never arrived", () => {
-    expect(errorIfIncomplete(false, "That took too long. Please try again.")).toBe(
-      "That took too long. Please try again.",
+    expect(errorIfIncomplete(false, "That took too long. Try again.")).toBe(
+      "That took too long. Try again.",
     )
   })
 

@@ -1,5 +1,5 @@
 import { TonightLine } from "../bookings/TonightLine"
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { flushSync } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
@@ -52,7 +52,11 @@ import { DayTimeline, ModeIcon, type DayTimelineProps } from "../timeline/DayTim
 import { useHolds, useLiveValue, type LiveValue } from "./liveValue"
 import { DoneFold } from "../timeline/DoneFold"
 import { stopTitle } from "../timeline/timeline"
-import { useDayView } from "./dayView"
+import { suggestStart } from "../timeline/suggestStart"
+import type { DayView } from "./dayView"
+import { scrollBehavior } from "./scroll"
+import { StopSheet } from "./StopEditor"
+import { stopEdits, type EditorSurface } from "./stopEdits"
 import { defaultCurrency } from "../budget/budget"
 import { AddStop } from "./AddStop"
 import { AiBusy, SuggestionsReview, type ReviewProgress } from "./AiPanels"
@@ -61,6 +65,7 @@ import { sameDayList, type Leg } from "./dayList"
 import type { Holiday } from "../holidays"
 import { Parts } from "./Parts"
 import { rainBrief, stopAlerts } from "./stopAlerts"
+import { stopRow } from "./stopRow"
 
 export interface DayPanelProps {
   trip: Trip
@@ -71,7 +76,7 @@ export interface DayPanelProps {
   locked: boolean
   /** A review is running, whichever part of the trip it covers. */
   enhancing: boolean
-  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line steps through its copy. */
+  /** Where that review is in the server's queue (`reviewProgress`); without it the busy line says what is running. */
   progress?: ReviewProgress
   applying: boolean
   run: EnhancementRun | null
@@ -84,6 +89,10 @@ export interface DayPanelProps {
   activeId: string | null
   /** Stop whose editor should open (from the map's "Edit stop"); `n` is new for each request. */
   edit: { id: string; n: number } | null
+  /** The day's layout, remembered on this device. */
+  dayView: DayView
+  onDayView: (view: DayView) => void
+  surface: EditorSurface
   near: LngLat | null
   onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
   /**
@@ -123,7 +132,7 @@ type SortableProps = Omit<ItemCardProps, "hot" | "onHover"> & {
 }
 
 /** Rebuilt with every edit to the day, so compared by their words, not by identity. */
-const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict"])
+const BY_VALUE = new Set<keyof SortableProps>(["leg", "conflict", "startAt"])
 const sameProps = (prev: SortableProps, next: SortableProps) =>
   (Object.keys(next) as (keyof SortableProps)[]).every(
     (key) => Object.is(prev[key], next[key]) || (BY_VALUE.has(key) && JSON.stringify(prev[key]) === JSON.stringify(next[key])),
@@ -216,6 +225,8 @@ function LegRow({ leg, wet }: { leg: Leg; wet: number | null }) {
 
 /** Focus target after a stop leaves the list: the next stop, else the one before, else the composer. */
 const COMPOSER = "composer"
+/** Focus target after a duplicate: the copy, found once the list has it. */
+const COPY = "copy"
 
 export function DayPanel({
   trip,
@@ -234,6 +245,9 @@ export function DayPanel({
   hot,
   activeId,
   edit,
+  dayView,
+  onDayView,
+  surface,
   near,
   onChange,
   onEditTrip,
@@ -251,6 +265,12 @@ export function DayPanel({
   holidays,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
+  const notesRef = useRef<HTMLTextAreaElement>(null)
+  // Asked for from the day's menu, which hands focus back to its button first.
+  const [notesAsked, setNotesAsked] = useState(0)
+  useEffect(() => {
+    if (notesAsked) notesRef.current?.focus()
+  }, [notesAsked])
   const [spoken, setSpoken] = useState("")
   const [confirmDelete, setConfirmDelete] = useState(false)
   const navigate = useNavigate()
@@ -279,7 +299,33 @@ export function DayPanel({
   const toSchedule = parked.filter((i) => i.kind !== "section" && i.kind !== "note").length
   const meters = routeMeters(route)
 
-  const [dayView, setDayView] = useDayView()
+  // The one stop whose editor (or, for a viewer, details) is open, under its
+  // card or in a sheet. Every way in sets it: the card, a timeline block, the
+  // map, the 3D view, a stop just added untitled.
+  const [editing, setEditing] = useState<string | null>(() => edit?.id ?? null)
+  /** A stop opened from outside the list, scrolled to once its editor is under its card. */
+  const [summoned, setSummoned] = useState(edit)
+  const [seenEdit, setSeenEdit] = useState(edit)
+  if (edit !== seenEdit) {
+    setSeenEdit(edit)
+    if (edit) {
+      setEditing(edit.id)
+      setSummoned(edit)
+    }
+  }
+  const openStop = (id: string) => {
+    setEditing(id)
+    setSummoned((last) => ({ id, n: (last?.n ?? 0) + 1 }))
+  }
+  const toggleEditor = useCallback((id: string) => setEditing((open) => (open === id ? null : id)), [setEditing])
+  const setDayView = (view: DayView) => {
+    setEditing(null)
+    onDayView(view)
+  }
+  const scrollTo = surface === "inline" ? summoned : null
+  useEffect(() => {
+    if (scrollTo) document.getElementById(`item-${scrollTo.id}`)?.scrollIntoView({ block: "center", behavior: scrollBehavior() })
+  }, [scrollTo])
   const currency = defaultCurrency(trip)
   const forecast = sky.status === "forecast" ? sky.forecast : undefined
   const alerts = useMemo(() => stopAlerts(day, forecast?.hours), [day, forecast])
@@ -329,11 +375,11 @@ export function DayPanel({
 
   // On today the finished head of the list folds into one row, open or shut in
   // both layouts. A stop in it that is selected (on the map, by a deep link),
-  // opened for editing from the map, or holding focus (its editor in use) opens it.
+  // opened for editing, or holding focus (its editor in use) opens it.
   const [foldOpen, setFoldOpen] = useState(false)
   const [focused, setFocused] = useState<string | null>(null)
-  const reveal = list.done?.stops.find((id) => id === activeId || id === edit?.id || id === focused) ?? null
-  const revealKey = reveal && `${reveal}:${edit?.id === reveal ? edit.n : 0}`
+  const reveal = list.done?.stops.find((id) => id === activeId || id === editing || id === focused) ?? null
+  const revealKey = reveal && `${reveal}:${summoned?.id === reveal ? summoned.n : 0}`
   const [revealed, setRevealed] = useState<string | null>(null)
   if (revealKey !== revealed) {
     setRevealed(revealKey)
@@ -351,14 +397,10 @@ export function DayPanel({
   const layoutKey = `${held ?? ""}|${hidden}|${slot ?? ""}|${list.anytimeAt ?? ""}|${shownIds.join(",")}`
 
   const rework = useLatestCallback((spell: WetSpell) => onAskAi(rainBrief(spell)))
-  // A pinned stop opens on the map; an unpinned one in the list, where it can be edited.
   const findStop = useLatestCallback((id: string) => {
     const item = day.items.find((i) => i.id === id)
     if (item && isLocated(item)) onLocate(id)
-    else {
-      setDayView("list")
-      hot.set(id)
-    }
+    else if (item) openStop(id)
   })
 
   // A deleted or moved stop takes focus with it; hand it to its neighbour
@@ -366,6 +408,7 @@ export function DayPanel({
   const leave = useLatestCallback((index: number) => {
     const after = day.items[index + 1] ?? day.items[index - 1]
     focusNext.current = after?.id ?? COMPOSER
+    if (day.items[index]?.id === editing) setEditing(null)
   })
   const removeStop = useCallback(
     (dayId: string, item: ItineraryItem, index: number) => {
@@ -378,22 +421,94 @@ export function DayPanel({
   const keepForLater = useLatestCallback((dayId: string, item: ItineraryItem, index: number) => {
     leave(index)
     onEditTrip?.((doc) => saveForLater(doc, dayId, item.id), { label: `Saved “${item.title || "Untitled"}” for later`, toast: true })
-    setSpoken(`${item.title || "Stop"} saved for later, in the trip’s ideas.`)
+    setSpoken(`${item.title || "Stop"} saved to the wishlist.`)
   })
   const onSaveForLater = onEditTrip ? keepForLater : undefined
   const noRoomForIdeas = ideasFull(trip)
   // The edit that removed the stop re-renders this panel; focus moves once it has.
+  /** A stop's row in the list (its edit button on the timeline), else the composer. */
+  const stopControl = (id: string) =>
+    (id === COMPOSER ? null : stopRow(rootRef.current, id)) ??
+    rootRef.current?.querySelector<HTMLElement>('input[role="combobox"]')
+  /** The day's ids before a duplicate, and what to say once it is done: the copy is the one new id. */
+  const copyOf = useRef<{ before: Set<string>; spoken: string } | null>(null)
+  const findCopy = () => {
+    const from = copyOf.current
+    return from ? day.items.find((item) => !from.before.has(item.id))?.id : undefined
+  }
   useLayoutEffect(() => {
     const target = focusNext.current
     if (!target) return
+    const id = target === COPY ? findCopy() : target
+    if (!id) return
     focusNext.current = null
-    const row = target === COMPOSER ? null : document.getElementById(`item-${target}`)?.querySelector<HTMLElement>("[data-card-row]")
-    ;(row ?? rootRef.current?.querySelector<HTMLElement>('input[role="combobox"]'))?.focus()
+    if (target === COPY) copyOf.current = null
+    stopControl(id)?.focus()
   })
+
+  // The sheet's stop, read from the day so every edit shows; gone once it is
+  // deleted or moved, and the sheet leaves. Focus then goes to its neighbour,
+  // once the sheet has: the dialog holds focus until then.
+  const sheetFocus = useRef<string | null>(null)
+  const leaveSheet = useLatestCallback((index: number) => {
+    sheetFocus.current = (day.items[index + 1] ?? day.items[index - 1])?.id ?? COMPOSER
+    setEditing(null)
+  })
+  const sheetReturn = useLatestCallback((id: string) => {
+    const target = sheetFocus.current ?? id
+    sheetFocus.current = null
+    return stopControl(target)
+  })
+  // The stop the sheet was for is still there, so this must come ahead of it.
+  const sheetCopy = useLatestCallback(() => {
+    if (sheetFocus.current !== COPY) return null
+    sheetFocus.current = null
+    // Said now: while the sheet was up, the page's live region was hidden.
+    if (copyOf.current) setSpoken(copyOf.current.spoken)
+    const copy = findCopy()
+    copyOf.current = null
+    return copy ? stopControl(copy) : null
+  })
+  const duplicated = useLatestCallback((index: number, spoken: string) => {
+    copyOf.current = { before: new Set(day.items.map((item) => item.id)), spoken }
+    if (surface === "sheet") sheetFocus.current = COPY
+    else {
+      focusNext.current = COPY
+      setSpoken(spoken)
+    }
+    if (day.items[index]?.id === editing) setEditing(null)
+  })
+  const editingAt = editing ? day.items.findIndex((item) => item.id === editing) : -1
+  const editingItem = editingAt >= 0 ? day.items[editingAt] : undefined
+  const startAt = editable && editingItem ? suggestStart(day, editingItem.id) : null
+  const sheetEdits =
+    editingItem && editable
+      ? stopEdits({
+          item: editingItem,
+          dayId: day.id,
+          index: editingAt,
+          count: day.items.length,
+          dayOptions,
+          parked: parkedAt >= 0 && editingAt > parkedAt,
+          onChange,
+          onAnnounce: setSpoken,
+          onGone: leaveSheet,
+          onDuplicated: duplicated,
+        })
+      : null
 
   const menu: MenuItem[] = [
     ...(editable
-      ? [{ label: day.notes ? "Edit day notes" : "Add day notes", icon: <NotebookPen size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setNotesOpen(true) }]
+      ? [
+          {
+            label: day.notes ? "Edit day notes" : "Add day notes",
+            icon: <NotebookPen size={16} strokeWidth={1.75} aria-hidden />,
+            onSelect: () => {
+              setNotesOpen(true)
+              setNotesAsked((n) => n + 1)
+            },
+          },
+        ]
       : []),
     ...(editable && unsorted
       ? [
@@ -431,7 +546,7 @@ export function DayPanel({
             },
           },
           {
-            label: "Move a day earlier",
+            label: "Move this day earlier",
             icon: <ChevronsLeft size={16} strokeWidth={1.75} aria-hidden />,
             disabled: locked || dayIndex === 0,
             onSelect: () => {
@@ -440,7 +555,7 @@ export function DayPanel({
             },
           },
           {
-            label: "Move a day later",
+            label: "Move this day later",
             icon: <ChevronsRight size={16} strokeWidth={1.75} aria-hidden />,
             disabled: locked || dayIndex === trip.days.length - 1,
             onSelect: () => {
@@ -551,7 +666,13 @@ export function DayPanel({
         <div {...sx(a.rowWrap)} style={{ columnGap: "0.875rem" }}>
           {day.items.length > 0 && <DayViewSwitch view={dayView} onChange={setDayView} />}
           {editable && (
-            <button type="button" {...sx(a.btn, a.btnSm, s.ideasBtn)} disabled={locked} onClick={() => onAskAi()}>
+            <button
+              type="button"
+              {...sx(a.btn, a.btnSm, s.ideasBtn)}
+              aria-label={day.items.length === 0 ? undefined : "Ideas for this day"}
+              disabled={locked}
+              onClick={() => onAskAi()}
+            >
               {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
               {day.items.length === 0 ? "Plan this day with AI" : <span>Ideas<span {...sx(s.wideOnly)}> for this day</span></span>}
             </button>
@@ -570,6 +691,7 @@ export function DayPanel({
       {(notesOpen || day.notes) &&
         (editable ? (
           <textarea
+            ref={notesRef}
             aria-label="Day notes"
             value={day.notes ?? ""}
             placeholder="Notes for the day"
@@ -597,7 +719,7 @@ export function DayPanel({
 
       {enhancing && (
         <AiBusy
-          steps={["Reading what’s already planned…", "Scouting places near your route…", "Checking they fit the day…", "Pinning the best ones…"]}
+          line="Reviewing this day…"
           progress={progress}
           onStop={onStopAi}
         />
@@ -615,11 +737,7 @@ export function DayPanel({
             <p {...sx(a.body, a.ink)} style={{ fontWeight: 600 }}>
               Nothing planned yet
             </p>
-            <p {...sx(a.small)}>
-              {editable
-                ? "Search for a place below and it drops onto the map, or let AI sketch the day."
-                : "Whoever’s planning hasn’t added anything to this day."}
-            </p>
+            {editable && <p {...sx(a.small)}>Search for a place below to add the first stop.</p>}
           </div>
         ) : dayView === "timeline" ? (
           <HotTimeline
@@ -631,6 +749,7 @@ export function DayPanel({
             forecast={forecast}
             fold={{ open: foldOpen, onToggle: toggleFold }}
             onSelect={findStop}
+            onEdit={editable ? openStop : undefined}
           />
         ) : (
           <Reorder.Group
@@ -688,14 +807,18 @@ export function DayPanel({
                   locked={locked}
                   hotSource={hot}
                   active={activeId === item.id}
-                  expand={edit?.id === item.id ? edit.n : 0}
+                  open={surface === "inline" && editing === item.id}
+                  surface={surface}
+                  onToggle={toggleEditor}
                   flash={recentIds.has(item.id)}
                   near={near}
                   dayOptions={dayOptions}
                   currency={currency}
+                  startAt={editing === item.id ? startAt : null}
                   onChange={onChange}
                   onDelete={removeStop}
                   onGone={leave}
+                  onDuplicated={duplicated}
                   onLocate={onLocate}
                   onAnnounce={setSpoken}
                   held={held === item.id}
@@ -717,6 +840,8 @@ export function DayPanel({
           onAdd={(item) => {
             onChange((days) => addItem(days, day.id, item), { label: `Added “${item.title || "Untitled"}”` })
             onAdded(item.id)
+            // Untitled, it is only a start: it opens ready to name.
+            if (!item.title && item.kind !== "section") openStop(item.id)
           }}
         />
       )}
@@ -730,6 +855,37 @@ export function DayPanel({
           onChange={(journal) => patchDay({ journal })}
         />
       )}
+
+      <Presence when={surface === "sheet" && editingItem ? editingItem.id : null}>
+        {(id) => {
+          const at = day.items.findIndex((item) => item.id === id)
+          const item = at >= 0 ? day.items[at] : undefined
+          return (
+            <StopSheet
+              item={item}
+              trip={trip}
+              day={day}
+              index={at}
+              editable={editable}
+              locked={locked}
+              near={near}
+              currency={currency}
+              dayOptions={dayOptions}
+              spoken={spoken}
+              edits={item && item.id === editingItem?.id ? sheetEdits : null}
+              startAt={item && item.id === editingItem?.id ? startAt : null}
+              onDelete={() => {
+                if (!item) return
+                leaveSheet(at)
+                onDelete(day.id, item)
+              }}
+              onClose={() => setEditing(null)}
+              returnFocus={() => sheetReturn(id)}
+              sendFocus={sheetCopy}
+            />
+          )
+        }}
+      </Presence>
 
       <Presence when={confirmDelete}>{() => (
         <Modal

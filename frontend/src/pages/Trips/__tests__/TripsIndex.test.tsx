@@ -165,7 +165,7 @@ describe("TripsIndex", () => {
 
     // Buckets render in the order now → upcoming → past.
     expect(cardTitles()).toEqual(["Seoul Now", "Lisbon Later", "Kyoto Autumn", "Oslo Winter"])
-    expect(screen.getByText("Atlas · 4 trips · 3 ahead")).toBeInTheDocument()
+    expect(screen.getByText("4 trips · 3 ahead")).toBeInTheDocument()
   })
 
   it("shows three or fewer trips as one list with no timing headings", async () => {
@@ -340,7 +340,7 @@ describe("TripsIndex", () => {
     renderIndex()
 
     expect(await screen.findByRole("link", { name: "Plan your first trip" })).toHaveAttribute("href", "/trips/new")
-    expect(screen.getByText("Atlas · Nothing pinned yet")).toBeInTheDocument()
+    expect(screen.getByText("No trips yet")).toBeInTheDocument()
     expect(screen.queryByRole("searchbox")).toBeNull()
     expect(cardTitles()).toEqual([])
   })
@@ -566,7 +566,7 @@ describe("TripsIndex", () => {
     mockListTrips.mockResolvedValue([])
     renderIndex(`/trips?url=${encodeURIComponent(post)}`)
 
-    expect(await screen.findByText("You shared an Instagram post. Start a trip and its places go straight onto it.")).toBeInTheDocument()
+    expect(await screen.findByText("Start a trip to add the places from the Instagram post you shared.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Plan your first trip" })).toHaveAttribute("href", `/trips/new?instagram=${encodeURIComponent(post)}`)
     expect(screen.queryByTestId("path")).toBeNull()
   })

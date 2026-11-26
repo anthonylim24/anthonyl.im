@@ -288,12 +288,32 @@ describe("IdeaOverlay", () => {
       expect(state.pathname).toBe("/trips")
     })
 
-    it("goes through the picker and back on one entry", () => {
+    it("goes through the picker and back, leaving no entry behind", () => {
       const state = renderOverlay(twoDays(), fromTrips)
       fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
       fireEvent.click(screen.getByRole("button", { name: "Add to day" }))
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
       fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      expect(state.search).toBe("?tab=wishlist")
+      act(() => state.navigate(-1))
+      expect(state.pathname).toBe("/trips")
+    })
+
+    it("returns to the details on Back from a picker they opened", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Add to day" }))
+      act(() => state.navigate(-1))
+      expect(params(state).get("idea")).toBe("idea-tram")
+      expect(params(state).has("add")).toBe(false)
+      expect(screen.getByRole("dialog", { name: "Details: Tram 28" })).toHaveAttribute("data-from", "row")
+    })
+
+    it("takes the details' and the picker's entries back after a pick, so Back never reopens either", () => {
+      const state = renderOverlay(twoDays(), fromTrips)
+      fireEvent.click(screen.getByRole("button", { name: "Row: Tram 28" }))
+      fireEvent.click(screen.getByRole("button", { name: "Add to day" }))
+      fireEvent.click(screen.getByRole("button", { name: "Pick day-1" }))
       expect(state.search).toBe("?tab=wishlist")
       act(() => state.navigate(-1))
       expect(state.pathname).toBe("/trips")

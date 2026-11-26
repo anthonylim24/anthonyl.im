@@ -50,10 +50,10 @@ describe("reviewProgress", () => {
     expect(reviewProgress(going({ state: "working", attempt: 3, maxAttempts: 3 }), "your trip")?.line).toBe("Reviewing your trip (attempt 3 of 3)…")
   })
 
-  it("leaves a server without a queue to the stepping copy", () => {
+  it("leaves a server without a queue to the caller's line", () => {
     expect(reviewProgress(going(), "your trip")).toBeUndefined()
-    render(<AiBusy steps={["Reading the whole itinerary…", "Checking pacing and routes…"]} progress={reviewProgress(going(), "your trip")} />)
-    expect(screen.getByText("Reading the whole itinerary…")).toHaveAttribute("role", "status")
+    render(<AiBusy line="Reviewing your trip…" progress={reviewProgress(going(), "your trip")} />)
+    expect(screen.getByText("Reviewing your trip…", { exact: false })).toHaveAttribute("role", "status")
   })
 
   it("never raises its voice", () => {
@@ -91,7 +91,7 @@ describe("a draft in progress", () => {
         />
       </MemoryRouter>,
     )
-    return screen.getByText("Reading up on the area…", { exact: false })
+    return screen.getByText("Drafting the itinerary…", { exact: false })
   }
 
   it("tells a long trip it takes a few minutes, not about a minute", () => {

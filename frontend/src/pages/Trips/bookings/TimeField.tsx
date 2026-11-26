@@ -1,5 +1,6 @@
 import { useId, useState } from "react"
 import { sx } from "@/styles/merge"
+import { composing } from "../ime"
 import { formatClock, parseClock } from "../meta"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
@@ -63,7 +64,7 @@ export function TimeField({
         onChange={(event) => setText(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          if (event.key === "Enter" && !composing(event)) {
             event.preventDefault()
             commit()
           }

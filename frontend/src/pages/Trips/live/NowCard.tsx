@@ -212,7 +212,7 @@ function During({
               <span {...sx(a.srOnly)}> local time</span>
             </p>
           </div>
-          {dayName && <p {...sx(a.display, s.dayTitle, a.wrap)}>{dayName}</p>}
+          {dayName && <p {...sx(a.display, s.dayTitle, a.wrapName)}>{dayName}</p>}
           {sky && <SkyLine forecast={sky} clock={state.clock} />}
         </div>
       </div>
@@ -375,7 +375,7 @@ function NextStop({
       </div>
       {/* Edits sit beside the name, as on a stop in the list, so the two buttons below keep a phone's row to themselves. */}
       <div {...sx(s.nameRow)}>
-        <Link to={dayLink(basePath, next.day, next.item)} {...sx(a.display, a.focusable, s.stopLink, s.nextName, a.wrap)}>
+        <Link to={dayLink(basePath, next.day, next.item)} {...sx(a.display, a.focusable, s.stopLink, s.nextName, a.wrapName)}>
           {title}
         </Link>
         {items.length > 0 && (

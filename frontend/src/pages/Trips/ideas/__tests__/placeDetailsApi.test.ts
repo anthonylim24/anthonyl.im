@@ -10,6 +10,7 @@ import {
   KEPT_PLACES,
   loadPlaceDetails,
   PlaceDetailsError,
+  prefetchPlaceDetails,
   titleMatches,
   type DetailsTarget,
 } from "../placeDetailsApi"
@@ -284,7 +285,7 @@ describe("loadPlaceDetails", () => {
   })
 
   it.each([
-    [429, "a lot of places"],
+    [429, "Too many places looked up"],
     [502, "Couldn’t load this place’s details"],
     [401, "Sign in again"],
   ])("fails with a sentence on %i, and keeps nothing", async (status, sentence) => {
@@ -373,5 +374,32 @@ describe("loadPlaceDetails", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe("prefetchPlaceDetails", () => {
+  const byId: DetailsTarget = { place: "id:ChIJod7tSseifDUR9hXHLFNGMIs", key: "id:ChIJod7tSseifDUR9hXHLFNGMIs", name: "Gyeongbokgung", placeId: "ChIJod7tSseifDUR9hXHLFNGMIs", point: at, business: false }
+
+  it("asks once for a place however often it is hovered, and the details join that lookup", async () => {
+    const spy = stubFetch(() => json({ place: palace }))
+    const first = prefetchPlaceDetails(getToken, byId)
+    const again = prefetchPlaceDetails(getToken, byId)
+    const opened = loadPlaceDetails(getToken, byId, new AbortController().signal)
+    expect(await Promise.all([first, again, opened])).toEqual([palace, palace, palace])
+    expect(spy).toHaveBeenCalledTimes(1)
+    await prefetchPlaceDetails(getToken, byId)
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it("rests a place whose look-ahead failed, then asks again", async () => {
+    const spy = stubFetch(() => json({ error: "slow down" }, 429))
+    await expect(prefetchPlaceDetails(getToken, byId)).rejects.toBeInstanceOf(PlaceDetailsError)
+    expect(await prefetchPlaceDetails(getToken, byId, Date.now() + 59_000)).toBeNull()
+    expect(spy).toHaveBeenCalledTimes(1)
+    // Opening the details still asks: the traveller asked.
+    await loadPlaceDetails(getToken, byId).catch(() => null)
+    expect(spy).toHaveBeenCalledTimes(2)
+    await prefetchPlaceDetails(getToken, byId, Date.now() + 61_000).catch(() => null)
+    expect(spy).toHaveBeenCalledTimes(3)
   })
 })

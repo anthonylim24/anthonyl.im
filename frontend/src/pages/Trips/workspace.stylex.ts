@@ -72,6 +72,8 @@ const WIDE = "@media (min-width: 1024px)"
 /** Where the compact trip header gives way (`headCompactHide`). */
 const PHONE_W = "@media (max-width: 639.98px)"
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
+/** A ::after inset for a 44px-tall hit band whatever the border (insets count from the padding box). */
+const band44 = "calc((100% - 2.75rem) / 2)"
 
 const riseIn = stylex.keyframes({
   from: { opacity: 0, transform: "translateY(10px)" },
@@ -184,9 +186,17 @@ export const ws = stylex.create({
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
     paddingTop: "0.5rem",
   },
-  // Phones: the top bar already has Back and the rail has Overview (where
-  // Share and trip options live), so day pages start with the days.
+  // Phones: the top bar already has Back, the rail has Overview and ends in
+  // the trip menu (with Share), so day pages start with the days.
   headCompactHide: { "@media (max-width: 639.98px)": { display: "none" } },
+  /** The trip menu at the rail's end, on phone day pages only (wider screens have the compact header). */
+  railEnd: {
+    display: { default: "none", "@media (max-width: 639.98px)": "flex" },
+    alignItems: "center",
+    flexShrink: 0,
+    gap: "0.25rem",
+    paddingInlineEnd: "0.75rem",
+  },
   compactTitle: {
     fontFamily: "var(--trips-display)",
     fontSize: "1.5rem",
@@ -217,6 +227,8 @@ export const ws = stylex.create({
     resize: "none",
     overflow: "hidden",
     fieldSizing: "content",
+    overflowWrap: "anywhere",
+    wordBreak: "keep-all",
     outline: "none",
     fontFamily: "var(--trips-display)",
     fontWeight: 400,
@@ -648,9 +660,15 @@ export const ws = stylex.create({
     paddingTop: "1.125rem",
     paddingBottom: "0.5rem",
   },
+  sectionTime: { flexShrink: 0, whiteSpace: "nowrap" },
   sectionInput: {
     flexGrow: 1,
     minWidth: 0,
+    resize: "none",
+    overflow: "hidden",
+    fieldSizing: "content",
+    lineHeight: 1.4,
+    fontWeight: "inherit",
     padding: 0,
     borderWidth: 0,
     backgroundColor: "transparent",
@@ -670,6 +688,9 @@ export const ws = stylex.create({
     display: "grid",
     gridTemplateColumns: "2rem minmax(0, 1fr)",
     columnGap: "0.75rem",
+    // Scrolled to, it clears the sticky day header above and the dock below.
+    scrollMarginTop: "9rem",
+    scrollMarginBottom: "1rem",
   },
   gutter: { position: "relative", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "0.875rem" },
   gutterLine: {
@@ -713,7 +734,7 @@ export const ws = stylex.create({
     ":focus-visible": { boxShadow: ring },
     [HOVER]: { ":hover": { transform: "scale(1.15)" } },
     // A 28px dot with a 44px target.
-    "::after": { content: '""', position: "absolute", inset: "-8px" },
+    "::after": { content: '""', position: "absolute", inset: band44 },
   },
   // Over by now: a ring in the trip's colour, as on the timeline. Paper inside, so the gutter line stays hidden.
   markerPast: {
@@ -787,6 +808,8 @@ export const ws = stylex.create({
   gripRow: { "@media (max-width: 639.98px)": { display: "none" } },
   wideOnly: { "@media (max-width: 479.98px)": { display: "none" } },
   addEnd: { display: "flex", alignItems: "flex-end", paddingBottom: "0.25rem" },
+  startAt: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.5rem", rowGap: "0.25rem", marginTop: "-0.25rem" },
+  startReason: { flexBasis: "12rem", flexGrow: 1, minWidth: 0, fontSize: "0.8125rem", color: "var(--trips-ink-secondary)", overflowWrap: "anywhere" },
   cardText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
   cardTitlePast: { color: "var(--trips-ink-secondary)", fontWeight: 500 },
@@ -846,6 +869,15 @@ export const ws = stylex.create({
     placeItems: "center",
     width: "1.75rem",
     height: "2.25rem",
+    position: "relative",
+    // 44px for a finger without widening the row; a mouse keeps the 28px grip,
+    // so a click beside it still opens the card.
+    "::after": {
+      content: '""',
+      position: "absolute",
+      inset: "-4px -8px",
+      display: { default: "none", "@media (pointer: coarse)": "block" },
+    },
     borderRadius: "0.375rem",
     color: "var(--trips-ink-tertiary)",
     cursor: "grab",
@@ -902,19 +934,79 @@ export const ws = stylex.create({
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",
   },
+  // A field's surface, not the trip's colour (the glyph keeps that): the place
+  // across the full width, its actions on a line under it.
   pinnedBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.625rem",
-    minHeight: "2.75rem",
+    display: "grid",
+    rowGap: "0.25rem",
     paddingInline: "0.75rem",
-    paddingBlock: "0.5rem",
+    paddingTop: "0.625rem",
+    paddingBottom: "0.25rem",
     borderRadius: "var(--trips-field-radius)",
-    backgroundColor: "var(--ta-soft)",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: "var(--trips-line)",
+    backgroundColor: "var(--trips-raised)",
     fontSize: "0.875rem",
     color: "var(--trips-ink)",
   },
-  editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.25rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
+  pinnedPlace: { display: "flex", alignItems: "flex-start", gap: "0.5rem", margin: 0, minWidth: 0 },
+  // On the first line's centre (16px glyph, 20px line).
+  pinnedGlyph: { marginTop: "0.125rem" },
+  // Two lines at most, so the actions stay close under it.
+  pinnedText: {
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    overflowWrap: "break-word",
+    lineHeight: 1.4,
+    minWidth: 0,
+  },
+  // Each button's words under the address's, past the glyph (24px in, less the button's 14px inset).
+  pinnedActions: { display: "flex", flexWrap: "wrap", columnGap: "0.25rem", rowGap: "0.5rem", paddingInlineStart: "0.625rem" },
+  pinUndo: { display: "flex", alignItems: "center", gap: "0.25rem", margin: 0, paddingInlineStart: "0.75rem", fontSize: "0.8125rem", color: "var(--trips-ink-secondary)" },
+  // 8px apart: Move up and Move down reach 4px past their edges to a 44px target each.
+  editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
+  // One line to start, growing with what is written (`field-sizing` in a.textarea).
+  notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
+  nameField: { minHeight: "2.75rem" },
+  // Wrapped rows sit 12px apart, so each chip's 44px band is its own.
+  fieldChips: { gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem" },
+  fieldChip: {
+    position: "relative",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    minHeight: "2rem",
+    paddingInline: "0.625rem 0.75rem",
+    borderRadius: "999px",
+    borderWidth: "1px",
+    borderStyle: "dashed",
+    borderColor: "var(--trips-line-strong)",
+    backgroundColor: "transparent",
+    color: "var(--trips-ink-secondary)",
+    fontSize: "0.8125rem",
+    fontWeight: 500,
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+    outline: "none",
+    "::after": { content: '""', position: "absolute", inset: `${band44} 0` },
+    ":focus-visible": { boxShadow: ring },
+    ":disabled": { opacity: 0.4, cursor: "not-allowed" },
+    "@media (hover: hover)": { ":hover": { borderColor: "var(--trips-ink-tertiary)", color: "var(--trips-ink)" } },
+  },
+  // In a sheet the body is the editor: the card's grid without its rule and inset.
+  sheetEditor: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem" },
+  // The dialog's one foot child, its full width: Delete, More and Done on one
+  // line at 320px. Done (alone, for a viewer) sits at the end.
+  sheetFoot: { display: "flex", flexWrap: "wrap", flexGrow: 1, alignItems: "center", justifyContent: "flex-end", columnGap: "0.5rem", rowGap: "0.75rem", minWidth: 0 },
+  sheetDelete: { marginRight: "auto" },
+  sheetMoreOpen: { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" },
+  // Its own lines above the row, two actions to a line. Lines 8px apart keep each 44px band its own.
+  sheetMorePanel: { order: -1, flexBasis: "100%", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.5rem" },
+  sheetMoreWide: { gridColumn: "1 / -1" },
+  sheetDone: { paddingInline: "1rem" },
 
   // ── Add composer ──────────────────────────────────────
   composer: { position: "relative" },
@@ -1247,9 +1339,9 @@ export const ws = stylex.create({
   cardHead: { display: "flex", alignItems: "center", minWidth: 0 },
   cardHeadRow: { flexGrow: 1, minWidth: 0 },
   cardMore: { marginRight: "0.25rem", color: "var(--trips-ink-tertiary)" },
-  // Done / Skip / Loved it, under the card's text, at its indent.
-  quick: { flexWrap: "wrap", gap: "0.375rem", paddingTop: "0.125rem", paddingBottom: "0.625rem" },
-  // Looks 32px; the band reaches to a 44px target without touching its neighbours'.
+  // Wrapped rows sit 12px apart, so each chip's 44px band is its own.
+  quick: { flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem", paddingTop: "0.125rem", paddingBottom: "0.625rem" },
+  // Looks 32px; the band reaches to a 44px target.
   quickBtn: {
     position: "relative",
     display: "inline-flex",
@@ -1277,7 +1369,7 @@ export const ws = stylex.create({
     ":disabled": { opacity: 0.45, cursor: "not-allowed", transform: "none" },
     [HOVER]: { ":hover": { borderColor: "var(--trips-ink)", color: "var(--trips-ink)" } },
     [REDUCE]: { transitionDuration: "0ms" },
-    "::after": { content: '""', position: "absolute", insetBlock: "-6px", insetInline: 0 },
+    "::after": { content: '""', position: "absolute", inset: `${band44} 0` },
   },
   // Pressed: ink, like the selected day in the rail.
   quickOn: {

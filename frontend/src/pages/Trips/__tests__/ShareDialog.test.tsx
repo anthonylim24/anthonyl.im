@@ -69,7 +69,7 @@ describe("ShareDialog", () => {
     resolve({ trip: makeTrip(), access: "owner" })
     expect(await within(dialog).findByText("Invite people to Lisbon Long Weekend.")).toBeInTheDocument()
     expect(mockGetTrip).toHaveBeenCalledWith(getToken, "lisbon")
-    expect(within(dialog).getByText("Only you so far. Copy the link above to bring someone along.")).toBeInTheDocument()
+    expect(within(dialog).getByText("Only you so far. Copy the link above to invite someone.")).toBeInTheDocument()
   })
 
   it("shows an error when sharing can't be loaded", async () => {
@@ -256,7 +256,9 @@ describe("ShareDialog", () => {
 
   it("does not offer Leave to someone who isn't a collaborator", async () => {
     renderShare(makeTrip({ sharedWithAllUsers: true }), "edit", "u9")
-    expect(await screen.findByText("Everyone with an account can already see and edit this trip.")).toBeInTheDocument()
+    const dialog = await screen.findByRole("dialog", { name: "Share this trip" })
+    expect(dialog).toHaveAccessibleDescription("Everyone with an account can already see and edit Lisbon Long Weekend.")
+    expect(within(dialog).queryByText(/Invite people/)).toBeNull()
     expect(screen.queryByRole("button", { name: "Leave this trip" })).toBeNull()
     expect(screen.queryByRole("button", { name: "Copy invite link" })).toBeNull()
   })

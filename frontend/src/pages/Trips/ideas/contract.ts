@@ -133,6 +133,8 @@ export const IDEA_PARAM = "idea"
 export const IDEA_ADD_PARAM = "add"
 /** `data-idea-anchor="<id>"` on the element a row opens the popover from. */
 export const IDEA_ANCHOR_ATTR = "data-idea-anchor"
+/** `data-idea-row="<id>"` on a wishlist row, around everything in it. */
+export const IDEA_ROW_ATTR = "data-idea-row"
 
 /**
  * The params with `ideaId`'s details (or its day picker) open; null closes

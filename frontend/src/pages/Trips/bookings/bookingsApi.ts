@@ -21,12 +21,12 @@ export class PasteReadError extends Schema.TaggedError<PasteReadError>()("PasteR
   message: Schema.String,
 }) {}
 
-const AGAIN = "Couldn’t read that confirmation just now. Try again in a moment."
+const AGAIN = "Couldn’t read that confirmation. Try again in a moment."
 
 /** A sentence for each way the server can say no; its own message where it wrote one for people. */
 export function pasteErrorMessage(status: number, serverMessage: string): string {
   const own = serverMessage && !/^HTTP \d+$/.test(serverMessage) ? serverMessage : null
-  if (status === 429) return "That’s a lot of confirmations in a short while. Try again in a few minutes, or add this one by hand."
+  if (status === 429) return "Too many confirmations in a short while. Try again in a few minutes, or add this one by hand."
   if (status === 403) return "You can view this trip but not change it, so bookings can’t be added."
   if (status === 401) return "Your session ended. Sign in again, then paste it once more."
   if (status === 413 || status === 503 || status === 502 || status === 400) return own ?? AGAIN

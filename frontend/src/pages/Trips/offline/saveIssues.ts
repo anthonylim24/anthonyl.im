@@ -37,7 +37,7 @@ const FIELD_WORDS: Record<string, string> = {
   currency: "currency",
   date: "date",
   body: "note",
-  neighborhoods: "neighbourhoods",
+  neighborhoods: "neighborhoods",
   callouts: "notes",
 }
 

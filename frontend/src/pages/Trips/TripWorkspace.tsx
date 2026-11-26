@@ -1,5 +1,5 @@
 import { applyDetailsPatch, detailsUndo } from "./workspace/tripDetails"
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   BookOpen,
@@ -42,6 +42,8 @@ import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry } from "./editorMachine"
 import { SaveIndicator } from "./offline/SaveIndicator"
 import { scrollBehavior } from "./workspace/scroll"
+import { stopRow } from "./workspace/stopRow"
+import { undoFocus } from "./workspace/undoFocus"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
@@ -53,12 +55,20 @@ import { Presence } from "./components/presence"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, reviewProgress, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
 import { DayPanel } from "./workspace/DayPanel"
+import { TripPlacesContext } from "./workspace/tripPlacesContext"
+import { dayBias, tripPlaces } from "./searchArea"
+import { useDayView } from "./workspace/dayView"
+import { INLINE_EDITOR_QUERY, type EditorSurface } from "./workspace/stopEdits"
+import { useMedia } from "./useMedia"
 import { DayRail } from "./workspace/DayRail"
 import { Parts } from "./workspace/Parts"
 import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
 import { OverviewTabs, type TabBadge } from "./workspace/OverviewTabs"
 import { OVERVIEW_TABS, readOverviewTab, type OverviewTab } from "./workspace/overviewTab"
+import { AreaKey } from "./areas/AreaKey"
+import type { Neighborhood } from "./areas/contract"
+import { useAreaOnMap } from "./areas/useAreaOnMap"
 import { calendarMenuItem, exportCalendar } from "./calendar/calendarMenu"
 import { tripCommands } from "./command/tripCommands"
 import { useRegisterCommands } from "./command/CommandContext"
@@ -75,10 +85,14 @@ const BudgetPanel = lazyRetry(() => import("./budget/BudgetPanel").then((m) => (
 const ChecklistPanel = lazyRetry(() => import("./prep/ChecklistPanel").then((m) => ({ default: m.ChecklistPanel })))
 const IdeasPanel = lazyRetry(() => import("./workspace/IdeasPanel").then((m) => ({ default: m.IdeasPanel })))
 const EssentialsPanel = lazyRetry(() => import("./prep/EssentialsPanel").then((m) => ({ default: m.EssentialsPanel })))
+const AreasPanel = lazyRetry(() => import("./areas/AreasPanel").then((m) => ({ default: m.AreasPanel })))
 const InstagramSheet = lazyRetry(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
 const PasteBookingsSheet = lazyRetry(() => import("./bookings/PasteBookingsSheet").then((m) => ({ default: m.PasteBookingsSheet })))
 const TripRecap = lazyRetry(() => import("./recap/TripRecap").then((m) => ({ default: m.TripRecap })))
 const IdeaOverlay = lazyRetry(() => import("./ideas/IdeaOverlay").then((m) => ({ default: m.IdeaOverlay })))
+// The wishlist's place categories, areas and details cache ride with it, off the first paint;
+// warmed at idle when the map has hearts and the device can hover.
+const IdeaPreview = lazyRetry(() => import("./ideas/IdeaPreview").then((m) => ({ default: m.IdeaPreview })))
 const ChangesSheet = lazyRetry(() => import("./changes/ChangesSheet").then((m) => ({ default: m.ChangesSheet })))
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
@@ -86,21 +100,12 @@ const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
 const WIDE_QUERY = "(min-width: 1024px)"
 const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
 const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
+/** A neighborhood on a phone's map: clear of its key (top left), the map's buttons (top right) and, in Liquid Glass, the dock over the map's foot. */
+const AREA_PADDING_NARROW = { top: 84, right: 64, bottom: 96, left: 24 }
+/** One empty set of wishlist pins, so the map does not redraw its markers each render. */
+const NO_PINS: ReturnType<typeof ideaPins> = []
 /** The least map kept clear above a tall place card on a phone. */
 const MIN_MAP_BAND = 160
-
-function useWide(): boolean {
-  const [wide, setWide] = useState(() => typeof window === "undefined" || !window.matchMedia || window.matchMedia(WIDE_QUERY).matches)
-  useEffect(() => {
-    if (!window.matchMedia) return
-    const query = window.matchMedia(WIDE_QUERY)
-    const sync = () => setWide(query.matches)
-    sync()
-    query.addEventListener("change", sync)
-    return () => query.removeEventListener("change", sync)
-  }, [])
-  return wide
-}
 
 /**
  * True once the page has painted and the browser is idle. Work nobody needs
@@ -205,7 +210,10 @@ function Workspace() {
   const navigate = useNavigate()
   const location = useLocation()
   const viewer = useViewer()
-  const wide = useWide()
+  const wide = useMedia(WIDE_QUERY, true)
+  const roomy = useMedia(INLINE_EDITOR_QUERY, true)
+  const [dayView, setDayView] = useDayView()
+  const surface: EditorSurface = roomy && dayView === "list" ? "inline" : "sheet"
   const idle = useIdle()
   // Probing for the 3D view creates a WebGL context: never on the way to first paint.
   const photorealReady = idle && photorealAvailable()
@@ -239,9 +247,17 @@ function Workspace() {
   const [fly, setFly] = useState(() => liveValue(false))
   /** An overlay failed to open. `stale`: its code is gone because a newer build is live. */
   const [overlayProblem, setOverlayProblem] = useState<{ text: string; stale: boolean } | null>(null)
-  /** "Edit stop" from the map; `n` changes on every request so the same stop can be asked for twice. */
-  const [edit, setEdit] = useState<{ id: string; n: number } | null>(null)
-  const requestEdit = (id: string) => setEdit((last) => ({ id, n: (last?.n ?? 0) + 1 }))
+  /**
+   * A stop whose editor was asked for from outside its day's list (the map,
+   * the 3D view, the budget, a booking added by hand); `n` changes on every
+   * request so the same stop can be asked for twice.
+   */
+  const [edit, setEdit] = useState<{ dayId: string; id: string; n: number } | null>(null)
+  const openEditor = (onDay: string, id: string) => {
+    setEdit((last) => ({ dayId: onDay, id, n: (last?.n ?? 0) + 1 }))
+    // A sheet opens over whatever is showing; an editor under its card needs the list.
+    if (surface === "inline") setView("list")
+  }
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -263,6 +279,7 @@ function Workspace() {
   const igRef = useRef({ session: 0, ids: [] as string[], places: 0 })
   /** Offered after the traveller adds or changes where they sleep. */
   const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
+  /** Every stay this trip has had while open: one coming back (an undo, a redo, a re-add) is not news. */
   const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   /** Phones mount the map the first time it is asked for, then only hide it. */
@@ -319,13 +336,28 @@ function Workspace() {
   const toast = lastStep && lastStep.id === toastStep && lastStep.label ? lastStep : null
   const expireToast = useCallback(() => setToastStep(null), [])
 
-  const undoLast = useCallback(() => {
+  // Where focus goes if the undo took away what held it (the toast's own Undo, a copy's row).
+  // Nothing held, as after a click on the page, stays that way.
+  const afterUndo = useRef<string[] | null>(null)
+  const undoLast = useCallback((fromToast = false) => {
     if (!lastStep || locked) return
+    const held = document.activeElement !== null && document.activeElement !== document.body
+    afterUndo.current = fromToast || held ? undoFocus(lastStep) : null
     editor.undo()
     setToastStep(null)
     setAnnounce(`Undone: ${lastStep.label ?? "your last edit"}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastStep, locked, editor.undo])
+  useLayoutEffect(() => {
+    const ids = afterUndo.current
+    if (!ids) return
+    afterUndo.current = null
+    if (document.activeElement && document.activeElement !== document.body) return
+    // The stop, else the day (or overview) the list shows, in the rail; with the list behind a phone's map, the view switch.
+    const list = paneRef.current?.closest("[inert]") ? null : paneRef.current
+    const row = ids.map((id) => stopRow(list, id)).find((el) => el !== null)
+    ;(row ?? list?.querySelector<HTMLElement>('[aria-current="page"]') ?? document.querySelector<HTMLElement>('[data-view][aria-checked="true"]'))?.focus()
+  })
   const nextStep = editor.history?.future[editor.history.future.length - 1]
   const redoNext = useCallback(() => {
     if (!nextStep || locked) return
@@ -335,12 +367,13 @@ function Workspace() {
   }, [nextStep, locked, editor.redo])
 
   // Whatever was open for one day (3D view, "Clear day", the day's AI sheet,
-  // an edit request) does not follow the traveller to another day.
+  // an edit request) does not follow the traveller to another day. A request
+  // made on the way to a day (the budget, a booking added by hand) is for it.
   const [shownDayId, setShownDayId] = useState(dayId)
   if (shownDayId !== dayId) {
     setShownDayId(dayId)
     setFly(liveValue(false))
-    setEdit(null)
+    if (edit && edit.dayId !== dayId) setEdit(null)
     if (dialog === "clear" || (typeof dialog === "object" && dialog !== null && dialog.ai === "day")) setDialog(null)
   }
   const dayIndex = trip && dayId ? trip.days.findIndex((d) => d.id === dayId) : -1
@@ -425,10 +458,12 @@ function Workspace() {
 
   // Search bias for the composer and every stop's place search. Memoised on
   // the coordinates: a new object per keystroke would re-render every card.
-  const nearNow = day ? (searchCenter(dayRoute(day), tripFocus) ?? tripFocus) : tripFocus
+  const nearNow = trip && day ? dayBias(trip, dayIndex, tripFocus) : tripFocus
   const nearLat = nearNow?.lat ?? null
   const nearLng = nearNow?.lng ?? null
   const near = useMemo<LngLat | null>(() => (nearLat === null || nearLng === null ? null : { lat: nearLat, lng: nearLng }), [nearLat, nearLng])
+  // What "near the trip" means for those searches: any of its places or towns, so its second city counts too.
+  const placesForSearch = useMemo(() => tripPlaces(trip), [trip])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
   // Where the traveller wakes up and sleeps, drawn on the day map as its
@@ -440,11 +475,16 @@ function Workspace() {
   const dayStops = day ? splitDay(day).planned.filter((item) => item.kind !== "section" && item.kind !== "note").length : 0
   const pinnedStops = pins.filter((pin) => pin.variant === "stop").length
   const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
+  const tripStops = trip && !day ? trip.days.reduce((n, d) => n + d.items.filter((i) => i.kind === "place" || i.kind === "reservation").length, 0) : 0
   const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
   // Wishlist places ride their own prop, on the overview and on a day (what is
   // near the day). Never in `pins`: they must not frame, count or tour.
   const ideas = trip?.ideas
   const wishPins = useMemo(() => ideaPins({ ideas }), [ideas])
+  const hasWishPins = wishPins.length > 0
+  useEffect(() => {
+    if (idle && hasWishPins && window.matchMedia("(hover: hover)").matches) IdeaPreview.preload()
+  }, [idle, hasWishPins])
   const focusPin = focusId ? mapPins.find((p) => p.id === focusId) : undefined
   const cardCovers = !wide && focusPin !== undefined && cardInset > MAP_PADDING_NARROW.bottom
   const mapPadding = wide ? MAP_PADDING : cardCovers ? { ...MAP_PADDING_NARROW, bottom: cardInset } : MAP_PADDING_NARROW
@@ -457,6 +497,60 @@ function Workspace() {
         : [...pins, ...corePoints(dots)],
     [day, fresh, pins, hotelPins, dots],
   )
+  const areaMap = useAreaOnMap(trip ?? null, editor.readToken, !day && tab === "neighborhoods")
+  const { show: pickArea, area: shownArea, shape: shownShape, settled: areaSettled } = areaMap
+  /** The area just picked, until its edge is announced. */
+  const [picked, setPicked] = useState<string | null>(null)
+  const keyNode = useRef<HTMLDivElement | null>(null)
+  const keyWantsFocus = useRef(false)
+  // On a phone the list, with the button just pressed, goes behind the map: the map's key takes the focus.
+  const areaKeyRef = useCallback((node: HTMLDivElement | null) => {
+    keyNode.current = node
+    if (node && keyWantsFocus.current) {
+      keyWantsFocus.current = false
+      node.focus()
+    }
+  }, [])
+  // Back from the phone's map, the card of the area just seen shows its heading, clear of the sticky header and rail.
+  const areaSeen = useRef<string | null>(null)
+  const showArea = useCallback(
+    (area: Neighborhood | null) => {
+      pickArea(area)
+      setPicked(area?.id ?? null)
+      // Hidden, the area's last words go too, so showing it again is said again.
+      if (!area) setAnnounce("")
+      keyWantsFocus.current = area !== null && !wide
+      if (area && !wide) {
+        areaSeen.current = area.id
+        setView("map")
+      }
+    },
+    [pickArea, wide],
+  )
+  useEffect(() => {
+    const id = areaSeen.current
+    if (view !== "list" || !id) return
+    areaSeen.current = null
+    const card = paneRef.current?.querySelector(`[data-area-show="${CSS.escape(id)}"]`)?.closest("article")
+    card?.querySelector("h3")?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
+  }, [view])
+  useEffect(() => {
+    if (!shownArea || !keyWantsFocus.current || !keyNode.current) return
+    keyWantsFocus.current = false
+    keyNode.current.focus()
+  }, [shownArea])
+  if (picked && shownArea?.id === picked && areaSettled && shownShape) {
+    setPicked(null)
+    setAnnounce(`${shownArea.name} is on the map, ${shownShape.approximate ? "drawn around your stops" : "outlined from OpenStreetMap"}.`)
+  }
+  // On a phone the card's button is behind the map (inert): the focus goes to the view switch instead.
+  const clearArea = useCallback(() => {
+    const id = shownArea?.id
+    showArea(null)
+    const back = wide ? paneRef.current?.querySelector<HTMLElement>(`[data-area-show="${id}"]`) : document.querySelector<HTMLElement>('[data-view][aria-checked="true"]')
+    back?.focus()
+  }, [showArea, shownArea, wide])
+  const areaFramed = areaMap.shape !== null && !focusPin
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
   const activeDay = trip && activeDayIndex >= 0 ? trip.days[activeDayIndex] : undefined
@@ -496,12 +590,31 @@ function Workspace() {
     const hash = location.hash
     const onMap = hash.startsWith("#item-")
     const id = day && (onMap || hash.startsWith("#stop-")) ? decodeURIComponent(hash.slice(6)) : null
-    if (day && id && day.items.some((i) => i.id === id)) {
-      setActiveId(id)
-      setFocusId(id)
-      if (onMap && !wide) setView("map")
+    const item = id ? day?.items.find((i) => i.id === id) : undefined
+    if (day && item) {
+      setActiveId(item.id)
+      setFocusId(item.id)
+      // A stop with no pin has nothing to show on the map: it opens where it can be read.
+      if (onMap && !isLocated(item)) {
+        if (!wide) setView("list")
+        openEditor(day.id, item.id)
+      } else if (onMap && !wide) setView("map")
     }
   }
+
+  // "I'll add stops myself" lands on a day whose only next step is its composer.
+  const composeOn = day && (location.state as { compose?: unknown } | null)?.compose === true ? location.key : null
+  useEffect(() => {
+    if (composeOn) paneRef.current?.querySelector<HTMLElement>('input[role="combobox"]')?.focus()
+  }, [composeOn])
+  // A stop followed from elsewhere in the app (Neighborhoods' "Stops by day") takes the focus its link had.
+  const stopLink = day && location.key !== "default" && location.hash.startsWith("#stop-") ? `${location.key}${location.hash}` : null
+  useEffect(() => {
+    if (!stopLink) return
+    const id = decodeURIComponent(stopLink.slice(stopLink.indexOf("#stop-") + 6))
+    const frame = requestAnimationFrame(() => stopRow(paneRef.current, id)?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(frame)
+  }, [stopLink])
 
   const onAdded = useCallback((id: string) => {
     setFresh(new Set([id]))
@@ -570,8 +683,7 @@ function Workspace() {
   const addBookingByHand = (dayId: string, item: ItineraryItem) => {
     editor.setDays((days) => addItem(days, dayId, item), { label: "Added a booking" })
     navigate(`${basePath}/day/${dayId}`)
-    requestEdit(item.id)
-    setView("list")
+    openEditor(dayId, item.id)
   }
 
 
@@ -600,10 +712,11 @@ function Workspace() {
   useEffect(() => {
     if (!trip) return
     const entries = lodgingEntries(trip)
-    const known = lodgingRef.current
-    lodgingRef.current = { tripId: trip.id, entries }
-    if (!known || known.tripId !== trip.id || aiBusy || !editable || trip === editor.aiTripRef.current) return
-    const changed = changedLodging(known.entries, entries)
+    const known = lodgingRef.current?.tripId === trip.id ? lodgingRef.current : null
+    const changed = known ? changedLodging(known.entries, entries) : null
+    const seen = new Map([...(known?.entries ?? []), ...entries].map((entry) => [entry.key, entry]))
+    lodgingRef.current = { tripId: trip.id, entries: [...seen.values()] }
+    if (!known || aiBusy || !editable || trip === editor.aiTripRef.current) return
     const otherStops = trip.days.some((d) => d.items.some((item) => item.kind === "place" && item.id !== changed?.itemId))
     if (changed && otherStops) setLodgingNudge(changed)
     else if (lodgingNudge && !entries.some((entry) => entry.key === lodgingNudge.key)) setLodgingNudge(null)
@@ -816,18 +929,21 @@ function Workspace() {
       : []),
   ]
 
-  const activeMaps = active
-    ? externalMapsLink({
-        name: active.item.location?.name ?? active.item.title,
-        address: active.item.location?.address,
-        lat: active.item.location?.lat,
-        lng: active.item.location?.lng,
-      })
-    : undefined
+  // A title alone would send Directions to a search of the whole world.
+  const activeMaps =
+    active && (isLocated(active.item) || active.item.location?.address)
+      ? externalMapsLink({
+          name: active.item.location?.name ?? active.item.title,
+          address: active.item.location?.address,
+          lat: active.item.location?.lat,
+          lng: active.item.location?.lng,
+        })
+      : undefined
 
-  return (
+  const page = (
     <div {...sx(s.root)} data-trip-accent={accent}>
-      <div {...sx(s.pane)} ref={paneRef}>
+      {/* On a phone the map covers the list: what it covers leaves the Tab order too. */}
+      <div {...sx(s.pane)} ref={paneRef} inert={!wide && view === "map"}>
         {dayId ? (
           <header {...sx(s.headCompact, s.headCompactHide)}>
             <Link to={basePath} {...sx(s.compactTitle, a.truncate)} title="Back to the trip overview">
@@ -889,7 +1005,7 @@ function Workspace() {
                 />
               </>
             ) : (
-              <h1 {...sx(a.display, s.title, a.wrap)}>{trip.name}</h1>
+              <h1 {...sx(a.display, s.title, a.wrapName)}>{trip.name}</h1>
             )}
             <div {...sx(s.headMeta)}>
               {editable ? (
@@ -941,7 +1057,27 @@ function Workspace() {
           </header>
         )}
 
-        <DayRail trip={trip} basePath={basePath} dayId={dayId} />
+        <DayRail
+          trip={trip}
+          basePath={basePath}
+          dayId={dayId}
+          end={
+            dayId && (
+              <span {...sx(s.railEnd)}>
+                <span {...sx(s.railRule)} aria-hidden />
+                <Menu
+                  label="Share and trip options"
+                  trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
+                  triggerStyle={[a.iconBtn, a.iconBtnSm]}
+                  items={[
+                    ...(onDevice ? [] : [{ label: "Share", icon: <Share2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setDialog("share") }]),
+                    ...menu,
+                  ]}
+                />
+              </span>
+            )
+          }
+        />
 
         {dayId && !day ? (
           <div {...sx(s.content)} role="alert">
@@ -969,7 +1105,10 @@ function Workspace() {
             recentIds={editor.recentIds}
             hot={hot}
             activeId={activeId}
-            edit={edit}
+            edit={edit?.dayId === day.id ? edit : null}
+            dayView={dayView}
+            onDayView={setDayView}
+            surface={surface}
             near={near}
             onChange={editor.setDays}
             onEditTrip={editor.edit}
@@ -1030,8 +1169,7 @@ function Workspace() {
                           onEdit={editor.edit}
                           onOpenItem={(itemDayId, itemId) => {
                             navigate(`${basePath}/day/${itemDayId}`)
-                            requestEdit(itemId)
-                            setView("list")
+                            openEditor(itemDayId, itemId)
                           }}
                         />
                       )}
@@ -1039,6 +1177,9 @@ function Workspace() {
                         <ChecklistPanel trip={trip} editable={editable} locked={locked} people={trip.party} onEdit={editor.edit} />
                       )}
                       {open === "essentials" && <EssentialsPanel trip={trip} />}
+                      {open === "neighborhoods" && (
+                        <AreasPanel trip={trip} basePath={basePath} getToken={editor.readToken} shownId={areaMap.area?.id ?? null} onShow={showArea} />
+                      )}
                       {open === "wishlist" && <IdeasPanel trip={trip} basePath={basePath} editable={editable} locked={locked} near={near} onEdit={editor.edit} />}
                     </div>
                   </Suspense>
@@ -1055,7 +1196,7 @@ function Workspace() {
       {printer.node}
       {(toast || flash || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
         <div {...sx(s.dock)}>
-          {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={undoLast} onExpire={expireToast} />}
+          {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={() => undoLast(true)} onExpire={expireToast} />}
           {sync.k === "conflict" && (
             <div {...sx(s.dockItem)} role="alert">
               <span {...sx(a.grow, a.wrap)}>
@@ -1125,12 +1266,13 @@ function Workspace() {
             hot={hot}
             pins={mapPins}
             routes={routes}
-            frameKey={frameKey}
-            framePoints={focusPin ? [focusPin] : framePoints}
+            frameKey={areaFramed ? areaMap.frameKey : frameKey}
+            framePoints={focusPin ? [focusPin] : areaFramed ? areaMap.framePoints : framePoints}
+            area={areaMap.shape}
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
-            padding={mapPadding}
+            padding={areaFramed && !wide ? AREA_PADDING_NARROW : mapPadding}
             activeId={activeId}
             dots={dots}
             onSelect={(id) => {
@@ -1141,26 +1283,35 @@ function Workspace() {
               setActiveId(id)
               setFocusId(null)
             }}
-            ideaPins={wishPins}
+            // A drawn neighborhood is the map's one subject: the wishlist steps aside until it is cleared.
+            ideaPins={areaMap.shape ? NO_PINS : wishPins}
             // One history entry per opening: Back closes the wishlist place again.
             onSelectIdea={(ideaId) => ideaNav.open(ideaId, "map")}
+            ideaPreview={(ideaId, via) => {
+              const idea = trip.ideas?.find((i) => i.id === ideaId)
+              return idea ? <IdeaPreview idea={idea} trip={trip} via={via} /> : null
+            }}
             label={
               day
                 ? [`Map of day ${dayIndex + 1} with ${plural(pins.length, "pinned stop")}`, ...hotelPins.map((pin) => pin.title)].join(". ")
                 : `Map of the whole trip with ${plural(pins.length, "pinned place")}`
             }
           >
-            <p {...sx(s.mapChip, "trips-glass-pill")}>
-              <span {...sx(a.truncate)}>
-                {[
-                  day ? `Day ${dayIndex + 1}` : "All days",
-                  day?.city,
-                  !day ? plural(dots.length, "place") : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </p>
+            {areaMap.area && areaMap.shape ? (
+              <AreaKey ref={areaKeyRef} name={areaMap.area.name} shape={areaMap.shape} onClear={clearArea} />
+            ) : (
+              <p {...sx(s.mapChip, "trips-glass-pill")}>
+                <span {...sx(a.truncate)}>
+                  {[
+                    day ? `Day ${dayIndex + 1}` : "All days",
+                    day?.city,
+                    !day ? (dots.length < tripStops ? `${dots.length} of ${plural(tripStops, "place")}` : plural(tripStops, "place")) : dayStops === 0 ? null : pinnedStops < dayStops ? `${pinnedStops} of ${plural(dayStops, "stop")}` : plural(dayStops, "stop"),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </p>
+            )}
             {day && photorealReady && pins.length > 0 && (
               <button type="button" {...sx(s.flyBtn)} onClick={() => fly.set(true)} title="Fly through this day in photoreal 3D">
                 <Orbit size={15} strokeWidth={1.75} aria-hidden />
@@ -1182,7 +1333,7 @@ function Workspace() {
                         category={active.item.location?.category ? titleCase(active.item.location.category) : null}
                       />
                     </p>
-                    <h3 {...sx(a.display, s.placeTitle, a.wrap)}>{active.item.title || active.item.location?.name}</h3>
+                    <h3 {...sx(a.display, s.placeTitle, a.wrapName)}>{active.item.title || active.item.location?.name}</h3>
                   </div>
                   <button
                     type="button"
@@ -1218,10 +1369,7 @@ function Workspace() {
                     <button
                       type="button"
                       {...sx(a.btn, a.btnSecondary, a.btnSm)}
-                      onClick={() => {
-                        requestEdit(active.item.id)
-                        setView("list")
-                      }}
+                      onClick={() => openEditor(active.day.id, active.item.id)}
                     >
                       Edit stop
                     </button>
@@ -1256,7 +1404,8 @@ function Workspace() {
             onClick={() => setView("list")}
           >
             <List size={16} strokeWidth={1.75} aria-hidden />
-            Itinerary
+            {/* The overview's other tabs are lists too, not the itinerary. */}
+            {dayId || tab === "itinerary" ? "Itinerary" : "List"}
           </button>
           <button
             type="button"
@@ -1430,8 +1579,7 @@ function Workspace() {
                   editable
                     ? (itemId) => {
                         fly.set(false)
-                        requestEdit(itemId)
-                        setView("list")
+                        openEditor(day.id, itemId)
                       }
                     : undefined
                 }
@@ -1442,6 +1590,7 @@ function Workspace() {
       )}
     </div>
   )
+  return <TripPlacesContext.Provider value={placesForSearch}>{page}</TripPlacesContext.Provider>
 }
 
 /** The map reads the hovered stop itself: a hover lights a pin without redrawing the page. */

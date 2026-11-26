@@ -16,7 +16,7 @@ export function thinDaysText(incompleteDays: readonly number[]): string {
 export function draftNotice(stops: number, days: number, incompleteDays: readonly number[]): string {
   if (stops === 0) return "The AI draft came back empty. Use “Draft with AI” to try again, or add stops yourself."
   if (incompleteDays.length > 0) return `Drafted ${plural(stops, "stop")}, but not every day. ${thinDaysText(incompleteDays)}`
-  return `Drafted ${plural(stops, "stop")} across ${plural(days, "day")}. Everything is editable.`
+  return `Drafted ${plural(stops, "stop")} across ${plural(days, "day")}.`
 }
 
 /** "48 s", "1 min 12 s": elapsed time in plain words, for a wait that can run a few minutes. */

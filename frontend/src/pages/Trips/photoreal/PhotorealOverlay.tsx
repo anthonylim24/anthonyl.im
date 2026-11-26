@@ -549,7 +549,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
               </button>
               <div {...sx(p.titleBlock)}>
                 <p {...sx(a.eyebrow)}>{eyebrow}</p>
-                <h2 {...sx(a.display, p.title, a.wrap)}>{title}</h2>
+                <h2 {...sx(a.display, p.title, a.wrapName)}>{title}</h2>
               </div>
             </header>
             <div {...sx(p.tourRow)}>
@@ -867,7 +867,7 @@ function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, o
           )}
           <p {...sx(a.eyebrow, p.cardEyebrow)}>{stop.parked ? "To schedule" : `Stop ${stop.index + 1} of ${count}`}</p>
         </div>
-        <h3 data-stop-title tabIndex={-1} {...sx(a.display, p.cardTitle, a.wrap)}>
+        <h3 data-stop-title tabIndex={-1} {...sx(a.display, p.cardTitle, a.wrapName)}>
           {stop.title}
         </h3>
         {stop.plan && <p {...sx(p.plan)}>{stop.plan}</p>}
@@ -1110,7 +1110,7 @@ function Failure({
           <p {...sx(a.body)}>
             {stops.length
               ? "Your stops are all still here. Open any of them in Maps, or head back to the day."
-              : "This day has no pinned stops yet. Add a place to the day and it will stand on the map."}
+              : "This day has no pinned stops yet. Add a place to the day to see it here."}
           </p>
         </div>
         {stops.length > 0 && (

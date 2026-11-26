@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { AlertCircle, Check, Sparkles, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import type { EnhancementRun, EnhancementSuggestion, GeneratePreferences, SuggestionKind, Trip } from "../types"
@@ -183,12 +183,12 @@ export function AiSheet({
       title={scope === "day" ? `Ideas for ${dayLabel ?? "this day"}` : drafting ? "Draft the whole trip" : "Improve this trip"}
       description={
         scope === "day"
-          ? "AI reads what’s already planned and adds stops that fit. New places are pinned on the map."
+          ? "AI adds stops that fit around what’s already planned."
           : drafting
             ? hasItems
               ? "A fresh draft replaces every day’s current plan."
-              : "AI lays out each day with places, meals and a sensible route. Everything stays editable."
-            : "AI reviews the full itinerary, adds what’s missing and suggests fixes you can accept one by one."
+              : "AI fills each day with places and meals, in route order."
+            : "AI adds what’s missing and suggests fixes you accept one by one."
       }
       footer={
         drafting ? (
@@ -297,7 +297,7 @@ const RETRY_HINT = "It keeps going if you leave this page."
  * What the busy line says about a review. `live` is the run as the server
  * last described it (null before it has answered); `subject` names what is
  * reviewed ("your trip", "Day 3"). Undefined for a server without a queue,
- * whose runs say nothing about progress: the line then steps through `steps`.
+ * whose runs say nothing about progress: the caller's `line` stands.
  */
 export function reviewProgress(live: EnhancementRun | null, subject: string): ReviewProgress | undefined {
   if (!live) return { line: "Starting the review…", hint: FIRST_TRY_HINT }
@@ -316,29 +316,21 @@ export function reviewProgress(live: EnhancementRun | null, subject: string): Re
 /**
  * An AI run in progress. `onStop` stops waiting for it and unlocks editing.
  * With `progress` (a review on a server with a queue) the line says where
- * the run really is; without it, the copy steps forward so it never looks stuck,
- * with `hint` after it.
+ * the run really is; without it, `line` and `hint` stand.
  */
 export function AiBusy({
-  steps,
+  line: plainLine,
   progress,
-  hint: stepsHint = FIRST_TRY_HINT,
+  hint: plainHint = FIRST_TRY_HINT,
   onStop,
 }: {
-  steps: readonly string[]
+  line: string
   progress?: ReviewProgress
   hint?: string
   onStop?: () => void
 }) {
-  const [at, setAt] = useState(0)
-  const stepping = !progress
-  useEffect(() => {
-    if (!stepping) return
-    const timer = setInterval(() => setAt((i) => Math.min(i + 1, steps.length - 1)), 7000)
-    return () => clearInterval(timer)
-  }, [stepping, steps.length])
-  const line = progress ? progress.line : steps[Math.min(at, steps.length - 1)]
-  const hint = progress ? progress.hint : stepsHint
+  const line = progress ? progress.line : plainLine
+  const hint = progress ? progress.hint : plainHint
   return (
     <div {...sx(s.aiBusy)}>
       <Spinner />
@@ -517,7 +509,7 @@ export function SuggestionsReview({
             </ul>
           )}
           {added.length === 0 && pending.length === 0 && notes.length === 0 && !run.summary && (
-            <p {...sx(a.body)}>{run.outcomeReason ?? "Nothing to change. This plan already holds together."}</p>
+            <p {...sx(a.body)}>{run.outcomeReason ?? "Nothing to change."}</p>
           )}
         </>
       )}

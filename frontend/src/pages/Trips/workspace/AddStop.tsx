@@ -1,7 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react"
 import { MapPin, Plus, Search, StickyNote, Ticket } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { searchPlaces, type PlaceResult } from "../geocode"
+import { confidentPick, searchPlaces, withPoint, type PlaceResult, type RankedPlaces } from "../geocode"
+import { announce, prepareAnnouncer } from "../ideas/announce"
+import { dayHolding } from "../searchArea"
+import { TripPlacesContext } from "./tripPlacesContext"
 import { extractInstagramUrls } from "../instagram/instagram"
 import { IgGlyph } from "../instagram/IgGlyph"
 import { itemIcon } from "../meta"
@@ -21,34 +24,38 @@ import { composing } from "../ime"
 // a booking, or a heading. An Instagram link is handed to the import sheet,
 // which pins every place the post names.
 
-/** Debounced, abortable place search, the places near `near` first. */
+const NO_RESULTS: RankedPlaces = { places: [], lead: 0 }
+
+/** Debounced, abortable place search, the places near the trip (biased to `near`) first. */
 export function usePlaceSearch(query: string, near: LngLat | null) {
   const getToken = useLatestCallback(useGetToken())
+  const { anchors } = useContext(TripPlacesContext)
   const nearKey = near ? `${near.lat.toFixed(2)},${near.lng.toFixed(2)}` : ""
-  const nearRef = useRef(near)
+  const latest = useRef({ near, anchors })
   useLayoutEffect(() => {
-    nearRef.current = near
+    latest.current = { near, anchors }
   })
   const text = query.trim()
   const searchKey = `${text}|${nearKey}`
   /** The last answer and the search it answers; loading is "no answer for this search yet". */
-  const [search, setSearch] = useState<{ key: string; results: PlaceResult[] }>({ key: "", results: [] })
+  const [search, setSearch] = useState<{ key: string; found: RankedPlaces }>({ key: "", found: NO_RESULTS })
   const searching = text.length >= 2
-  const results = searching ? search.results : []
   const loading = searching && search.key !== searchKey
+  // An answer to the text before the last keystroke is not an answer to this one: nothing to pick until it comes.
+  const { places: results, lead } = searching && !loading ? search.found : NO_RESULTS
 
   useEffect(() => {
     if (text.length < 2) return
     const controller = new AbortController()
     const timer = setTimeout(() => {
-      searchPlaces(text, nearRef.current, controller.signal, getToken)
+      searchPlaces(text, latest.current.near, controller.signal, getToken, latest.current.anchors)
         .then((found) => {
           if (controller.signal.aborted) return
-          setSearch({ key: searchKey, results: found })
+          setSearch({ key: searchKey, found })
         })
         .catch(() => {
           if (controller.signal.aborted) return
-          setSearch({ key: searchKey, results: [] })
+          setSearch({ key: searchKey, found: NO_RESULTS })
         })
     }, 220)
     return () => {
@@ -57,7 +64,7 @@ export function usePlaceSearch(query: string, near: LngLat | null) {
     }
   }, [text, searchKey, getToken])
 
-  return { results, loading }
+  return { results, lead, loading }
 }
 
 export function placeItem(place: PlaceResult): ItineraryItem {
@@ -95,7 +102,7 @@ export function AddStop({
   onAdd,
   onInstagram,
   kinds = ALL_KINDS,
-  label = "Add a place, note or booking",
+  label,
   placeholder,
   below = false,
 }: {
@@ -106,7 +113,7 @@ export function AddStop({
   onInstagram?: (urls: string[]) => void
   /** What typed text can become besides a found place (all four on a day). */
   kinds?: readonly PlainKind[]
-  /** The field's accessible name. */
+  /** The field's accessible name, when it says more than the placeholder. */
   label?: string
   placeholder?: string
   /** Open the suggestions under the field (it sits at the top of its panel). */
@@ -119,17 +126,22 @@ export function AddStop({
   /** Enter was pressed before the search answered: add once it does. */
   const [enterPending, setEnterPending] = useState(false)
   const igUrls = onInstagram ? extractInstagramUrls(text) : []
-  const { results, loading } = usePlaceSearch(igUrls.length > 0 ? "" : text, near)
+  const { results, lead, loading } = usePlaceSearch(igUrls.length > 0 ? "" : text, near)
+  const { anchors, stops } = useContext(TripPlacesContext)
   const listId = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const typed = text.trim()
+  const hint = placeholder ?? (onInstagram ? "Add a place, note or link…" : "Add a place, note or booking…")
 
+  const asPlaces = (places: readonly PlaceResult[]) => places.map((place): Option => ({ type: "place", place }))
+  // The places surely meant come first; loose matches ("Bring rain jackets"
+  // finds shops) come after what the text itself can become.
   const options: Option[] = igUrls.length > 0
     ? [{ type: "instagram", urls: igUrls }]
     : typed
     ? [
-        ...results.map((place): Option => ({ type: "place", place })),
+        ...asPlaces(results.slice(0, lead)),
         ...(
           [
             { type: "plain", kind: "place", label: `Add “${typed}” without a pin` },
@@ -138,6 +150,7 @@ export function AddStop({
             { type: "plain", kind: "section", label: `Add as a heading` },
           ] satisfies Option[]
         ).filter((option) => kinds.includes(option.kind)),
+        ...asPlaces(results.slice(lead)),
       ]
     : []
 
@@ -148,9 +161,15 @@ export function AddStop({
     setCursorKey(null)
     setEnterPending(false)
   }
-  const cursor = Math.max(0, options.findIndex((option) => optionKey(option) === cursorKey))
+  // Untouched, the highlight is the top place when it is the one typed, else
+  // the text as typed: a search engine's loose guess is never added unasked.
+  const sure = confidentPick(typed, results[0], withPoint(anchors, near))
+  const fallback = options.findIndex((option) => (sure ? option.type === "place" && option.place === results[0] : option.type !== "place"))
+  const chosen = options.findIndex((option) => optionKey(option) === cursorKey)
+  const cursor = chosen >= 0 ? chosen : fallback
   const setCursor = (index: number) => setCursorKey(options[index] ? optionKey(options[index]) : null)
 
+  useEffect(prepareAnnouncer, [])
   useEffect(() => {
     if (!open) return
     const onPointer = (event: PointerEvent) => {
@@ -178,15 +197,17 @@ export function AddStop({
     inputRef.current?.focus()
   }
 
-  // The default pick is the first search result, so while the search is out
-  // Enter waits for it rather than adding the text "without a pin". An
-  // option the traveller arrowed to is theirs already.
+  // The default pick depends on what the search finds, so while it is out
+  // Enter waits for it. An option the traveller arrowed to is theirs already.
   const submit = () => {
     const wait = loading && cursorKey === null && igUrls.length === 0
     setEnterPending(wait)
     if (wait) return
     const pick = options[cursor]
-    if (pick) commit(pick)
+    if (!pick) return
+    commit(pick)
+    // The traveller did not choose "without a pin": say why nothing was pinned.
+    if (pick.type === "plain" && pick.kind === "place" && cursorKey === null) announce(`No place near the trip is called “${typed}”, so it has no pin.`)
   }
   const submitLatest = useLatestCallback(submit)
   useEffect(() => {
@@ -205,7 +226,7 @@ export function AddStop({
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault()
       setOpen(true)
-      setCursor((cursor + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length)
+      setCursor((Math.max(0, cursor) + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length)
     } else if (event.key === "Enter") {
       event.preventDefault()
       submit()
@@ -234,7 +255,7 @@ export function AddStop({
             </li>
           )}
           {options.map((option, index) => {
-            const firstPlain = option.type === "plain" && (index === 0 || options[index - 1]!.type === "place")
+            const rule = index > 0 && (option.type === "place") !== (options[index - 1]!.type === "place")
             if (option.type === "instagram") {
               return (
                 <li key="instagram" role="presentation">
@@ -250,18 +271,15 @@ export function AddStop({
                     <span {...sx(a.noShrink, a.accentText)} style={{ display: "grid" }}>
                       <IgGlyph size={16} />
                     </span>
-                    <span {...sx(a.grow)}>
-                      <span {...sx(a.wrap)}>
-                        {option.urls.length > 1 ? `Find the places in these ${option.urls.length} posts` : "Find the places in this post"}
-                      </span>
-                      <span {...sx(a.small, a.wrap)} style={{ display: "block" }}>
-                        Reads the post and pins every place it names
-                      </span>
+                    <span {...sx(a.grow, a.wrap)}>
+                      {option.urls.length > 1 ? `Find the places in these ${option.urls.length} posts` : "Find the places in this post"}
                     </span>
                   </button>
                 </li>
               )
             }
+            const onDay = option.type === "place" ? dayHolding(option.place, stops) : null
+            const context = option.type === "place" ? [onDay !== null && `Already on day ${onDay}`, option.place.context].filter(Boolean).join(" · ") : ""
             const Icon =
               option.type === "place"
                 ? itemIcon("place", option.place.category)
@@ -274,7 +292,7 @@ export function AddStop({
                       : MapPin
             return (
               <li key={option.type === "place" ? option.place.id : option.kind} role="presentation">
-                {firstPlain && index > 0 && <div {...sx(s.resultRule)} role="separator" />}
+                {rule && <div {...sx(s.resultRule)} role="separator" />}
                 <button
                   type="button"
                   role="option"
@@ -287,9 +305,9 @@ export function AddStop({
                   <Icon size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, option.type === "place" ? a.accentText : a.muted)} />
                   <span {...sx(a.grow)}>
                     <span {...sx(a.wrap)}>{option.type === "place" ? option.place.name : option.label}</span>
-                    {option.type === "place" && option.place.context && (
+                    {context && (
                       <span {...sx(a.small, a.truncate)} style={{ display: "block" }}>
-                        {option.place.context}
+                        {context}
                       </span>
                     )}
                   </span>
@@ -307,12 +325,12 @@ export function AddStop({
           role="combobox"
           aria-expanded={showList}
           aria-controls={listId}
-          aria-activedescendant={showList ? `${listId}-${cursor}` : undefined}
+          aria-activedescendant={showList && cursor >= 0 ? `${listId}-${cursor}` : undefined}
           aria-autocomplete="list"
-          aria-label={label}
+          aria-label={label ?? hint.replace(/…$/, "")}
           autoComplete="off"
           enterKeyHint="done"
-          placeholder={placeholder ?? (onInstagram ? "Add a place, note or link…" : "Add a place, note or booking…")}
+          placeholder={hint}
           value={text}
           disabled={disabled}
           maxLength={LIMITS.itemTitle}

@@ -120,7 +120,7 @@ describe("streamTripChat", () => {
   it("maps a gateway timeout to a retryable concierge error", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Bad Gateway", { status: 502 }))
     await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(
-      /did not respond in time/i,
+      /didn’t answer in time/i,
     )
   })
 

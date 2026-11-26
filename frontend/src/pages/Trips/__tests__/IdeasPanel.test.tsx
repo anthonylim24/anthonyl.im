@@ -3,8 +3,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react"
 import { useState } from "react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 
-const mockSearch = vi.fn(async () => [])
-vi.mock("../geocode", () => ({ searchPlaces: (...args: unknown[]) => mockSearch(...(args as [])) }))
+const mockSearch = vi.fn(async () => ({ places: [], lead: 0 }))
+vi.mock("../geocode", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../geocode")>()),
+  searchPlaces: (...args: unknown[]) => mockSearch(...(args as [])),
+}))
 
 import type { UndoMark } from "../editorMachine"
 import { LIMITS } from "../limits"
@@ -118,6 +121,17 @@ describe("IdeasPanel", () => {
     expect(links[0]).toHaveAttribute("target", "_blank")
     expect(links[0]).toHaveAttribute("rel", "noreferrer")
     expect(links[0]).toHaveAccessibleName(/Instagram \(opens in a new tab\)/)
+  })
+
+  it("writes a country-first address street first, as a stop card does", () => {
+    const ichiran = makeItem({
+      id: "idea-ichiran",
+      title: "ICHIRAN Shibuya",
+      location: { name: "ICHIRAN Shibuya", address: "Japan, 〒150-0041 Tokyo, Shibuya City, Jinnan, 1-chōme−22−7 岩本ビル B1F", source: "user" },
+    })
+    renderIdeas(makeTrip({ ideas: [ichiran] }))
+    const row = screen.getByText("ICHIRAN Shibuya").closest("li")!
+    expect(within(row).getByText("1-chōme−22−7 岩本ビル B1F, Jinnan, Shibuya City, 〒150-0041 Tokyo")).toBeInTheDocument()
   })
 
   it("opens an idea's details from its name, pushing ?idea= and anchoring on the name", () => {

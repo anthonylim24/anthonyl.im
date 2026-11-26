@@ -445,7 +445,7 @@ test.describe('command palette', () => {
     const { trip } = await seedPlan(request)
     try {
       await page.goto(`/trips/${trip.id}/day/${trip.days[2].id}`)
-      const composer = page.getByRole('combobox', { name: 'Add a place, note or booking' })
+      const composer = page.getByRole('combobox', { name: 'Add a place, note or link' })
       await composer.click()
       await page.keyboard.press('?')
       await expect(composer).toHaveValue('?')

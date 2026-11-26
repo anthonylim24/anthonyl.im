@@ -11,9 +11,10 @@ import type { LngLat } from "../map/geo"
 import { plural } from "../meta"
 import { addIdea, ideasFull, removeIdea, saveForLater } from "../tripEdits"
 import type { ItemTheme, ItineraryItem, Trip } from "../types"
-import { IDEA_ANCHOR_ATTR, ideaName } from "../ideas/contract"
+import { IDEA_ANCHOR_ATTR, IDEA_ROW_ATTR, ideaName } from "../ideas/contract"
 import { useIdeaNav } from "../ideas/ideaNav"
 import { dayChipLabel, wishlistOnDays, type ScheduledIdea } from "../ideas/onDays"
+import { streetFirst } from "../ideas/address"
 import { compareAreas, ideaAreas } from "../ideas/areas"
 import { THEME_ORDER, themeLabel, themeOf } from "../ideas/themes"
 import { ThemeMenu, ThemeTag } from "../ideas/ThemeMenu"
@@ -190,9 +191,6 @@ export function IdeasPanel({ trip, basePath, editable, locked, near, onEdit }: I
         <h2 id={`${uid}-title`} {...sx(a.eyebrow)}>
           Wishlist
         </h2>
-        <p {...sx(a.body, a.muted, a.wrap)} style={{ margin: 0 }}>
-          Places you might fit in. Add one to a day when you know where it goes.
-        </p>
         {ideas.length > 0 && onDays.length > 0 && (
           <p {...sx(a.mono, a.muted, a.wrap)} style={{ margin: 0 }}>
             {plural(ideas.length, "place")} to fit in · {onDays.length} on your days
@@ -358,6 +356,7 @@ function ScheduledRow({
         <Link
           to={`${basePath}/day/${day.id}#stop-${encodeURIComponent(item.id)}`}
           aria-label={`${name}: ${when}. Open the day`}
+          data-scheduled-idea={item.id}
           {...sx(s.ideaDayLink)}
         >
           {when}
@@ -404,11 +403,11 @@ function IdeaRow({
   onRemove: () => void
 }) {
   const name = ideaName(idea)
-  // The address only: the category menu beside it already says what kind of place it is.
-  const where = idea.location?.address
+  // The address only, street first as a stop card has it: the category menu beside it already says what kind of place it is.
+  const where = streetFirst(idea.location?.address).join(", ")
   const links = (idea.links ?? []).map(stopLink).filter((link): link is NonNullable<typeof link> => link !== null)
   return (
-    <li {...sx(s.ideaRow)}>
+    <li {...{ [IDEA_ROW_ATTR]: idea.id }} {...sx(s.ideaRow)}>
       <span {...sx(s.ideaIcon)} aria-hidden>
         <ItemIcon kind={idea.kind} category={idea.location?.category} reservationType={idea.reservation?.type} size={16} strokeWidth={1.75} />
       </span>

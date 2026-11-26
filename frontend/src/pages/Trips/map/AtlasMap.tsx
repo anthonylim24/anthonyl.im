@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import * as stylex from "@stylexjs/stylex"
 import { Box, Heart, Minus, Plus, Scan } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { layout } from "@/styles/common.stylex"
+import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AtlasPin, type LngLat } from "./geo"
+import { boxProjection, pinsKey, routesKey, sliceView, spanMeters, type AreaShape, type AtlasPin, type LngLat } from "./geo"
 import type { AtlasMapHandle, FrameOptions } from "./engine"
+import { ideaHoverHandlers, type IdeaHover, type ReportIdeaHover } from "./ideaHover"
+import { IdeaHoverCard } from "./IdeaHoverCard"
+import { useIdeaHover } from "./useIdeaHover"
 import { mapStyles as s } from "./map.stylex"
 
 // React host for the Trips map. The MapLibre engine is a lazy chunk; until it
@@ -29,10 +33,14 @@ export interface AtlasMapProps {
   hotId?: string | null
   onSelect?: (id: string) => void
   onHover?: (id: string | null) => void
-  /** Wishlist places, drawn in the wishlist colour under the stops. Never framed, counted or toured. */
+  /** Wishlist places, drawn in the wishlist colour over the stops; hearts that would meet fold into one. Never framed, counted or toured. */
   ideaPins?: readonly AtlasPin[]
   /** An idea pin was picked; the id is the idea's (`trip.ideas[].id`). */
   onSelectIdea?: (ideaId: string) => void
+  /** What a wishlist pin's preview card says while it is hovered or focused; no card without it. */
+  ideaPreview?: (ideaId: string, via: IdeaHover["via"]) => ReactNode
+  /** One neighborhood drawn under the pins, framed top-down while it is. Keep the object stable: a new one redraws it. */
+  area?: AreaShape | null
   /** Hero globe: slow spin, page scroll passes through, no controls. */
   ambient?: boolean
   padding?: FrameOptions["padding"]
@@ -134,6 +142,8 @@ export function AtlasMap({
   onHover,
   ideaPins = NO_PINS,
   onSelectIdea,
+  ideaPreview,
+  area = null,
   ambient = false,
   padding,
   maxZoom,
@@ -143,6 +153,7 @@ export function AtlasMap({
   children,
 }: AtlasMapProps) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const railRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<AtlasMapHandle | null>(null)
   // No WebGL 2 means the static picture from the first paint.
   const [status, setStatus] = useState<"loading" | "ready" | "static">(() => (canRenderMap() ? "loading" : "static"))
@@ -154,9 +165,12 @@ export function AtlasMap({
   const selectIdea = useLatestCallback((id: string) => onSelectIdea?.(id))
   const [ideasShown, setIdeasShown] = useIdeasShown()
   const ideas = ideasShown && !ambient ? ideaPins : NO_PINS
-  const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
+  const [ideaHover, reportIdeaHover, holdIdeaHover] = useIdeaHover()
+  // A pin hidden from the key or taken off the wishlist sends no leave event: its preview goes with it.
+  const previewed = ideaHover && ideaPreview && ideas.some((pin) => pin.id === ideaHover.id) ? ideaHover : null
+  const latest = useRef({ pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark, area })
   useLayoutEffect(() => {
-    latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
+    latest.current = { pins, ideas, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark, area }
   })
   const framedRef = useRef(false)
 
@@ -165,7 +179,7 @@ export function AtlasMap({
     if (!handle) return
     const now = latest.current
     const points = now.framePoints ?? now.pins
-    if (points.length > 0) handle.frame(points, { animate, padding: now.padding, maxZoom: now.maxZoom })
+    if (points.length > 0) handle.frame(points, { animate, padding: now.padding, maxZoom: now.maxZoom, flat: now.area !== null })
     else if (now.restCenter) handle.flyTo(now.restCenter, now.restZoom ?? 4, { animate, padding: now.padding })
   }
 
@@ -203,10 +217,17 @@ export function AtlasMap({
           onSelect: select,
           onHover: hover,
           onSelectIdea: selectIdea,
-          onError: () => setStatus("static"),
+          onIdeaHover: reportIdeaHover,
+          onError: () => {
+            reportIdeaHover(null)
+            setStatus("static")
+          },
           onTilt: setTilted,
+          overlays: () => railRef.current?.children ?? [],
           onReady: () => {
             if (cancelled) return
+            // The chart's pins, one of which may be previewed, give way to the map's.
+            reportIdeaHover(null)
             setStatus("ready")
           },
         })
@@ -217,6 +238,7 @@ export function AtlasMap({
         handle.setDots(now.dots ?? [])
         handle.setActive(now.activeId)
         handle.setHot(now.hotId)
+        handle.setArea(now.area)
         frame(false)
         framedRef.current = true
         if (ambient) handle.setSpin(true)
@@ -237,6 +259,7 @@ export function AtlasMap({
       clearTimeout(timer)
       observer?.disconnect()
       handle?.destroy()
+      reportIdeaHover(null)
       handleRef.current = null
       framedRef.current = false
     }
@@ -274,6 +297,9 @@ export function AtlasMap({
     handleRef.current?.setDark(dark)
   }, [dark])
   useEffect(() => {
+    handleRef.current?.setArea(area)
+  }, [area])
+  useEffect(() => {
     if (!framedRef.current) return
     frame(true)
   }, [frameKey])
@@ -285,11 +311,11 @@ export function AtlasMap({
     <div {...sx(s.root, ambient && s.rootAmbient)} role="region" aria-label={ideas.length > 0 ? `${label} and ${ideas.length} wishlist place${ideas.length === 1 ? "" : "s"}` : label}>
       <div ref={hostRef} {...sx(s.canvas, !ambient && s.canvasQuick, status === "ready" && s.canvasReady)} />
       {status !== "ready" && !(ambient && status === "loading") && (
-        <StaticChart pins={pins} ideas={ideas} loading={status === "loading"} onSelectIdea={selectIdea} />
+        <StaticChart pins={pins} ideas={ideas} loading={status === "loading"} onSelectIdea={selectIdea} onIdeaHover={reportIdeaHover} />
       )}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
       {(showControls || showLegend) && (
-        <div {...sx(s.rail)}>
+        <div ref={railRef} {...sx(s.rail)}>
           {showControls && (
             <div {...sx(s.controls, "trips-glass-pill")}>
               <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>
@@ -330,6 +356,14 @@ export function AtlasMap({
           )}
         </div>
       )}
+      {previewed && (
+        // The content may load lazily: no empty frame while it does, and no broken page if it cannot.
+        <OverlayBoundary key={previewed.id} onError={() => reportIdeaHover(null)}>
+          <Suspense fallback={null}>
+            <IdeaHoverCard hover={previewed} hold={holdIdeaHover}>{ideaPreview?.(previewed.id, previewed.via)}</IdeaHoverCard>
+          </Suspense>
+        </OverlayBoundary>
+      )}
       {children}
     </div>
   )
@@ -348,12 +382,15 @@ function StaticChart({
   ideas,
   loading,
   onSelectIdea,
+  onIdeaHover,
 }: {
   pins: readonly AtlasPin[]
   ideas: readonly AtlasPin[]
   loading: boolean
   onSelectIdea: (ideaId: string) => void
+  onIdeaHover: ReportIdeaHover
 }) {
+  const uid = useId()
   // The stops set the frame and the ideas are placed in it, so a far-off idea
   // never shrinks the day; one stop (or none) has no frame of its own to keep.
   const project = boxProjection(spanMeters(pins) > 0 ? pins : [...pins, ...ideas], CHART_W, CHART_H, 56)
@@ -412,18 +449,20 @@ function StaticChart({
       {placed.length > 0 && (
         // Same viewBox and slice as the chart, so the two layers line up exactly.
         <svg {...sx(s.chart)} viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="xMidYMid slice">
-          {placed.map(({ idea, x, y }) => (
+          {placed.map(({ idea, x, y }, index) => (
             <g
               key={idea.id}
               role="button"
               tabIndex={0}
               aria-label={`${idea.title}, on the wishlist`}
+              aria-describedby={idea.description ? `${uid}-${index}` : undefined}
               transform={`translate(${x} ${y})`}
               onClick={() => onSelectIdea(idea.id)}
               onKeyDown={(event) => onKey(event, idea.id)}
+              {...ideaHoverHandlers(idea.id, onIdeaHover)}
               {...sx(stylex.defaultMarker(), s.chartIdea)}
             >
-              <title>{idea.title}</title>
+              {idea.description && <desc id={`${uid}-${index}`}>{idea.description}</desc>}
               <circle r={11} {...sx(s.chartIdeaHit)} />
               <circle r={8.5} {...sx(s.chartIdeaFocus)} />
               <circle r={6} {...sx(s.chartIdeaRing)} />

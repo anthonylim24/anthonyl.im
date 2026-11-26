@@ -2,7 +2,7 @@ import { Effect, Either } from "effect"
 import { HttpStatusError } from "../../effect/errors"
 import { bearerHeaders, fetchApi, fetchExternal, parseJson, readAuthToken, type GetToken } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
-import { distanceMeters } from "./map/geo"
+import { distanceMeters, type LngLat } from "./map/geo"
 
 // Place search for the planner. Cities come from Open-Meteo's geocoder
 // (ranked by population, includes the IANA timezone). Points of interest
@@ -216,8 +216,46 @@ const googleEffect = Effect.fn("Geocode.google")(function* (
   )
 })
 
-/** Within this of the trip, a result counts as local and is listed first. */
+/** Within this of one of the trip's places, a result counts as local and is listed first. */
 export const LOCAL_METERS = 80_000
+
+/**
+ * What "near the trip" means for a search: within `LOCAL_METERS` of one of
+ * `points`, or an address that names one of `towns`. A trip in two cities is
+ * local in both, even before the second has a stop.
+ */
+export interface TripAnchors {
+  /** The trip's located stops and wishlist places, and its centre. */
+  points: readonly LngLat[]
+  /** Its destinations and its days' cities, folded by `townKey`. */
+  towns: readonly string[]
+}
+
+export const NO_ANCHORS: TripAnchors = { points: [], towns: [] }
+
+/** `anchors` plus the point a search is biased to, which is always near. */
+export function withPoint(anchors: TripAnchors, point: LngLat | null): TripAnchors {
+  return point ? { points: [point, ...anchors.points], towns: anchors.towns } : anchors
+}
+
+/** A town as an address names it: "〒150-0041 Tokyo" and "Tokyo, Japan" are Tokyo. */
+export function townKey(part: string): string {
+  return nameKey(part.split(",")[0]!.split(/\s+/).filter((token) => !/\d/.test(token)).join(" "))
+}
+
+export const addressTowns = (address: string): string[] => address.split(",").map(townKey)
+
+const knowsNothing = (anchors: TripAnchors) => anchors.points.length === 0 && anchors.towns.length === 0
+
+/** Whether `place` is near the trip. With nothing to measure against, everything is. */
+export function isLocal(place: PlaceResult, anchors: TripAnchors): boolean {
+  if (knowsNothing(anchors)) return true
+  if (anchors.points.some((point) => distanceMeters(point, place) <= LOCAL_METERS)) return true
+  // Google's short context can leave the city out ("52 Jagalchihaean-ro, Jung-gu"); the full address has it.
+  const parts = addressTowns(`${place.address ?? ""},${place.context}`)
+  return anchors.towns.some((town) => parts.includes(town))
+}
+
 /** Two results this close with the same name are one place. */
 const SAME_PLACE_METERS = 300
 export const MAX_PLACE_RESULTS = 8
@@ -234,12 +272,93 @@ export function nameKey(name: string): string {
     .normalize("NFC")
 }
 
+/** Two letters of Chinese, Japanese or Korean can be a whole name (명동, 新宿). */
+const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u
+const HANGUL_INITIALS = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"]
+const HANGUL_VOWELS = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"]
+const HANGUL_FINALS = ["", "k", "k", "k", "n", "n", "n", "t", "l", "k", "m", "l", "l", "l", "p", "l", "m", "p", "p", "t", "t", "ng", "t", "t", "k", "t", "p", "t"]
+
+/**
+ * Hangul in Revised Romanization, syllable by syllable ("경복궁" →
+ * "gyeongbokgung"), the way Google spells Korean places in English. The
+ * server's `slugify` romanizes with the same tables.
+ */
+function romanizeHangul(text: string): string {
+  return text.replace(/[\uac00-\ud7a3]/g, (syllable) => {
+    const n = syllable.charCodeAt(0) - 0xac00
+    return HANGUL_INITIALS[Math.floor(n / 588)]! + HANGUL_VOWELS[Math.floor((n % 588) / 28)]! + HANGUL_FINALS[n % 28]!
+  })
+}
+
+/** A name with case, accents, spacing and punctuation folded away, Hangul romanized: "전주 한옥마을" and "Jeonju Hanok-maeul" meet. */
+const joined = (text: string) => nameKey(romanizeHangul(text)).replace(/ /g, "")
+
+const namedExactly = (query: string, name: string) => joined(query) !== "" && joined(query) === joined(name)
+
+const words = (text: string) => nameKey(text).split(" ").filter(Boolean)
+/** Kanji and Hangul names run words together ("서울역앞카페"), so a part can sit mid-word. */
+const wordHas = (word: string, part: string) => word.startsWith(part) || (CJK.test(part) && word.includes(part))
+const covers = (parts: readonly string[], within: readonly string[]) => parts.every((part) => within.some((word) => wordHas(word, part)))
+
+/**
+ * Whether a place is the one typed, not just one a search engine related to
+ * the words: every typed word starts a word of the name ("gyeongbok" →
+ * Gyeongbokgung Palace), the whole name is in what was typed ("Lotte Mart
+ * Jeju"), or the same holds once Hangul is romanized and spaces dropped
+ * ("명동" → Myeong-dong). "Bring rain jackets" is not Lotte Mart.
+ */
+export function nameMatches(query: string, name: string): boolean {
+  const typed = words(query)
+  const named = words(name)
+  if (typed.length === 0 || named.length === 0) return false
+  if (covers(typed, named) || covers(named, typed)) return true
+  const [q, n] = [joined(query), joined(name)]
+  return n.startsWith(q) || q.startsWith(n)
+}
+
+/**
+ * The place Enter may add without the traveller picking it: the top result,
+ * only when it is named what was typed and near the trip. A same-named shop
+ * on another continent is never a safe guess, even one named exactly what
+ * was typed: the words people jot on a day ("Check out", "Lunch") are also
+ * places somewhere, and a pin a country away is worse than one arrow press.
+ */
+export function confidentPick(query: string, top: PlaceResult | undefined, anchors: TripAnchors): boolean {
+  return Boolean(top && nameMatches(query, top.name) && isLocal(top, anchors))
+}
+
+export interface RankedPlaces {
+  places: PlaceResult[]
+  /**
+   * How many of `places` are surely what was typed: near the trip, and named
+   * it or Google's only answer ("golden pavilion" is Kinkaku-ji). A field
+   * lists its typed-text options after these and before the rest.
+   */
+  lead: number
+}
+
+/** Google's first answer to the query, and whether it was its only one. */
+export interface BestAnswer {
+  id: string
+  only: boolean
+}
+
 /**
  * One list from every source, in the order given (best source first): a
- * place two sources both found appears once, as the first source had it;
- * places near the trip come before far ones, each keeping its source order.
+ * place two sources both found appears once, as the first source had it.
+ * The sure places lead, then far places named exactly what was typed (the
+ * traveller spelled out "Jeonju Hanok Village", not a Seoul village), then
+ * the rest near the trip, then other far ones, each keeping its source
+ * order. A far place stays only when its name is what was typed or it is
+ * Google's first answer: Google ranked it first despite the bias, and a
+ * famous sight in the trip's other city must not vanish.
  */
-export function rankPlaces(sources: readonly (readonly PlaceResult[])[], near: { lat: number; lng: number } | null, limit = MAX_PLACE_RESULTS): PlaceResult[] {
+export function rankPlaces(
+  sources: readonly (readonly PlaceResult[])[],
+  anchors: TripAnchors,
+  { query, best = null }: { query?: string; best?: BestAnswer | null } = {},
+  limit = MAX_PLACE_RESULTS,
+): RankedPlaces {
   const kept: PlaceResult[] = []
   for (const place of sources.flat()) {
     const key = nameKey(place.name)
@@ -248,15 +367,26 @@ export function rankPlaces(sources: readonly (readonly PlaceResult[])[], near: {
     )
     if (!repeat) kept.push(place)
   }
-  if (!near) return kept.slice(0, limit)
-  const local = kept.filter((place) => distanceMeters(near, place) <= LOCAL_METERS)
-  const far = kept.filter((place) => distanceMeters(near, place) > LOCAL_METERS)
-  return [...local, ...far].slice(0, limit)
+  const named = (place: PlaceResult) => query === undefined || nameMatches(query, place.name)
+  const lead: PlaceResult[] = []
+  const exact: PlaceResult[] = []
+  const local: PlaceResult[] = []
+  const far: PlaceResult[] = []
+  for (const place of kept) {
+    const isBest = place.id === best?.id
+    if (!isLocal(place, anchors)) {
+      if (query !== undefined && namedExactly(query, place.name)) exact.push(place)
+      else if (isBest || named(place)) far.push(place)
+    } else if (query !== undefined && (nameMatches(query, place.name) || (isBest && best!.only))) lead.push(place)
+    else local.push(place)
+  }
+  const places = [...lead, ...exact, ...local, ...far].slice(0, limit)
+  const top = best && kept.find((place) => place.id === best.id)
+  if (top && (exact.includes(top) || far.includes(top)) && !places.includes(top)) places[places.length - 1] = top
+  return { places, lead: Math.min(lead.length, limit) }
 }
 
 const PHOTON = "https://photon.komoot.io/api/"
-/** Two letters of Chinese, Japanese or Korean can be a whole name (명동, 新宿). */
-const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u
 
 /** Google is asked only once a query is specific enough to be worth a paid call. */
 export const worthAskingGoogle = (query: string) => query.length >= 3 || (query.length === 2 && CJK.test(query))
@@ -264,13 +394,15 @@ export const worthAskingGoogle = (query: string) => query.length >= 3 || (query.
 const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
   query: string,
   near: { lat: number; lng: number } | null,
-  signal?: AbortSignal,
-  getToken?: GetToken,
+  signal: AbortSignal | undefined,
+  getToken: GetToken | undefined,
+  anchors: TripAnchors,
 ) {
   const q = encodeURIComponent(query)
   const bias = near ? `&lat=${near.lat.toFixed(2)}&lon=${near.lng.toFixed(2)}&location_bias_scale=0.1` : ""
+  const google = getToken && worthAskingGoogle(query) ? googleEffect(query, near, getToken, signal) : null
   const legs = [
-    getToken && worthAskingGoogle(query) ? googleEffect(query, near, getToken, signal) : null,
+    google,
     near ? photonEffect(`${PHOTON}?q=${q}&limit=10&lang=en&bbox=${localBox(near)}`, signal) : null,
     photonEffect(`${PHOTON}?q=${q}&limit=15&lang=en${bias}`, signal),
   ].filter((leg) => leg !== null)
@@ -281,7 +413,9 @@ const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
     const first = answers.find(Either.isLeft)
     if (first) return yield* Effect.fail(first.left)
   }
-  return rankPlaces(found, near)
+  const fromGoogle = google && answers[0] && Either.isRight(answers[0]) ? answers[0].right : []
+  const best = fromGoogle[0] ? { id: fromGoogle[0].id, only: fromGoogle.length === 1 } : null
+  return rankPlaces(found, withPoint(anchors, near), { query, best })
 })
 
 const swallowAbort = <T,>(fallback: T) =>
@@ -296,17 +430,19 @@ export function searchCities(query: string, signal?: AbortSignal): Promise<CityR
 }
 
 /**
- * Places matching `query`, the ones near `near` first. With `getToken`, a
- * signed-in search adds Google's results to OpenStreetMap's. Rejects only
- * when every source failed; an abort resolves to [].
+ * Places matching `query`, the ones near the trip first: near `near` (the
+ * point the search is biased to) or `anchors`. With `getToken`, a signed-in
+ * search adds Google's results to OpenStreetMap's. Rejects only when every
+ * source failed; an abort resolves to no places.
  */
 export function searchPlaces(
   query: string,
   near: { lat: number; lng: number } | null,
   signal?: AbortSignal,
   getToken?: GetToken,
-): Promise<PlaceResult[]> {
-  return runPromise(searchPlacesEffect(query, near, signal, getToken)).catch(swallowAbort<PlaceResult[]>([]))
+  anchors: TripAnchors = NO_ANCHORS,
+): Promise<RankedPlaces> {
+  return runPromise(searchPlacesEffect(query, near, signal, getToken, anchors)).catch(swallowAbort<RankedPlaces>({ places: [], lead: 0 }))
 }
 
 export function cityLabel(city: Pick<CityResult, "name" | "region" | "country">): string {

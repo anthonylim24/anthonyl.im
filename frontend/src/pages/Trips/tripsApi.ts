@@ -361,7 +361,7 @@ const askAboutRun = (getToken: GetToken, id: string, runId: string, signal: Abor
       signal,
     })
     if (res.status === 401 || res.status === 403) {
-      return yield* Effect.fail(new AuthError({ message: "Please sign in again to follow the AI review. It may still finish on the server." }))
+      return yield* Effect.fail(new AuthError({ message: "Sign in again to follow the AI review. It may still finish on the server." }))
     }
     if (res.status === 404) {
       return yield* Effect.fail(
@@ -507,6 +507,15 @@ export function followEnhancement(
 export const listEnhancements = (getToken: GetToken, id: string, options?: ReadOptions) =>
   request<{ runs?: EnhancementRun[] }>(getToken, `/${encodeURIComponent(id)}/enhancements`, {}, readOptions(options)).then(
     (r) => r.runs ?? [],
+  )
+
+/** Stop a review for good. The run as it ended: failed (nothing added), complete (it finished first), or still running when the server could not stop it. */
+export const cancelEnhancement = (getToken: GetToken, id: string, runId: string) =>
+  request<{ run?: EnhancementRun; trip?: Trip }>(
+    getToken,
+    `/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}/cancel`,
+    { method: "POST" },
+    readOptions({ timeoutMs: READ_TIMEOUT_MS }),
   )
 
 /** What an apply did. `skipReasons`: one sentence per skipped id; older servers send none. */

@@ -5,9 +5,11 @@ import { applySuggestions, generateItinerary, type AppliedSuggestions, type Geoc
 import { streamTripChat } from "../trips/chat"
 import { createBookingParserFromKeys, type BookingParser } from "../trips/bookingParse"
 import { config } from "../config"
+import { registerAreaRoutes } from "./tripAreas"
 import { registerBookingRoutes } from "./tripBookings"
 import { registerIdeaRoutes } from "./tripIdeas"
 import { createDaySuggesterFromKeys, type DaySuggester } from "../trips/suggestDays"
+import { createNeighborhoodsFromKeys, type NeighborhoodService } from "../trips/neighborhoods"
 import { collectCatalogPlaces, groupCatalogPlaces } from "../trips/placeCatalog"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { createTripReviewWorker, type ReviewWorker } from "../trips/reviewWorker"
@@ -30,7 +32,7 @@ import {
   RESERVED_SLUGS,
   REVIEW_MAX_ATTEMPTS,
   settleStaleRun,
-  slugify,
+  defaultTripSlug,
   updateTripSchema,
   withoutScheduledIdeas,
   type ReviewRequest,
@@ -64,6 +66,12 @@ export interface TripsRouterDeps {
   parseBookings?: BookingParser | null
   /** Recommends days for a wishlist idea. Undefined: Gemini 4 Hydrogen from the server's Gemini key, or the distance ranking alone without one. */
   suggestDays?: DaySuggester
+  /** The Neighborhoods tab. Undefined: built from the server's Gemini / Groq / Maps keys; null: not available (503). */
+  neighborhoods?: NeighborhoodService | null
+  /** How long a neighborhoods request waits on the model before answering 202 (tests shorten it). */
+  areasWaitMs?: number
+  /** How long a neighborhood's outline may take in all (tests shorten it). */
+  areaOutlineMs?: number
   /** Runs queued AI reviews; `/enhance` kicks it with each new run. The
    *  server passes the one worker it also sweeps with. Undefined: a worker
    *  over `store` and `llm` that only takes the runs it is kicked with (and
@@ -130,7 +138,8 @@ function summarize(trip: Trip, userId: string) {
     itemCount: trip.days.reduce((n, d) => n + d.items.length, 0),
     center,
     points: downsample(located, MAX_SUMMARY_POINTS).map((p) => [round4(p.lng), round4(p.lat)] as [number, number]),
-    placeCount: located.length,
+    // The overview's "Places": every place and booking, pinned or not.
+    placeCount: trip.days.reduce((n, d) => n + d.items.filter((i) => i.kind === "place" || i.kind === "reservation").length, 0),
     access: accessFor(trip, userId),
     updatedAt: trip.updatedAt,
   }
@@ -310,6 +319,20 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     load: loadForEdit,
   })
 
+  registerAreaRoutes(trips, {
+    areas:
+      deps.neighborhoods !== undefined
+        ? deps.neighborhoods
+        : createNeighborhoodsFromKeys({ geminiApiKey: config.geminiApiKey, groqApiKey: config.groqApiKey, googleMapsApiKey: config.googleMapsApiKey }),
+    waitMs: deps.areasWaitMs,
+    outlineMs: deps.areaOutlineMs,
+    // Viewers see the tab too: the areas say nothing the trip does not.
+    load: async (c) => {
+      await ensureSeeded(deps.store)
+      return loadTrip(c, c.req.param("id") ?? "")
+    },
+  })
+
   // ── Sharing: join by invite link ───────────────────────────────────────
   //
   // Registered ahead of every `/:id/...` route so "join" is never read as a
@@ -384,11 +407,10 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       return c.json({ error: "endDate must be on or after startDate" }, 400)
     }
     const now = nowIso()
-    // Intelligent default permalink: trip name + year, deduped.
-    const baseSlug = slugify(`${body.data.name} ${body.data.startDate.slice(0, 4)}`)
+    const id = newId("trip")
     const trip: Trip = {
-      id: newId("trip"),
-      slug: await uniqueSlug(baseSlug),
+      id,
+      slug: await uniqueSlug(defaultTripSlug({ id, ...body.data })),
       ownerId: userIdOf(c),
       ...body.data,
       days: emptyDays(body.data.startDate, body.data.endDate),
@@ -686,6 +708,20 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       applied: run.appliedSuggestionIds,
       ...(run.status === "error" ? { error: "enhancement_failed" as const, message: run.error } : {}),
     })
+  })
+
+  // Answers with the run as it ended: failed (nothing added), complete (it
+  // finished first), or still running when this process could not stop it.
+  trips.post("/:id/enhancements/:runId/cancel", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"), true)
+    if ("error" in result) return result.error
+    const tripId = result.trip.id
+    const stored = await deps.store.getRun(tripId, c.req.param("runId"))
+    if (!stored) return c.json({ error: "run not found" }, 404)
+    const ended = stored.status === "running" && reviews ? await reviews.cancel(tripId, stored.id) : stored
+    // Re-read: a review that finished first wrote its places onto the trip.
+    const trip = (await deps.store.get(tripId)) ?? result.trip
+    return c.json({ run: settleStaleRun(ended ?? stored), trip: present(trip, result.access) })
   })
 
   trips.post("/:id/enhancements/:runId/apply", async (c) => {

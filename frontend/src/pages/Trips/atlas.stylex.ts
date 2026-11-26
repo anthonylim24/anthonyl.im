@@ -10,6 +10,11 @@ const PHONE = "@media (max-width: 639.98px)"
 
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
 
+// A ::after's inset counts from the padding box, so a fixed -4px band on a
+// 36px button with a 1px border reached only 42px. This one is 44px tall
+// whatever the border.
+const band44 = "calc((100% - 2.75rem) / 2)"
+
 const shimmer = stylex.keyframes({
   "0%": { backgroundPosition: "200% 0" },
   "100%": { backgroundPosition: "-200% 0" },
@@ -67,6 +72,10 @@ export const a = stylex.create({
   muted: { color: "var(--trips-ink-tertiary)" },
   accentText: { color: "var(--brand)" },
   wrap: { overflowWrap: "anywhere", wordBreak: "break-word", minWidth: 0 },
+  /** `wrap` for a name shown as a title: Hangul breaks between words, not
+   *  syllables; an unspaced run still breaks rather than overflow. Not for
+   *  running text, where it would hold a Japanese or Chinese run together. */
+  wrapName: { overflowWrap: "anywhere", wordBreak: "keep-all", minWidth: 0 },
   truncate: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   srOnly: {
     position: "absolute",
@@ -142,13 +151,18 @@ export const a = stylex.create({
     backgroundColor: "var(--trips-danger)",
     color: "var(--trips-on-danger)",
   },
+  // A delete that is one of several actions: red words, no fill. With btnGhost.
+  btnDangerGhost: {
+    color: "var(--trips-danger)",
+    [HOVER]: { ":hover": { backgroundColor: "var(--trips-danger-soft)", color: "var(--trips-danger)" } },
+  },
   // Looks 36px tall; the ::after band makes the target 44px (WCAG 2.5.5).
   btnSm: {
     minHeight: "2.25rem",
     paddingInline: "0.875rem",
     fontSize: "0.8125rem",
     position: "relative",
-    "::after": { content: '""', position: "absolute", inset: "-4px 0" },
+    "::after": { content: '""', position: "absolute", inset: `${band44} 0` },
   },
   btnBlock: { width: "100%" },
   iconBtn: {
@@ -296,7 +310,7 @@ export const a = stylex.create({
     transitionDuration: "160ms",
     outline: "none",
     position: "relative",
-    "::after": { content: '""', position: "absolute", inset: "-2px" },
+    "::after": { content: '""', position: "absolute", inset: `${band44} -2px` },
     ":focus-visible": { boxShadow: ring },
     ":active": { transform: "scale(0.96)" },
     [HOVER]: { ":hover": { borderColor: "var(--trips-ink)", color: "var(--trips-ink)" } },

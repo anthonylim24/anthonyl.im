@@ -24,6 +24,7 @@ import { ExitSignal, useClosing, useLeaving } from "../components/presence"
 import type { ItineraryItem } from "../types"
 import { IDEA_ANCHOR_ATTR, ideaName, type IdeaDetailsProps, type PlaceDetails, type PlacePhoto } from "./contract"
 import { d } from "./details.stylex"
+import { focusOnPlace, focusedHeartSpot, ideaFocusReturn } from "./focusReturn"
 import { placeBeside } from "./popoverPlacement"
 import {
   cachedPlaceDetails,
@@ -62,7 +63,7 @@ export type DetailsLoad =
   | { status: "ready"; details: PlaceDetails | null }
   | { status: "error"; message: string }
 
-const FAILED = "Couldn’t load this place’s details just now."
+const FAILED = "Couldn’t load this place’s details."
 
 /** The details for `target`, from this session's cache when it has them; `retry` asks again after a failure. */
 function usePlaceDetails(target: DetailsTarget | null, getToken: IdeaDetailsProps["getToken"]) {
@@ -118,6 +119,9 @@ export function IdeaDetails({ trip, idea, from, editable, locked, getToken, them
    */
   const [anchor, setAnchor] = useState<HTMLElement | null | undefined>(undefined)
   const [opener] = useState(from)
+  /** Where the heart that opened it was, while it still has focus (render runs before the dialog takes it). */
+  const [heartSpot] = useState(focusedHeartSpot)
+  const [fromPlace] = useState(() => focusOnPlace(idea.id))
   useLayoutEffect(() => {
     // Before the first paint, so the card never shows as one thing and then the other.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- measured once from the DOM, which render may not read
@@ -157,7 +161,14 @@ export function IdeaDetails({ trip, idea, from, editable, locked, getToken, them
     )
   }
   return (
-    <DialogFrame open onClose={onClose} accent={accent} content={[a.dialog, d.sheet, "trips-glass-sheet"]}>
+    <DialogFrame
+      open
+      onClose={onClose}
+      accent={accent}
+      sendFocus={() => (fromPlace ? null : ideaFocusReturn(idea.id, { near: heartSpot }))}
+      returnFocus={() => ideaFocusReturn(idea.id, { near: heartSpot })}
+      content={[a.dialog, d.sheet, "trips-glass-sheet"]}
+    >
       <DialogPrimitive.Description {...sx(a.srOnly)}>Details, photos and links for {name}</DialogPrimitive.Description>
       {content(<DialogPrimitive.Title asChild>{heading()}</DialogPrimitive.Title>)}
     </DialogFrame>

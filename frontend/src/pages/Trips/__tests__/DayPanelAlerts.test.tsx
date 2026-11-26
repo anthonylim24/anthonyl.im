@@ -47,6 +47,9 @@ function renderDay(day: TripDay, sky: DayPanelProps["sky"], props: Partial<DayPa
         hot={liveValue<string | null>(null)}
         activeId={null}
         edit={null}
+        dayView="list"
+        onDayView={noop}
+        surface="inline"
         near={null}
         onChange={noop}
         onDelete={noop}

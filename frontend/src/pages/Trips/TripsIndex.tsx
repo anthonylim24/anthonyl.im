@@ -210,7 +210,7 @@ const TripCard = memo(function TripCard({
         </div>
       </div>
       <div {...sx(s.cardBody)}>
-        <h4 {...sx(a.display, s.cardTitle, a.wrap)}>{trip.name}</h4>
+        <h4 {...sx(a.display, s.cardTitle, a.wrapName)}>{trip.name}</h4>
         <p {...sx(a.small)}>
           {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
         </p>
@@ -528,16 +528,13 @@ export function TripsIndex() {
           <p {...sx(a.eyebrow)}>
             {trips
               ? trips.length === 0
-                ? "Atlas · Nothing pinned yet"
-                : `Atlas · ${plural(trips.length, "trip")}${upcomingCount > 0 ? ` · ${upcomingCount} ahead` : ""}`
-              : "Atlas"}
+                ? "No trips yet"
+                : `${plural(trips.length, "trip")}${upcomingCount > 0 ? ` · ${upcomingCount} ahead` : ""}`
+              : "Trips"}
           </p>
           <h1 id="trips-hero-title" {...sx(a.display, s.heroTitle)}>
             Where to <span {...sx(a.italic)}>next?</span>
           </h1>
-          <p {...sx(s.heroLede)}>
-            Plan each day on a live 3D map, let AI draft the first pass, and share the whole thing with whoever’s coming.
-          </p>
           {!onDevice && (
             <div {...sx(s.heroActions)}>
               <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
@@ -600,9 +597,11 @@ export function TripsIndex() {
               }
             />
           )}
-          <p {...sx(a.eyebrow, s.globeCaption)} aria-hidden>
-            {hotTrip?.center ? `${hotTrip.name} · ${formatCoord(hotTrip.center)}` : "Drag to turn the globe"}
-          </p>
+          {hotTrip?.center && (
+            <p {...sx(a.eyebrow, s.globeCaption)} aria-hidden>
+              {hotTrip.name} · {formatCoord(hotTrip.center)}
+            </p>
+          )}
         </div>
       </section>
 
@@ -649,9 +648,9 @@ export function TripsIndex() {
             A blank <span {...sx(a.italic)}>map.</span>
           </h2>
           {sharedPost ? (
-            <p {...sx(a.body)}>You shared an Instagram post. Start a trip and its places go straight onto it.</p>
+            <p {...sx(a.body)}>Start a trip to add the places from the Instagram post you shared.</p>
           ) : (
-            <p {...sx(a.body)}>Name a place and some dates. You can fill in the days yourself or have AI sketch them.</p>
+            <p {...sx(a.body)}>Name a place and some dates, then fill in the days yourself or have AI draft them.</p>
           )}
           {!onDevice && (
             <Link to={sharedPost ? `/trips/new?instagram=${encodeURIComponent(sharedPost)}` : "/trips/new"} {...sx(a.btn, a.btnPrimary)}>

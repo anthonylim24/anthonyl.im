@@ -1,58 +1,49 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { isToSchedule, TO_SCHEDULE } from "../map/geo"
 import {
-  ArrowDown,
-  ArrowUp,
   Bookmark,
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronRight,
   CloudRain,
-  Copy,
   CopyPlus,
-  ExternalLink,
   GripVertical,
   Heart,
   ListPlus,
-  MapPin,
-  MapPinOff,
   MoreHorizontal,
   SkipForward,
   Trash2,
   TriangleAlert,
-  X,
   type LucideIcon,
 } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { externalMapsLink } from "@/lib/externalMaps"
-import { formatClock, parseClock, STATUS_LABEL, titleCase } from "../meta"
+import { formatClock, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { LIMITS } from "../limits"
-import { copyItemToDays, duplicateItem, moveItem, moveItemToDay, setItemTime, toggledStatus, unparkDay, updateItem } from "../tripEdits"
+import { toggledStatus, unparkDay } from "../tripEdits"
 import { Menu, type MenuItem } from "../components/kit"
 import { Presence } from "../components/presence"
-import { DayPicker } from "./DayPicker"
-import { composing } from "../ime"
-import { normalizeLink, stopLink, withLink } from "./stopLinks"
-import { LinkChip } from "./LinkChip"
 import { clockMinutes, clockRange } from "../timeline/timeline"
-import { CostField } from "../budget/CostField"
-import type { ItemStatus, ItineraryItem, Trip, TripDay } from "../types"
-import { BookingFields } from "./BookingFields"
-import { BookingSummary } from "../bookings/BookingSummary"
+import type { ItineraryItem, Trip, TripDay } from "../types"
 import { bookingTypeLabel } from "../bookings/kinds"
+import { shownStatus } from "../bookings/status"
 import type { DayOption } from "../useTripEditor"
 import type { UndoMark } from "../editorMachine"
 import { scrollBehavior } from "./scroll"
+import { useFitHeight } from "./fitHeight"
+import { composing } from "../ime"
 import type { ConflictAlert } from "./stopAlerts"
 import { StopRef } from "../timeline/StopRef"
+import type { StartSuggestion } from "../timeline/suggestStart"
 import { Parts } from "./Parts"
 import { a } from "../atlas.stylex"
-import { Select } from "../components/Select"
 import { ws as s } from "../workspace.stylex"
-import { usePlaceSearch } from "./AddStop"
 import { ItemIcon } from "../ItemIcon"
 import { weatherKind } from "../forecast"
+import { streetFirst } from "../ideas/address"
+import { StopActions, StopDayPicker, StopDetails, StopEditor } from "./StopEditor"
+import { stopEdits, type EditorSurface } from "./stopEdits"
 
 /** A clash with an earlier stop, and that stop's map number (else its title) to name it by: "Overlaps ②". */
 export type CardConflict = ConflictAlert & { otherNumber: number | null; otherTitle: string }
@@ -89,17 +80,24 @@ export interface ItemCardProps {
   locked: boolean
   hot: boolean
   active: boolean
-  /** Open the editor (requested from the map). Non-zero, and new for each request. */
-  expand?: number
+  /** Its editor (a viewer: its details) is open under the card. */
+  open: boolean
+  /** Where its editor opens: under the card, or in a sheet the day draws. */
+  surface: EditorSurface
+  /** Opens its editor, or closes it when it is the one open. */
+  onToggle: (id: string) => void
   flash: boolean
   near: LngLat | null
   dayOptions: DayOption[]
   /** Currency a new cost starts in (the trip's budget, else its local money). */
   currency: string
+  /** When its editor is open and it has no time: a start read off the day (`suggestStart`). */
+  startAt?: StartSuggestion | null
   onChange: (fn: (days: TripDay[]) => TripDay[], undo?: UndoMark) => void
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
   /** The item left this day (moved to another): the list moves focus on. */
   onGone?: (index: number) => void
+  onDuplicated?: (index: number, spoken: string) => void
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
   onGrip?: (event: ReactPointerEvent) => void
@@ -107,10 +105,31 @@ export interface ItemCardProps {
   onAnnounce?: (message: string) => void
 }
 
-const STATUSES: ItemStatus[] = ["none", "booked", "optional", "needs_review", "completed", "skipped"]
-
 function firstLine(text?: string): string {
   return (text ?? "").split("\n").find((line) => line.trim().length > 0)?.trim() ?? ""
+}
+
+/** A heading's words, wrapping onto a second line on a phone rather than cut off. One line of text: Enter adds none. */
+function HeadingField({ value, disabled, onChange }: { value: string; disabled: boolean; onChange: (value: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useFitHeight(ref, value)
+  return (
+    <textarea
+      ref={ref}
+      aria-label="Heading"
+      data-card-row=""
+      rows={1}
+      value={value}
+      placeholder="Heading"
+      maxLength={LIMITS.itemTitle}
+      disabled={disabled}
+      {...sx(s.sectionInput)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && !composing(event)) event.preventDefault()
+      }}
+      onChange={(event) => onChange(event.target.value.replace(/\s*\n\s*/g, " "))}
+    />
+  )
 }
 
 /** A two-state button on the card: Done, Skip, Loved it. */
@@ -144,11 +163,14 @@ export const ItemCard = memo(function ItemCard({
   locked,
   hot,
   active,
-  expand,
+  open,
+  surface,
+  onToggle,
   flash,
   near,
   dayOptions,
   currency,
+  startAt = null,
   onChange,
   onDelete,
   onHover,
@@ -156,40 +178,17 @@ export const ItemCard = memo(function ItemCard({
   onGrip,
   onAnnounce,
   onGone,
+  onDuplicated,
 }: ItemCardProps) {
-  // A just-added, untitled item opens ready to type; later edits must not
-  // re-open a card the user closed, so this is decided once, on mount.
-  const [open, setOpen] = useState(() => !!expand || (editable && !item.title && item.kind !== "section"))
-  // Each new `expand` request opens the card (adjusted during render, not in an effect).
-  const [seenExpand, setSeenExpand] = useState(expand)
-  if (expand !== seenExpand) {
-    setSeenExpand(expand)
-    if (expand) setOpen(true)
-  }
-  const [endOpen, setEndOpen] = useState(false)
   // The day sheet open from the card's menu: send the stop to one day, or copies of it to several.
   const [picking, setPicking] = useState<"move" | "copy" | null>(null)
   const panelId = useId()
   const rowRef = useRef<HTMLDivElement>(null)
-  const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
+  const edits = stopEdits({ item, dayId, index, count, dayOptions, parked, onChange, onAnnounce, onGone, onDuplicated })
+  const { patch } = edits
   const canEdit = editable && !locked
   const RainIcon = rainCode === null ? CloudRain : weatherKind(rainCode).icon
-  const name = `“${item.title || "Untitled"}”`
-  const move = (step: -1 | 1) => onChange((days) => moveItem(days, dayId, item.id, step), { label: `Moved ${name}`, key: `move:${item.id}` })
-  const dayName = (id: string) => dayOptions.find((option) => option.id === id)?.label.split(" · ")[0] ?? "another day"
-  const moveTo = (to: string) => {
-    onChange((days) => moveItemToDay(days, dayId, item.id, to), { label: `Moved ${name} to ${dayName(to)}`, toast: true })
-    onGone?.(index)
-  }
-  const copyTo = (to: string[]) => {
-    const where = to.length === 1 ? dayName(to[0]!) : `${to.length} days`
-    onChange((days) => copyItemToDays(days, dayId, item.id, to), { label: `Copied ${name} to ${where}`, toast: true })
-    onAnnounce?.(`${item.title || "Stop"} copied to ${where}.`)
-  }
-  const setTime = (time: string | undefined) => {
-    onChange((days) => setItemTime(days, dayId, item.id, time))
-    if (parked && time) onAnnounce?.(`${item.title || "Stop"} is on the route at ${formatClock(time)}.`)
-  }
+  const inline = surface === "inline"
   const isStop = item.kind === "place" || item.kind === "reservation"
   const skipped = item.status === "skipped"
   // How the day went is marked on its stops once the day has come (held, not hidden, during an AI run).
@@ -209,7 +208,7 @@ export const ItemCard = memo(function ItemCard({
     ...(onSaveForLater && isStop
       ? [
           {
-            label: ideasFull ? "Save for later (ideas list is full)" : "Save for later",
+            label: ideasFull ? "Save for later (wishlist is full)" : "Save for later",
             icon: <Bookmark size={16} strokeWidth={1.75} aria-hidden />,
             disabled: ideasFull,
             onSelect: () => onSaveForLater(dayId, item, index),
@@ -222,9 +221,18 @@ export const ItemCard = memo(function ItemCard({
     if (active) rowRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
   }, [active])
 
+  // Opened from its own row, the editor scrolls into view under it. (One
+  // opened from elsewhere, the day scrolls to.)
+  const opening = useRef(false)
   useEffect(() => {
-    if (expand) rowRef.current?.scrollIntoView({ block: "center", behavior: scrollBehavior() })
-  }, [expand])
+    if (!open || !opening.current) return
+    opening.current = false
+    rowRef.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
+  }, [open])
+  const closeEditor = () => {
+    rowRef.current?.querySelector<HTMLElement>("[data-card-row]")?.focus()
+    onToggle(item.id)
+  }
 
   // "To schedule" is the planner's own divider: a plain header, not a row to edit.
   if (isToSchedule(item)) {
@@ -259,20 +267,11 @@ export const ItemCard = memo(function ItemCard({
           </button>
         )}
         {editable ? (
-          <input
-            aria-label="Heading"
-            data-card-row=""
-            value={item.title}
-            placeholder="Heading"
-            maxLength={LIMITS.itemTitle}
-            disabled={locked}
-            {...sx(s.sectionInput)}
-            onChange={(event) => patch({ title: event.target.value })}
-          />
+          <HeadingField value={item.title} disabled={locked} onChange={(title) => patch({ title })} />
         ) : (
-          <h3 {...sx(a.eyebrow, a.grow)}>{item.title}</h3>
+          <h3 {...sx(a.eyebrow, a.grow, a.wrap)}>{item.title}</h3>
         )}
-        {item.time && <span {...sx(a.mono, a.muted)}>{formatClock(item.time)}</span>}
+        {item.time && <span {...sx(a.mono, a.muted, s.sectionTime)}>{formatClock(item.time)}</span>}
         {canEdit && (
           <button
             type="button"
@@ -289,12 +288,11 @@ export const ItemCard = memo(function ItemCard({
 
   const pinned = pinLabel !== null
   const [start, end] = [clockMinutes(item.time), clockMinutes(item.endTime)]
-  const sub = item.location?.address || firstLine(item.notes)
+  const sub = streetFirst(item.location?.address).join(", ") || firstLine(item.notes)
   const category = item.kind === "reservation" ? bookingTypeLabel(item.reservation?.type) : item.location?.category ? titleCase(item.location.category) : null
-  const maps = pinned || item.location?.address ? externalMapsLink({ name: item.location?.name ?? item.title, address: item.location?.address, lat: item.location?.lat, lng: item.location?.lng }) : null
-  const links = (item.links ?? []).map(stopLink).filter((link): link is NonNullable<typeof link> => link !== null)
   // Where Done / Skip / Loved it are on the card, the chip and the heart would only say it twice.
-  const shownStatus = item.status === "none" || (quick && (item.status === "completed" || item.status === "skipped")) ? null : item.status
+  const status = shownStatus(item)
+  const chip = status.status === "none" || (quick && (status.status === "completed" || status.status === "skipped")) ? null : status.label
   const lovedMark = !!item.highlight && !quick
 
   return (
@@ -326,18 +324,19 @@ export const ItemCard = memo(function ItemCard({
             type="button"
             {...sx(s.cardRow, s.cardHeadRow)}
             data-card-row=""
-            aria-expanded={open}
-            aria-controls={panelId}
+            aria-expanded={inline ? open : undefined}
+            aria-controls={inline && open ? panelId : undefined}
+            aria-haspopup={inline ? undefined : "dialog"}
             aria-keyshortcuts={editable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => {
+              opening.current = inline && !open
+              onToggle(item.id)
+            }}
             onKeyDown={(event) => {
               if (!editable || locked || !event.altKey) return
               if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
               event.preventDefault()
-              const step = event.key === "ArrowUp" ? -1 : 1
-              if (index + step < 0 || index + step >= count) return
-              move(step)
-              onAnnounce?.(`${item.title || "Stop"} moved ${step < 0 ? "up" : "down"}, now ${index + step + 1} of ${count}.`)
+              edits.move(event.key === "ArrowUp" ? -1 : 1)
             }}
           >
             {/* Empty for an Anytime stop, so every title keeps one indent. */}
@@ -358,10 +357,10 @@ export const ItemCard = memo(function ItemCard({
               <span {...sx(s.cardTitle, a.wrap, past && s.cardTitlePast, !item.title && s.cardTitleEmpty, skipped && s.cardTitleSkipped)}>
                 {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
               </span>
-              {(category || sub || shownStatus || lovedMark) && (
+              {(category || sub || chip || lovedMark) && (
                 <span {...sx(s.cardSub)}>
                   {category && <span>{category}</span>}
-                  {shownStatus && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{STATUS_LABEL[shownStatus]}</span>}
+                  {chip && <span {...sx(a.chip, a.chipOutline, a.chipMono, s.cardStatus)}>{chip}</span>}
                   {lovedMark && (
                     <span {...sx(s.loved)}>
                       <Heart size={12} strokeWidth={2} fill="currentColor" aria-hidden />
@@ -414,7 +413,11 @@ export const ItemCard = memo(function ItemCard({
                 <GripVertical size={14} aria-hidden />
               </span>
             )}
-            <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
+            {inline ? (
+              <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
+            ) : (
+              <ChevronRight size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron)} />
+            )}
           </button>
           {canEdit && cardMenu.length > 0 && (
             <Menu
@@ -440,184 +443,28 @@ export const ItemCard = memo(function ItemCard({
           </div>
         )}
 
-        <Presence when={picking}>{(mode) => {
-          const choices = dayOptions.map((option) => ({ id: option.id, label: option.label, off: option.id === dayId ? "This day" : undefined }))
-          return mode === "move" ? (
-            <DayPicker title={`Move ${name}`} description="It goes last on that day’s route." choices={choices} onPick={moveTo} onClose={() => setPicking(null)} />
-          ) : (
-            <DayPicker
-              title={`Copy ${name}`}
-              description={item.time ? `Each copy keeps ${formatClock(item.time)} and goes where that falls on its day.` : "Each copy goes last on its day’s route."}
-              choices={choices}
-              confirm={(count) => (count === 0 ? "Copy" : `Copy to ${count === 1 ? "1 day" : `${count} days`}`)}
-              onPickMany={copyTo}
-              onClose={() => setPicking(null)}
-            />
-          )
-        }}</Presence>
+        <Presence when={picking}>
+          {(mode) => <StopDayPicker mode={mode} item={item} dayId={dayId} dayOptions={dayOptions} edits={edits} onClose={() => setPicking(null)} />}
+        </Presence>
 
         {open && (
-          <div id={panelId} {...sx(s.editor)}>
+          <div
+            id={panelId}
+            {...sx(s.editor)}
+            // Escape closes it, as Done closes the sheet. A popup inside that took the key marks it handled.
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || event.defaultPrevented || composing(event)) return
+              event.preventDefault()
+              closeEditor()
+            }}
+          >
             {editable ? (
               <>
-                <label {...sx(s.span2)}>
-                  <span {...sx(s.miniLabel)}>{item.kind === "note" ? "Note" : "Name"}</span>
-                  <input
-                    value={item.title}
-                    disabled={locked}
-                    placeholder={item.kind === "note" ? "What to remember" : "Name this stop"}
-                    autoFocus={!item.title}
-                    maxLength={LIMITS.itemTitle}
-                    {...sx(a.field)}
-                    onChange={(event) => patch({ title: event.target.value })}
-                  />
-                </label>
-                {item.kind !== "reservation" && (
-                  <>
-                <TimeField label="Starts" value={item.time} disabled={locked} onChange={setTime} />
-                {item.endTime || endOpen ? (
-                  <TimeField
-                    label="Ends"
-                    value={item.endTime}
-                    disabled={locked}
-                    autoFocus={endOpen && !item.endTime}
-                    onChange={(endTime) => {
-                      patch({ endTime })
-                      if (!endTime) setEndOpen(false)
-                    }}
-                  />
-                ) : (
-                  <div {...sx(s.addEnd)}>
-                    <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} disabled={locked} onClick={() => setEndOpen(true)}>
-                      Add end time
-                    </button>
-                  </div>
-                )}
-                  </>
-                )}
-                {item.kind !== "note" && (
-                  <div {...sx(s.span2)}>
-                    <span {...sx(s.miniLabel)}>Location</span>
-                    <LocationField item={item} near={near} locked={locked} onChange={patch} />
-                  </div>
-                )}
-                {item.kind === "reservation" && trip && day && (
-                  <BookingFields item={item} trip={trip} day={day} disabled={locked} onChange={patch} />
-                )}
-                <label {...sx(s.span2)}>
-                  <span {...sx(s.miniLabel)}>Notes</span>
-                  <textarea
-                    value={item.notes ?? ""}
-                    disabled={locked}
-                    rows={2}
-                    maxLength={LIMITS.notes}
-                    placeholder="Opening hours, what to order, who recommended it…"
-                    {...sx(a.field, a.textarea)}
-                    onChange={(event) => patch({ notes: event.target.value || undefined })}
-                  />
-                </label>
-                <LinksField links={item.links} disabled={locked} onChange={(links) => patch({ links: links.length > 0 ? links : undefined })} />
-                {item.kind !== "note" && (
-                  <label {...sx(s.span2Narrow)}>
-                    <span {...sx(s.miniLabel)}>Status</span>
-                    <Select
-                      label="Status"
-                      value={item.status}
-                      disabled={locked}
-                      options={STATUSES.map((status) => ({ value: status, label: STATUS_LABEL[status] }))}
-                      onChange={(status) => patch({ status })}
-                    />
-                  </label>
-                )}
-                {item.kind !== "note" && (
-                  <div {...sx(s.span2Narrow)}>
-                    <CostField value={item.cost} defaultCurrency={currency} disabled={locked} onChange={(cost) => patch({ cost })} />
-                  </div>
-                )}
-                {dayOptions.length > 1 && (
-                  <label {...sx(s.span2Narrow)}>
-                    <span {...sx(s.miniLabel)}>Day</span>
-                    <Select
-                      label="Day"
-                      value={dayId}
-                      disabled={locked}
-                      options={dayOptions.map((option) => ({ value: option.id, label: option.label }))}
-                      onChange={moveTo}
-                    />
-                  </label>
-                )}
-                <div {...sx(s.editorActions)}>
-                  <button
-                    type="button"
-                    {...sx(a.iconBtn, a.iconBtnSm)}
-                    aria-label="Move up"
-                    disabled={locked || index === 0}
-                    onClick={() => move(-1)}
-                  >
-                    <ArrowUp size={16} strokeWidth={1.75} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    {...sx(a.iconBtn, a.iconBtnSm)}
-                    aria-label="Move down"
-                    disabled={locked || index === count - 1}
-                    onClick={() => move(1)}
-                  >
-                    <ArrowDown size={16} strokeWidth={1.75} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    {...sx(a.iconBtn, a.iconBtnSm)}
-                    aria-label="Duplicate"
-                    disabled={locked}
-                    onClick={() => onChange((days) => duplicateItem(days, dayId, item.id), { label: `Duplicated ${name}` })}
-                  >
-                    <Copy size={16} strokeWidth={1.75} aria-hidden />
-                  </button>
-                  {maps && (
-                    <a href={maps.href} target="_blank" rel="noreferrer" {...sx(a.btn, a.btnGhost, a.btnSm)}>
-                      <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
-                      {maps.label}
-                    </a>
-                  )}
-                  <span {...sx(a.grow)} />
-                  <button
-                    type="button"
-                    {...sx(a.btn, a.btnGhost, a.btnSm)}
-                    disabled={locked}
-                    onClick={() => onDelete(dayId, item, index)}
-                  >
-                    <Trash2 size={14} strokeWidth={1.75} aria-hidden />
-                    Delete
-                  </button>
-                </div>
+                <StopEditor item={item} trip={trip} day={day} locked={locked} near={near} currency={currency} edits={edits} startAt={startAt} />
+                <StopActions item={item} index={index} count={count} locked={locked} edits={edits} onDelete={() => onDelete(dayId, item, index)} />
               </>
             ) : (
-              <div {...sx(s.span2, a.stack)}>
-                {item.location?.address && <p {...sx(a.small, a.wrap)}>{item.location.address}</p>}
-                {item.notes && <p {...sx(a.body, a.wrap)} style={{ whiteSpace: "pre-wrap" }}>{item.notes}</p>}
-                {item.kind === "reservation" && trip && day ? (
-                  <BookingSummary item={item} trip={trip} day={day} />
-                ) : (
-                  item.reservation?.confirmation && <p {...sx(a.mono)}>Confirmation {item.reservation.confirmation}</p>
-                )}
-                {maps && (
-                  <a href={maps.href} target="_blank" rel="noreferrer" {...sx(a.btn, a.btnSecondary, a.btnSm)} style={{ alignSelf: "flex-start" }}>
-                    <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
-                    {maps.label}
-                  </a>
-                )}
-                {links.length > 0 && (
-                  <ul {...sx(s.links)} aria-label="Links">
-                    {links.map((link) => (
-                      <li key={link.href} style={{ minWidth: 0, maxWidth: "100%" }}>
-                        <LinkChip link={link} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {!item.location?.address && !item.notes && !maps && links.length === 0 && <p {...sx(a.small)}>No details yet.</p>}
-              </div>
+              <StopDetails item={item} trip={trip} day={day} />
             )}
           </div>
         )}
@@ -625,279 +472,3 @@ export const ItemCard = memo(function ItemCard({
     </div>
   )
 })
-
-/** Type a time the way you'd say it ("8:30a", "2 pm", "14:00"); it tidies itself on blur. */
-function TimeField({
-  label,
-  value,
-  disabled,
-  autoFocus,
-  onChange,
-}: {
-  label: string
-  value: string | undefined
-  disabled?: boolean
-  autoFocus?: boolean
-  onChange: (value: string | undefined) => void
-}) {
-  const id = useId()
-  const [text, setText] = useState(() => formatClock(value))
-  const [bad, setBad] = useState(false)
-  // A new value from outside (undo, another editor) replaces the draft.
-  const [seenValue, setSeenValue] = useState(value)
-  if (value !== seenValue) {
-    setSeenValue(value)
-    setText(formatClock(value))
-    setBad(false)
-  }
-  const commit = () => {
-    if (!text.trim()) {
-      setBad(false)
-      if (value) onChange(undefined)
-      return
-    }
-    const parsed = parseClock(text)
-    if (!parsed) {
-      setBad(true)
-      return
-    }
-    setBad(false)
-    setText(formatClock(parsed))
-    if (parsed !== value) onChange(parsed)
-  }
-  return (
-    <div>
-      <label htmlFor={id} {...sx(s.miniLabel)}>
-        {label}
-      </label>
-      <input
-        id={id}
-        type="text"
-        inputMode="text"
-        autoComplete="off"
-        value={text}
-        disabled={disabled}
-        autoFocus={autoFocus}
-        placeholder="e.g. 9:30 AM"
-        aria-invalid={bad || undefined}
-        aria-describedby={bad ? `${id}-error` : undefined}
-        {...sx(a.field)}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !composing(event)) {
-            event.preventDefault()
-            commit()
-          }
-        }}
-      />
-      {bad && (
-        <span id={`${id}-error`} {...sx(a.errorText)} role="alert" style={{ display: "block" }}>
-          Try a time like 9:30 AM or 14:00.
-        </span>
-      )}
-    </div>
-  )
-}
-
-function LocationField({
-  item,
-  near,
-  locked,
-  onChange,
-}: {
-  item: ItineraryItem
-  near: LngLat | null
-  locked: boolean
-  onChange: (patch: Partial<Omit<ItineraryItem, "id">>) => void
-}) {
-  const pinned = typeof item.location?.lat === "number" && typeof item.location?.lng === "number"
-  const [searching, setSearching] = useState(false)
-  const [query, setQuery] = useState("")
-  const { results, loading } = usePlaceSearch(searching ? query : "", near)
-
-  if (pinned && !searching) {
-    return (
-      <div {...sx(s.pinnedBox)}>
-        <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText)} />
-        <span {...sx(a.grow, a.wrap)}>{item.location?.address || item.location?.name || "Pinned on the map"}</span>
-        <button
-          type="button"
-          {...sx(a.btn, a.btnGhost, a.btnSm)}
-          disabled={locked}
-          onClick={() => {
-            setQuery(item.location?.name ?? item.title)
-            setSearching(true)
-          }}
-        >
-          Change
-        </button>
-        <button
-          type="button"
-          {...sx(a.iconBtn, a.iconBtnSm)}
-          aria-label="Remove pin"
-          disabled={locked}
-          onClick={() =>
-            onChange({ location: { name: item.location?.name ?? item.title, source: item.location?.source ?? "user" } })
-          }
-        >
-          <MapPinOff size={16} strokeWidth={1.75} aria-hidden />
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div {...sx(a.stack)} style={{ gap: "0.375rem" }}>
-      <input
-        value={searching ? query : ""}
-        disabled={locked}
-        placeholder={pinned ? "Search for a different place" : "Search to pin this on the map"}
-        aria-label="Search for a place to pin"
-        maxLength={LIMITS.locationName}
-        {...sx(a.field)}
-        onFocus={() => {
-          if (!searching) {
-            setQuery(item.location?.name || item.title)
-            setSearching(true)
-          }
-        }}
-        onChange={(event) => {
-          setSearching(true)
-          setQuery(event.target.value)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && searching) {
-            event.stopPropagation()
-            setSearching(false)
-          }
-        }}
-      />
-      {searching && (loading || results.length > 0 || query.trim().length >= 2) && (
-        <ul {...sx(a.stack)} style={{ gap: 0, listStyle: "none", margin: 0, padding: 0 }} aria-label="Matching places">
-          {results.map((place) => (
-            <li key={place.id}>
-              <button
-                type="button"
-                {...sx(s.result)}
-                onClick={() => {
-                  onChange({
-                    title: item.title || place.name,
-                    location: {
-                      name: place.name,
-                      address: place.address,
-                      lat: place.lat,
-                      lng: place.lng,
-                      category: place.category ?? item.location?.category,
-                      ...(place.placeId ? { placeId: place.placeId } : {}),
-                      source: "user",
-                      confidence: "high",
-                    },
-                  })
-                  setSearching(false)
-                }}
-              >
-                <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.accentText)} />
-                <span {...sx(a.grow)}>
-                  <span {...sx(a.wrap)}>{place.name}</span>
-                  {place.context && <span {...sx(a.small, a.truncate)} style={{ display: "block" }}>{place.context}</span>}
-                </span>
-              </button>
-            </li>
-          ))}
-          {!loading && results.length === 0 && query.trim().length >= 2 && (
-            <li {...sx(a.small)} style={{ padding: "0.375rem 0.625rem" }}>
-              No places match. Try a more specific name or add the city.
-            </li>
-          )}
-          {loading && results.length === 0 && (
-            <li {...sx(a.small)} style={{ padding: "0.375rem 0.625rem" }}>
-              Searching…
-            </li>
-          )}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-/** The stop's links: each by its site with a remove button, then a field to paste another. */
-function LinksField({ links, disabled, onChange }: { links: string[] | undefined; disabled: boolean; onChange: (links: string[]) => void }) {
-  const id = useId()
-  const [draft, setDraft] = useState("")
-  const [bad, setBad] = useState(false)
-  const saved = links ?? []
-  const full = saved.length >= LIMITS.links
-  const add = () => {
-    if (!draft.trim()) return
-    const link = normalizeLink(draft)
-    if (!link) {
-      setBad(true)
-      return
-    }
-    setBad(false)
-    setDraft("")
-    onChange(withLink(saved, link))
-  }
-  return (
-    <div {...sx(s.span2, a.stack)} style={{ gap: "0.375rem" }}>
-      <label htmlFor={id} {...sx(s.miniLabel)} style={{ marginBottom: 0 }}>
-        Links
-      </label>
-      {saved.length > 0 && (
-        <ul {...sx(s.links)} aria-label="Links">
-          {saved.map((raw) => {
-            const link = stopLink(raw)
-            return (
-              <li key={raw} {...sx(s.linkRow)}>
-                {link ? <LinkChip link={link} /> : <span {...sx(a.small, s.linkText)} title={raw}>{raw}</span>}
-                <button
-                  type="button"
-                  {...sx(a.iconBtn, a.iconBtnSm)}
-                  aria-label={`Remove link ${link?.label ?? raw}`}
-                  disabled={disabled}
-                  onClick={() => onChange(saved.filter((other) => other !== raw))}
-                >
-                  <X size={14} strokeWidth={1.75} aria-hidden />
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      <div {...sx(s.linkAdd)}>
-        <input
-          id={id}
-          type="url"
-          inputMode="url"
-          autoComplete="off"
-          value={draft}
-          disabled={disabled || full}
-          maxLength={LIMITS.link}
-          placeholder={full ? `${LIMITS.links} links is the most a stop holds` : "Paste a link"}
-          aria-invalid={bad || undefined}
-          aria-describedby={bad ? `${id}-error` : undefined}
-          {...sx(a.field)}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            setBad(false)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !composing(event)) {
-              event.preventDefault()
-              add()
-            }
-          }}
-        />
-        <button type="button" {...sx(a.btn, a.btnSecondary)} disabled={disabled || full || !draft.trim()} onClick={add}>
-          Add
-        </button>
-      </div>
-      {bad && (
-        <span id={`${id}-error`} {...sx(a.errorText)} role="alert" style={{ marginTop: 0 }}>
-          That isn’t a web link. Paste one that starts with https://.
-        </span>
-      )}
-    </div>
-  )
-}

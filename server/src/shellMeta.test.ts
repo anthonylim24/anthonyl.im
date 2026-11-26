@@ -61,7 +61,7 @@ describe("injectPreviewMeta", () => {
   });
 
   test("never puts the full page title in the install name", () => {
-    expect(contentOf(render("/trips"), "apple-mobile-web-app-title")).not.toContain("Trips — plan a trip, pin by pin");
+    expect(contentOf(render("/trips"), "apple-mobile-web-app-title")).not.toContain("Trips — Plan trips on a map");
   });
 
   test("inserts the request path literally, with no $& expansion", () => {

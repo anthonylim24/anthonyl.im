@@ -479,11 +479,11 @@ describe("TripChat conversation", () => {
   })
 
   it("offers Try again after a failure and asks the same question", async () => {
-    mockStreamTripChat.mockRejectedValueOnce(new Error("The concierge did not respond in time. Please try again."))
+    mockStreamTripChat.mockRejectedValueOnce(new Error("The concierge didn’t answer in time. Try again."))
     renderChat()
     const dialog = await ask("ramen?")
     const alert = await within(dialog).findByRole("alert")
-    expect(alert.textContent).toContain("did not respond in time")
+    expect(alert.textContent).toContain("didn’t answer in time")
     fireEvent.click(within(alert).getByRole("button", { name: "Try again" }))
     await waitFor(() => expect(mockStreamTripChat).toHaveBeenCalledTimes(2))
     expect((mockStreamTripChat.mock.calls[1]![0] as Request).prompt).toBe("ramen?")
@@ -496,7 +496,7 @@ describe("TripChat conversation", () => {
   it("keeps the words that arrived when the reply is cut off", async () => {
     mockStreamTripChat.mockImplementation(async (_request: Request, _token: unknown, handlers: Handlers) => {
       handlers.onText("Half an ans")
-      return { content: "Half an ans", error: "The concierge lost its connection. Please try again." }
+      return { content: "Half an ans", error: "The concierge lost its connection. Try again." }
     })
     renderChat()
     const dialog = await ask("ramen?")

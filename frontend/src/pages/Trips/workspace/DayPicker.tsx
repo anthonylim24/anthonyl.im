@@ -40,6 +40,8 @@ export function DayPicker({
   description,
   choices,
   lead,
+  returnFocus,
+  sendFocus,
   onClose,
   ...mode
 }: {
@@ -48,6 +50,10 @@ export function DayPicker({
   choices: readonly DayChoice[]
   /** Shown above the day list, inside the sheet (the wishlist's recommended days). */
   lead?: ReactNode
+  /** Where focus goes after a pick when the button that opened the sheet went with the thing sent. */
+  returnFocus?: () => HTMLElement | null
+  /** Where focus goes on close instead of what opened the sheet, when it returns an element. */
+  sendFocus?: () => HTMLElement | null
   onClose: () => void
 } & (PickOne | PickMany)) {
   if (mode.onPickMany) {
@@ -56,7 +62,7 @@ export function DayPicker({
     )
   }
   return (
-    <Modal open onClose={onClose} title={title} description={description}>
+    <Modal open onClose={onClose} title={title} description={description} returnFocus={returnFocus} sendFocus={sendFocus}>
       {lead}
       <ul {...sx(s.pickList)}>
         {choices.map((choice) => (

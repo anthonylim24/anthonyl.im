@@ -58,9 +58,14 @@ describe("BookingSummary", () => {
   })
 
   it("says when a booking isn't confirmed yet, and nothing for a confirmed one with no details", () => {
-    const { container, rerender } = render(<BookingSummaryLines item={booking({ type: "meal", status: "pending" })} trip={trip} day={day} />)
-    expect(container).toHaveTextContent("Pending: not confirmed yet")
-    rerender(<BookingSummaryLines item={booking({ type: "meal", status: "confirmed" })} trip={trip} day={day} />)
+    const { container, rerender } = render(<BookingSummaryLines item={booking({ type: "meal", status: "pending" })} trip={trip} day={day} withStatus />)
+    expect(container).toHaveTextContent("Not confirmed yet")
+    rerender(<BookingSummaryLines item={booking({ type: "meal", status: "confirmed" })} trip={trip} day={day} withStatus />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("leaves the status to the chip beside it unless asked", () => {
+    const { container } = render(<BookingSummaryLines item={booking({ type: "meal", status: "pending" })} trip={trip} day={day} />)
     expect(container).toBeEmptyDOMElement()
   })
 })

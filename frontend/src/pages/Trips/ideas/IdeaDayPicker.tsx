@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { CalendarDays, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useLatestCallback } from "../../../hooks/useLatestCallback"
@@ -7,6 +7,7 @@ import { DayPicker } from "../workspace/DayPicker"
 import { ws as s } from "../workspace.stylex"
 import { ideaName, type DaySuggestions, type IdeaDayPickerProps } from "./contract"
 import { ideaDayChoices } from "./dayChoices"
+import { focusOnPlace, ideaFocusReturn } from "./focusReturn"
 import { picker as p } from "./picker.stylex"
 import { formatKm, suggestDays } from "./suggestDaysApi"
 
@@ -21,7 +22,7 @@ type Recommendation =
 
 export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDayPickerProps) {
   const uid = useId()
-  const choices = useMemo(() => ideaDayChoices(trip), [trip])
+  const choices = useMemo(() => ideaDayChoices(trip, idea), [trip, idea])
   // The idea as it was when the sheet opened: an autosave or a newer copy of
   // the trip must not ask again (each ask counts against a per-person limit).
   const load = useLatestCallback((signal: AbortSignal) => suggestDays(getToken, trip.id, idea, signal))
@@ -43,7 +44,8 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   }, [load, key])
 
   const current = answer?.key === key ? answer : null
-  // The server ranked its saved copy; a day removed or filled since then is not offered.
+  // The server ranked its saved copy; a day removed or filled since then, or
+  // one that already has the place, is not offered.
   const picks =
     current?.status === "ready"
       ? current.suggestions.picks.flatMap((pick) => {
@@ -58,8 +60,15 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   const announcement =
     picks.length > 0 ? `${picks.length === 1 ? "1 recommended day" : `${picks.length} recommended days`} for ${name}` : ""
 
-  const pick = (dayId: string) => {
+  const picked = useRef<string | undefined>(undefined)
+  const [fromPlace] = useState(() => focusOnPlace(idea.id))
+  const toPlace = () => ideaFocusReturn(idea.id, { dayId: picked.current })
+  const choose = (dayId: string) => {
+    picked.current = dayId
     onPick(dayId)
+  }
+  const pick = (dayId: string) => {
+    choose(dayId)
     onClose()
   }
 
@@ -94,7 +103,7 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
               ))}
             </ul>
           ) : failed ? (
-            <p {...sx(a.small)}>Couldn’t suggest days just now. Any day below works.</p>
+            <p {...sx(a.small)}>Couldn’t suggest days. Any day below works.</p>
           ) : (
             <ul {...sx(s.pickList)}>
               {picks.map(({ pick: recommended, choice }) => (
@@ -122,10 +131,16 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
   return (
     <DayPicker
       title={`Add “${name}” to a day`}
-      description="It joins that day’s route, above anything still to schedule."
+      description="It goes on that day’s route, above anything still to schedule."
       choices={choices}
       lead={lead}
-      onPick={onPick}
+      // Focus goes back to the place's heart or row when one opened the sheet,
+      // and to the place itself when anything else did. A heart or row that
+      // left with the place hands over to its entry under "On your days", or
+      // its new stop or day, to show where it went.
+      sendFocus={() => (fromPlace ? null : toPlace())}
+      returnFocus={toPlace}
+      onPick={choose}
       onClose={onClose}
     />
   )

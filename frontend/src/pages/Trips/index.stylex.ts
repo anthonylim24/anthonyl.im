@@ -147,7 +147,6 @@ export const idx = stylex.create({
     lineHeight: 0.92,
     letterSpacing: "-0.025em",
   },
-  heroLede: { fontSize: "1.0625rem", lineHeight: 1.55, maxWidth: "26rem", color: "var(--trips-ink-secondary)", margin: 0 },
   heroActions: { display: "flex", flexWrap: "wrap", gap: "0.625rem", marginTop: "0.25rem" },
   globe: {
     position: "relative",

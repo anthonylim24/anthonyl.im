@@ -54,7 +54,7 @@ export function registerBookingRoutes(trips: Hono, deps: BookingRoutesDeps): voi
       return c.json({ bookings })
     } catch {
       // The parser has already logged which model failed, without the paste.
-      return c.json({ error: "parse_failed", message: "Couldn’t read that confirmation just now. Try again in a moment." }, 502)
+      return c.json({ error: "parse_failed", message: "Couldn’t read that confirmation. Try again in a moment." }, 502)
     }
   })
 }

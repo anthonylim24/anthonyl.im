@@ -7,8 +7,10 @@ import { IDEA_ADD_PARAM, IDEA_PARAM, withIdea, type IdeaOpener } from "./contrac
 // so Back behaves: opening pushes one history entry and marks it; closing
 // goes back when the entry is one this page pushed, so Back never meets a
 // dead entry, and replaces otherwise (a pasted `?idea=` link, whose earlier
-// entry may be another site). Moving between the details and the picker, or
-// to another idea while one is open, replaces and keeps the mark. Anything
+// entry may be another site). The picker opened from the details pushes its
+// own entry over them, so Back (or Cancel) returns to the details and a
+// close goes back past both. Moving to another idea while one is open
+// replaces and keeps the mark. Anything
 // else that replaces the URL while a place is open (an overview tab) goes
 // through `replaceClosing`, so the place's entry goes with it.
 //
@@ -23,14 +25,17 @@ const MARK = "wishlistIdea"
 
 interface Mark {
   from: IdeaOpener
-  /** This entry was pushed by opening: closing goes back to the one before it. */
-  pushed: boolean
+  /** Entries this page pushed for the place open now: closing goes back past all of them. */
+  depth: number
+  /** This entry is the picker, pushed over the details: leaving it for them is a Back. */
+  overDetails?: boolean
 }
 
 function markOf(state: unknown): Mark | null {
-  const mark = (state as Record<string, unknown> | null)?.[MARK] as Partial<Mark> | undefined
+  const mark = (state as Record<string, unknown> | null)?.[MARK] as (Partial<Mark> & { pushed?: unknown }) | undefined
   if (mark?.from !== "row" && mark?.from !== "map") return null
-  return { from: mark.from, pushed: mark.pushed === true }
+  const depth = typeof mark.depth === "number" ? mark.depth : mark.pushed === true ? 1 : 0
+  return { from: mark.from, depth, ...(mark.overDetails === true ? { overDetails: true } : {}) }
 }
 
 const marked = (mark: Mark) => ({ [MARK]: mark })
@@ -42,7 +47,7 @@ export function ideaOpenedFrom(state: unknown): IdeaOpener | null {
 
 /** The history state of an entry opened by `from` (tests, and anything that navigates by hand). */
 export function ideaOpenState(from: IdeaOpener, pushed = true) {
-  return marked({ from, pushed })
+  return marked({ from, depth: pushed ? 1 : 0 })
 }
 
 /**
@@ -85,13 +90,13 @@ export function useIdeaNav() {
     return typeof live === "string" && live !== location.key
   }
 
-  /** Back to the entry before this one, when this page pushed it and it is not the first. */
-  const goBack = () => {
-    if (!markOf(location.state)?.pushed) return false
+  /** Back past the entries this page pushed for the open place (one, or the details and the picker), unless that would leave the history. */
+  const goBack = (steps = markOf(location.state)?.depth ?? 0) => {
+    if (steps < 1) return false
     const idx = liveEntry()?.idx
-    if (typeof idx === "number" && idx < 1) return false
+    if (typeof idx === "number" && idx < steps) return false
     backFrom = location.key
-    navigate(-1)
+    navigate(-steps)
     return true
   }
 
@@ -104,13 +109,21 @@ export function useIdeaNav() {
         const next = (prev: URLSearchParams) => withIdea(prev, ideaId, add)
         if (!params.has(IDEA_PARAM)) setParams(next, { state: ideaOpenState(from) })
         // Another idea while one is open: the same entry, so one Back still closes it.
-        else setParams(next, { replace: true, state: ideaOpenState(from, markOf(location.state)?.pushed ?? false) })
+        else setParams(next, { replace: true, state: marked({ from, depth: markOf(location.state)?.depth ?? 0 }) })
         return true
       }
-      case "show":
+      case "show": {
         if (params.get(IDEA_PARAM) !== call.ideaId) return false
+        const mark = markOf(location.state)
+        const picking = params.get(IDEA_ADD_PARAM) === "1"
+        if (call.add && !picking && mark) {
+          setParams((prev) => withIdea(prev, call.ideaId, true), { state: marked({ from: mark.from, depth: mark.depth + 1, overDetails: true }) })
+          return true
+        }
+        if (!call.add && picking && mark?.overDetails && goBack(1)) return true
         setParams((prev) => withIdea(prev, call.ideaId, call.add), { replace: true, state: location.state })
         return true
+      }
       case "close":
         if (params.get(IDEA_PARAM) !== call.ideaId || params.get(IDEA_ADD_PARAM) !== call.add) return false
         if (!goBack()) setParams((prev) => withIdea(prev, null), { replace: true })
@@ -132,7 +145,7 @@ export function useIdeaNav() {
   /** Open `ideaId`'s details (or, with `add`, its day picker). Nothing happens when they are already open. */
   const open = useLatestCallback((ideaId: string, from: IdeaOpener, add?: boolean) => request({ call: "open", ideaId, from, add }))
 
-  /** Switch between the open idea's details and its picker, keeping the entry and its mark. */
+  /** Switch between the open idea's details and its picker: the picker gets its own entry over the details. */
   const show = useLatestCallback((ideaId: string, add?: boolean) => request({ call: "show", ideaId, add }))
 
   /**

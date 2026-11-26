@@ -923,7 +923,7 @@ export async function streamTripChat(c: Context, args: StreamTripChatArgs): Prom
           }
 
           if (failed && !text.trim()) {
-            await send({ error: "The concierge is unavailable right now. Please try again." })
+            await send({ error: "The concierge isn’t available right now. Try again in a moment." })
             await stream.writeSSE({ data: "[DONE]" })
             return
           }
@@ -991,12 +991,12 @@ export async function streamTripChat(c: Context, args: StreamTripChatArgs): Prom
     } catch (error) {
       if (c.req.raw.signal.aborted) return
       if (upstreamSignal.aborted) {
-        await send({ error: "That took too long. Please try again." })
+        await send({ error: "That took too long. Try again." })
         await stream.writeSSE({ data: "[DONE]" })
         return
       }
       console.error("[trips-chat] streaming error:", error)
-      await send({ error: "Something went wrong while answering. Please try again." })
+      await send({ error: "The concierge couldn’t finish that answer. Try again." })
       await stream.writeSSE({ data: "[DONE]" })
     }
   })

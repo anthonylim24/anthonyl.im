@@ -16,7 +16,7 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
     ['/', 'Lim — Ask Anthony Lim&#39;s AI', 'og-chatbot'],
     ['/breathwork', 'BreathFlow — Guided breathing with a watercolour cat', 'og-breathwork'],
     ['/breathwork/progress', 'Progress · BreathFlow', 'og-breathwork'],
-    ['/trips', 'Trips — plan a trip, pin by pin', 'og-trips'],
+    ['/trips', 'Trips — Plan trips on a map', 'og-trips'],
     ['/trips/korea-2026/day/1', 'Seoul + Busan — Korea 2026 trip dossier', 'og-korea'],
   ];
   for (const [path, title, card] of cases) {

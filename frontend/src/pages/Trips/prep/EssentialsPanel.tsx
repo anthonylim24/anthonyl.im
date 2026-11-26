@@ -122,7 +122,7 @@ function CountryEssentials({
   return (
     <section {...sx(p.country)} aria-labelledby={headingId}>
       <div {...sx(p.countryHead)}>
-        <h2 id={headingId} {...sx(a.display, p.countryTitle, a.wrap)}>
+        <h2 id={headingId} {...sx(a.display, p.countryTitle, a.wrapName)}>
           {country.name}
         </h2>
       </div>

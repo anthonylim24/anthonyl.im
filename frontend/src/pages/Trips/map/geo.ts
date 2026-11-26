@@ -1,4 +1,7 @@
+import type { MultiPolygon, Polygon } from "geojson"
+import { addressLocality, streetLine } from "../ideas/address"
 import { ideaName } from "../ideas/contract"
+import { themeLabel, themeOf } from "../ideas/themes"
 import type { ItineraryItem, Trip, TripDay } from "../types"
 
 // Pure geometry + pin derivation for the Trips map. No MapLibre imports, so
@@ -25,6 +28,8 @@ export interface AtlasPin extends LngLat {
   accent?: string
   /** Just added: plays the drop-in animation once. */
   fresh?: boolean
+  /** What a screen reader hears after the pin's name: a wishlist place's category, town and street. */
+  description?: string
 }
 
 const EARTH_M = 6_371_000
@@ -202,8 +207,20 @@ export function ideaPins(trip: Pick<Trip, "ideas">): AtlasPin[] {
     const lat = idea.location?.lat
     const lng = idea.location?.lng
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
-    return [{ id: idea.id, lat: lat!, lng: lng!, title: ideaName(idea), variant: "idea" }]
+    return [{ id: idea.id, lat: lat!, lng: lng!, title: ideaName(idea), variant: "idea", description: ideaDescription(idea) }]
   })
+}
+
+/**
+ * "Neighborhoods, Busan. 203 Gamnae 2-ro, Saha-gu": what the preview card
+ * says about a wishlist place, from the place alone, so its pin has it from
+ * the first paint rather than once a card is up.
+ */
+function ideaDescription(idea: ItineraryItem): string {
+  const address = idea.location?.address
+  const town = addressLocality(address)
+  const street = streetLine(address, town, ideaName(idea))
+  return [[themeLabel(themeOf(idea)), town].filter(Boolean).join(", "), street].filter(Boolean).join(". ")
 }
 
 /** Every located stop on the trip (the overview's small dots). */
@@ -218,7 +235,7 @@ export function dayRoute(day: TripDay): LngLat[] {
 /** Everything a pin draws, as one string: equal keys need no map update. */
 export function pinsKey(pins: readonly AtlasPin[]): string {
   return pins
-    .map((p) => `${p.id}|${p.lat}|${p.lng}|${p.label ?? ""}|${p.title}|${p.variant ?? ""}|${p.accent ?? ""}|${p.fresh ? 1 : 0}|${p.lodging ? 1 : 0}`)
+    .map((p) => `${p.id}|${p.lat}|${p.lng}|${p.label ?? ""}|${p.title}|${p.variant ?? ""}|${p.accent ?? ""}|${p.fresh ? 1 : 0}|${p.lodging ? 1 : 0}|${p.description ?? ""}`)
     .join("\n")
 }
 
@@ -346,4 +363,80 @@ export function spreadPins(pins: readonly ScreenPin[], width = 30, height = 26):
     byRank.forEach((p, i) => offsets.set(p.pin.id, Math.round(slots[i]! + shift - p.pin.x)))
   }
   return offsets
+}
+
+/** A neighborhood drawn on the map: OpenStreetMap's boundary, or a shape drawn around its stops (`approximate`). */
+export interface AreaShape {
+  geometry: Polygon | MultiPolygon
+  approximate: boolean
+  /** The area's stops, marked and named on the map while it is drawn. */
+  stops?: ReadonlyArray<LngLat & { title: string }>
+}
+
+const M_PER_DEG = 111_320
+const HULL_STEPS = 16
+
+/** How far the drawn shape reaches past the outermost stops: a stop sits inside its street, not on the edge of the area. */
+export const hullBuffer = (points: readonly LngLat[]) => Math.min(600, Math.max(250, 0.15 * spanMeters(points)))
+
+/**
+ * The convex hull of `points` widened by `bufferM`, as a closed GeoJSON ring
+ * ([lng, lat], anticlockwise). One stop is a circle, two a capsule. Measured
+ * in metres on a flat projection about the points' middle, which is exact
+ * enough across a neighborhood. Empty for no points.
+ */
+export function areaHull(points: readonly LngLat[], bufferM = hullBuffer(points)): [number, number][] {
+  const mid = centroid(points)
+  if (!mid) return []
+  const xScale = M_PER_DEG * Math.cos(rad(mid.lat))
+  const around: Array<[number, number]> = []
+  for (const p of points) {
+    const x = (p.lng - mid.lng) * xScale
+    const y = (p.lat - mid.lat) * M_PER_DEG
+    for (let i = 0; i < HULL_STEPS; i++) {
+      const angle = (2 * Math.PI * i) / HULL_STEPS
+      around.push([x + bufferM * Math.cos(angle), y + bufferM * Math.sin(angle)])
+    }
+  }
+  around.sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const half = (list: Array<[number, number]>) => {
+    const out: Array<[number, number]> = []
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, p) <= 0) out.pop()
+      out.push(p)
+    }
+    out.pop()
+    return out
+  }
+  const hull = [...half(around), ...half([...around].reverse())]
+  const ring = hull.map(([x, y]): [number, number] => [mid.lng + x / xScale, mid.lat + y / M_PER_DEG])
+  ring.push(ring[0]!)
+  return ring
+}
+
+/** The shape drawn around an area's stops when there is no boundary to show. */
+export const approximateArea = (points: readonly LngLat[]): AreaShape | null =>
+  points.length === 0 ? null : { geometry: { type: "Polygon", coordinates: [areaHull(points)] }, approximate: true }
+
+/** The corners of a shape's bounding box, for framing the camera on it. */
+export function shapeCorners(geometry: Polygon | MultiPolygon): LngLat[] {
+  let minLat = Infinity
+  let maxLat = -Infinity
+  let minLng = Infinity
+  let maxLng = -Infinity
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates
+  for (const polygon of polygons) {
+    for (const [lng, lat] of polygon[0] ?? []) {
+      minLat = Math.min(minLat, lat!)
+      maxLat = Math.max(maxLat, lat!)
+      minLng = Math.min(minLng, lng!)
+      maxLng = Math.max(maxLng, lng!)
+    }
+  }
+  if (!Number.isFinite(minLat)) return []
+  return [
+    { lat: minLat, lng: minLng },
+    { lat: maxLat, lng: maxLng },
+  ]
 }
