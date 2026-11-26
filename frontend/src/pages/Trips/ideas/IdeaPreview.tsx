@@ -26,14 +26,16 @@ export function IdeaPreview({ idea, trip, via }: { idea: ItineraryItem; trip: Pi
   const [, answered] = useReducer((n: number) => n + 1, 0)
   const { lookup } = preview
   const lookupKey = lookup?.key ?? ""
+  // `lookup` is rebuilt on every render; `lookupKey` names the place.
+  const prefetch = useLatestCallback(() => (lookup ? prefetchPlaceDetails(getToken, lookup) : Promise.resolve(null)))
   useEffect(() => {
-    if (!lookup) return
+    if (!lookupKey) return
     let live = true
     const timer = setTimeout(
       () =>
-        prefetchPlaceDetails(getToken, lookup).then(
+        prefetch().then(
           () => live && answered(),
-          () => live && setFailed(lookup.key),
+          () => live && setFailed(lookupKey),
         ),
       via === "focus" ? FOCUS_REST_MS : 0,
     )
@@ -41,8 +43,7 @@ export function IdeaPreview({ idea, trip, via }: { idea: ItineraryItem; trip: Pi
       live = false
       clearTimeout(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `lookupKey` names the place; `lookup` is rebuilt on every render
-  }, [lookupKey, getToken, via])
+  }, [lookupKey, prefetch, via])
 
   const { label, icon: Icon } = THEMES[preview.theme]
   const photo = preview.photo && broken !== preview.photo.url ? preview.photo : null

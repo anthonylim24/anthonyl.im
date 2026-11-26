@@ -1,7 +1,7 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
 import stylex from "@stylexjs/unplugin"
-import { defineConfig } from "vite"
+import { defineConfig, searchForWorkspaceRoot } from "vite"
 
 export default defineConfig({
   plugins: [
@@ -110,6 +110,10 @@ export default defineConfig({
     }
   },
   server: {
+    fs: {
+      // Pure modules the trip map shares with the server live in server/src/trips (the preview API ships only server/src).
+      allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(import.meta.dirname, "../server/src/trips")],
+    },
     proxy: {
       "/api": {
         // A second checkout can run its API on another port: API_PROXY_TARGET=http://localhost:3099

@@ -1,6 +1,7 @@
 import { haversineMeters } from "../data/koreaPlaces"
 import type { LatLng } from "./conciergeTools"
-import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, sameName, toPlacePhoto, type PlacePhoto, type RawDetails } from "./placeDetails"
+import type { PlacePhoto } from "./apiShapes"
+import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, sameName, toPlacePhoto, type RawDetails } from "./placeDetails"
 
 // The search often answers a landmark that shares the area's name ("Dosan,
 // Seoul" is Dosan Park, "Bukchon, Seoul" is Bukchon Hanok Village; measured),
@@ -77,13 +78,16 @@ export interface RawAreaPlace {
   photos?: RawDetails["photos"]
 }
 
+/** The model joins at most two names into one area ("Hannam & Itaewon"). */
+export const MAX_NAME_PARTS = 2
+
 /** "Hannam & Itaewon" → Hannam, Itaewon: an area named for two neighborhoods is looked up by each. */
 export function nameParts(name: string): string[] {
   return name
     .split(/\s*(?:&|·|\+|\/|,|\band\b)\s*/u)
     .map((part) => part.trim())
     .filter(Boolean)
-    .slice(0, 2)
+    .slice(0, MAX_NAME_PARTS)
 }
 
 /**

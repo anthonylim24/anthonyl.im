@@ -1,5 +1,6 @@
 import type { Context, Hono, MiddlewareHandler } from "hono"
 import { consumeRateLimit, createRateLimit, rateLimitsOff, userOrClientKey } from "../middleware/rateLimit"
+import { MAX_OUTLINE_SEARCHES } from "../trips/areaOutline"
 import { GroupingLimitError, UnknownAreaError, type NeighborhoodService } from "../trips/neighborhoods"
 import type { Trip, TripAccess } from "../trips/types"
 
@@ -28,8 +29,14 @@ export interface AreaRoutesDeps {
 const AREA_ID = /^a-[A-Za-z0-9_-]{10}$/
 /** Well inside a reverse proxy's 60 s idle timeout, with room for photos. */
 const WAIT_MS = 20_000
-/** Each outline is up to four Nominatim searches at one a second for the whole server; past this the map keeps its drawn shape. */
+/** Each outline is up to `MAX_OUTLINE_SEARCHES` Nominatim searches at one a second for the whole server; past this the map keeps its drawn shape. */
 const OUTLINE_MS = 8_000
+/**
+ * Nominatim searches one person may cause in ten minutes, out of the 600 the
+ * whole server may make (one a second), so a few people at once are answered.
+ * Counted per outline request at its worst case; a 429 keeps the drawn shape.
+ */
+const OUTLINE_SEARCHES_PER_WINDOW = 80
 /**
  * Model calls one person may start in ten minutes. A grouping is one or two
  * calls of up to 75 s and a dozen Places searches; an edit that keeps every
@@ -41,9 +48,14 @@ const GROUPING_WINDOW_MS = 10 * 60_000
 export function registerAreaRoutes(trips: Hono, deps: AreaRoutesDeps): void {
   // A poll every few seconds while a grouping runs, and one per open of the tab.
   const limit = deps.rateLimit ?? createRateLimit({ windowMs: 10 * 60_000, max: 120, keyPrefix: "trips-areas", key: userOrClientKey })
-  // Each outline can mean up to four Nominatim searches, which the whole server shares at one a second.
   const outlineLimit =
-    deps.outlineRateLimit ?? createRateLimit({ windowMs: 10 * 60_000, max: 40, keyPrefix: "trips-area-outline", key: userOrClientKey })
+    deps.outlineRateLimit ??
+    createRateLimit({
+      windowMs: 10 * 60_000,
+      max: Math.floor(OUTLINE_SEARCHES_PER_WINDOW / MAX_OUTLINE_SEARCHES),
+      keyPrefix: "trips-area-outline",
+      key: userOrClientKey,
+    })
   const mayStart =
     deps.mayStartGrouping ??
     ((c: Context) => rateLimitsOff() || consumeRateLimit(`trips-area-groupings:${userOrClientKey(c)}`, { windowMs: GROUPING_WINDOW_MS, max: GROUPINGS_PER_WINDOW }).ok)

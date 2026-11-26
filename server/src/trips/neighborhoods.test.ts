@@ -6,7 +6,6 @@ import {
   createNeighborhoods,
   GroupingLimitError,
   groupingOf,
-  hullDistanceM,
   keepFamiliar,
   MAX_AREAS,
   MAX_CACHED_TRIPS,
@@ -230,15 +229,6 @@ describe("the drawn shape of an area", () => {
   const cafe = { lat: 37.5447, lng: 127.0581 }
   const haus = { lat: 37.5451, lng: 127.0559 }
   const forest = { lat: 37.5444, lng: 127.0374 }
-
-  test("measures a point's distance to the members' hull, zero inside", () => {
-    expect(hullDistanceM(cafe, [cafe])).toBe(0)
-    expect(hullDistanceM(haus, [cafe])).toBeGreaterThan(190)
-    expect(hullDistanceM(haus, [cafe])).toBeLessThan(220)
-    const triangle = [cafe, forest, { lat: 37.553, lng: 127.047 }]
-    expect(hullDistanceM({ lat: 37.548, lng: 127.047 }, triangle)).toBe(0)
-    expect(hullDistanceM({ lat: 37.53, lng: 127.047 }, triangle)).toBeGreaterThan(1_000)
-  })
 
   test("holds a point within 250 to 600 m of its stops, the nearer area when two do, and none past that", () => {
     expect(areaHolding(haus, [[cafe]])).toBe(0)

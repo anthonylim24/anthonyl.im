@@ -29,7 +29,7 @@ Every piece of state and every rule should live in exactly one place. Duplicatio
 - **Derive, do not store.** If a value can be computed from state you already hold, compute it during render (or memoise it). A `useEffect` that copies one state into another is a second owner and will disagree with the first for one frame, then forever.
 - **Reset with identity, not with effects.** A component that must start fresh for a new trip gets `key={tripId}`. That deletes a whole class of "stale field from the last trip" bugs for free.
 - **Async results belong to whoever asked.** When the owner is gone (trip changed, component unmounted, a newer request started) the result is dropped: a sequence guard, an `AbortSignal`, or a check on the id the request was made for. Writes that touch the same document are serialised.
-- **Shared shapes are mirrored on purpose.** `server/src/trips/types.ts` and `frontend/src/pages/Trips/types.ts` describe one document. Change both in the same commit.
+- **Shared shapes are mirrored on purpose.** `server/src/trips/types.ts` and `frontend/src/pages/Trips/types.ts` describe one document. Change both in the same commit. A piece that imports nothing can live once in `server/src/trips/` for the client to import instead (`apiShapes.ts`, `areaHull.ts`): server code stays inside `server/src`, which is all the preview API ships, and neither side's type check pulls in the other's packages.
 - **Constants have homes.** Storage keys in `lib/constants.ts`, tokens in `index.css`, catalog ids in `chat/world/spec.ts` with a parity test against the server. A literal that appears twice wants a name.
 
 ## 3. Pure core, thin shell

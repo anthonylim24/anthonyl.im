@@ -2,7 +2,7 @@ import { Effect, Either } from "effect"
 import { HttpStatusError } from "../../effect/errors"
 import { bearerHeaders, fetchApi, fetchExternal, parseJson, readAuthToken, type GetToken } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
-import { distanceMeters, type LngLat } from "./map/geo"
+import { atSameSpot, distanceMeters, type LngLat } from "./map/geo"
 
 // Place search for the planner. Cities come from Open-Meteo's geocoder
 // (ranked by population, includes the IANA timezone). Points of interest
@@ -256,8 +256,6 @@ export function isLocal(place: PlaceResult, anchors: TripAnchors): boolean {
   return anchors.towns.some((town) => parts.includes(town))
 }
 
-/** Two results this close with the same name are one place. */
-const SAME_PLACE_METERS = 300
 export const MAX_PLACE_RESULTS = 8
 
 /** "Leonard’s Bakery" and "LEONARDS bakery" are the same name. */
@@ -363,7 +361,7 @@ export function rankPlaces(
   for (const place of sources.flat()) {
     const key = nameKey(place.name)
     const repeat = kept.some(
-      (seen) => seen.id === place.id || (nameKey(seen.name) === key && distanceMeters(seen, place) < SAME_PLACE_METERS),
+      (seen) => seen.id === place.id || (nameKey(seen.name) === key && atSameSpot(seen, place)),
     )
     if (!repeat) kept.push(place)
   }

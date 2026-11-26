@@ -1,4 +1,5 @@
 import { haversineMeters } from "../data/koreaPlaces"
+import type { PlacePhoto } from "./apiShapes"
 import type { LatLng } from "./conciergeTools"
 
 // What the wishlist's details popover shows for one place: photos, a summary,
@@ -14,13 +15,6 @@ import type { LatLng } from "./conciergeTools"
 // to wherever a redirect points, another origin included.
 
 /** Mirrors `PlaceDetails` in `frontend/src/pages/Trips/ideas/contract.ts`. */
-export interface PlacePhoto {
-  url: string
-  width?: number
-  height?: number
-  author?: { name: string; uri?: string }
-}
-
 export interface PlaceDetails {
   placeId?: string
   name: string

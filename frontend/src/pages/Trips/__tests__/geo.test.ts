@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  atSameSpot,
   boxProjection,
   centroid,
   ideaPins,
@@ -57,6 +58,15 @@ describe("distanceMeters", () => {
     const equator = distanceMeters({ lat: 0, lng: 0 }, { lat: 0, lng: 1 })
     const north = distanceMeters({ lat: 60, lng: 0 }, { lat: 60, lng: 1 })
     expect(north / equator).toBeCloseTo(0.5, 2)
+  })
+})
+
+describe("atSameSpot", () => {
+  it("counts same-named places under 300 m apart as one", () => {
+    const shop = { lat: 37.5665, lng: 126.978 }
+    // 0.0027° of latitude is about 300 m.
+    expect(atSameSpot(shop, { lat: 37.5665 + 0.0026, lng: 126.978 })).toBe(true)
+    expect(atSameSpot(shop, { lat: 37.5665 + 0.0028, lng: 126.978 })).toBe(false)
   })
 })
 

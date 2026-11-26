@@ -35,24 +35,23 @@ export function useAreaOnMap(trip: Trip | null, getToken: GetToken, drawn: boole
     () => stopDays.flatMap(({ stops }) => stops.map(({ title, location }) => ({ lat: location.lat, lng: location.lng, title: title || location.name }))),
     [stopDays],
   )
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- the same stops in the same places are the same shape
-  const approx = useMemo(() => approximateArea(points), [pointsKey])
+  const approx = useMemo(() => approximateArea(points), [points])
   const area = drawn && approx ? picked : null
 
   const tripId = trip?.id
-  const outlineKey = area && tripId ? `${tripId}|${fingerprint}|${area.id}` : null
+  const areaId = area?.id
+  const outlineKey = areaId && tripId ? `${tripId}|${fingerprint}|${areaId}` : null
   const [outline, setOutline] = useState<{ key: string; geometry: AreaGeometry | null } | null>(null)
   // A lookup that found nothing is forgotten once the area is hidden, so showing it again asks again.
   if (outlineKey === null && outline !== null && outline.geometry === null) setOutline(null)
   useEffect(() => {
-    if (!outlineKey || !tripId || !area) return
+    if (!outlineKey || !tripId || !areaId) return
     const controller = new AbortController()
-    void loadAreaOutline(getToken, tripId, fingerprint, area.id, controller.signal).then((geometry) => {
+    void loadAreaOutline(getToken, tripId, fingerprint, areaId, controller.signal).then((geometry) => {
       if (!controller.signal.aborted) setOutline({ key: outlineKey, geometry })
     })
     return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `outlineKey` names the trip, its stops and the area
-  }, [outlineKey, getToken])
+  }, [outlineKey, tripId, fingerprint, areaId, getToken])
 
   const settled = outlineKey !== null && outline?.key === outlineKey
   const found = settled ? outline!.geometry : null
