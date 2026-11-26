@@ -72,7 +72,8 @@ export const ar = stylex.create({
   },
   body: { display: "flex", flexDirection: "column", gap: "0.5rem", padding: "0.875rem 1.125rem 1rem", minWidth: 0 },
   title: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "0.125rem 0.5rem", minWidth: 0 },
-  name: { fontSize: "1.5rem", lineHeight: 1.1 },
+  // Brought into view under the sticky trip header and day rail (back from the phone's map).
+  name: { fontSize: "1.5rem", lineHeight: 1.1, scrollMarginTop: "9rem" },
   localName: { fontSize: "0.9375rem", color: "var(--trips-ink-tertiary)", overflowWrap: "anywhere" },
   meta: { color: "var(--trips-ink-tertiary)", margin: 0 },
   actions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem" },

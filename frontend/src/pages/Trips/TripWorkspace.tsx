@@ -495,6 +495,8 @@ function Workspace() {
       node.focus()
     }
   }, [])
+  // Back from the phone's map, the card of the area just seen shows its heading, clear of the sticky header and rail.
+  const areaSeen = useRef<string | null>(null)
   const showArea = useCallback(
     (area: Neighborhood | null) => {
       pickArea(area)
@@ -502,10 +504,20 @@ function Workspace() {
       // Hidden, the area's last words go too, so showing it again is said again.
       if (!area) setAnnounce("")
       keyWantsFocus.current = area !== null && !wide
-      if (area && !wide) setView("map")
+      if (area && !wide) {
+        areaSeen.current = area.id
+        setView("map")
+      }
     },
     [pickArea, wide],
   )
+  useEffect(() => {
+    const id = areaSeen.current
+    if (view !== "list" || !id) return
+    areaSeen.current = null
+    const card = paneRef.current?.querySelector(`[data-area-show="${CSS.escape(id)}"]`)?.closest("article")
+    card?.querySelector("h3")?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
+  }, [view])
   useEffect(() => {
     if (!shownArea || !keyWantsFocus.current || !keyNode.current) return
     keyWantsFocus.current = false
