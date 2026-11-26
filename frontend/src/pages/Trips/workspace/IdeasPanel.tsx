@@ -14,7 +14,7 @@ import type { ItemTheme, ItineraryItem, Trip } from "../types"
 import { IDEA_ANCHOR_ATTR, ideaName } from "../ideas/contract"
 import { useIdeaNav } from "../ideas/ideaNav"
 import { dayChipLabel, wishlistOnDays, type ScheduledIdea } from "../ideas/onDays"
-import { compareAreas, ideaAreas } from "../ideas/areas"
+import { compareAreas, ideaAreas, streetFirst } from "../ideas/areas"
 import { THEME_ORDER, themeLabel, themeOf } from "../ideas/themes"
 import { ThemeMenu, ThemeTag } from "../ideas/ThemeMenu"
 import { AddStop } from "./AddStop"
@@ -402,8 +402,8 @@ function IdeaRow({
   onRemove: () => void
 }) {
   const name = ideaName(idea)
-  // The address only: the category menu beside it already says what kind of place it is.
-  const where = idea.location?.address
+  // The address only, street first as a stop card has it: the category menu beside it already says what kind of place it is.
+  const where = streetFirst(idea.location?.address).join(", ")
   const links = (idea.links ?? []).map(stopLink).filter((link): link is NonNullable<typeof link> => link !== null)
   return (
     <li {...sx(s.ideaRow)}>
