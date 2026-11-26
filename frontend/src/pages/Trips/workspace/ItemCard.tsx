@@ -41,7 +41,7 @@ import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { ItemIcon } from "../ItemIcon"
 import { weatherKind } from "../forecast"
-import { streetFirst } from "../ideas/areas"
+import { streetFirst } from "../ideas/address"
 import { StopActions, StopDayPicker, StopDetails, StopEditor } from "./StopEditor"
 import { stopEdits, type EditorSurface } from "./stopEdits"
 

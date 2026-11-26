@@ -2,9 +2,6 @@ import { distanceMeters, isLocated, type LngLat } from "../map/geo"
 import type { ItineraryItem, Trip } from "../types"
 import { addressLocality, normaliseName, withoutNumbers } from "./address"
 
-// What areas.ts exported before ./address took them, for code that still imports them from here.
-export { addressLocality, isCountry, normaliseName, streetFirst } from "./address"
-
 // Where a wishlist idea is, as a heading for "Group by area". Worked out
 // from the trip alone, with no network: the city of the day whose stops are
 // nearest, else a city of the trip named in the address, else the town the

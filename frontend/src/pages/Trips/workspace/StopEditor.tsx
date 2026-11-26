@@ -27,7 +27,7 @@ import { startReason, type StartSuggestion } from "../timeline/suggestStart"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
-import { streetFirst } from "../ideas/areas"
+import { streetFirst } from "../ideas/address"
 
 // A stop's editor: one body of fields, shown under its card in the day list
 // on a wide screen, or in a sheet (the timeline at any width, and phones in
