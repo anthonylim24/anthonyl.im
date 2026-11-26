@@ -668,6 +668,32 @@ describe("TripWorkspace", () => {
       expect(screen.getByText("Fado dinner moved up, now 3 of 4.")).toBeInTheDocument()
     })
 
+    it("hands focus to the original stop when the toast undoes a duplicate", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      await screen.findByRole("textbox", { name: "Day title" })
+      const row = () => document.querySelector<HTMLElement>("#item-it-cafe [data-card-row]")!
+      fireEvent.click(row())
+      fireEvent.click(within(document.getElementById("item-it-cafe")!).getByRole("button", { name: "Duplicate" }))
+      expect(document.querySelectorAll("[id^='item-']")).toHaveLength(5)
+
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }))
+      expect(document.querySelectorAll("[id^='item-']")).toHaveLength(4)
+      expect(row()).toHaveFocus()
+    })
+
+    it("leaves focus where it is on Ctrl+Z when nothing held it", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      await screen.findByRole("textbox", { name: "Day title" })
+      const row = document.querySelector<HTMLElement>("#item-it-market [data-card-row]")!
+      fireEvent.keyDown(row, { key: "ArrowDown", altKey: true })
+      expect(document.querySelector("[id^='item-']")).toHaveAttribute("id", "item-it-cash")
+      ;(document.activeElement as HTMLElement | null)?.blur()
+
+      fireEvent.keyDown(window, { key: "z", ctrlKey: true })
+      expect(document.querySelector("[id^='item-']")).toHaveAttribute("id", "item-it-market")
+      expect(document.body).toHaveFocus()
+    })
+
     it("does not reorder for a viewer", async () => {
       renderWorkspace("/trips/lisbon/day/day-1", planned(), "view")
       const row = await screen.findByRole("button", { name: /^(?!More for).*Time Out Market/, expanded: false })

@@ -42,6 +42,8 @@ export function useAreaOnMap(trip: Trip | null, getToken: GetToken, drawn: boole
   const tripId = trip?.id
   const outlineKey = area && tripId ? `${tripId}|${fingerprint}|${area.id}` : null
   const [outline, setOutline] = useState<{ key: string; geometry: AreaGeometry | null } | null>(null)
+  // A lookup that found nothing is forgotten once the area is hidden, so showing it again asks again.
+  if (outlineKey === null && outline !== null && outline.geometry === null) setOutline(null)
   useEffect(() => {
     if (!outlineKey || !tripId || !area) return
     const controller = new AbortController()

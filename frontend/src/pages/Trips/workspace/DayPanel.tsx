@@ -65,6 +65,7 @@ import { sameDayList, type Leg } from "./dayList"
 import type { Holiday } from "../holidays"
 import { Parts } from "./Parts"
 import { rainBrief, stopAlerts } from "./stopAlerts"
+import { stopRow } from "./stopRow"
 
 export interface DayPanelProps {
   trip: Trip
@@ -430,7 +431,7 @@ export function DayPanel({
   // The edit that removed the stop re-renders this panel; focus moves once it has.
   /** A stop's row in the list (its edit button on the timeline), else the composer. */
   const stopControl = (id: string) =>
-    (id === COMPOSER ? null : (document.getElementById(`item-${id}`)?.querySelector<HTMLElement>("[data-card-row]") ?? stopEditButton(rootRef.current, id))) ??
+    (id === COMPOSER ? null : stopRow(rootRef.current, id)) ??
     rootRef.current?.querySelector<HTMLElement>('input[role="combobox"]')
   /** The day's ids before a duplicate, and what to say once it is done: the copy is the one new id. */
   const copyOf = useRef<{ before: Set<string>; spoken: string } | null>(null)
@@ -934,11 +935,6 @@ export function DayPanel({
       </nav>
     </div>
   )
-}
-
-/** A stop's edit button on the timeline. */
-function stopEditButton(root: HTMLElement | null, id: string): HTMLElement | null {
-  return Array.from(root?.querySelectorAll<HTMLElement>("[data-timeline-edit]") ?? []).find((el) => el.dataset.timelineEdit === id) ?? null
 }
 
 /** The timeline reads the hovered stop itself, so a hover redraws it and not the day. */

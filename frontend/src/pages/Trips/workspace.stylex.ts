@@ -734,7 +734,7 @@ export const ws = stylex.create({
     ":focus-visible": { boxShadow: ring },
     [HOVER]: { ":hover": { transform: "scale(1.15)" } },
     // A 28px dot with a 44px target.
-    "::after": { content: '""', position: "absolute", inset: "-8px" },
+    "::after": { content: '""', position: "absolute", inset: band44 },
   },
   // Over by now: a ring in the trip's colour, as on the timeline. Paper inside, so the gutter line stays hidden.
   markerPast: {
@@ -966,7 +966,8 @@ export const ws = stylex.create({
   // Each button's words under the address's, past the glyph (24px in, less the button's 14px inset).
   pinnedActions: { display: "flex", flexWrap: "wrap", columnGap: "0.25rem", rowGap: "0.5rem", paddingInlineStart: "0.625rem" },
   pinUndo: { display: "flex", alignItems: "center", gap: "0.25rem", margin: 0, paddingInlineStart: "0.75rem", fontSize: "0.8125rem", color: "var(--trips-ink-secondary)" },
-  editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.25rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
+  // 8px apart: Move up and Move down reach 4px past their edges to a 44px target each.
+  editorActions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", gridColumn: "1 / -1", marginTop: "0.125rem" },
   // One line to start, growing with what is written (`field-sizing` in a.textarea).
   notesField: { minHeight: "2.75rem", maxHeight: "40dvh" },
   nameField: { minHeight: "2.75rem" },
@@ -1340,9 +1341,10 @@ export const ws = stylex.create({
   cardHead: { display: "flex", alignItems: "center", minWidth: 0 },
   cardHeadRow: { flexGrow: 1, minWidth: 0 },
   cardMore: { marginRight: "0.25rem", color: "var(--trips-ink-tertiary)" },
-  // Done / Skip / Loved it, under the card's text, at its indent.
-  quick: { flexWrap: "wrap", gap: "0.375rem", paddingTop: "0.125rem", paddingBottom: "0.625rem" },
-  // Looks 32px; the band reaches to a 44px target without touching its neighbours'.
+  // Done / Skip / Loved it, under the card's text, at its indent. Wrapped rows
+  // sit 12px apart, so each chip's 44px band is its own.
+  quick: { flexWrap: "wrap", columnGap: "0.375rem", rowGap: "0.75rem", paddingTop: "0.125rem", paddingBottom: "0.625rem" },
+  // Looks 32px; the band reaches to a 44px target.
   quickBtn: {
     position: "relative",
     display: "inline-flex",
@@ -1370,7 +1372,7 @@ export const ws = stylex.create({
     ":disabled": { opacity: 0.45, cursor: "not-allowed", transform: "none" },
     [HOVER]: { ":hover": { borderColor: "var(--trips-ink)", color: "var(--trips-ink)" } },
     [REDUCE]: { transitionDuration: "0ms" },
-    "::after": { content: '""', position: "absolute", insetBlock: "-6px", insetInline: 0 },
+    "::after": { content: '""', position: "absolute", inset: `${band44} 0` },
   },
   // Pressed: ink, like the selected day in the rail.
   quickOn: {

@@ -27,6 +27,7 @@ import { startReason, type StartSuggestion } from "../timeline/suggestStart"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { usePlaceSearch } from "./AddStop"
+import { streetFirst } from "../ideas/areas"
 
 // A stop's editor: one body of fields, shown under its card in the day list
 // on a wide screen, or in a sheet (the timeline at any width, and phones in
@@ -588,14 +589,16 @@ function LocationField({ item, near, locked, edits }: { item: ItineraryItem; nea
   useClaimEscape(searching, areaRef)
 
   if (pinned && !searching) {
-    // The place's own name when the stop is called something else, else where it is.
+    // The place's own name when the stop is called something else, else where it is, street first.
     const place = item.location?.name?.trim()
-    const where = (place && place !== item.title.trim() ? place : item.location?.address) || place || "Pinned on the map"
+    const street = streetFirst(item.location?.address).join(", ")
+    const named = place && place !== item.title.trim()
+    const where = (named ? place : street) || place || "Pinned on the map"
     return (
       <div {...sx(s.pinnedBox)}>
         <p {...sx(s.pinnedPlace)}>
           <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText, s.pinnedGlyph)} />
-          <span {...sx(s.pinnedText)} title={where}>
+          <span {...sx(s.pinnedText)} title={(!named && item.location?.address) || where}>
             {where}
           </span>
         </p>

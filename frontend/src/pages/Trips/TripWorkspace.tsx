@@ -1,5 +1,5 @@
 import { applyDetailsPatch, detailsUndo } from "./workspace/tripDetails"
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   BookOpen,
@@ -42,6 +42,8 @@ import { errorText, useTripEditor } from "./useTripEditor"
 import type { HistoryEntry } from "./editorMachine"
 import { SaveIndicator } from "./offline/SaveIndicator"
 import { scrollBehavior } from "./workspace/scroll"
+import { stopRow } from "./workspace/stopRow"
+import { undoFocus } from "./workspace/undoFocus"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
 import { useStopPhoto } from "./stopPhoto"
@@ -334,13 +336,28 @@ function Workspace() {
   const toast = lastStep && lastStep.id === toastStep && lastStep.label ? lastStep : null
   const expireToast = useCallback(() => setToastStep(null), [])
 
-  const undoLast = useCallback(() => {
+  // Where focus goes if the undo took away what held it (the toast's own Undo, a copy's row).
+  // Nothing held, as after a click on the page, stays that way.
+  const afterUndo = useRef<string[] | null>(null)
+  const undoLast = useCallback((fromToast = false) => {
     if (!lastStep || locked) return
+    const held = document.activeElement !== null && document.activeElement !== document.body
+    afterUndo.current = fromToast || held ? undoFocus(lastStep) : null
     editor.undo()
     setToastStep(null)
     setAnnounce(`Undone: ${lastStep.label ?? "your last edit"}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastStep, locked, editor.undo])
+  useLayoutEffect(() => {
+    const ids = afterUndo.current
+    if (!ids) return
+    afterUndo.current = null
+    if (document.activeElement && document.activeElement !== document.body) return
+    // The stop, else the day (or overview) the list shows, in the rail; with the list behind a phone's map, the view switch.
+    const list = paneRef.current?.closest("[inert]") ? null : paneRef.current
+    const row = ids.map((id) => stopRow(list, id)).find((el) => el !== null)
+    ;(row ?? list?.querySelector<HTMLElement>('[aria-current="page"]') ?? document.querySelector<HTMLElement>('[data-view][aria-checked="true"]'))?.focus()
+  })
   const nextStep = editor.history?.future[editor.history.future.length - 1]
   const redoNext = useCallback(() => {
     if (!nextStep || locked) return
@@ -495,15 +512,29 @@ function Workspace() {
       node.focus()
     }
   }, [])
+  // Back from the phone's map, the card of the area just seen shows its heading, clear of the sticky header and rail.
+  const areaSeen = useRef<string | null>(null)
   const showArea = useCallback(
     (area: Neighborhood | null) => {
       pickArea(area)
       setPicked(area?.id ?? null)
+      // Hidden, the area's last words go too, so showing it again is said again.
+      if (!area) setAnnounce("")
       keyWantsFocus.current = area !== null && !wide
-      if (area && !wide) setView("map")
+      if (area && !wide) {
+        areaSeen.current = area.id
+        setView("map")
+      }
     },
     [pickArea, wide],
   )
+  useEffect(() => {
+    const id = areaSeen.current
+    if (view !== "list" || !id) return
+    areaSeen.current = null
+    const card = paneRef.current?.querySelector(`[data-area-show="${CSS.escape(id)}"]`)?.closest("article")
+    card?.querySelector("h3")?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
+  }, [view])
   useEffect(() => {
     if (!shownArea || !keyWantsFocus.current || !keyNode.current) return
     keyWantsFocus.current = false
@@ -517,11 +548,10 @@ function Workspace() {
   // Cleared from the map's key: the focus goes back to the card's button, or on a phone (the list behind the map) to the view switch.
   const clearArea = useCallback(() => {
     const id = shownArea?.id
-    pickArea(null)
-    setPicked(null)
+    showArea(null)
     const back = wide ? paneRef.current?.querySelector<HTMLElement>(`[data-area-show="${id}"]`) : document.querySelector<HTMLElement>('[data-view][aria-checked="true"]')
     back?.focus()
-  }, [pickArea, shownArea, wide])
+  }, [showArea, shownArea, wide])
   const areaFramed = areaMap.shape !== null && !focusPin
 
   const activeDayIndex = trip && activeId ? trip.days.findIndex((d) => d.items.some((it) => it.id === activeId)) : -1
@@ -584,7 +614,7 @@ function Workspace() {
   useEffect(() => {
     if (!stopLink) return
     const id = decodeURIComponent(stopLink.slice(stopLink.indexOf("#stop-") + 6))
-    const frame = requestAnimationFrame(() => document.getElementById(`item-${id}`)?.querySelector<HTMLElement>("[data-card-row]")?.focus({ preventScroll: true }))
+    const frame = requestAnimationFrame(() => stopRow(paneRef.current, id)?.focus({ preventScroll: true }))
     return () => cancelAnimationFrame(frame)
   }, [stopLink])
 
@@ -1168,7 +1198,7 @@ function Workspace() {
       {printer.node}
       {(toast || flash || sync.k === "conflict" || editor.notice || lodgingNudge || overlayProblem) && (
         <div {...sx(s.dock)}>
-          {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={undoLast} onExpire={expireToast} />}
+          {toast && <UndoToast key={toast.id} entry={toast} hold={locked || instagram !== null} onUndo={() => undoLast(true)} onExpire={expireToast} />}
           {sync.k === "conflict" && (
             <div {...sx(s.dockItem)} role="alert">
               <span {...sx(a.grow, a.wrap)}>

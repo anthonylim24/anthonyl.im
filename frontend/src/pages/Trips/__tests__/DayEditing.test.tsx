@@ -252,6 +252,15 @@ describe("a stop's editor in a sheet (the timeline, a phone)", () => {
     expect(sheet.getByRole("button", { name: "Remove pin" })).toHaveFocus()
   })
 
+  it("shows a pinned place's country-first address street first, with all of it on hover", () => {
+    const address = "Japan, 〒151-8557 Tokyo, Shibuya, Yoyogikamizonochō, 1−1"
+    const shrine = makeItem({ id: "meiji", title: "Meiji Jingu", location: { name: "Meiji Jingu", address, lat: 35.676, lng: 139.699, source: "user" } })
+    renderDay(tripOf(days(FUTURE, [[shrine]])), "day-1", { surface: "sheet" })
+    fireEvent.click(row("meiji"))
+    const place = within(screen.getByRole("dialog", { name: "Edit stop" })).getByText("1−1, Yoyogikamizonochō, Shibuya, 〒151-8557 Tokyo")
+    expect(place).toHaveAttribute("title", address)
+  })
+
   it("keeps Delete, More and Done in its foot, with the rest under More", () => {
     renderDay(tripOf(days(FUTURE, [[lunch, tram], []])), "day-1", { surface: "sheet" })
     fireEvent.click(row("lunch"))

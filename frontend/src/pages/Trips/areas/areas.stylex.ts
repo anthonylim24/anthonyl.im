@@ -5,6 +5,8 @@ import * as stylex from "@stylexjs/stylex"
 const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
+/** A ::after inset for a 44px band whatever the face's line box (insets count from the padding box). */
+const band44 = "calc((100% - 2.75rem) / 2)"
 
 export const ar = stylex.create({
   root: { display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 },
@@ -64,12 +66,14 @@ export const ar = stylex.create({
     outline: "none",
     ":focus-visible": { boxShadow: ring },
     [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
-    // A 44 px target around an 11 px line: the photo above and the heading below take no taps.
-    "::after": { content: '""', position: "absolute", inset: "-0.9rem -0.375rem" },
+    // A 44 px target around an 11 px line, 44 px wide for a two-letter name too:
+    // the photo above and the heading below take no taps.
+    "::after": { content: '""', position: "absolute", insetBlock: band44, insetInline: `min(-0.375rem, ${band44})` },
   },
   body: { display: "flex", flexDirection: "column", gap: "0.5rem", padding: "0.875rem 1.125rem 1rem", minWidth: 0 },
   title: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "0.125rem 0.5rem", minWidth: 0 },
-  name: { fontSize: "1.5rem", lineHeight: 1.1 },
+  // Brought into view under the sticky trip header and day rail (back from the phone's map).
+  name: { fontSize: "1.5rem", lineHeight: 1.1, scrollMarginTop: "9rem" },
   localName: { fontSize: "0.9375rem", color: "var(--trips-ink-tertiary)", overflowWrap: "anywhere" },
   meta: { color: "var(--trips-ink-tertiary)", margin: 0 },
   actions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem" },
