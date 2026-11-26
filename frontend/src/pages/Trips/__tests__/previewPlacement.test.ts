@@ -38,6 +38,16 @@ describe("placePreview", () => {
     expect(placePreview({ anchor: pin(400, 300), size, bounds, avoid: everywhere })).toMatchObject({ side: "above" })
   })
 
+  it("keeps the side it is on while it still fits there, as it changes size", () => {
+    // No room above a tall card, so it went below; shorter now, it would fit above.
+    const tall = { width: 256, height: 280 }
+    expect(placePreview({ anchor: pin(400, 250), size: tall, bounds })).toMatchObject({ side: "below" })
+    expect(placePreview({ anchor: pin(400, 250), size, bounds })).toMatchObject({ side: "above" })
+    expect(placePreview({ anchor: pin(400, 250), size, bounds, keep: "below" })).toEqual({ top: 250 + 14 + 10, left: 272, side: "below" })
+    // Not where it no longer fits.
+    expect(placePreview({ anchor: pin(400, 560), size, bounds, keep: "below" })).toMatchObject({ side: "above" })
+  })
+
   it("stays inside a map too small to hold it beside the pin either", () => {
     const tiny = { width: 300, height: 160 }
     const at = placePreview({ anchor: pin(150, 120), size, bounds: tiny })

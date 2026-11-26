@@ -130,11 +130,22 @@ describe("a wishlist pin's preview", () => {
     expect(detailsCalls(fetchSpy)).toHaveLength(1)
     const card = screen.getByRole("tooltip")
     expect(card.children).toHaveLength(2)
+    const room = card.firstElementChild!
+    const open = room.className
 
+    // The same room, shutting: it eases away rather than leaving at once.
     reply(answer(null))
     await settleLookup()
-    expect(card.children).toHaveLength(1)
+    expect(card.firstElementChild).toBe(room)
+    expect(room.className).not.toBe(open)
+    expect(room.querySelector("img")).toBeNull()
     expect(card).toHaveTextContent("Gwangjang Market")
+
+    // Known to have no photo, the place's card holds no room for one at all.
+    fireEvent.pointerDown(pin("Gwangjang Market"), { pointerType: "mouse" })
+    fireEvent.pointerEnter(pin("Gwangjang Market"), { pointerType: "mouse" })
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    expect(screen.getByRole("tooltip").children).toHaveLength(1)
   })
 
   it("looks a place up only once keyboard focus has rested on its pin", async () => {

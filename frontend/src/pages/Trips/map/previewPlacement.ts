@@ -22,17 +22,24 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 
 const overlaps = (a: Box, b: Box) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
-/** `anchor` is the pin's box in the map's own coordinates, `avoid` the other pins' boxes; `bounds` the map's size. */
+/**
+ * `anchor` is the pin's box in the map's own coordinates, `avoid` the other
+ * pins' boxes; `bounds` the map's size. `keep` is the side the card is on:
+ * while it still fits there, a card that changes size as it shows (a photo's
+ * room shutting) stays on it rather than jumping to another.
+ */
 export function placePreview({
   anchor,
   size,
   bounds,
   avoid = [],
+  keep,
 }: {
   anchor: Box
   size: { width: number; height: number }
   bounds: { width: number; height: number }
   avoid?: readonly Box[]
+  keep?: PreviewSide
 }): PreviewPlacement {
   const centreX = clamp((anchor.left + anchor.right) / 2 - size.width / 2, MARGIN, bounds.width - MARGIN - size.width)
   const centreY = clamp((anchor.top + anchor.bottom) / 2 - size.height / 2, MARGIN, bounds.height - MARGIN - size.height)
@@ -45,6 +52,8 @@ export function placePreview({
   if (below + size.height <= bounds.height - MARGIN) sides.push({ top: below, left: centreX, side: "below" })
   if (right + size.width <= bounds.width - MARGIN) sides.push({ top: centreY, left: right, side: "right" })
   if (left >= MARGIN) sides.push({ top: centreY, left, side: "left" })
+  const kept = sides.find((at) => at.side === keep)
+  if (kept) return kept
   if (sides.length > 0) {
     const covered = (at: PreviewPlacement) =>
       avoid.filter((pin) => overlaps(pin, { top: at.top, bottom: at.top + size.height, left: at.left, right: at.left + size.width })).length
