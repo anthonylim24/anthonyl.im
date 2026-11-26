@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ItineraryItem, TripDay } from "../../types"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
-import { ideaPreview, streetLine } from "../preview"
+import { streetLine } from "../address"
+import { ideaPreview } from "../preview"
 import { clearPlaceDetailsCache, detailsTarget, loadPlaceDetails } from "../placeDetailsApi"
 
 const SEOUL = { lat: 37.5665, lng: 126.978 }
@@ -83,6 +84,8 @@ describe("streetLine", () => {
     expect(streetLine("Japan, 〒150-0041 Tokyo, Shibuya, Jinnan, 1-chōme−22−7", null, "ICHIRAN Shibuya")).toBe("1-chōme−22−7, Jinnan")
     expect(streetLine("1 Kinkakujichō, Kita Ward, Kyoto, 603-8361, Japan", null, "Kinkaku-ji")).toBe("1 Kinkakujichō, Kita Ward")
     expect(streetLine("Japan, 〒104-0061", null, "Somewhere")).toBeNull()
+    expect(streetLine("South Korea, Seoul, Jongno-gu, Changgyeonggung-ro, 88", "Seoul", "Gwangjang Market")).toBe("88 Changgyeonggung-ro, Jongno-gu")
+    expect(streetLine("C/ de Mallorca, 401, L'Eixample, 08013 Barcelona, Spain", "Barcelona", "Sagrada Família")).toBe("C/ de Mallorca, 401")
   })
 
   it("is nothing when the address only names the area", () => {

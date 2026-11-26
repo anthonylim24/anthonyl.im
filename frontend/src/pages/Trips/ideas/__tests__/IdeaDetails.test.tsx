@@ -56,6 +56,8 @@ interface HarnessProps {
   rowKey?: string | null
   /** Where the row sits: -400 is scrolled out of view above. */
   rowTop?: number
+  /** Draws the place's heart on a map beside the list. */
+  heart?: boolean
   themeControl?: ReactNode
   onAddToDay?: () => void
   onRemove?: () => void
@@ -69,6 +71,7 @@ function Harness({
   from = "row",
   rowKey = "row",
   rowTop = 120,
+  heart = false,
   themeControl = <button type="button">Sights</button>,
   onAddToDay = () => {},
   onRemove = () => {},
@@ -77,10 +80,17 @@ function Harness({
   return (
     <>
       {rowKey !== null ? (
-        <button key={rowKey} type="button" data-idea-anchor="idea-1" ref={(node) => layOut(node, rowTop)} onClick={() => setOpen(true)}>
-          Open Gyeongbokgung
-        </button>
+        <div data-idea-row="idea-1">
+          <button key={rowKey} type="button" data-idea-anchor="idea-1" ref={(node) => layOut(node, rowTop)} onClick={() => setOpen(true)}>
+            Open Gyeongbokgung
+          </button>
+        </div>
       ) : null}
+      {heart && (
+        <button type="button" data-idea-id="idea-1">
+          Gyeongbokgung, on the wishlist
+        </button>
+      )}
       <button type="button">Elsewhere</button>
       <Presence when={open ? item : null}>{(shown) => (
         <IdeaDetails
@@ -325,6 +335,30 @@ describe("IdeaDetails", () => {
     await waitFor(() => expect(within(dialog).getByText(palace.summary!)).toBeInTheDocument())
     fireEvent.keyDown(dialog, { key: "Escape" })
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("on a phone, hands focus to the place's heart as it closes when something else had focus as it opened", async () => {
+    stubMatchMedia(false)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))
+    render(<Harness heart from="map" />)
+    // A tap on a heart opens the place and leaves focus where it was: the dock's Map switch.
+    screen.getByRole("button", { name: "Elsewhere" }).focus()
+    fireEvent.click(screen.getByRole("button", { name: "Open Gyeongbokgung" }))
+    fireEvent.keyDown(await screen.findByRole("dialog", { name: "Gyeongbokgung" }), { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Gyeongbokgung, on the wishlist" }))
+  })
+
+  it("on a phone, hands focus back to its own row when the row opened it, though its heart is drawn", async () => {
+    stubMatchMedia(false)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ place: palace }))
+    render(<Harness heart />)
+    const row = screen.getByRole("button", { name: "Open Gyeongbokgung" })
+    row.focus()
+    fireEvent.click(row)
+    fireEvent.keyDown(await screen.findByRole("dialog", { name: "Gyeongbokgung" }), { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(document.activeElement).toBe(row)
   })
 
   it.each([["map" as const], [null]])("opens as a sheet when opened by %s, even with the row in view", async (from) => {

@@ -91,4 +91,47 @@ describe("dayBias", () => {
     expect(dayBias({ days: days([], []) }, 1, fallback)).toBe(fallback)
     expect(dayBias({ days: days([]) }, 5, fallback)).toBe(fallback)
   })
+
+  describe("on an empty day that names its city", () => {
+    // Seoul then Busan, planned in order: the Seoul days are full, Busan has started.
+    const gyeongbok = place("k1", "Gyeongbokgung Palace", { lat: 37.5796, lng: 126.977 })
+    const seongsu = place("k2", "Seoul Forest", { lat: 37.5444, lng: 127.0374 })
+    const haeundae = place("b1", "Haeundae Beach", { lat: 35.1587, lng: 129.1604 })
+    const inCity = (cities: string[], ...items: ItineraryItem[][]): Trip["days"] => days(...items).map((day, i) => ({ ...day, city: cities[i] }))
+    const located = (item: ItineraryItem, address: string): ItineraryItem => ({ ...item, location: { ...item.location!, address } })
+
+    it("searches the nearest day in that city, not the nearer day in the last one", () => {
+      const trip = { days: inCity(["Seoul", "Seoul", "Busan", "Busan"], [gyeongbok], [seongsu], [], [haeundae]) }
+      expect(dayBias(trip, 2, fallback)).toEqual({ lat: 35.1587, lng: 129.1604 })
+    })
+
+    it("reads the city however the day spells it", () => {
+      const trip = { days: inCity(["Seoul", "Busan, South Korea", "BUSAN"], [gyeongbok], [], [haeundae]) }
+      expect(dayBias(trip, 1, fallback)).toEqual({ lat: 35.1587, lng: 129.1604 })
+    })
+
+    it("takes a hotel booked on a day in that city", () => {
+      const hotel = place("h2", "Park Hyatt Busan", { lat: 35.1561, lng: 129.1453 }, { category: "hotel" })
+      const trip = { days: inCity(["Seoul", "Seoul", "Busan", "Busan"], [gyeongbok], [seongsu], [], [hotel]) }
+      expect(dayBias(trip, 2, fallback)).toEqual({ lat: 35.1561, lng: 129.1453 })
+    })
+
+    it("takes the trip's places whose address names the city when no day there has stops", () => {
+      const gamcheon = located(place("i3", "Gamcheon Culture Village", { lat: 35.0975, lng: 129.0106 }), "203 Gamnae 2-ro, Saha-gu, Busan, South Korea")
+      const trip = { days: inCity(["Seoul", "Seoul", "Busan"], [gyeongbok], [seongsu], []), ideas: [gamcheon] }
+      expect(dayBias(trip, 2, fallback)).toEqual({ lat: 35.0975, lng: 129.0106 })
+    })
+
+    it("ignores a stay guessed into its nights from the last city", () => {
+      // A Seoul hotel with no check-out covers every night after it until the next stay.
+      const seoulHotel = place("h3", "Park Hyatt Seoul", { lat: 37.5087, lng: 127.0602 }, { category: "hotel" })
+      const trip = { days: inCity(["Seoul", "Seoul", "Busan", "Busan", "Busan"], [seoulHotel, gyeongbok], [seongsu], [], [haeundae], []) }
+      expect(dayBias(trip, 2, fallback)).toEqual({ lat: 35.1587, lng: 129.1604 })
+    })
+
+    it("falls back to the nearest planned day when the trip has nothing in that city yet", () => {
+      const trip = { days: inCity(["Seoul", "Seoul", "Busan"], [gyeongbok], [seongsu], []) }
+      expect(dayBias(trip, 2, fallback)).toEqual({ lat: 37.5444, lng: 127.0374 })
+    })
+  })
 })

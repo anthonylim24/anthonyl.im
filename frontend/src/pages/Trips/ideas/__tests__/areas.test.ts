@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import type { ItineraryItem, TripDay } from "../../types"
 import { makeItem, makeTrip } from "../../__tests__/tripFixtures"
-import { ELSEWHERE, NO_LOCATION, addressLocality, areaOf, compareAreas, ideaAreas, normaliseName, streetFirst, type Area } from "../areas"
+import { addressLocality, normaliseName, streetFirst } from "../address"
+import { ELSEWHERE, NO_LOCATION, areaOf, compareAreas, ideaAreas, type Area } from "../areas"
 
 // Seoul (City Hall), Busan (Haeundae), Lisbon: far enough apart that "nearest" is never close.
 const SEOUL = { lat: 37.5665, lng: 126.978 }
@@ -95,6 +96,7 @@ describe("addressLocality", () => {
   it.each([
     ["12 Insadong-gil, Jongno District, Seoul 03145, South Korea", "Seoul"],
     ["1-2-3 Jingumae, Shibuya City, Tokyo 150-0001, Japan", "Tokyo"],
+    ["South Korea, Seoul, Jongno-gu, Changgyeonggung-ro, 88", "Seoul"],
     ["5 Av. Anatole France, 75007 Paris, France", "Paris"],
     ["Westminster, London SW1A 0AA, UK", "London"],
     ["89 E 42nd St, New York, NY 10017, USA", "New York"],
@@ -115,6 +117,28 @@ describe("streetFirst", () => {
   it("turns a country-first address round and drops the country and bare postcodes", () => {
     expect(streetFirst("Japan, 〒150-0041 Tokyo, Shibuya, Jinnan, 1-chōme−22−7")).toEqual(["1-chōme−22−7", "Jinnan", "Shibuya", "〒150-0041 Tokyo"])
     expect(streetFirst("1 Kinkakujichō, Kita Ward, Kyoto, 603-8361, Japan")).toEqual(["1 Kinkakujichō", "Kita Ward", "Kyoto"])
+  })
+
+  it("keeps the house number Google writes after the street, country first", () => {
+    expect(streetFirst("South Korea, Seoul, Jongno-gu, Changgyeonggung-ro, 88")).toEqual(["88 Changgyeonggung-ro", "Jongno-gu", "Seoul"])
+    expect(streetFirst("South Korea, Seoul, Jongno-gu, Gwancheol-dong, 1-1")).toEqual(["1-1 Gwancheol-dong", "Jongno-gu", "Seoul"])
+    expect(streetFirst("Japan, 〒151-8557 Tokyo, Shibuya, Yoyogikamizonochō, 1−1")).toEqual(["1−1 Yoyogikamizonochō", "Shibuya", "〒151-8557 Tokyo"])
+    expect(streetFirst("South Korea, Seoul, Jongno-gu, Insadong 5-gil, 14")).toEqual(["14 Insadong 5-gil", "Jongno-gu", "Seoul"])
+  })
+
+  it("keeps a house number written just after its street", () => {
+    expect(streetFirst("C/ de Mallorca, 401, L'Eixample, 08013 Barcelona, Spain")).toEqual(["C/ de Mallorca", "401", "L'Eixample", "08013 Barcelona"])
+    expect(streetFirst("Av. da Liberdade, 185, 1250-144 Lisboa, Portugal")).toEqual(["Av. da Liberdade", "185", "1250-144 Lisboa"])
+    expect(streetFirst("Rua do Carmo, 1100, Lisboa, Portugal")).toEqual(["Rua do Carmo", "1100", "Lisboa"])
+  })
+
+  it("drops a number alone beside the town or country only when it is marked 〒 or shaped like a postcode", () => {
+    expect(streetFirst("Japan, 〒150-0041, Tokyo, Shibuya, Jinnan, 1-chōme−22−7")).toEqual(["1-chōme−22−7", "Jinnan", "Shibuya", "Tokyo"])
+    expect(streetFirst("88, Changgyeonggung-ro, Jongno-gu, Seoul, 03195, South Korea")).toEqual(["88 Changgyeonggung-ro", "Jongno-gu", "Seoul"])
+    expect(streetFirst("South Korea, 03195, Seoul, Jongno-gu, Changgyeonggung-ro, 88")).toEqual(["88 Changgyeonggung-ro", "Jongno-gu", "Seoul"])
+    expect(streetFirst("Rua Augusta, Lisboa, 1100-048, Portugal")).toEqual(["Rua Augusta", "Lisboa"])
+    expect(streetFirst("Rua Augusta, 1100-048, Portugal")).toEqual(["Rua Augusta"])
+    expect(streetFirst("75007, France")).toEqual([])
   })
 
   it("keeps a street-first address in its order, and a lone name as it is", () => {

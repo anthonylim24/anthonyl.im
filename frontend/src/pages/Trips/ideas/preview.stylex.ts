@@ -3,11 +3,23 @@ import * as stylex from "@stylexjs/stylex"
 // The content of a wishlist pin's preview on the map (`IdeaPreview.tsx`):
 // set like a chart's legend entry. The frame is the map's (`map/hoverCard.stylex.ts`).
 
+const REDUCE = "@media (prefers-reduced-motion: reduce)"
+
 export const pv = stylex.create({
+  // The photo's room: a grid row, so giving it back eases the card shut instead of jumping.
+  room: {
+    display: "grid",
+    gridTemplateRows: "1fr",
+    transitionProperty: "grid-template-rows, opacity",
+    transitionDuration: { default: "220ms", [REDUCE]: "0ms" },
+    transitionTimingFunction: "var(--trips-ease-out)",
+  },
+  roomGone: { gridTemplateRows: "0fr", opacity: 0 },
   frame: {
     position: "relative",
     aspectRatio: "2 / 1",
     width: "100%",
+    minHeight: 0,
     backgroundColor: "var(--trips-sunken)",
     overflow: "hidden",
   },

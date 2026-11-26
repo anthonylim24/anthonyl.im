@@ -18,9 +18,6 @@ export interface IdeaHover {
 /** `null` hides the preview at once; `null, "leave"` after a moment, so the mouse can cross to the card. */
 export type ReportIdeaHover = (hover: IdeaHover | null, how?: "leave") => void
 
-/** The preview card's id, which its pin names as its description from the start. */
-export const previewId = (ideaId: string) => `idea-preview-${ideaId}`
-
 /** Enough of a DOM or React event to read: both carry these. */
 interface PinEvent {
   currentTarget: EventTarget | null
@@ -35,7 +32,6 @@ interface PinEvent {
 export function ideaHoverHandlers(id: string, report: ReportIdeaHover, names?: readonly string[]) {
   const fold = names ? { names } : {}
   return {
-    "aria-describedby": previewId(id),
     onPointerEnter(event: PinEvent) {
       if (event.pointerType === "touch" || !(event.currentTarget instanceof Element)) return
       report({ id, anchor: event.currentTarget, via: "pointer", ...fold })

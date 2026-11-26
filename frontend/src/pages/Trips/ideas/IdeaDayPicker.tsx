@@ -7,7 +7,7 @@ import { DayPicker } from "../workspace/DayPicker"
 import { ws as s } from "../workspace.stylex"
 import { ideaName, type DaySuggestions, type IdeaDayPickerProps } from "./contract"
 import { ideaDayChoices } from "./dayChoices"
-import { ideaFocusReturn } from "./focusReturn"
+import { focusOnPlace, ideaFocusReturn } from "./focusReturn"
 import { picker as p } from "./picker.stylex"
 import { formatKm, suggestDays } from "./suggestDaysApi"
 
@@ -62,6 +62,8 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
 
   /** The day the place went to, for focus to follow it there. */
   const picked = useRef<string | undefined>(undefined)
+  const [fromPlace] = useState(() => focusOnPlace(idea.id))
+  const toPlace = () => ideaFocusReturn(idea.id, { dayId: picked.current })
   const choose = (dayId: string) => {
     picked.current = dayId
     onPick(dayId)
@@ -133,9 +135,12 @@ export function IdeaDayPicker({ trip, idea, getToken, onPick, onClose }: IdeaDay
       description="It goes on that day’s route, above anything still to schedule."
       choices={choices}
       lead={lead}
-      // The heart or row that opened the picker leaves with the place: its
-      // entry under "On your days", or its new stop or day, shows where it went.
-      returnFocus={() => ideaFocusReturn(idea.id, { dayId: picked.current })}
+      // Focus goes back to the place's heart or row when one opened the sheet,
+      // and to the place itself when anything else did. A heart or row that
+      // left with the place hands over to its entry under "On your days", or
+      // its new stop or day, to show where it went.
+      sendFocus={() => (fromPlace ? null : toPlace())}
+      returnFocus={toPlace}
       onPick={choose}
       onClose={onClose}
     />

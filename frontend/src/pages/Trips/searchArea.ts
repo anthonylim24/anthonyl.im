@@ -1,15 +1,15 @@
-import { NO_ANCHORS, nameKey, townKey, type PlaceResult, type TripAnchors } from "./geocode"
+import { NO_ANCHORS, addressTowns, nameKey, townKey, type PlaceResult, type TripAnchors } from "./geocode"
 import { dayRoute, distanceMeters, isLocated, searchCenter, type LngLat } from "./map/geo"
 import { dayStays } from "./map/stayPins"
-import { isCountry } from "./ideas/areas"
+import { isCountry } from "./ideas/address"
 import type { Trip } from "./types"
 
 // Where a place search on a trip's page looks, and what it measures "near
 // the trip" against. The search is biased to one point: the open day's
-// stops, or for an empty day its hotel or the nearest day with stops. Near
-// is any of the trip's places or towns, so the second city of a two-city
-// trip is as local as the first. Pure: TripWorkspace works these out once
-// per edit and every place field on the page reads them.
+// stops, or for an empty day what the trip has in that day's city (see
+// `dayBias`). Near is any of the trip's places or towns, so the second city
+// of a two-city trip is as local as the first. Pure: TripWorkspace works
+// these out once per edit and every place field on the page reads them.
 
 /** A stop on a day, as a search result is compared with it. */
 export interface StopOnDay {
@@ -68,25 +68,49 @@ export function dayHolding(place: PlaceResult, stops: readonly StopOnDay[]): num
   return stop?.day ?? null
 }
 
+/** Day indexes by distance from `from`, the earlier first on a tie; `from` itself is left out. */
+function nearestDays(count: number, from: number): number[] {
+  const out: number[] = []
+  for (let step = 1; step < count; step++) {
+    for (const index of [from - step, from + step]) if (index >= 0 && index < count) out.push(index)
+  }
+  return out
+}
+
 /**
- * The point a day's searches are biased to: the middle of its stops; for a
- * day with none, where the traveller sleeps that night (or woke up), else
- * the nearest day that has stops (the earlier on a tie), else `fallback`.
+ * The point a day's searches are biased to: the middle of its stops. A day
+ * with none looks in its own city first, when it names one: the nearest day
+ * in that city with stops (a hotel booked there is one), then the trip's
+ * places whose address names the city (a stay, a wishlist place). Then where
+ * the traveller sleeps that night (or woke up), the nearest day with stops
+ * (the earlier on a tie), else `fallback`. A trip planned in order fills its
+ * first city before its second, so without the city an empty day there
+ * would search the first city's last planned day.
  */
-export function dayBias(trip: Pick<Trip, "days">, dayIndex: number, fallback: LngLat | null): LngLat | null {
+export function dayBias(trip: Pick<Trip, "days" | "ideas">, dayIndex: number, fallback: LngLat | null): LngLat | null {
   const own = trip.days[dayIndex]
   if (!own) return fallback
   const route = dayRoute(own)
   if (route.length > 0) return searchCenter(route, fallback)
+  const order = nearestDays(trip.days.length, dayIndex)
+  const town = townKey(own.city ?? "")
+  if (town) {
+    for (const index of order) {
+      const day = trip.days[index]!
+      const there = townKey(day.city ?? "") === town ? dayRoute(day) : []
+      if (there.length > 0) return searchCenter(there, fallback)
+    }
+    const named = [...trip.days.flatMap((day) => day.items), ...(trip.ideas ?? [])].flatMap((item) =>
+      isLocated(item) && addressTowns(item.location.address ?? "").includes(town) ? [{ lat: item.location.lat, lng: item.location.lng }] : [],
+    )
+    if (named.length > 0) return searchCenter(named, fallback)
+  }
   const stays = dayStays(trip, dayIndex)
   const stay = (stays.find((s) => s.role !== "last") ?? stays[0])?.item.location
   if (stay) return { lat: stay.lat, lng: stay.lng }
-  for (let step = 1; step < trip.days.length; step++) {
-    for (const index of [dayIndex - step, dayIndex + step]) {
-      const day = trip.days[index]
-      const near = day ? dayRoute(day) : []
-      if (near.length > 0) return searchCenter(near, fallback)
-    }
+  for (const index of order) {
+    const near = dayRoute(trip.days[index]!)
+    if (near.length > 0) return searchCenter(near, fallback)
   }
   return fallback
 }

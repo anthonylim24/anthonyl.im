@@ -14,7 +14,8 @@ import { THEMES } from "./themes"
 // first line of the traveller's notes, and a photo. The card mounts once a
 // mouse has rested on the pin, so the place is looked up then (one request
 // per place, kept for its details); until the answer comes the photo's
-// frame holds its room, so the card does not jump when it lands.
+// frame holds its room, so the card does not jump when it lands, and a place
+// with no photo eases the room shut.
 
 /** A keyboard passes pins on its way elsewhere: a place is looked up once focus has rested on its pin this long. */
 export const FOCUS_REST_MS = 400
@@ -50,16 +51,22 @@ export function IdeaPreview({ idea, trip, via }: { idea: ItineraryItem; trip: Pi
   const { label, icon: Icon } = THEMES[preview.theme]
   const photo = preview.photo && broken !== preview.photo.url ? preview.photo : null
   const waiting = lookup !== null && failed !== lookup.key
+  const framed = photo !== null || waiting
+  /** The place whose card has shown the photo's room: it stays, shutting, once there is no photo to put in it. */
+  const [roomFor, setRoomFor] = useState<string | null>(null)
+  if (framed && roomFor !== idea.id) setRoomFor(idea.id)
   return (
     <>
-      {(photo || waiting) && (
-        <div {...sx(pv.frame)}>
-          {photo && (
-            <>
-              <img src={photo.url} alt="" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(photo.url)} {...sx(pv.img)} />
-              {photo.author && <p {...sx(pv.credit)}>Photo: {photo.author.name}</p>}
-            </>
-          )}
+      {(framed || roomFor === idea.id) && (
+        <div {...sx(pv.room, !framed && pv.roomGone)}>
+          <div {...sx(pv.frame)}>
+            {photo && (
+              <>
+                <img src={photo.url} alt="" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(photo.url)} {...sx(pv.img)} />
+                {photo.author && <p {...sx(pv.credit)}>Photo: {photo.author.name}</p>}
+              </>
+            )}
+          </div>
         </div>
       )}
       <div {...sx(pv.body)}>

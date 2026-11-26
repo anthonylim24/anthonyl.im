@@ -388,7 +388,7 @@ describe("rankPlaces", () => {
     const lotte = place("l", "Lotte Mart", 33.49, 126.49)
     const edinburgh = place("e", "Rain Jackets Direct", 55.95, -3.19)
     const atlanta = place("a", "Bring rain jackets", 33.75, -84.39)
-    expect(rankPlaces([[lotte, edinburgh, atlanta]], jeju, { query: "Bring rain jackets" })).toEqual({ places: [lotte, atlanta], lead: 0 })
+    expect(rankPlaces([[lotte, edinburgh, atlanta]], jeju, { query: "Bring rain jackets" })).toEqual({ places: [atlanta, lotte], lead: 0 })
     const osaka = place("o", "Osaka Castle", 34.69, 135.53)
     expect(ids(rankPlaces([[osaka]], around({ lat: 35.68, lng: 139.76 }), { query: "osaka castle" }))).toEqual(["o"])
   })
@@ -427,6 +427,18 @@ describe("rankPlaces", () => {
       const ranked = rankPlaces([[kinkakuji], local], tokyo, { query: "golden pavilion", best: { id: "k", only: false } })
       expect(ranked.places).toHaveLength(8)
       expect(ranked.places[7]).toBe(kinkakuji)
+    })
+
+    it("lists a far place named exactly as typed above local places named otherwise, and never takes it on Enter", () => {
+      const villages = ["Bukchon", "Namsangol", "Eunpyeong", "Seochon", "Ikseon", "Gahoe"].map((name, i) => place(`v${i}`, `${name} Hanok Village`, 37.57, 126.98))
+      const jeonju = place("jj", "Jeonju Hanok Village", 35.8151, 127.1531, "99 Girin-daero, Wansan-gu, Jeonju, South Korea")
+      const ranked = rankPlaces([villages, [jeonju]], seoulBusan, { query: "jeonju hanok village", best: { id: "v0", only: false } })
+      expect(ids(ranked)).toEqual(["jj", "v0", "v1", "v2", "v3", "v4", "v5"])
+      expect(ranked.lead).toBe(0)
+      expect(confidentPick("jeonju hanok village", jeonju, seoulBusan)).toBe(false)
+      // A longer far name only starts with what was typed: still last.
+      const museum = place("jm", "Jeonju Hanok Village Museum", 35.81, 127.15)
+      expect(ids(rankPlaces([villages.slice(0, 2), [museum]], seoulBusan, { query: "Jeonju Hanok Village" }))).toEqual(["v0", "v1", "jm"])
     })
 
     it("puts loose matches for a note after the typed text, and keeps no far guess", () => {

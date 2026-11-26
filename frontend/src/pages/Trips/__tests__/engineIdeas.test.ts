@@ -5,11 +5,32 @@ import type { AtlasPin } from "../map/geo"
 // markers and record camera moves, so the wishlist's marker set can be
 // checked against the stops' without WebGL.
 
-const { markers, camera, mapEvents } = vi.hoisted(() => ({
-  markers: [] as Array<{ el: HTMLElement; removed: boolean; dx: number; dy: number }>,
-  camera: { moves: 0, zoom: 16, fitted: null as unknown, eased: null as unknown },
-  mapEvents: new Map<string, Array<() => void>>(),
-}))
+const { markers, camera, mapEvents, drawn } = vi.hoisted(() => {
+  const camera = {
+    moves: 0,
+    zoom: 16,
+    pitch: 0,
+    fitted: null as unknown,
+    fitPadding: null as unknown,
+    eased: null as unknown,
+    padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    /** Where a jump left the camera; a zoom of null is `zoom`. */
+    view: { lng: 0, lat: 0, zoom: null as number | null },
+  }
+  /**
+   * Where the stand-in map draws a point: 1000 px a degree at `zoom`, twice
+   * that a level in, about the middle of a map `width` by `height`. Tilted,
+   * the near half spreads and the far half closes in, as a camera's do.
+   */
+  const drawn = ([lng, lat]: [number, number], width: number, height: number, view = camera.view) => {
+    const k = 1000 * 2 ** ((view.zoom ?? camera.zoom) - camera.zoom)
+    const dx = (lng - view.lng) * k
+    const dy = -(lat - view.lat) * k
+    const spread = camera.pitch > 0 ? (dy > 0 ? 1.6 : 0.8) : 1
+    return { x: width / 2 + dx * spread, y: height / 2 + dy * spread }
+  }
+  return { markers: [] as Array<{ el: HTMLElement; removed: boolean; dx: number; dy: number }>, camera, mapEvents: new Map<string, Array<() => void>>(), drawn }
+})
 
 vi.mock("maplibre-gl", () => {
   class FakeMap {
@@ -31,11 +52,15 @@ vi.mock("maplibre-gl", () => {
     getCanvasContainer() {
       return this.container
     }
-    project([lng, lat]: [number, number]) {
-      return { x: lng * 1000, y: -lat * 1000 }
+    project(at: [number, number] | { lng: number; lat: number }) {
+      return drawn(Array.isArray(at) ? at : [at.lng, at.lat], this.container.clientWidth, this.container.clientHeight)
+    }
+    unproject([x, y]: [number, number]) {
+      const k = 1000 * 2 ** ((camera.view.zoom ?? camera.zoom) - camera.zoom)
+      return { lng: camera.view.lng + (x - this.container.clientWidth / 2) / k, lat: camera.view.lat - (y - this.container.clientHeight / 2) / k }
     }
     getCenter() {
-      return { lat: 0, lng: 0 }
+      return { lat: camera.view.lat, lng: camera.view.lng }
     }
     getZoom() {
       return camera.zoom
@@ -44,14 +69,31 @@ vi.mock("maplibre-gl", () => {
       return 0
     }
     getPitch() {
-      return 0
+      return camera.pitch
     }
-    cameraForBounds(bounds: unknown, options: { maxZoom: number }) {
+    getPadding() {
+      return camera.padding
+    }
+    /** A top-down fit about the box's middle, as MapLibre's; a map not laid out fits at the farthest zoom. */
+    cameraForBounds(bounds: [[number, number], [number, number]], options: { maxZoom: number; padding: { top: number; right: number; bottom: number; left: number } }) {
       camera.fitted = bounds
-      return { center: [0, 0], zoom: options.maxZoom }
+      camera.fitPadding = options.padding
+      const [[west, south], [east, north]] = bounds
+      const { padding } = options
+      const wide = this.container.clientWidth - padding.left - padding.right - camera.padding.left - camera.padding.right
+      const tall = this.container.clientHeight - padding.top - padding.bottom - camera.padding.top - camera.padding.bottom
+      if (wide <= 0 || tall <= 0) return { center: [0, 0], zoom: options.maxZoom }
+      const fits = Math.min(wide / Math.max(1e-9, (east - west) * 1000), tall / Math.max(1e-9, (north - south) * 1000))
+      return { center: [(west + east) / 2, (south + north) / 2], zoom: Math.min(options.maxZoom, camera.zoom + Math.log2(fits)) }
     }
-    jumpTo() {
+    jumpTo(options: { center?: [number, number] | { lng: number; lat: number }; zoom?: number }) {
       camera.moves++
+      if (options.center) {
+        const [lng, lat] = Array.isArray(options.center) ? options.center : [options.center.lng, options.center.lat]
+        camera.view.lng = lng
+        camera.view.lat = lat
+      }
+      if (options.zoom !== undefined) camera.view.zoom = options.zoom === camera.zoom ? null : options.zoom
     }
     easeTo(options: unknown) {
       camera.moves++
@@ -105,13 +147,19 @@ import { createAtlasMap } from "../map/engine"
 
 const stop = (id: string, label: string, lng: number): AtlasPin => ({ id, lat: 38.7, lng, title: `Stop ${label}`, label, variant: "stop" })
 const idea = (id: string, lng: number, title = `Idea ${id}`): AtlasPin => ({ id, lat: 38.71, lng, title, variant: "idea" })
+/** The text a pin names as its description, which must already be in the page. */
+const described = (container: HTMLElement, pin: Element) => container.querySelector(`[id="${pin.getAttribute("aria-describedby")}"]`)?.textContent
 
-function setup() {
+function setup({ overlays }: { overlays?: () => Element[] } = {}) {
   markers.length = 0
   camera.moves = 0
   camera.zoom = 16
   camera.fitted = null
+  camera.fitPadding = null
   camera.eased = null
+  camera.padding = { top: 0, right: 0, bottom: 0, left: 0 }
+  camera.pitch = 0
+  camera.view = { lng: 0, lat: 0, zoom: null }
   mapEvents.clear()
   const container = document.createElement("div")
   document.body.appendChild(container)
@@ -119,7 +167,7 @@ function setup() {
   const onSelectIdea = vi.fn()
   const onHover = vi.fn()
   const onIdeaHover = vi.fn()
-  const handle = createAtlasMap(container, { dark: false, reducedMotion: true, onSelect, onSelectIdea, onHover, onIdeaHover })
+  const handle = createAtlasMap(container, { dark: false, reducedMotion: true, onSelect, onSelectIdea, onHover, onIdeaHover, overlays })
   return { container, handle, onSelect, onSelectIdea, onHover, onIdeaHover }
 }
 
@@ -145,6 +193,20 @@ describe("the map engine's wishlist pins", () => {
     expect(onHover).not.toHaveBeenCalled()
   })
 
+  it("describes an idea from the start, and drops the description with it", () => {
+    const { container, handle } = setup()
+    handle.setIdeaPins([{ ...idea("ramen", -9.12, "Ramen Jiro"), description: "Food & cafés, Lisbon" }, idea("bare", -9.0)])
+    const pin = container.querySelector<HTMLButtonElement>('[data-idea-id="ramen"]')!
+    expect(described(container, pin)).toBe("Food & cafés, Lisbon")
+    expect(container.querySelector('[data-idea-id="bare"]')!.hasAttribute("aria-describedby")).toBe(false)
+
+    handle.setIdeaPins([{ ...idea("ramen", -9.12, "Ramen Jiro"), description: "Food & cafés, Lisbon. Rua da Rosa 1" }])
+    expect(described(container, pin)).toBe("Food & cafés, Lisbon. Rua da Rosa 1")
+    const note = pin.getAttribute("aria-describedby")!
+    handle.setIdeaPins([])
+    expect(document.getElementById(note)).toBeNull()
+  })
+
   it("reports a mouse or keyboard focus resting on an idea for its preview, and never a tap", () => {
     const { container, handle, onIdeaHover, onHover } = setup()
     handle.setIdeaPins([idea("ramen", -9.12, "Ramen Jiro")])
@@ -158,7 +220,6 @@ describe("the map engine's wishlist pins", () => {
     pin.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }))
     // A leave, not a press: the card waits a moment for the mouse to reach it.
     expect(onIdeaHover).toHaveBeenLastCalledWith(null, "leave")
-    expect(pin.getAttribute("aria-describedby")).toBe("idea-preview-ramen")
 
     pin.focus()
     expect(onIdeaHover).toHaveBeenLastCalledWith({ id: "ramen", anchor: pin, via: "focus" })
@@ -243,6 +304,50 @@ describe("the map engine's wishlist folds", () => {
     expect(offsetOf("on").dy).toBe(0)
   })
 
+  it.each([
+    // Wide: clear of the key by keeping the hearts to its left (820 - 670 + 22 from the right edge).
+    ["a wide map", 820, 820, [764, 12, 808, 173], [670, 181, 808, 217], { top: 64, right: 100, bottom: 64, left: 64 }],
+    // Narrow: that would leave a sliver, so the hearts go below the key instead (217 + 22 from the top).
+    ["a phone's map", 390, 724, [334, 12, 378, 173], [240, 181, 378, 217], { top: 167, right: 64, bottom: 64, left: 64 }],
+  ])("zooms a fold in clear of the controls and key drawn over %s", (_, width, height, controlsAt, keyAt, padding) => {
+    const box = ([left, top, right, bottom]: number[]) => () => ({ left, top, right, bottom, width: right! - left!, height: bottom! - top!, x: left, y: top }) as DOMRect
+    const controls = document.createElement("div")
+    const key = document.createElement("div")
+    controls.getBoundingClientRect = box(controlsAt)
+    key.getBoundingClientRect = box(keyAt)
+    const { container, handle } = setup({ overlays: () => [controls, key] })
+    Object.defineProperties(container, { clientWidth: { value: width }, clientHeight: { value: height } })
+    container.getBoundingClientRect = box([0, 0, width, height])
+    camera.padding = { top: 72, right: 72, bottom: 72, left: 72 }
+    camera.zoom = 11
+    handle.setIdeaPins([idea("a", -9.12), idea("b", -9.11)])
+    fold(container)!.click()
+    // Past the map's own 72 px all round.
+    expect(camera.fitPadding).toEqual(padding)
+  })
+
+  it("zooms out from the top-down fit until a tilted camera shows the hearts inside the room", () => {
+    const { container, handle } = setup()
+    Object.defineProperties(container, { clientWidth: { value: 820 }, clientHeight: { value: 820 } })
+    container.getBoundingClientRect = () => ({ left: 0, top: 0, right: 820, bottom: 820, width: 820, height: 820, x: 0, y: 0 }) as DOMRect
+    camera.zoom = 11
+    camera.pitch = 50
+    // 20 px apart at this zoom, so folded; top-down, the fit at zoom 16 puts them 640 px apart, inside the 692 px room.
+    const hearts = [{ ...idea("a", -9.12), lat: 38.7 }, { ...idea("b", -9.12), lat: 38.72 }]
+    handle.setIdeaPins(hearts)
+    fold(container)!.click()
+    const eased = camera.eased as { center: { lng: number; lat: number }; zoom: number }
+    const at = hearts.map((h) => drawn([h.lng, h.lat], 820, 820, { ...eased.center, zoom: eased.zoom }))
+    for (const { x, y } of at) {
+      expect(x).toBeGreaterThanOrEqual(64 - 1)
+      expect(x).toBeLessThanOrEqual(820 - 64 + 1)
+      expect(y).toBeGreaterThanOrEqual(64 - 1)
+      expect(y).toBeLessThanOrEqual(820 - 64 + 1)
+    }
+    // Still close: the room is used, not given away.
+    expect(Math.max(...at.map((p) => p.y)) - Math.min(...at.map((p) => p.y))).toBeGreaterThan(500)
+  })
+
   it("folds hearts that would sit on each other into one counted heart, which zooms in to them", () => {
     const { container, handle, onSelectIdea } = setup()
     camera.zoom = 11
@@ -251,7 +356,7 @@ describe("the map engine's wishlist folds", () => {
     const heart = fold(container)!
     expect(heart.getAttribute("aria-label")).toBe("2 wishlist places here: zoom in")
     expect(heart.textContent).toBe("2")
-    expect(heart.getAttribute("aria-describedby")).toBe("idea-preview-a")
+    expect(described(container, heart)).toBe("Ramen Jiro, Café Bica")
     expect(folded(container)).toEqual(["a", "b"])
 
     heart.click()

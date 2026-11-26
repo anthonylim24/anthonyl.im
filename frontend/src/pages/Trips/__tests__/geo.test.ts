@@ -238,8 +238,25 @@ describe("ideaPins", () => {
 
   it("pins every idea with a finite point, in list order, as an idea", () => {
     expect(ideaPins({ ideas })).toEqual([
-      { id: "ramen", lat: A.lat, lng: A.lng, title: "Ramen Jiro", variant: "idea" },
-      { id: "named", lat: B.lat, lng: B.lng, title: "Named place", variant: "idea" },
+      { id: "ramen", lat: A.lat, lng: A.lng, title: "Ramen Jiro", variant: "idea", description: expect.any(String) },
+      { id: "named", lat: B.lat, lng: B.lng, title: "Named place", variant: "idea", description: expect.any(String) },
+    ])
+  })
+
+  it("describes each pin as its preview card does: category, town, street", () => {
+    const gamcheon = item("g", "Gamcheon Culture Village", A, {
+      theme: "neighborhood",
+      location: { name: "Gamcheon Culture Village", address: "203 Gamnae 2-ro, Saha-gu, Busan, South Korea", lat: A.lat, lng: A.lng, source: "user" },
+    })
+    const ichiran = item("i", "ICHIRAN Shibuya", B, {
+      theme: "food",
+      location: { name: "ICHIRAN Shibuya", address: "Japan, 〒150-0041 Tokyo, Shibuya City, Jinnan, 1-chōme−22−7 岩本ビル B1F", lat: B.lat, lng: B.lng, source: "user" },
+    })
+    const bare = item("b", "Somewhere", A, { theme: "sights" })
+    expect(ideaPins({ ideas: [gamcheon, ichiran, bare] }).map((pin) => pin.description)).toEqual([
+      "Neighborhoods, Busan. 203 Gamnae 2-ro, Saha-gu",
+      "Food & cafés, Tokyo. 1-chōme−22−7 岩本ビル B1F, Jinnan",
+      "Sights & culture",
     ])
   })
 
@@ -263,6 +280,7 @@ describe("ideaPins", () => {
     expect(pinsKey(ideaPins({ ideas: [...ideas, item("more", "More", { lat: 1, lng: 1 })] }))).not.toBe(key)
     expect(pinsKey(ideaPins({ ideas: [item("ramen", "Ramen Jiro", B), ...ideas.slice(1)] }))).not.toBe(key)
     expect(pinsKey(ideaPins({ ideas: [item("ramen", "Ichiran", A), ...ideas.slice(1)] }))).not.toBe(key)
+    expect(pinsKey(ideaPins({ ideas: [item("ramen", "Ramen Jiro", A, { theme: "nightlife" }), ...ideas.slice(1)] }))).not.toBe(key)
   })
 })
 
