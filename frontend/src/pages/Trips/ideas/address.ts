@@ -71,20 +71,33 @@ function countryNames(): Set<string> {
 
 /** Whether a name, or a part of an address, is a country ("Japan", "South Korea", "대한민국"). */
 export const isCountry = (part: string) => countryNames().has(normaliseName(withoutNumbers(part)))
-/** A part that is a postcode and nothing else ("603-8361", "〒150-0041"); "1-chōme-22-7" is a street. */
-const isPostcode = (part: string) => /^〒?\s*\d[\d\s-]*$/.test(part)
+/** A part that is a number and nothing else: a house number ("88", "1-1", "1−1") or a postcode. */
+const NUMBER = /^\d+(?:[\s\-‐‑–−]\d+)*$/
+/** The shapes postcodes take alone: four digits or more ("03195", "1300-085", "10001-1234"), or Japan's "603-8361". */
+const POSTCODE = /^(?:\d{4,}(?:[\s-]\d{3,4})?|\d{3}-\d{4})$/
 
 /**
  * An address's parts street first, without the country or a part that is
  * only a postcode. Google writes some addresses country first ("Japan,
  * 〒150-0041 Tokyo, Shibuya, Jinnan, 1-chōme-22-7"): those are turned round
- * ("1-chōme-22-7, Jinnan, Shibuya, 〒150-0041 Tokyo").
+ * ("1-chōme-22-7, Jinnan, Shibuya, 〒150-0041 Tokyo"). A number alone
+ * beside the street is its house number: before it once the address is
+ * turned round ("South Korea, Seoul, Jongno-gu, Changgyeonggung-ro, 88" →
+ * "88 Changgyeonggung-ro, Jongno-gu, Seoul"), or just after it with more to
+ * come ("C/ de Mallorca, 401, L'Eixample"). Last, or further on beside the
+ * town or the country, it is a postcode when it is marked 〒 or shaped like one.
  */
 export function streetFirst(address: string | undefined): string[] {
   const parts = (address ?? "").split(",").map((part) => part.trim()).filter(Boolean)
   if (parts.length > 1 && isCountry(parts[0]!)) parts.reverse()
   while (parts.length > 0 && isCountry(parts[parts.length - 1]!)) parts.pop()
-  return parts.filter((part) => !isPostcode(part))
+  const [first, street] = parts
+  if (first !== undefined && street !== undefined && NUMBER.test(first) && !NUMBER.test(street)) parts.splice(0, 2, `${first} ${street}`)
+  return parts.filter((part, i) => {
+    if (part.startsWith("〒")) return !NUMBER.test(part.slice(1).trim())
+    const afterStreet = i === 1 && i < parts.length - 1 && !NUMBER.test(parts[0]!)
+    return afterStreet || !POSTCODE.test(part)
+  })
 }
 
 /**
