@@ -27,7 +27,6 @@ export interface OutlineQuery {
   /** The area's names to try, best first (the local name, then the English one). Each may be two names joined ("Hannam & Itaewon"). */
   names: string[]
   city: string
-  /** The area's stops. */
   stops: readonly LatLng[]
 }
 
@@ -190,7 +189,6 @@ export function createNominatimOutlines({
     held += points
   }
 
-  /** One search, after the one before it by at least `gapMs`. */
   const searchNow = async (text: string, signal?: AbortSignal): Promise<NominatimResult[]> => {
     const wait = lastAt + gapMs - now()
     if (wait > 0) await sleep(wait)
@@ -238,7 +236,6 @@ export function createNominatimOutlines({
     const key = answerKey(query)
     const known = answers.get(key)
     if (known && now() < known.until) return known.value
-    // Each neighborhood a two-name area is named for, by each of its names in turn.
     const partNames = names.map(nameParts)
     const count = Math.max(0, ...partNames.map((parts) => parts.length))
     const found: Ring[][][] = []

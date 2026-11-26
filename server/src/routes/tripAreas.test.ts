@@ -5,9 +5,6 @@ import { areaId, createNeighborhoods, type AreaModel, type NeighborhoodService }
 import { MemoryTripStore } from "../trips/store"
 import { createTripsRouter, type TripsRouterDeps } from "./trips"
 
-// GET /api/trips/:id/neighborhoods and …/:areaId/outline, through the real
-// trips router with a memory store and a fake model.
-
 const OWNER = { Authorization: "Bearer owner", "Content-Type": "application/json" }
 const VIEWER = { Authorization: "Bearer viewer", "Content-Type": "application/json" }
 const STRANGER = { Authorization: "Bearer stranger", "Content-Type": "application/json" }

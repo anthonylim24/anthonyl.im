@@ -11,17 +11,11 @@ import { foldName, nameLanguage, type PlacePhoto } from "./placeDetails"
 import { oneLine, privateLine } from "./suggestDays"
 import type { Trip } from "./types"
 
-// The Neighborhoods tab: which distinct areas a trip spends its time in.
-// One model call groups the trip's located stops into named areas; every
-// fact the model could get wrong is checked here (stop keys, duplicates,
+// Every fact the model could get wrong is checked here (stop keys, duplicates,
 // a stop claimed twice, a stop far from the rest of its area), and nothing
 // it says about where things are is used: the centre and reach of an area
-// come from its member stops. Nothing is written to the trip. The grouping
-// is kept per trip in memory and carried over as the trip changes: a stop
-// removed leaves its area, a stop added or moved inside an area's drawn
-// shape joins it, and only a stop outside every area asks the model again
-// (one grouping at a time per trip). Photos and outlines have their own
-// lookups and caches (`areaPhotos.ts`, `areaOutline.ts`).
+// come from its member stops. Nothing is written to the trip; the grouping
+// is kept per trip in memory, one model call at a time per trip.
 //
 // As in `suggestDays.ts`, the traveller's text sits in one nonce-marked data
 // block, every line of it loses booking codes and phone numbers first, stops are
@@ -55,7 +49,6 @@ export interface AreaStop {
   lng: number
   /** 1-based day number. */
   day: number
-  /** The day's city, when the plan says. */
   city?: string
   /** Never sent to the model: they pick the stop whose photo can stand in for its area (`areaPhotos.ts`). */
   category?: string
@@ -108,11 +101,8 @@ export class UnknownAreaError extends Error {
   }
 }
 
-// ── The stops ──────────────────────────────────────────────────────────────
-
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value)
 
-/** Every stop on a day with a point, skipped ones left out, in trip order. */
 export function areaStops(trip: Pick<Trip, "days">): AreaStop[] {
   const out: AreaStop[] = []
   trip.days.forEach((day, index) => {
@@ -163,8 +153,6 @@ export function withoutStrays<T extends LatLng>(members: readonly T[]): T[] {
   return members.filter((_, i) => reach[i]! <= limit)
 }
 
-// ── Which area holds a stop ────────────────────────────────────────────────
-//
 // An area's shape is the one the map draws when OpenStreetMap has no
 // boundary (`areaHull` in the client's `map/geo.ts`): the convex hull of its
 // stops widened by 250 to 600 m. A stop inside that shape is in the area.
@@ -241,8 +229,6 @@ export function areaHolding(point: LatLng, areas: ReadonlyArray<readonly LatLng[
   return best
 }
 
-// ── The model ──────────────────────────────────────────────────────────────
-
 export interface AreaPrompt {
   system: string
   user: string
@@ -250,7 +236,6 @@ export interface AreaPrompt {
   stopKeys: string[]
 }
 
-/** One model behind the grouping: the prompt in, raw text out. Injected in tests. */
 export type AreaModel = (prompt: AreaPrompt, signal: AbortSignal) => Promise<string>
 
 export const AREAS_SYSTEM = [
@@ -268,7 +253,6 @@ export const AREAS_SYSTEM = [
   "List the areas in the order the trip first reaches them.",
 ].join("\n")
 
-/** The prompt: the trip's destinations, each day's city and hints, and the stops, all inside one data block. */
 export function areasPrompt(trip: Pick<Trip, "name" | "destinations" | "days">, stops: readonly AreaStop[], nonce: string): AreaPrompt {
   const data = {
     trip: { name: privateLine(trip.name, 120), destinations: trip.destinations.slice(0, 12).map((d) => privateLine(d, 80)) },
@@ -298,7 +282,6 @@ export function areasPrompt(trip: Pick<Trip, "name" | "destinations" | "days">, 
   }
 }
 
-/** Gemini structured output: only these keys, only this shape. */
 export function areasResponseSchema(stopKeys: readonly string[]) {
   return {
     type: "OBJECT",
@@ -489,9 +472,6 @@ export function createGroqAreaModel(apiKey: string): AreaModel {
   }
 }
 
-// ── Keeping a grouping as the trip changes ─────────────────────────────────
-
-/** A grouping and the stops it was made for. */
 export interface Grouping {
   /** `stopsHash` of the stops. */
   hash: string
@@ -563,8 +543,6 @@ export function keepFamiliar(next: readonly AreaGroup[], previous: readonly Area
   })
 }
 
-// ── The service ────────────────────────────────────────────────────────────
-
 /** `list`'s answer: the areas, or word that the model is still at it (ask again shortly). */
 export type AreasAnswer = { areas: Neighborhood[] } | { pending: true }
 
@@ -591,7 +569,6 @@ export interface NeighborhoodService {
   outline(trip: Trip, areaId: string, signal?: AbortSignal): Promise<OutlineGeometry | null>
 }
 
-/** One trip's grouping, and the model call that is making its next one. */
 interface TripSlot {
   grouping: Grouping | null
   /** Counts writes of `grouping`: a job keeps its answer only when nothing was written after it started. */
@@ -767,7 +744,7 @@ export function createNeighborhoods(opts: {
 /** One for the whole process: Nominatim allows one request a second from a server, however many routers it runs. */
 let sharedOutlines: AreaOutlineLookup | null = null
 
-/** The service the server runs: Gemini, then Groq; Google photos with a Maps key; OpenStreetMap outlines. Null without a model key. */
+/** Null without a model key. */
 export function createNeighborhoodsFromKeys(keys: {
   geminiApiKey?: string | null
   groqApiKey?: string | null

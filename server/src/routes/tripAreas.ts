@@ -3,12 +3,9 @@ import { consumeRateLimit, createRateLimit, rateLimitsOff, userOrClientKey } fro
 import { GroupingLimitError, UnknownAreaError, type NeighborhoodService } from "../trips/neighborhoods"
 import type { Trip, TripAccess } from "../trips/types"
 
-// GET /api/trips/:id/neighborhoods — the distinct areas the trip spends time
-// in, for the Neighborhoods tab. Grouping a long trip takes the model up to a
-// minute, longer than a proxy keeps a quiet request open, so a grouping not
-// ready in `waitMs` answers 202 and the client asks again; the work carries
-// on and is cached. GET /api/trips/:id/neighborhoods/:areaId/outline — that
-// area's real outline, or null. Nothing is written to the trip. Registered on
+// Grouping a long trip takes the model up to a minute, longer than a proxy
+// keeps a quiet request open, so a grouping not ready in `waitMs` answers 202
+// and the client asks again; the work carries on and is cached. Registered on
 // the trips router, so the Clerk gate and the router's own rate limit run first.
 
 type Loaded = { trip: Trip; access: TripAccess } | { error: Response }
@@ -28,7 +25,6 @@ export interface AreaRoutesDeps {
   outlineMs?: number
 }
 
-/** `areaId`'s shape (`a-` and ten base64url characters). */
 const AREA_ID = /^a-[A-Za-z0-9_-]{10}$/
 /** Well inside a reverse proxy's 60 s idle timeout, with room for photos. */
 const WAIT_MS = 20_000
@@ -45,7 +41,7 @@ const GROUPING_WINDOW_MS = 10 * 60_000
 export function registerAreaRoutes(trips: Hono, deps: AreaRoutesDeps): void {
   // A poll every few seconds while a grouping runs, and one per open of the tab.
   const limit = deps.rateLimit ?? createRateLimit({ windowMs: 10 * 60_000, max: 120, keyPrefix: "trips-areas", key: userOrClientKey })
-  // Each outline can mean two Nominatim searches, which the whole server shares at one a second.
+  // Each outline can mean up to four Nominatim searches, which the whole server shares at one a second.
   const outlineLimit =
     deps.outlineRateLimit ?? createRateLimit({ windowMs: 10 * 60_000, max: 40, keyPrefix: "trips-area-outline", key: userOrClientKey })
   const mayStart =

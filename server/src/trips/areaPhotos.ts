@@ -2,10 +2,6 @@ import { haversineMeters } from "../data/koreaPlaces"
 import type { LatLng } from "./conciergeTools"
 import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausibleName, sameName, toPlacePhoto, type PlacePhoto, type RawDetails } from "./placeDetails"
 
-// A photo for a neighborhood's card in the Neighborhoods tab: Google Places
-// Text Search for "<area>, <city>", the first hit that is an area near the
-// trip's stops there, and its first photo with its credit.
-//
 // The search often answers a landmark that shares the area's name ("Dosan,
 // Seoul" is Dosan Park, "Bukchon, Seoul" is Bukchon Hanok Village; measured),
 // so a hit counts only when Google files it as a neighborhood or a part of
@@ -16,7 +12,6 @@ import { foldName, MATCH_RADIUS_M, nameLanguage, PHOTO_NAME, PLACE_ID, plausible
 // the `X-Goog-Api-Key` header, redirects are refused, and photo media is
 // asked for with `skipHttpRedirect=true`, which answers a keyless `photoUri`.
 
-/** One of the area's stops, as far as picking and finding a stand-in photo needs. */
 export interface PhotoStop extends LatLng {
   name: string
   category?: string
@@ -131,7 +126,6 @@ export function standInStop<T extends PhotoStop>(stops: readonly T[]): T | null 
   return best
 }
 
-/** A bounded map whose entries lapse; the oldest goes first when full. */
 function lapsing<T>(max: number, now: () => number) {
   const entries = new Map<string, { until: number; value: T }>()
   return {
@@ -201,7 +195,6 @@ export function createGoogleAreaPhotos(
   }
 
   const areaPlace = async (query: AreaPhotoQuery): Promise<RawAreaPlace | null> => {
-    // Each part of a two-name area, in English first, then its local name.
     const texts = [...nameParts(query.name), ...(query.localName ? nameParts(query.localName) : [])]
     for (const text of new Set(texts)) {
       const places = await searchText(`${text}, ${query.city}`.replace(/,\s*$/, ""), nameLanguage(text, query.centre), query.centre, Math.min(50_000, Math.max(2_000, query.reachM * 2)))
@@ -211,7 +204,6 @@ export function createGoogleAreaPhotos(
     return null
   }
 
-  /** The stop itself: by its place id when it has one, else a plausible hit for its name near it, or one with its very name a little further. */
   const stopPlace = async (stop: PhotoStop): Promise<RawAreaPlace | null> => {
     if (stop.placeId && PLACE_ID.test(stop.placeId)) {
       const res = await call(`https://places.googleapis.com/v1/places/${encodeURIComponent(stop.placeId)}`, {

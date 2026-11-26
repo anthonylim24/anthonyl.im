@@ -34,7 +34,6 @@ const place = (id: string, name: string, lat: number, lng: number, extra: Partia
 
 const day = (id: string, items: ItineraryItem[], extra: Partial<TripDay> = {}): TripDay => ({ id, date: "2026-12-01", items, ...extra })
 
-// Seongsu, Hannam and one stop in Busan.
 const SEONGSU = [place("cafe", "Cafe Onion", 37.5447, 127.0581), place("forest", "Seoul Forest", 37.5444, 127.0374), place("haus", "Haus Nowhere", 37.5451, 127.0559)]
 const HANNAM = [place("leeum", "Leeum Museum", 37.5384, 126.9993), place("recto", "Recto", 37.5352, 127.0006)]
 const BUSAN = place("beach", "Haeundae Beach", 35.1587, 129.1604)
@@ -222,7 +221,6 @@ function counting(raw: string | (() => Promise<string>)): AreaModel & { calls: A
   return model
 }
 
-/** TRIP with `change` applied to its items. */
 const edited = (change: (items: ItineraryItem[], dayIndex: number) => ItineraryItem[], trip: Trip = TRIP) =>
   makeTrip(trip.days.map((d, i) => ({ ...d, items: change(d.items, i) })))
 const areasOf = (answered: Awaited<ReturnType<ReturnType<typeof createNeighborhoods>["list"]>>) =>

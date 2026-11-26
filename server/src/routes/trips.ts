@@ -710,9 +710,8 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     })
   })
 
-  // Stop: the traveller no longer wants this review. Answers with the run as
-  // it ended: failed (nothing added), complete (it finished first), or still
-  // running when this process could not stop it.
+  // Answers with the run as it ended: failed (nothing added), complete (it
+  // finished first), or still running when this process could not stop it.
   trips.post("/:id/enhancements/:runId/cancel", async (c) => {
     const result = await loadTrip(c, c.req.param("id"), true)
     if ("error" in result) return result.error
