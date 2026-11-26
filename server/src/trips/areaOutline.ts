@@ -1,5 +1,5 @@
 import { haversineMeters } from "../data/koreaPlaces"
-import { nameParts } from "./areaPhotos"
+import { MAX_NAME_PARTS, nameParts } from "./areaPhotos"
 import type { LatLng } from "./conciergeTools"
 import { foldName } from "./placeDetails"
 
@@ -49,6 +49,10 @@ export const MAX_VERTICES = 5_000
 export const MAX_DIAGONAL_M = 30_000
 /** One second between requests, with room for clock jitter. */
 export const NOMINATIM_GAP_MS = 1_100
+/** The names a lookup tries: the local one, then the English one. */
+const MAX_NAMES = 2
+/** Nominatim searches one lookup makes at most: every part of every name, when none is accepted. */
+export const MAX_OUTLINE_SEARCHES = MAX_NAMES * MAX_NAME_PARTS
 /** Past this many waiting, a new request gives up at once: it would not be answered in time. */
 const MAX_QUEUED = 6
 const REQUEST_MS = 6_000
@@ -236,7 +240,7 @@ export function createNominatimOutlines({
     const key = answerKey(query)
     const known = answers.get(key)
     if (known && now() < known.until) return known.value
-    const partNames = names.map(nameParts)
+    const partNames = names.slice(0, MAX_NAMES).map(nameParts)
     const count = Math.max(0, ...partNames.map((parts) => parts.length))
     const found: Ring[][][] = []
     for (let i = 0; i < count; i++) {

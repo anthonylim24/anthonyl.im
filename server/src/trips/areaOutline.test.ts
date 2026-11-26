@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { acceptablePart, createNominatimOutlines, inPolygons, joinParts, NOMINATIM_GAP_MS, type NominatimResult } from "./areaOutline"
+import { acceptablePart, createNominatimOutlines, inPolygons, joinParts, MAX_OUTLINE_SEARCHES, NOMINATIM_GAP_MS, type NominatimResult } from "./areaOutline"
 
 /** A square ring around a point, `d` degrees each way. */
 const square = (lat: number, lng: number, d: number) => [
@@ -150,6 +150,14 @@ describe("createNominatimOutlines", () => {
     await expect(lookup(failing)).rejects.toThrow("nominatim 503")
     await expect(lookup(failing)).rejects.toThrow("nominatim 503")
     expect(osm.calls.filter((call) => call.q === "Hannam, Seoul")).toHaveLength(2)
+  })
+
+  test("makes at most MAX_OUTLINE_SEARCHES searches, the figure the route's rate limit is sized by", async () => {
+    const osm = fakeNominatim({})
+    const lookup = createNominatimOutlines(osm)
+    expect(await lookup({ names: ["한남동 & 이태원동 & 용산동", "Hannam & Itaewon", "Yongsan"], city: "Seoul", stops: CHEONGDAM_STOPS })).toBeNull()
+    expect(osm.calls.map((call) => call.q)).toEqual(["한남동, Seoul", "Hannam, Seoul", "이태원동, Seoul", "Itaewon, Seoul"])
+    expect(osm.calls).toHaveLength(MAX_OUTLINE_SEARCHES)
   })
 
   test("joins the outlines of both neighborhoods an area is named for", async () => {
